@@ -1,0 +1,15 @@
+# Android / Gradle
+.gradle/
+build/
+*/build/
+local.properties
+*.iml
+.idea/
+.cxx/
+.externalNativeBuild/
+
+# media3-m2 поставляется CI/вручную (форк media3-lmg)
+media3-m2/
+
+# OS
+.DS_Store
