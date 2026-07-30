@@ -1,0 +1,568 @@
+package com.lmg.vk.ui.screens
+
+import android.graphics.RuntimeShader
+import android.os.Build
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.withInfiniteAnimationFrameMillis
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.State
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.ShaderBrush
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipRect
+import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.lmg.vk.ui.glass.AlbumColors
+import com.lmg.vk.ui.theme.AppFontFamily
+import kotlin.math.PI
+import kotlin.math.cos
+import kotlin.math.sin
+
+/** Узор плитки — у каждого муда свой. */
+enum class MoodPattern { WAVES, DIAGONALS, CIRCLES, BLOBS, DOTS, RINGS }
+
+/**
+ * Мудовая плитка «Моей волны»: подпись, пара цветов для перелива, свой узор.
+ */
+data class WaveMood(
+    val label: String,
+    val colorA: Color,
+    val colorB: Color,
+    val pattern: MoodPattern,
+    /** Поисковый запрос для seed-трека станции этого настроения. */
+    val query: String
+)
+
+val WAVE_MOODS = listOf(
+    WaveMood("Progressive house", Color(0xFF3B6FE0), Color(0xFF7B5BFF), MoodPattern.WAVES, "progressive house"),
+    WaveMood("Summer running", Color(0xFF2FB24A), Color(0xFFB6E05A), MoodPattern.DIAGONALS, "running workout pop"),
+    WaveMood("Calm evening", Color(0xFF12808C), Color(0xFF36C6C0), MoodPattern.CIRCLES, "calm chill evening"),
+    WaveMood("Feeling indie", Color(0xFF7A4BE0), Color(0xFFE05BD0), MoodPattern.BLOBS, "indie"),
+    WaveMood("On the road", Color(0xFFE07B2F), Color(0xFFF5C24B), MoodPattern.DOTS, "road trip rock"),
+    WaveMood("Dancefloor", Color(0xFFE0405F), Color(0xFFFF7AB0), MoodPattern.RINGS, "dance edm hits"),
+)
+
+// Прямоугольные карточки (ландшафт): ниже квадратных — главный экран Wave
+// целиком помещается без скролла.
+private const val TILE_W_DP = 200
+private const val TILE_H_DP = 116
+private const val TILE_CORNER_DP = 30
+private const val TAU = (2.0 * PI).toFloat()
+
+// Скорость медленного «дыхания» узора (доля фазы 0..1 в секунду).
+private const val PATTERN_SPEED = 0.07f
+
+// ── Отложенный прогрев AGSL-плиток (НЕ деградация) ──
+// Первые кадры экрана плитки рисуют ДЕШЁВЫМ статичным градиентом (никаких
+// RuntimeShader), чтобы холодный старт не давил GPU. Затем каждая ВИДИМАЯ плитка
+// включает свой шейдер ПО ОЧЕРЕДИ — отсчёт ведётся в РЕАЛЬНО отрисованных кадрах
+// (withFrameNanos), поэтому тяжёлая линковка AGSL-программы ложится на отдельный
+// кадр уже ПОСЛЕ стартового шторма, по одной плитке за раз. Эффект включается и
+// работает ПОСТОЯННО (не пропадает, не зависит от FPS-деградации).
+private const val TILE_WARMUP_FRAMES = 30  // ~0.5с отрисованных кадров до 1-й плитки
+private const val TILE_STAGGER_FRAMES = 6  // +~0.1с (кадров) на каждую следующую
+
+/**
+ * AGSL-шейдер плитки: медленный перелив между двумя цветами муда (домен-варп
+ * шумом) + лёгкий шумовой слой для ГЛУБИНЫ/бликов. Всё на GPU — недорого даже
+ * для нескольких плиток в ряду. API 33+; ниже — CPU-градиент-фолбэк.
+ */
+private const val TILE_AGSL = """
+uniform float2 uResolution;
+uniform float  uTime;
+uniform half3  uColorA;
+uniform half3  uColorB;
+
+// Interleaved Gradient Noise — per-pixel (без ячеек): дизер + мелкое зерно.
+float ign(float2 p) {
+    return fract(52.9829189 * fract(dot(p, float2(0.06711056, 0.00583715))));
+}
+
+half4 main(float2 fragCoord) {
+    float2 uv = fragCoord / uResolution;
+    float t = uTime * 0.12;                       // медленно, «дышаще»
+
+    // Плавный диагональный перелив ТОЛЬКО на синусах — без value-noise.
+    // value-noise при низкой частоте даёт видимую сетку ячеек (блочные пятна),
+    // поэтому в цвет его не подмешиваем.
+    float g = uv.x * 0.55 + uv.y * 0.45;
+    float flow = 0.16 * sin(t + g * 3.2) + 0.09 * sin(t * 0.7 + (uv.x - uv.y) * 4.5);
+    float mixf = clamp(g + flow, 0.0, 1.0);
+    float3 col = mix(float3(uColorA), float3(uColorB), mixf);
+
+    // мелкое per-pixel зерно (глубина) — без ячеек, не блочит
+    col += (ign(fragCoord * 1.3 + 7.0) - 0.5) * 0.02;
+    // IGN-дизер ~2.5 LSB — добивает 8-битную ступенчатость градиента
+    col += (ign(fragCoord) - 0.5) * (2.5 / 255.0);
+
+    return half4(half3(col), 1.0);
+}
+"""
+
+/**
+ * Горизонтальный ряд крупных мудовых карточек: прямоугольники с СИЛЬНО
+ * скруглёнными углами, внутри — AGSL-перелив + узор.
+ *
+ * [albumColors] — палитра обложки ТЕКУЩЕГО трека (та же, из которой рисуется
+ * аура-дым фона): цвета плиток мягко подтягиваются к ней, поэтому карточки
+ * сочетаются с фоном и дымом под каждую музыку. null (нет трека) — свои цвета.
+ *
+ * Анимируются только ВИДИМЫЕ плитки: LazyRow уничтожает элементы за вьюпортом,
+ * поэтому их drawBehind не вызывается; время — один общий кадровый клок.
+ */
+@Composable
+fun WaveMoodTiles(
+    onSelect: (WaveMood) -> Unit,
+    modifier: Modifier = Modifier,
+    animate: Boolean = true,
+    playing: Boolean = false,
+    albumColors: AlbumColors? = null,
+    /** Сглаженный бас 0..1 — кромка карточек слегка пульсирует в такт (стриминг). */
+    bassLevel: State<Float>? = null,
+    /** Long-press по карточке — предпросмотр станции (диалог рисует вызывающий). */
+    onPreview: (WaveMood) -> Unit = {}
+) {
+    // Единый кадровый клок (секунды). Один на весь ряд — не плодим корутины.
+    // Замораживается, когда Home перекрыт оверлеем (см. AuraBackground): меньше
+    // нагрузки на RenderThread при переходах. На lite-устройствах публикуем
+    // через кадр (~30 Гц) — узоры/переливы медленные, разницы не видно, а
+    // перерисовка всех видимых плиток вдвое дешевле.
+    val liteTier = com.lmg.vk.ui.DeviceTier.lite
+    val timeSec = produceState(0f, animate, playing) {
+        if (!animate || !playing) return@produceState
+        var skip = false
+        while (true) {
+            withInfiniteAnimationFrameMillis {
+                if (!liteTier || !skip) value = it / 1000f
+                skip = !skip
+            }
+        }
+    }
+
+    LazyRow(
+        modifier = modifier,
+        contentPadding = PaddingValues(horizontal = 20.dp),
+        horizontalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        itemsIndexed(WAVE_MOODS, key = { _, m -> m.label }) { index, mood ->
+            // Тинт под текущий трек: тянем цвета муда к vibrant/lightVibrant
+            // обложки (доля 0.42 — идентичность муда сохраняется, но вся линейка
+            // карточек уходит в цветовую семью ауры). Смена трека — плавный перелив.
+            // Без трека — цвета мудов, чуть приглушённые к нейтральному тёмному:
+            // экран без музыки спокойнее и «приглашает» нажать Play.
+            val targetA = albumColors?.let { lerp(mood.colorA, it.vibrant, 0.42f) }
+                ?: lerp(mood.colorA, IdleMuted, 0.30f)
+            val targetB = albumColors?.let { lerp(mood.colorB, it.lightVibrant, 0.42f) }
+                ?: lerp(mood.colorB, IdleMuted, 0.30f)
+            val tintA by animateColorAsState(targetA, tween(900), label = "moodTintA")
+            val tintB by animateColorAsState(targetB, tween(900), label = "moodTintB")
+            MoodTile(
+                mood = mood,
+                colorA = tintA,
+                colorB = tintB,
+                timeSec = timeSec,
+                seed = index * 1.7f,
+                index = index,
+                bassLevel = bassLevel,
+                onClick = { onSelect(mood) },
+                onLongClick = { onPreview(mood) }
+            )
+        }
+    }
+}
+
+// Нейтральный тёмный тон для idle-приглушения карточек (нет играющего трека).
+private val IdleMuted = Color(0xFF20222B)
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun MoodTile(
+    mood: WaveMood,
+    colorA: Color,
+    colorB: Color,
+    timeSec: State<Float>,
+    seed: Float,
+    index: Int,
+    bassLevel: State<Float>?,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit
+) {
+    // AGSL включаем НЕ на первом кадре, а со СТАГГЕРОМ по индексу в РЕАЛЬНО
+    // отрисованных кадрах — чтобы линковка AGSL-программ легла на разные кадры уже
+    // после стартового прогрева. Это отложенный старт, а НЕ FPS-деградация: однажды
+    // включившись, плитка остаётся с шейдером (эффект не пропадает).
+    val canShader = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+
+    // Энергосбережение: AGSL-плитка → статичный градиент (легче, не выключаем).
+    val powerSave = com.lmg.vk.ui.PowerSaveMonitor.active
+
+    // epoch меняется при возврате из фона → сбрасываем арминг и пере-прогреваем,
+    // создавая НОВЫЙ RuntimeShader (старый теряет GPU-контекст после onStop).
+    val epoch = com.lmg.vk.ui.EffectsLifecycle.epoch
+    var shaderArmed by remember { mutableStateOf(false) }
+    LaunchedEffect(index, epoch) {
+        shaderArmed = false
+        if (!canShader) return@LaunchedEffect
+        // Ждём N отрисованных кадров (+ стаггер по индексу), затем включаем шейдер.
+        // LazyRow держит в композиции только видимые плитки → таймеры идут лишь для них.
+        repeat(TILE_WARMUP_FRAMES + index * TILE_STAGGER_FRAMES) { withFrameNanos { } }
+        shaderArmed = true
+    }
+
+    val shader = remember(mood, shaderArmed, epoch) {
+        if (shaderArmed && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            RuntimeShader(TILE_AGSL)
+        } else null
+    }
+    val shaderBrush = remember(shader) { shader?.let { ShaderBrush(it) } }
+
+    Box(
+        modifier = Modifier
+            .size(TILE_W_DP.dp, TILE_H_DP.dp)
+            // Прямоугольные карточки с сильным скруглением углов. Клип обрезает
+            // ВСЁ рисование по форме карточки — ничего не «вытекает» за плитку
+            // (дымные ореолы без клипа рисовались ниже ряда и давали артефакты).
+            .clip(RoundedCornerShape(TILE_CORNER_DP.dp))
+            .combinedClickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick,
+                onLongClick = onLongClick
+            )
+            .drawBehind {
+                if (shader != null && shaderBrush != null && !powerSave) {
+                    // AGSL активна (плитка прогрелась). Клок читаем ТОЛЬКО здесь —
+                    // статичные плитки не инвалидируются каждый кадр.
+                    val ts = timeSec.value
+                    val patternPhase = ((ts * PATTERN_SPEED) + seed * 0.13f) % 1f
+                    shader.setFloatUniform("uResolution", size.width, size.height)
+                    shader.setFloatUniform("uTime", ts + seed)       // сдвиг фазы у каждой плитки
+                    // Цвета уже тинтованы под палитру обложки текущего трека —
+                    // карточки сочетаются с аурой-дымом фона.
+                    shader.setFloatUniform("uColorA", colorA.red, colorA.green, colorA.blue)
+                    shader.setFloatUniform("uColorB", colorB.red, colorB.green, colorB.blue)
+                    drawRect(shaderBrush)
+
+                    // ── узор (path-тяжёлый) — рисуем только когда шейдер активен ──
+                    clipRect {
+                        val a = colorB
+                        when (mood.pattern) {
+                            MoodPattern.WAVES -> drawWaves(patternPhase, size.width, size.height, a)
+                            MoodPattern.DIAGONALS -> drawDiagonals(patternPhase, size.width, size.height, a)
+                            MoodPattern.CIRCLES -> drawCircles(patternPhase, size.width, size.height, a)
+                            MoodPattern.BLOBS -> drawBlobs(patternPhase, size.width, size.height, a)
+                            MoodPattern.DOTS -> drawDots(patternPhase, size.width, size.height, a)
+                            MoodPattern.RINGS -> drawRings(patternPhase, size.width, size.height, a)
+                        }
+                    }
+                } else {
+                    // Прогрев (шейдер ещё не включён) / <API33 — ДЕШЁВЫЙ статичный
+                    // градиент. Клок НЕ читаем → плитка не перерисовывается каждый кадр.
+                    drawRect(
+                        Brush.linearGradient(
+                            colors = listOf(colorA, colorB),
+                            start = Offset.Zero,
+                            end = Offset(size.width, size.height)
+                        )
+                    )
+                }
+
+                // ── мягкий scrim к низу для читаемости подписи (всегда) ──
+                drawRect(
+                    Brush.verticalGradient(
+                        0.45f to Color.Transparent,
+                        1.0f to Color.Black.copy(alpha = 0.35f)
+                    )
+                )
+
+                // ── кромка слегка светится в такт басу (только когда шейдер уже
+                // активен — плитка и так перерисовывается каждый кадр; на паузе
+                // bass-продюсер остановлен и лишних инвалидаций нет) ──
+                if (shader != null && shaderBrush != null && !powerSave && bassLevel != null) {
+                    drawRoundRect(
+                        color = colorB.copy(alpha = 0.05f + 0.20f * bassLevel.value.coerceIn(0f, 1f)),
+                        cornerRadius = CornerRadius(TILE_CORNER_DP.dp.toPx()),
+                        style = Stroke(width = 2.dp.toPx())
+                    )
+                }
+            }
+            .padding(18.dp)
+    ) {
+        Text(
+            text = mood.label,
+            color = Color.White,
+            fontSize = 18.sp,
+            fontWeight = FontWeight.Black,
+            fontFamily = AppFontFamily,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.align(Alignment.BottomStart)
+        )
+    }
+}
+
+/** Мягкое светящееся пятно (радиальный градиент → прозрачность). */
+private fun DrawScope.softGlow(center: Offset, radius: Float, color: Color, alpha: Float) {
+    if (radius <= 0f) return
+    drawCircle(
+        brush = Brush.radialGradient(
+            colors = listOf(color.copy(alpha = alpha), Color.Transparent),
+            center = center,
+            radius = radius
+        ),
+        radius = radius,
+        center = center
+    )
+}
+
+// ── WAVES: слоёные текучие волны со свечением (glow-обводка + яркое ядро) ──
+private fun DrawScope.drawWaves(p: Float, w: Float, h: Float, accent: Color) {
+    val rows = 8
+    for (k in 0 until rows) {
+        val yBase = h * (0.06f + k * 0.122f)
+        val amp = h * (0.045f + 0.02f * sin(k * 1.3f))
+        val freq = 1.3f + k * 0.18f
+        val phaseShift = p * TAU * (if (k % 2 == 0) 1f else -1f) + k * 0.7f
+        val path = Path()
+        path.moveTo(0f, yBase)
+        var x = 0f
+        while (x <= w) {
+            val y = yBase + amp * sin(phaseShift + x / w * TAU * freq)
+            path.lineTo(x, y)
+            x += w / 48f
+        }
+        val col = if (k % 2 == 0) Color.White else accent
+        drawPath(path, col.copy(alpha = 0.05f), style = Stroke(width = 12f))  // glow
+        drawPath(path, col.copy(alpha = 0.20f), style = Stroke(width = 2.2f)) // ядро
+    }
+    // Тонкие встречные волны-«рябь» (другой ритм) — для насыщенности.
+    for (k in 0 until 3) {
+        val yBase = h * (0.22f + k * 0.28f)
+        val path = Path(); path.moveTo(0f, yBase)
+        var x = 0f
+        while (x <= w) {
+            val y = yBase + h * 0.02f * sin(-p * TAU * 1.6f + x / w * TAU * (3.4f + k))
+            path.lineTo(x, y); x += w / 56f
+        }
+        drawPath(path, Color.White.copy(alpha = 0.10f), style = Stroke(width = 1.3f))
+    }
+    // Световые блики на гребне верхней волны.
+    for (i in 0 until 5) {
+        val fx = w * (0.12f + i * 0.19f)
+        val fy = h * 0.06f + h * 0.045f * sin(p * TAU + i * 0.9f)
+        softGlow(Offset(fx, fy), w * 0.045f, Color.White, 0.40f)
+    }
+}
+
+// ── DIAGONALS: мягкие диагональные лучи света (широкие размытые полосы, не «штрихкод») ──
+private fun DrawScope.drawDiagonals(p: Float, w: Float, h: Float, accent: Color) {
+    rotate(degrees = -32f, pivot = Offset(w / 2f, h / 2f)) {
+        val count = 5
+        val band = w * 0.42f
+        val travel = w * 2.4f
+        for (i in -1..count) {
+            val cx = ((i + p) / count) * travel - w * 0.7f
+            val col = if (i % 2 == 0) Color.White else accent
+            drawRect(
+                brush = Brush.horizontalGradient(
+                    0f to Color.Transparent,
+                    0.5f to col.copy(alpha = 0.08f),
+                    1f to Color.Transparent,
+                    startX = cx - band / 2f,
+                    endX = cx + band / 2f
+                ),
+                topLeft = Offset(cx - band / 2f, -h),
+                size = Size(band, h * 3f)
+            )
+        }
+        // Яркие тонкие линии-лучи между полосами.
+        val n2 = 8
+        for (i in 0..n2) {
+            val x = ((i + p) / n2) * travel - w * 0.7f
+            drawLine(
+                Color.White.copy(alpha = 0.12f),
+                start = Offset(x, -h), end = Offset(x, h * 2f), strokeWidth = 1.4f
+            )
+        }
+    }
+    // Встречная штриховка (другой угол) — для «сетчатой» насыщенности.
+    rotate(degrees = 26f, pivot = Offset(w / 2f, h / 2f)) {
+        for (i in 0..6) {
+            val x = ((i - p) / 6f) * (w * 2.2f) - w * 0.6f
+            drawLine(accent.copy(alpha = 0.10f), Offset(x, -h), Offset(x, h * 2f), strokeWidth = 1.2f)
+        }
+    }
+}
+
+// ── CIRCLES: рябь по воде — расходящиеся кольца со свечением + мягкое ядро ──
+private fun DrawScope.drawCircles(p: Float, w: Float, h: Float, accent: Color) {
+    val c = Offset(w * 0.74f, h * 0.26f)
+    val maxR = w * 1.15f
+    val n = 7
+    for (i in 0 until n) {
+        val frac = ((i.toFloat() / n) + p) % 1f
+        val r = frac * maxR
+        val fade = (1f - frac)
+        val col = if (i % 2 == 0) Color.White else accent
+        drawCircle(col.copy(alpha = fade * 0.16f), radius = r, center = c, style = Stroke(width = 2.5f + fade * 4f))
+    }
+    softGlow(c, w * 0.30f, Color.White, 0.12f)
+
+    // Второй центр ряби (снизу-слева) — в противофазе.
+    val c2 = Offset(w * 0.22f, h * 0.82f)
+    val n2 = 5
+    for (i in 0 until n2) {
+        val frac = ((i.toFloat() / n2) + p + 0.5f) % 1f
+        val r = frac * w * 0.85f
+        val fade = (1f - frac)
+        drawCircle(accent.copy(alpha = fade * 0.16f), radius = r, center = c2, style = Stroke(width = 2f + fade * 3.5f))
+    }
+    softGlow(c2, w * 0.18f, accent, 0.12f)
+    // Рассеянные мелкие капли-блики.
+    for (i in 0 until 5) {
+        val a = (p + i * 0.21f) * TAU
+        val sx = w * (0.30f + 0.12f * i) + w * 0.05f * cos(a)
+        val sy = h * (0.45f + 0.05f * i) + h * 0.05f * sin(a * 1.3f)
+        softGlow(Offset(sx, sy), w * 0.03f, Color.White, 0.35f)
+    }
+}
+
+// ── BLOBS: слоёные дрейфующие световые сгустки + мелкие яркие блики ──
+private fun DrawScope.drawBlobs(p: Float, w: Float, h: Float, accent: Color) {
+    fun blob(seed: Float, bx: Float, by: Float, rad: Float, color: Color, alpha: Float) {
+        val a = (p + seed) * TAU
+        val cx = w * bx + w * 0.12f * cos(a)
+        val cy = h * by + h * 0.12f * sin(a * 1.1f)
+        softGlow(Offset(cx, cy), w * rad, color, alpha)
+    }
+    blob(0.00f, 0.30f, 0.34f, 0.46f, Color.White, 0.16f)
+    blob(0.33f, 0.72f, 0.52f, 0.40f, accent, 0.24f)
+    blob(0.66f, 0.46f, 0.80f, 0.34f, Color.White, 0.12f)
+    // ещё пара дрейфующих сгустков — насыщеннее
+    blob(0.18f, 0.62f, 0.22f, 0.26f, accent, 0.18f)
+    blob(0.50f, 0.18f, 0.62f, 0.22f, Color.White, 0.10f)
+    // мелкие яркие блики
+    for (i in 0 until 5) {
+        val a = (p * (1f + i * 0.3f) + i * 0.4f) * TAU
+        val cx = w * (0.18f + 0.18f * i) + w * 0.06f * cos(a)
+        val cy = h * (0.28f + 0.14f * i) + h * 0.06f * sin(a)
+        softGlow(Offset(cx, cy), w * 0.06f, Color.White, 0.5f)
+    }
+    // светящаяся дуга, связывающая сгустки
+    val arc = Path()
+    arc.moveTo(w * 0.2f, h * 0.4f)
+    arc.quadraticBezierTo(
+        w * (0.5f + 0.06f * sin(p * TAU)), h * 0.2f,
+        w * 0.8f, h * 0.55f
+    )
+    drawPath(arc, Color.White.copy(alpha = 0.10f), style = Stroke(width = 1.6f))
+}
+
+// ── DOTS: боке — мягкие крупные пятна позади + сетка мерцающих точек ──
+private fun DrawScope.drawDots(p: Float, w: Float, h: Float, accent: Color) {
+    // крупное мягкое боке позади
+    for (i in 0 until 4) {
+        val a = (p + i * 0.27f) * TAU
+        val cx = w * (0.2f + 0.2f * i) + w * 0.08f * cos(a)
+        val cy = h * (0.25f + 0.18f * i) + h * 0.08f * sin(a * 1.2f)
+        softGlow(Offset(cx, cy), w * 0.16f, if (i % 2 == 0) Color.White else accent, 0.10f)
+    }
+    // сетка точек с мерцанием (простые круги — дёшево, без аллокаций на кадр)
+    val cols = 6
+    val rows = 6
+    val r = w * 0.022f
+    for (gy in 0 until rows) {
+        for (gx in 0 until cols) {
+            val x = w * (gx + 0.5f) / cols
+            val y = h * (gy + 0.5f) / rows
+            val tw = sin(p * TAU + (gx + gy) * 0.55f) * 0.5f + 0.5f
+            drawCircle(Color.White.copy(alpha = 0.10f + tw * 0.22f), radius = r * (0.7f + tw * 0.6f), center = Offset(x, y))
+            // вокруг части точек — пульсирующие тонкие кольца
+            if ((gx + gy) % 3 == 0) {
+                drawCircle(
+                    accent.copy(alpha = 0.10f + tw * 0.12f),
+                    radius = r * (2.2f + tw * 1.6f), center = Offset(x, y),
+                    style = Stroke(width = 1.2f)
+                )
+            }
+        }
+    }
+    // несколько ярких «плюс»-искр поверх
+    for (i in 0 until 4) {
+        val sx = w * (0.2f + 0.2f * i)
+        val sy = h * (0.3f + 0.15f * i)
+        val s = w * (0.02f + 0.015f * (sin(p * TAU + i) * 0.5f + 0.5f))
+        val col = Color.White.copy(alpha = 0.5f)
+        drawLine(col, Offset(sx - s, sy), Offset(sx + s, sy), strokeWidth = 1.6f)
+        drawLine(col, Offset(sx, sy - s), Offset(sx, sy + s), strokeWidth = 1.6f)
+    }
+}
+
+// ── RINGS: пульсирующие звуковые кольца из двух центров, со свечением ──
+private fun DrawScope.drawRings(p: Float, w: Float, h: Float, accent: Color) {
+    val centers = listOf(
+        Offset(w * 0.28f, h * 0.30f) to Color.White,
+        Offset(w * 0.76f, h * 0.64f) to accent
+    )
+    for ((idx, pair) in centers.withIndex()) {
+        val (c, col) = pair
+        val n = 5
+        for (i in 0 until n) {
+            val frac = ((i.toFloat() / n) + p + idx * 0.4f) % 1f
+            val r = frac * w * 0.72f
+            val fade = (1f - frac)
+            drawCircle(col.copy(alpha = fade * 0.18f), radius = r, center = c, style = Stroke(width = 2.5f + fade * 4.5f))
+        }
+        softGlow(c, w * 0.14f, col, 0.18f)
+        // радиальные «лучики» от центра — для насыщенности
+        val ticks = 10
+        val rIn = w * 0.10f
+        val rOut = w * 0.18f
+        for (j in 0 until ticks) {
+            val ang = j.toFloat() / ticks * TAU + p * TAU * 0.5f
+            val s = Offset(c.x + rIn * cos(ang), c.y + rIn * sin(ang))
+            val e = Offset(c.x + rOut * cos(ang), c.y + rOut * sin(ang))
+            drawLine(col.copy(alpha = 0.16f), s, e, strokeWidth = 1.4f)
+        }
+    }
+    // третий слабый центр-эхо (сверху-по центру)
+    val c3 = Offset(w * 0.52f, h * 0.16f)
+    for (i in 0 until 4) {
+        val frac = ((i.toFloat() / 4) + p + 0.25f) % 1f
+        drawCircle(Color.White.copy(alpha = (1f - frac) * 0.12f), radius = frac * w * 0.5f, center = c3, style = Stroke(width = 1.6f))
+    }
+}
