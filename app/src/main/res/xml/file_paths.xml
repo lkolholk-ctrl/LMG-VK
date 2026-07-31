@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <external-path
+        name="downloads"
+        path="Download/" />
+    <external-path
+        name="external"
+        path="." />
+    <!-- Экспорт логов (LogcatReader.exportLogs): cache/logs/*.txt в «Поделиться» -->
+    <cache-path
+        name="logs"
+        path="logs/" />
+    <!-- Карточки лирики для шеринга: cache/share/*.png -->
+    <cache-path
+        name="share"
+        path="share/" />
+</paths>
