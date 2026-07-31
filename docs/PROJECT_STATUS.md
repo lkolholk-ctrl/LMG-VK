@@ -1,0 +1,320 @@
+# LMG VK — Документация по состоянию проекта
+
+> **Проект:** полное восстановление музыкального клиента VK X v8.12.1 (ПО `ua.itaysonlab.vkx`) из бинарного APK + порт UI из LiquidMusicGlass → собственное приложение **LMG VK** (`com.lmg.vk`).
+> **Репозиторий:** https://github.com/lkolholk-ctrl/LMG-VK
+> **Дата среза:** 2026-07-30 · **Статистика:** 212 Kotlin-файлов, ~53 000 строк, 2 коммита (`68f392c`, `4cfa78a`)
+
+---
+
+# ЧАСТЬ 1. ЧТО СДЕЛАНО
+
+## 1.1. Взлом нативного слоя (libvkx.so) — ✅ ЗАВЕРШЕНО
+
+Оригинальная `lib/arm64-v8a/libvkx.so` (1.46 МБ, NDK r21e, stripped) защищена **Obfuscator-LLVM / O-MVLL**:
+- Control-Flow Flattening (все функции «расплющены» в switch-автоматы)
+- Двухслойное шифрование строк (21 экспортируемая `.datadiv_decode*`-функция + runtime key-layer, зависящий от самопроверки целостности)
+- Анти-Xposed и анти-тamper логика в `JNI_OnLoad`
+
+### Метод взлома
+Построен эмулятор на **Unicorn Engine** (`/root/vkx_tools/vkx_emu_onload.py`):
+- фейковые JavaVM/JNIEnv-витрины через BRK-сентинели (каждый JNI-вызов перехватывается и логируется)
+- полные релокации ELF (RELATIVE/ABS64/GLOB_DAT), PLT-шимы libc
+- виртуальная ФС с реальным APK (для прохождения самопроверки)
+- выполнение реальных `DT_INIT_ARRAY` инициализаторов → расшифровка строк в правильном порядке
+
+Это обошло OLLVM-флаттенинг **без ручного дефлаттенинга**: код просто исполняется.
+
+### Извлечённые результаты
+
+**Карта JNI** (из `RegisterNatives` в `JNI_OnLoad @ 0xB8F64`, таблица на стеке):
+
+| Kotlin (obf) | Адрес | Восстановленное имя |
+|---|---|---|
+| `x00()` | `0xB79A0` | `getVkApiData()` |
+| `x01()` | `0xB7C1C` | `getLmgEnvironment()` |
+| `x02(String)` | `0xB8170` | `getSilentAuthorizationEnvironment()` |
+
+**Алгоритм x02** (подтверждён дифференциальным анализом на 3 входах, побайтно):
+```
+result = base64_std( input[i] XOR "THETRUTHLIES"[i % 12] )
+```
+Ключ в `.rodata @ 0x131535`. Применение: код из `apps.get(app_id=51931326)` → обёртка → параметр `"code"` silent-авторизации VK.
+
+**Извлечённые секреты и конфиги:**
+- Эндпоинты: `https://api.vk.ru/`, `https://oauth.vk.ru/` + прокси `vk-api-proxy.xtrafrancyz.net`, `vk-oauth-proxy.xtrafrancyz.net`
+- Креды официальных клиентов VK (base64): Android `2274003` / `hHbZxrka2uZ6jB1inYsH`; iOS `3140623` / `VeWdmVclDCtn6ihuP1nt`
+- UA-шаблоны `VKAndroidApp/{8.70, 7.1, 8.165.1}` (суффикс собирается из `android/os/Build`)
+- Бэкенд VK X: `ui.lmg.app`/`api.lmg.app` (бывш. vkx.app), токен, JWT-заготовка `eyJhbGciOiAibm9uZSJ9...`, лицензионный blob, **ECDSA P-256 публичный ключ** (X.509 SPKI hex), ожидаемый хекс подписи `B4F6280F`
+
+**Защитные механизмы (задокументированы):**
+- Anti-Xposed: рефлексией `XposedBridge.disableHooks = TRUE`
+- Самопроверка: чтение собственного `base.apk` + `dl_iterate_phdr` + сверка подписи → при провале `abort()`
+
+### Артефакты
+- `app/src/main/cpp/lmg_native.cpp` — чистый C++17 (компилируется и линкуется NDK r29 → `liblmg.so`, проверено toolchain `aarch64-linux-android-clang++`)
+- `app/src/main/cpp/CMakeLists.txt` — NDK-модуль `lmg`
+- `app/src/main/kotlin/com/lmg/vk/jni/LmgNative.kt` — JNI-мост
+- Отчёт: `/sdcard/Download/VKX_Fresh/VKX_NATIVE_RECOVERY_v8.12.1.md`
+
+> ⚠️ **Фикс попутно:** в C++ `RegisterNatives` регистрирует **реальные** имена методов (`getVkApiData` и т.д.), консистентно с Kotlin — обфускация `x00/x01/x02` не нужна в своём коде.
+
+---
+
+## 1.2. Сетевое ядро (vkapi2) — ✅ ЗАВЕРШЕНО
+
+Пакет `com.lmg.vk.network` — деобфускация из `defpackage.C*` (словарь ad-sdk) по Kotlin Metadata + Moshi-ключам.
+
+### Карта деобфускации (ядро)
+
+| Obf | Восстановлено | Роль |
+|---|---|---|
+| `C8221e` | `VkApiClient` | ядро: execute/rawCall, токены, ретраи |
+| `C5577e` | `VkMethod` | обёртка метода (name, v="5.272", params) |
+| `C18479e` | `VkAuthSession` | access/refresh/exchange токены, expiresAt |
+| `C18301e` | `VkAuthApi.refreshTokens()` | протокол auth.refreshTokens |
+| `C9022e`/`C7220e` | `VkResult` | sealed Success/Error |
+| `InterfaceC11962e` | `VkResponseParser` | парсер конверта (Moshi) |
+| `C5577e`+`C4271e`... | `methods/` | обёртки эндпоинтов |
+| `AbstractC4533e` | `VkLocales` | uk→ua, kk→kz, whitelist, else en |
+| `AbstractC1831e` | `VkApiLocator` | синглтон-доступ |
+
+### Ключевые факты о стеке
+- **Стек — Ktor Client** (не OkHttp): `POST https://api.<domain>/method|oauth/<name>`
+- Body: `params + v=5.272 + https=1 + api_id=2274003 + lang + device_id`
+- Headers: `X-VK-Android-Client: new`, `X-Screen: nowhere`, `Authorization: Bearer`
+- Резолв токена: params → `auth.getExchangeToken` (exchangeToken) → обычный метод (`getValidToken()` под `Mutex` + double-check)
+- **Ретраи ошибок VK**: `14` captcha → handler → retry; `17` validation → redirect → retry; `1117` token expired → `auth.refreshTokens` → один retry
+- **Refresh-протокол**: `client_secret` найден прямым текстом в Java (кросс-подтверждение native-слоя побайтно ✓)
+- **Silent auth**: `apps.get(app_id=51931326)` → код → `LmgNative.getSilentAuthorizationEnvironment` → `"code"`
+
+### Методы (реестр 50+ эндпоинтов, `methods/VkMethodsRegistry.kt`)
+`audio.*` (get, search, getPlaylists, getPlaylistById, add/delete/restore, addDislike/removeDislike, getAudioIdsBySource, getAudioPreviewUrl, getRelatedArtists, getStreamMixSettings, reorderInPlaylist, followRadioStation/unfollow, searchArtists, searchMain), `audioBooks.*`, `podcasts.subscribe/unfollow`, `users.get`, `utils.resolveScreenName`, `storage.get/set`, `stats.trackEvents`, `musicStatResults.*`, `studio.getArtistYearRecapData`, полный **auth-флоу** (`validateAccount`, `processAuthCode(Multi)`, `ecosystem.*` OTP, `get_anonym_token`, OAuth `token` grant_type=password).
+
+### DTO-модель (~50 классов)
+- Ручные: `AudioTrack` (29 полей с `fullId="owner_audio"`), `AudioPlaylist`, `AudioAlbum`, `AlbumThumb`, `MainArtist`, `AudioLyrics(+timestamps)`, `Genre`, `RadioStation`, `MusicDynamicRestriction`, `PodcastInfo`, `VKError/VKResponse/VKRequestParameter`
+- Автогенератором из Moshi-адаптеров: 35 DTO (`dto/gen/`): AudioBook, NewsfeedItem(16), VKProfile, VKVideo, Podcast, Conversation-семейство, Catalog...
+
+---
+
+## 1.3. Плеер и эквалайзер (vkxreborn/playback) — ✅ ЗАВЕРШЕНО (восстановление)
+
+Пакет `com.lmg.vk.playback`.
+
+### Эквалайзер — это DynamicsProcessing (API 28+)
+- UUID `7261676f-6d75-7369-6364-28e2fd3ac39e`, priority 100
+- **preEq = postEq** из полос `EqBandConfig(cutoffHz, gainDb)` (пресеты из `vkx_eq_presets.json`)
+- **MBC** многополосный компрессор: кастом или 3-полосный дефолт `125/6000/20000 Гц`, ratio 1.1, `bass/trebleGain: 0..100 → 0..8 дБ`
+- **Limiter**, **InputGain** (linked/per-channel L/R)
+- Плюс `BassBoost` и `EnvironmentalReverb` (по `queryEffects()`)
+- Конфиг: `LmgEffectConfig` (+ вложенные), движок `AudioEffectEngine`
+
+### Архитектура воспроизведения
+- **Media3 `MediaLibraryService`** (`PlaybackService`) с onBind-роутингом (MediaSession/MediaBrowser/MediaLibrary)
+- **ДВА ExoPlayer + две effect-цепочки** → **кроссфейд** (`CrossfadeController`, колбэк `onCrossfadeFinish`)
+- MediaSession: PendingIntent, artwork-резолвер, bitmap-loader
+- Очередь + `QueueSaveHolder` (Moshi) + периодический сейв позиции (5 сек)
+- FGS с API-31 fallback (`IllegalStateException` → post retry)
+
+---
+
+## 1.4. Загрузчик (vkx/downloader) — ✅ ЗАВЕРШЕНО (восстановление)
+
+Пакет `com.lmg.vk.downloader`.
+
+Конвейер `downloadTrack` (восстановлен из 2055-строчного `DownloaderService`):
+1. uid трека → Realm `CachedTrack` (`uid == $0`): валидный streamUrl из кэша (не протухает)
+2. Имя файла по шаблону `"(album) artist - title (subtitle).mp3"` + опции `[playlist]`/папка артиста (санитизация `\\/:*?"<>|`)
+3. Skip существующих
+4. `TrackDownloader.download(url, file, progress, cancellation)` — стриминг чанками
+5. Запись в Realm (+ embedded thumb)
+
+Сопутствующее: `DownloadNaming`, `DownloadPathResolver`, `CachedLibrary` (Realm: CachedTrack/Lyrics/EmbeddedThumb).
+
+---
+
+## 1.5. Порт UI из LiquidMusicGlass — 🔶 ВЫПОЛНЕНО ЧАСТИЧНО (структурно)
+
+Портировано **149 файлов** из LMG (Compose UI + engine + data) в `com.lmg.vk`, с полной отвязкой от ICM (Apple Music API).
+
+### Что перенесено
+
+| Слой | Файлы | Содержимое |
+|---|---|---|
+| `ui/theme/` | 7 | AppleEasings, Color, LiquidMetrics, LiquidMotion, Type, Theme |
+| `ui/glass/` | 5 | GlassKit, LiquidGlassSurface, AlbumArtImage, AlbumColorExtractor, PressScale, AnimatedListItem, GlassDialog |
+| `ui/liquid/` | 5 | DampedDragAnimation, InteractiveHighlight, LiquidSlider, LiquidToggle, DragGestureInspector |
+| `ui/player/` | 10 | FullPlayer, MiniPlayer, AnimatedPlayerBackground, AuraBackground, QueueSheet, LyricsSheet, CreditsSheet, LandscapeBottomBar, VolumeObserver, WaveformVisualizer, SystemRoutePicker |
+| `ui/screens/` | 17 | Home, Search, Library, LocalLibrary, Album/Artist/Playlist Detail, History, New, Profile, Settings, Stats, TagEdit, AudioFx, Wave(Home/Mood/Onboarding), LandscapeHome |
+| `ui/lyrics/` | 6 | LyricsScreen, LyricsBackground, LyricsTimeProcessor, LyricShareCard, MarkupPreview, WaitingDots |
+| `ui/navigation/` | 4 | NavRoutes, LiquidNavHost, BottomBar, LiquidBottomTab, SideBar |
+| `ui/components/` | 4 | DetailScreenParts, LikeBurstHeart, TrackActionsSheet, WrapRow |
+| `ui/icons/` `ui/viewmodel/` `ui/` | — | LiquidGlyphs, HomeViewModel/LibraryViewModel/SearchViewModel, AppRoot, DeviceTier, WindowInfo, PerfMonitor, PowerSaveMonitor, EffectsLifecycle |
+| `engine/` | ~30 | Track, PlayerController, AudioService, AudioFxController, EndlessPlaybackEngine, LyricsParser, MediaCacheManager, PlaylistDownloadService, automix/, vad/, sync/... |
+| `data/local/` `data/cache/` `data/wave/` | ~20 | Room (favorites/history/downloads/library), ImageCache, WaveSessionState/Candidate/Filter... |
+
+### Отвязка от ICM — как сделано
+Создан нейтральный фасад **`engine/backend/`**:
+- `MusicBackend` — все вызовы бэкенда (стрим/поиск/home/charts/лайки/плейлисты/волна/тексты)
+- `MusicAuth` — авторизация/подписка (isPremium, maxQuality, profile...)
+- `WaveSignalQueue` — очередь сигналов прослушивания
+- `BackendModels.kt` + `wave/WaveModels.kt` — DTO бэкенда без Icm-префиксов (1354+61 строки портировано)
+- `BackendException`, `backendUserMessage()`
+
+Все `IcmRepository.*`/`IcmAuthRepository.*`/`WaveSignalQueue.*` заменены седами на фасад. Типы переименованы (`IcmHomeBlock → HomeBlock` и т.д., regex `\bIcm([A-Z]\w*) → \1`).
+
+### Что выпилено при порте
+- ❌ Yandex-экраны и секции (YandexMusicScreen, YandexWebLoginDialog, YandexBottomBar, YandexSection/SideStrip, data/yandex/)
+- ❌ Playlist-import (data/playlistimport/, ImportServicesSheet, PlaylistImportIndicator)
+- ❌ camp (CampSelectorScreen, FeatureAccessManager)
+- ❌ ui/crash, ui/debug (заменены лёгким `engine/debug/DebugLog.kt`)
+- ❌ UpdateDialog, CoverSigningInterceptor, IcmPasswordSheet, EmailAuthSheet, AuthScreen (LMG)
+- ❌ LrcPublishScreen
+
+### Финальная числовая сводка порта
+- приложены type-rename правила к 19 файлам
+- зачищены AppRoot, LiquidNavHost, NavRoutes, LibraryScreen (Yandex tile, import dialog, imported sections), ProfileScreen (PasswordSheet → аккаунт-блок)
+- ProfileScreen хвост переписан вручную после sed-повреждения
+---
+
+# ЧАСТЬ 2. ЧТО ОСТАЛОСЬ СДЕЛАТЬ
+
+## 2.1. КРИТИЧНО — блокеры сборки (без этого `./gradlew assembleDebug` упадёт)
+
+### A. Ресурсы не перенесены
+UI ссылается на ресурсы LMG, которых нет в проекте:
+- **`res/values/`** — только `strings.xml` (app_name). Нет: colors, themes, dimens, стилей
+- **`res/drawable*/`** — иконки (`ic_service_*`, плейсхолдеры обложек, глифы)
+- **`res/font/`** — кастомные шрифты (в UI используется `AppFontFamily` — ожидается шрифт LMG)
+- **`res/mipmap*/`** — иконка приложения (ic_launcher)
+- **assets/** — `vkx_eq_presets.json` (для эквалайзера), другие json
+
+**Действие:** скопировать `app/src/main/res/` и `app/src/main/assets/` из `/root/LiquidMusicGlass`, переименовать брендовые строки.
+
+### B. MainActivity отсутствует
+Нет точки входа `Activity`. В LMG это `MainActivity.kt` (запускает `ui/AppRoot`, инициализирует engine).
+**Действие:** портировать `"MainActivity"` из LMG + зарегистрировать в манифесте с `LAUNCHER`.
+
+### C. Символ-резолверы UI
+Часть символов, на которые ссылается UI, могла остаться в нерепортированных/выпиленных файлах LMG:
+- `AppFontFamily` (theme/Type.kt — должен быть портирован)
+- `onOpenStats`, `onOpenAuth` и т.п. колбэки — проверить сигнатуры экранов
+- `LocalArtistDetailScreen` упоминается в NavHost — проверить, что файл на месте
+- `musicDetailDestinations(...)` в NavHost — extension, должен быть в navigation/
+
+**Действие:** прогнать `./gradlew assembleDebug` и итеративно добить unresolved references (обычно 10-30 символов).
+
+### D. KSP/Room
+`ksp` плагин добавлен, Room подключён. Проверить, что `@Database`/`@Entity` из `data/local/db` компилируются (AppDatabase на месте).
+
+---
+
+## 2.2. Реализация бэкенда (оживление приложения)
+
+### A. `VkBackendImpl` — главная задача
+`engine/backend/MusicBackend` сейчас — фасад-заглушка (все методы `TODO("vk-wire")`). Нужна реализация:
+```
+MusicBackend.getTrackInfo     ← VkAudioApi / AudioTrack.url (прямая ссылка!)
+MusicBackend.searchTracks     ← VkAudioApi.searchAudios
+MusicBackend.loadHomeContent  ← catalog/getAudio (vkx home)
+MusicBackend.getLibraryLikes  ← audio.get (лайкнутые)
+MusicBackend.waveNext         ← audio.getStreamMixSettings / RadioStation (Волна VK)
+MusicBackend.getLyricsResult  ← audio.getLyrics (по lyrics_id)
+```
+**Ключевой маппер:** `network.dto.music.AudioTrack → engine.Track`
+(id=`fullId`, title, artist, albumName=album?.title, uri=Uri.parse(url), durationMs=duration*1000, coverUrl=album thumb, artists=main_artists, isExplicit, source="vk")
+
+### B. Авторизация VK
+`MusicAuth` сейчас всегда `isPremium=true`, `isLoggedIn=false`. Нужно:
+- Новый `VkAuthScreen` (замена выпиленной LMG AuthScreen): логин по телефону/коду через `VkMethodsRegistry.validateAccount` → `processAuthCode` → oauth `token`
+- Сохранение `VkAuthSession` в `VkSessionStore`
+- `MusicAuth.isPremium` ← статус VK X+ / музыкальной подписки VK
+
+### C. Silent auth
+Связка уже готова: `apps.get` → `LmgNative.getSilentAuthorizationEnvironment` → `"code"`.
+
+---
+
+## 2.3. Нативный модуль — финализация
+
+- ✅ `lmg_native.cpp` компилируется, JNI_OnLoad экспортирован
+- ⚠️ **TODO(backend)**: хосты `ui.lmg.app`/`api.lmg.app` — плейсхолдеры, указать реальные хосты своего бэкенда (см. `lmg_native.cpp:66`)
+- ⚠️ Константа `kLmgExpectedSignature="B4F6280F"` — хекс подписи ОРИГИНАЛА; при своей сборке/сертификате — пересчитать или выпилить самопроверку
+- ⚠️ Анти-Xposed блок оставлен активным (можно выпилить)
+- `x00[7..8]`, `x01[9..11]` — слоты под runtime key-layer в эмуляции не декодированы (нужен прогон на устройстве/Frida)
+
+---
+
+## 2.4. Плеер — состыковка двух реализаций
+
+В проекте **ДВА** плеерных стека:
+1. Восстановленный `playback/PlaybackService` + `CrossfadeController` (из VK X)
+2. Перенесённый из LMG `engine/AudioService` + `PlayerController` + `PlayerAudioChain` (с JUCE/automix)
+
+**Решение (рекомендация):** использовать **LMG-стек как основной** (он полнее и родной для UI), а из восстановленного взять только **DSP-конфиг** (`LmgEffectConfig` как формат пресетов). Восстановленный `playback/` можно пометить deprecated или удалить после переноса EQ-пресетов.
+
+Задача: решить и оставить один плеерный стек, убрать дублирование.
+
+---
+
+## 2.5. Тестирование и CI
+
+- ❌ Нет unit/UI-тестов в LMG VK (в LMG были: AuthTest, LibraryTest, PlayerFullTest и т.д. — не портились)
+- ❌ Нет GitHub Actions CI (сборка APK, ktlint/detekt)
+- ❌ Нет проверки на устройстве
+
+---
+
+# ЧАСТЬ 3. КАРТА РЕПОЗИТОРИЯ
+
+```
+LMG-VK/  (rootProject "lmg-recovered")
+├── settings.gradle.kts          # :app + media3-m2 (форк media3-lmg, 1.5.1-lmg29)
+├── build.gradle.kts             # AGP 8.7.3 + Kotlin 2.1.0 + KSP
+├── gradle.properties
+├── .gitignore                   # + media3-m2 исключён
+├── README.md
+├── docs/PROJECT_STATUS.md       # ← этот файл
+└── app/
+    ├── build.gradle.kts         # com.lmg.vk, v1.0.0(1), Compose BOM,
+    │                            #   Ktor+Moshi+Realm+Room+media3-lmg, NDK
+    └── src/main/
+        ├── AndroidManifest.xml  # .LmgApplication, "@string/app_name"=LMG VK
+        ├── cpp/                 # lmg_native.cpp + CMakeLists (liblmg.so)
+        ├── res/values/strings.xml
+        └── kotlin/com/lmg/vk/
+            ├── LmgApplication.kt
+            ├── jni/LmgNative.kt
+            ├── network/         # VkApiClient + methods + dto (+gen)
+            ├── playback/        # (восстановленный стек VK X — кандидат на merge)
+            ├── downloader/      # загрузки + Realm
+            ├── engine/          # LMG: PlayerController, AudioService, backend/
+            ├── data/            # local(Room), cache, wave
+            ├── debug/DebugLog.kt
+            └── ui/              # 149 портированных файлов (Compose)
+```
+
+---
+
+# ЧАСТЬ 4. БЫСТРЫЙ СТАРТ (следующий сеанс)
+
+Приоритетный порядок, с проверкой после каждого шага:
+
+```bash
+# 1. Ресурсы + MainActivity
+cp -r /root/LiquidMusicGlass/app/src/main/res/* app/src/main/res/
+cp -r /root/LiquidMusicGlass/app/src/main/assets/* app/src/main/assets/
+cp /root/LiquidMusicGlass/app/src/main/kotlin/com/liquidmusicglass/MainActivity.kt \
+   app/src/main/kotlin/com/lmg/vk/MainActivity.kt   # + переименовать пакет
+
+# 2. Сборка
+./gradlew :app:assembleDebug
+# → итеративно чинить unresolved references
+
+# 3. VkBackendImpl (engine/backend/) — маппер AudioTrack→Track
+# 4. VkAuthScreen + сохранение сессии
+# 5. Merge плеерных стеков (оставить LMG, взять DSP-конфиг)
+```
+
+---
+
+> **Примечание по бренду:** все упоминания `itaysonlab`/`vkx` удалены (0 совпадений по дереву), пакеты `com.lmg.vk`, нативный модуль `liblmg.so`, приложение «LMG VK». Прокси `xtrafrancyz.net` оставлены как рабочие эндпоинты VK API.
