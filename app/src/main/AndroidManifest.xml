@@ -2,20 +2,24 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- Разрешения из оригинального APK (aapt dump badging) -->
+    <!-- Разрешения (VK API + плеер + загрузки) -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission
         android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />
     <uses-permission
         android:name="android.permission.WRITE_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />
+    <!-- Локальная библиотека (LocalLibraryScreen): аудио на Android 13+ -->
+    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
 
     <application
         android:name=".LmgApplication"
@@ -24,20 +28,56 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.AppCompat">
 
-        <!-- Плеер: Media3 MediaSessionService -->
-        <service
-            android:name="com.lmg.vk.playback.PlaybackService"
+        <activity
+            android:name=".MainActivity"
             android:exported="true"
-            android:foregroundServiceType="mediaPlayback">
+            android:launchMode="singleTask"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize|density|uiMode"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- Основной плеер: LMG engine.AudioService (Media3) -->
+        <service
+            android:name=".engine.AudioService"
+            android:exported="true"
+            android:foregroundServiceType="mediaPlayback"
+            android:priority="1000">
             <intent-filter>
                 <action android:name="androidx.media3.session.MediaSessionService" />
-                <action android:name="android.media.browse.MediaBrowserService" />
+                <!-- MediaBrowserService action намеренно убран (см. LMG): на OEM
+                     (Honor/Huawei) system media-resumption биндится к browsable
+                     сервису при холодном старте и гоняет ExoPlayer за CMA → ANR. -->
             </intent-filter>
         </service>
 
-        <!-- Загрузчик -->
+        <!-- Восстановленный стек VK X (референс; merge в engine.AudioService) -->
+        <service
+            android:name="com.lmg.vk.playback.PlaybackService"
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback" />
+
+        <!-- Загрузки треков -->
         <service
             android:name="com.lmg.vk.downloader.DownloaderService"
             android:exported="false" />
+
+        <!-- Загрузки плейлистов (engine) -->
+        <service
+            android:name=".engine.PlaylistDownloadService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
+        <!-- MediaButtonReceiver — нужен OEM (Huawei/Honor) для ComponentName -->
+        <receiver
+            android:name="androidx.media3.session.MediaButtonReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MEDIA_BUTTON" />
+            </intent-filter>
+        </receiver>
     </application>
 </manifest>

@@ -27,7 +27,6 @@ import kotlinx.coroutines.withContext
 class LibraryRepository private constructor(context: Context) {
 
     private val db = FavoriteTrackDatabase.getInstance(context)
-    private val api = Api.getInstance()
 
     /** Reactive flow of all favorite tracks — drives Compose UI */
     val favoritesFlow: Flow<List<FavoriteTrackEntity>> = db.favoritesFlow

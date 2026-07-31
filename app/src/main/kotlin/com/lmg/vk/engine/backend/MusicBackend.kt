@@ -144,8 +144,11 @@ object MusicAuth {
 
 /** Оффлайн-очередь сигналов прослушивания (бывш. WaveSignalQueue). */
 object WaveSignalQueue {
+    fun init(context: android.content.Context) { /* TODO(vk): prefs-очередь */ }
     fun sendPlayback(trackId: String, seconds: Int) { /* TODO(vk): stats.trackEvents */ }
     fun sendFeedback(trackId: String, kind: String) { /* TODO(vk) */ }
+    /** Дослать недоставленные сигналы (вызывается при старте/смене сети). */
+    fun drain() { /* TODO(vk) */ }
 }
 
 /** Мета подписки (для MusicAuth.subscription). */
