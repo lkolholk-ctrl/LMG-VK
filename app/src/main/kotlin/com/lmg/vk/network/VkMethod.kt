@@ -19,8 +19,14 @@ class VkMethod<T>(
     /** Версия API ("v" в form-body). */
     var apiVersion: String = "5.272"
 
-    /** Идти на `oauth.<domain>/<name>` вместо `api.<domain>/method/<name>`. */
-    var useOAuth: Boolean = false
+    /** Точный транспорт VK: обычный API, API OAuth или выделенный OAuth-хост. */
+    var endpoint: VkEndpoint = VkEndpoint.API_METHOD
+
+    /** Большинство VK API-методов — POST; `/token` официального клиента — GET. */
+    var httpMethod: VkHttpMethod = VkHttpMethod.POST
+
+    /** User-Agent конкретной ветки официального клиента VK. */
+    var userAgent: String? = null
 
     /** Флаг one-shot из `C5577e.appmetrica`: такой вызов не имеет тела ответа. */
     var isOneShot: Boolean = false
@@ -46,3 +52,16 @@ class VkMethod<T>(
         param(name, value.toString())
     }
 }
+
+enum class VkEndpoint {
+    /** `https://api.<domain>/method/<name>` */
+    API_METHOD,
+
+    /** `https://api.<domain>/oauth/<name>` */
+    API_OAUTH,
+
+    /** `https://oauth.<domain>/<name>` */
+    OAUTH,
+}
+
+enum class VkHttpMethod { GET, POST }

@@ -1,11 +1,10 @@
 package com.lmg.vk.network
 
 import io.ktor.client.HttpClient
-import io.ktor.client.request.HttpRequestBuilder
 import io.ktor.client.request.forms.FormDataContent
 import io.ktor.client.request.header
 import io.ktor.client.request.get
-import io.ktor.client.request.post
+import io.ktor.client.request.request
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsText
@@ -23,14 +22,15 @@ import com.lmg.vk.network.dto.VkErrorCodes
  * Восстановлено из `defpackage.C8221e` — ядро сетевого слоя LMG VK.
  *
  * Ответственности:
- *  - выполнение [VkMethod] через Ktor-клиент (POST form-urlencoded)
+ *  - выполнение [VkMethod] через Ktor-клиент (POST form-urlencoded или GET)
  *  - резолв и кэш access_token с mutex-защитой (getValidToken / refreshToken)
  *  - обработка ошибок VK: captcha(14), validation(17), token expired(1117)
  *  - языковой резолв (uk->ua, kk->kz, whitelist, иначе en)
  *
- * Эндпоинты из восстановленного native x00:
- *  - API:   https://api.<domain>/method/<methodName>
- *  - OAuth: https://oauth.<domain>/<methodName>
+ * Эндпоинты подтверждены восстановленным VK X и рабочим VK MP3 MOD:
+ *  - API:       https://api.<domain>/method/<methodName>
+ *  - API OAuth: https://api.<domain>/oauth/<methodName>
+ *  - OAuth:     https://oauth.<domain>/<methodName>
  * Домен автоматически выбирается между vk.com и vk.ru.
  */
 class VkApiClient(
@@ -88,16 +88,17 @@ class VkApiClient(
         return try {
             val raw = rawCall(
                 name = method.name,
-                useOAuth = method.useOAuth,
+                endpoint = method.endpoint,
+                httpMethod = method.httpMethod,
                 apiVersion = method.apiVersion,
                 params = method.params,
-                userAgent = null,
+                userAgent = method.userAgent,
             )
 
             // OAuth `token` возвращает полезный JSON (2FA/captcha/client_error)
             // и вместе с HTTP 4xx. Его обязан разобрать RequestTokenParser;
             // иначе UI видит только голый "HTTP 401" и теряет следующий шаг.
-            val hasStructuredOAuthError = method.useOAuth && method.name == "token"
+            val hasStructuredOAuthError = method.endpoint == VkEndpoint.OAUTH && method.name == "token"
             if (raw.statusCode !in 200..299 && !hasStructuredOAuthError) {
                 return VkResult.Error(raw.statusCode, "HTTP ${raw.statusCode}: ${raw.url}")
             }
@@ -110,11 +111,7 @@ class VkApiClient(
 
             // Для oauth-методов ошибка лежит прямо в конверте; для обычных —
             // проверяем ещё и data-as-error случаи.
-            val error: VKError? = if (method.useOAuth) {
-                parsed.error
-            } else {
-                (parsed.data as? MayCarryVkError)?.carriedError ?: parsed.error
-            }
+            val error: VKError? = (parsed.data as? MayCarryVkError)?.carriedError ?: parsed.error
 
             if (error == null) {
                 if (parsed.data != null) return VkResult.Success(parsed.data)
@@ -169,46 +166,67 @@ class VkApiClient(
     // ------------------------------------------------------------------
     suspend fun rawCall(
         name: String,
-        useOAuth: Boolean,
+        endpoint: VkEndpoint,
+        httpMethod: VkHttpMethod,
         apiVersion: String,
         params: Map<String, String>,
         userAgent: String?,
     ): RawHttpResponse {
-        // --- резолв access_token ---
+        // access_token API 5.272 передаётся только как Bearer, не дублируется в body.
         val explicit = params["access_token"].takeUnless { it.isNullOrEmpty() }
-        val token: String? = when {
+        val token: String? = if (endpoint != VkEndpoint.API_METHOD) {
+            null
+        } else when {
             explicit != null -> explicit
-            name == "auth.getExchangeToken" -> sessionStore.session.exchangeToken
-            !useOAuth && name != "auth.refreshTokens" -> getValidToken().takeIf { it.isNotBlank() }
-            else -> null
+            name == "auth.refreshTokens" -> sessionStore.session.accessToken.takeIf { it.isNotBlank() }
+            else -> getValidToken().takeIf { it.isNotBlank() }
         }
 
-        val response: HttpResponse = httpClient.post {
+        val requestParams = LinkedHashMap<String, String>().apply {
+            params.forEach { (key, value) ->
+                if (key != "access_token") put(key, value)
+            }
+            putIfAbsent("v", apiVersion)
+            putIfAbsent("https", "1")
+            putIfAbsent("api_id", VK_ANDROID_CLIENT_ID)
+            putIfAbsent("lang", VkLocales.current())
+            putIfAbsent("device_id", deviceIdProvider())
+        }
+
+        val response: HttpResponse = httpClient.request {
+            method = if (httpMethod == VkHttpMethod.GET) HttpMethod.Get else HttpMethod.Post
             url {
                 protocol = URLProtocol.HTTPS
-                if (useOAuth) {
-                    // OAuth — отдельный хост из native x00
-                    // (https://oauth.vk.ru/), а не /oauth на api-хосте.
-                    host = "oauth.$selectedApiDomain"
-                    path(name)
-                } else {
-                    host = "api.$selectedApiDomain"
-                    path("method", name)
+                when (endpoint) {
+                    VkEndpoint.API_METHOD -> {
+                        host = "api.$selectedApiDomain"
+                        path("method", name)
+                    }
+                    VkEndpoint.API_OAUTH -> {
+                        host = "api.$selectedApiDomain"
+                        path("oauth", name)
+                    }
+                    VkEndpoint.OAUTH -> {
+                        host = "oauth.$selectedApiDomain"
+                        path(name)
+                    }
+                }
+                if (httpMethod == VkHttpMethod.GET) {
+                    requestParams.forEach { (key, value) -> parameters.append(key, value) }
                 }
             }
-            header("Content-Type", "application/x-www-form-urlencoded")
-            header("X-VK-Android-Client", "new")
-            header("X-Screen", "nowhere")
+            if (endpoint != VkEndpoint.OAUTH) {
+                header("X-VK-Android-Client", "new")
+                header("X-Screen", "nowhere")
+            }
             token?.let { header("Authorization", "Bearer $it") }
             userAgent?.let { header("User-Agent", it) }
-            setBody(FormDataContent(Parameters.build {
-                params.forEach { (k, v) -> append(k, v) }
-                append("v", apiVersion)
-                append("https", "1")
-                append("api_id", VK_ANDROID_CLIENT_ID)
-                append("lang", VkLocales.current())
-                append("device_id", deviceIdProvider())
-            }))
+            if (httpMethod == VkHttpMethod.POST) {
+                header("Content-Type", "application/x-www-form-urlencoded")
+                setBody(FormDataContent(Parameters.build {
+                    requestParams.forEach { (key, value) -> append(key, value) }
+                }))
+            }
         }
         return KtorRawHttpResponse(response)
     }

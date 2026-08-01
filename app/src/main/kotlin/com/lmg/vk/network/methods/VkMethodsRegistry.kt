@@ -1,6 +1,8 @@
 package com.lmg.vk.network.methods
 
 import com.lmg.vk.network.VkApiClient
+import com.lmg.vk.network.VkEndpoint
+import com.lmg.vk.network.VkHttpMethod
 import com.lmg.vk.network.VkMethod
 import com.lmg.vk.network.VkParsedResponse
 import com.lmg.vk.network.VkResponseParser
@@ -11,6 +13,7 @@ import com.lmg.vk.network.MoshiEnvelopeParser
 import com.lmg.vk.network.MoshiDirectParser
 import com.lmg.vk.network.MappingVkResponseParser
 import com.lmg.vk.network.VkJson
+import com.lmg.vk.network.VkUserAgents
 import com.lmg.vk.network.dto.SilentCredentials
 import com.lmg.vk.network.dto.AnonymTokenResponse
 import com.lmg.vk.network.dto.AuthGetAuthCodeStatusResponse
@@ -366,9 +369,9 @@ class VkMethodsRegistry(private val client: VkApiClient) {
 
     /** auth.validateAccount — первый шаг логина. */
     suspend fun validateAccount(
-        login: String?,
-        supportedWays: Collection<String>,
-        passkeySupported: Int,
+        login: String,
+        anonymousToken: String,
+        trustedHash: String?,
     ): VkResult<AuthValidateAccountResponse> {
         val method = VkMethod(
             "auth.validateAccount",
@@ -376,10 +379,13 @@ class VkMethodsRegistry(private val client: VkApiClient) {
         ).apply {
             param("login", login)
             param("force_password", false)
-            param("passkey_supported", passkeySupported)
-            param("supported_ways", supportedWays.joinToString(","))
+            param("passkey_supported", 0)
+            param("supported_ways", "callreset,codegen,email,reserve_code,password,push,sms")
             param("flow_type", "auth_without_password")
             param("sak_version", "1.112")
+            param("access_token", anonymousToken)
+            param("accounts_trusted_hashes", trustedHash)
+            userAgent = VkUserAgents.auth
         }
         return client.execute(method)
     }
@@ -422,6 +428,21 @@ class VkMethodsRegistry(private val client: VkApiClient) {
         ).apply {
             param("create_common_token", true)
             param("create_tier_tokens", "0")
+            userAgent = VkUserAgents.auth
+        }
+        return client.execute(method)
+    }
+
+    /** Получить common exchange token сразу после OAuth-входа. */
+    suspend fun getUserExchangeTokens(accessToken: String): VkResult<AuthGetExchangeTokenResponse> {
+        val method = VkMethod(
+            "auth.getExchangeToken",
+            MoshiEnvelopeParser<AuthGetExchangeTokenResponse>(AuthGetExchangeTokenResponse::class.java),
+        ).apply {
+            param("create_common_token", true)
+            param("create_tier_tokens", "0")
+            param("access_token", accessToken)
+            userAgent = VkUserAgents.auth
         }
         return client.execute(method)
     }
@@ -450,6 +471,8 @@ class VkMethodsRegistry(private val client: VkApiClient) {
     suspend fun ecosystemCheckOtp(
         sid: String,
         code: String,
+        verificationMethod: String,
+        anonymousToken: String,
     ): VkResult<EcosystemCheckOtpResponse> {
         val method = VkMethod(
             "ecosystem.checkOtp",
@@ -457,24 +480,32 @@ class VkMethodsRegistry(private val client: VkApiClient) {
         ).apply {
             param("sid", sid)
             param("code", code)
+            param("verification_method", verificationMethod.ifBlank { "codegen" })
+            param("access_token", anonymousToken)
+            userAgent = VkUserAgents.auth
         }
         return client.execute(method)
     }
 
-    suspend fun ecosystemSendOtp(kind: OtpKind, sid: String): VkResult<EcosystemSendOtpResponse> {
+    suspend fun ecosystemSendOtp(
+        kind: OtpKind,
+        sid: String,
+        anonymousToken: String,
+    ): VkResult<EcosystemSendOtpResponse> {
         val method = VkMethod(
             "ecosystem.sendOtp${kind.wireName}",
             MoshiEnvelopeParser<EcosystemSendOtpResponse>(EcosystemSendOtpResponse::class.java),
         ).apply {
             param("sid", sid)
-            param("flow_type", "tg_flow")
-            param("sak_version", "1.142")
+            param("access_token", anonymousToken)
+            userAgent = VkUserAgents.auth
         }
         return client.execute(method)
     }
 
     suspend fun ecosystemGetVerificationMethods(
         sid: String,
+        anonymousToken: String,
     ): VkResult<EcosystemGetVerificationMethodsResponse> {
         val method = VkMethod(
             "ecosystem.getVerificationMethods",
@@ -483,8 +514,8 @@ class VkMethodsRegistry(private val client: VkApiClient) {
             ),
         ).apply {
             param("sid", sid)
-            param("flow_type", "tg_flow")
-            param("sak_version", "1.142")
+            param("access_token", anonymousToken)
+            userAgent = VkUserAgents.auth
         }
         return client.execute(method)
     }
@@ -517,41 +548,38 @@ class VkMethodsRegistry(private val client: VkApiClient) {
             "get_anonym_token",
             MoshiDirectParser<AnonymTokenResponse>(AnonymTokenResponse::class.java),
         ).apply {
-            // C5577e.license=true: этот флаг выбирает /oauth, а не one-shot.
-            useOAuth = true
+            endpoint = VkEndpoint.API_OAUTH
             param("client_id", VkApiClient.VK_ANDROID_CLIENT_ID)
             param("client_secret", RecoveredServiceConfig.VK_ANDROID_CLIENT_SECRET)
+            param("app_id", VkApiClient.VK_ANDROID_CLIENT_ID)
+            userAgent = VkUserAgents.api
         }
         return client.execute(method)
     }
 
-    /** OAuth token — прямой логин по логину/паролю (oauth-хост). */
+    /** OAuth token официального Android-клиента после validateAccount/checkOtp. */
     suspend fun oauthToken(
         username: String,
         password: String,
-        sid: String? = null,
-        code: String? = null,
-        anonymousToken: String? = null,
-        scope: String = "all",
-        grantType: String = "password",
+        sid: String,
+        anonymousToken: String,
+        grantType: String,
         extraParams: Map<String, String> = emptyMap(),
     ): VkResult<RequestTokenResponse> {
         val method = VkMethod("token", RequestTokenParser).apply {
-            useOAuth = true
+            endpoint = VkEndpoint.OAUTH
+            httpMethod = VkHttpMethod.GET
+            userAgent = VkUserAgents.api
             param("grant_type", grantType)
             param("username", username)
             param("password", password)
-            param("scope", scope)
+            param("scope", "all")
             param("client_id", VkApiClient.VK_ANDROID_CLIENT_ID)
             param("client_secret", RecoveredServiceConfig.VK_ANDROID_CLIENT_SECRET)
-            param("libverify_support", true)
-            param("device_trusted_hash_support", true)
             param("2fa_supported", true)
-            param("supported_ways", "push,email")
-            param("flow_type", "tg_flow")
-            param("sak_version", "1.142")
+            param("vk_connect_auth", true)
+            param("libverify_support", false)
             param("sid", sid)
-            param("code", code)
             param("anonymous_token", anonymousToken)
             params.putAll(extraParams)
         }
@@ -596,8 +624,13 @@ class VkMethodsRegistry(private val client: VkApiClient) {
         override suspend fun parse(raw: RawHttpResponse): VkParsedResponse<RequestTokenResponse> {
             val body = raw.bodyText()
             val json = JSONObject(body)
+            if (json.has("processing")) {
+                return VkParsedResponse(RequestTokenResponse.Processing, null)
+            }
+            val nestedError = json.optJSONObject("error")
             val type = when {
-                json.opt("error") is JSONObject -> RequestTokenResponse.NestedApiError::class.java
+                nestedError?.optInt("error_code") == 14 -> RequestTokenResponse.CaptchaRequired::class.java
+                nestedError != null -> RequestTokenResponse.NestedApiError::class.java
                 json.has("validation_type") || json.has("validation_sid") ->
                     RequestTokenResponse.TwoFactorRequired::class.java
                 json.has("captcha_sid") || json.has("captcha_img") ->
@@ -606,7 +639,12 @@ class VkMethodsRegistry(private val client: VkApiClient) {
                 json.has("error_type") -> RequestTokenResponse.ClientError::class.java
                 else -> RequestTokenResponse.UnknownError::class.java
             }
-            val data = requireNotNull(VkJson.moshi.adapter(type).fromJson(body)) {
+            val jsonToParse = if (type == RequestTokenResponse.CaptchaRequired::class.java && nestedError != null) {
+                nestedError.toString()
+            } else {
+                body
+            }
+            val data = requireNotNull(VkJson.moshi.adapter(type).fromJson(jsonToParse)) {
                 "Empty OAuth token response from ${raw.url}"
             }
             return VkParsedResponse(data, null)

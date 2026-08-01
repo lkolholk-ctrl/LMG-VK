@@ -110,6 +110,7 @@ fun EmailAuthSheet(
                         captchaSid = result.captchaSid
                         captchaUrl = result.imageUrl
                         captchaKey = ""
+                        verificationCode = ""
                         step = AuthStep.Captcha
                     }
                     is VkLoginResult.Failure -> error = result.message

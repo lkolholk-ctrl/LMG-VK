@@ -180,8 +180,8 @@ data class AuthCodeUser(
 
 @JsonClass(generateAdapter = true)
 data class EcosystemCheckOtpResponse(
-    val sid: String,
-    @Json(name = "profile_exist") val profileExist: Boolean,
+    val sid: String = "",
+    @Json(name = "profile_exist") val profileExist: Boolean = false,
     val profile: AuthUser? = null,
     @Json(name = "can_skip_password") val canSkipPassword: Boolean? = null,
     @Json(name = "next_step") val nextStep: EcosystemNextStep? = null,
@@ -306,6 +306,8 @@ sealed interface RequestTokenResponse {
         @Json(name = "captcha_attempt") val captchaAttempt: Int = 0,
         @Json(name = "redirect_uri") val redirectUri: String = "",
     ) : RequestTokenResponse
+
+    data object Processing : RequestTokenResponse
 
     @JsonClass(generateAdapter = true)
     data class UnknownError(

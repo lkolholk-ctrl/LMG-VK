@@ -15,10 +15,10 @@ data class AnonymTokenResponse(
 /** `C0884e` / `EcosystemSendOtpResponseDto`. */
 @JsonClass(generateAdapter = true)
 data class EcosystemSendOtpResponse(
-    val status: Int,
-    val sid: String,
-    @Json(name = "code_length") val codeLength: Int,
-    val info: String,
+    val status: Int = 0,
+    val sid: String = "",
+    @Json(name = "code_length") val codeLength: Int = 0,
+    val info: String = "",
 )
 
 /** `EnumC6664e`: kotlinx enum с wire-значениями `0` и `1`. */
