@@ -32,8 +32,10 @@ import com.lmg.vk.engine.PlayerSettings
 import com.lmg.vk.engine.SecurityUtils
 import com.lmg.vk.engine.automix.JuceContextHolder
 import com.lmg.vk.engine.backend.MusicAuth
+import com.lmg.vk.logging.CrashHandler
 import com.lmg.vk.ui.AppRoot
 import com.lmg.vk.ui.PerfMonitor
+import com.lmg.vk.ui.crash.CrashActivity
 import com.lmg.vk.ui.theme.LiquidMusicGlassTheme
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -58,6 +60,14 @@ class MainActivity : ComponentActivity() {
 
         // JUCE инициализируется через Activity-контекст.
         JuceContextHolder.set(this)
+
+        // Краш-лог предыдущей сессии (java_crash/native Fishnet-дамп) — показать
+        // экран краша ДО остальной инициализации.
+        if (CrashHandler.hasCrashLog(this)) {
+            startActivity(Intent(this, CrashActivity::class.java))
+            finish()
+            return
+        }
 
         // Разрешение на уведомления — на первом запуске (иначе не видно медиа-уведомление).
         maybeRequestNotificationPermission()

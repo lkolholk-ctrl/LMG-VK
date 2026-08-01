@@ -8,6 +8,7 @@ import coil.disk.DiskCache
 import coil.memory.MemoryCache
 import com.kyant.fishnet.Fishnet
 import com.lmg.vk.data.local.db.LibraryRepository
+import com.lmg.vk.debug.UiWatchdog
 import com.lmg.vk.engine.AppSettings
 import com.lmg.vk.engine.AudioFxController
 import com.lmg.vk.engine.AudioRouteMonitor
@@ -21,6 +22,7 @@ import com.lmg.vk.engine.automix.HapticMusicEngine
 import com.lmg.vk.engine.automix.RemoteQuirks
 import com.lmg.vk.engine.backend.MusicAuth
 import com.lmg.vk.engine.backend.WaveSignalQueue
+import com.lmg.vk.logging.CrashHandler
 import com.lmg.vk.ui.DeviceTier
 import com.lmg.vk.ui.PowerSaveMonitor
 import kotlinx.coroutines.CoroutineScope
@@ -116,10 +118,20 @@ class LmgApplication : Application(), ImageLoaderFactory {
 
         connectivityManager = getSystemService(ConnectivityManager::class.java)
 
+        // Java-крэши: синхронно и ПЕРВЫМ — Fishnet ниже подшивается к уже
+        // установленному дефолтному хендлеру.
+        CrashHandler.install(this)
+        // Чистим устаревшие ui_freeze-логи ДО MainActivity (hasCrashLog).
+        CrashHandler.purgeStaleFreezeLogs(this)
+
         // Native/ANR крэши — в отдельном потоке (не в критическом пути 1-го кадра).
         val logDir = File(filesDir, "crash_logs").apply { mkdirs() }
         Thread { Fishnet.init(this@LmgApplication, logDir.absolutePath) }
             .apply { name = "fishnet-init"; start() }
+
+        // Ловушка зависаний UI: Fishnet-дампы ANR приходят БЕЗ стека main —
+        // вачдог сам пишет полный Java-дамп в watchdog_diag/.
+        UiWatchdog.start(this)
 
         // Удалённая карта аудио-причуд — ДО AppSettings.
         RemoteQuirks.preload(this)

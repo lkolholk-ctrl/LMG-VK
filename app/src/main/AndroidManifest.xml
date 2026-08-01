@@ -58,6 +58,13 @@
             </intent-filter>
         </activity>
 
+        <!-- Экран краша: java_crash-логи + native/ANR-дампы Fishnet -->
+        <activity
+            android:name="com.lmg.vk.ui.crash.CrashActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:launchMode="singleTop" />
+
         <!-- Основной плеер: LMG engine.AudioService (Media3) -->
         <service
             android:name=".engine.AudioService"
