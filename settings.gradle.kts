@@ -4,6 +4,13 @@ pluginManagement {
         mavenCentral()
         gradlePluginPortal()
     }
+    plugins {
+        // Точные версии как у LMG: KGP 2.3.7 допускает kotlin.android поверх
+        // AGP 9 (2.3.10 уже запрещает — ошибка "no longer required").
+        id("com.google.devtools.ksp") version "2.3.7"
+        id("org.jetbrains.kotlin.android") version "2.3.7"
+        id("org.jetbrains.kotlin.plugin.serialization") version "2.3.10"
+    }
 }
 
 dependencyResolutionManagement {
