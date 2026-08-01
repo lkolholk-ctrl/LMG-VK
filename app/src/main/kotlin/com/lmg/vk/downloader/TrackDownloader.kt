@@ -92,7 +92,8 @@ class KtorTrackDownloader(
             val total = response.headers["Content-Length"]?.toLongOrNull() ?: -1L
             var downloaded = 0L
 
-            response.bodyAsChannel().use { channel ->
+            val channel = response.bodyAsChannel()
+            try {
                 dest.outputStream().buffered().use { out ->
                     val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
                     while (!cancellation.isCanceled) {
@@ -103,6 +104,8 @@ class KtorTrackDownloader(
                         progress?.onProgress(downloaded, total)
                     }
                 }
+            } finally {
+                channel.cancel(null)
             }
             !cancellation.isCanceled
         } catch (e: Exception) {

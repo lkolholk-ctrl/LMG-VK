@@ -127,19 +127,27 @@ class DynamicsProcessingEffect : AudioEffectWrapper {
     private fun buildMbc(config: LmgEffectConfig): DynamicsProcessing.Mbc {
         val mbc = config.mbc
         val custom = mbc.customBands
+        val newApi = Build.VERSION.SDK_INT >= 34
         return if (custom != null) {
             DynamicsProcessing.Mbc(true, mbc.enabled, custom.size).apply {
                 custom.forEachIndexed { i, band ->
-                    setBand(i, DynamicsProcessing.MbcBand(
-                        true, band.cutoffHz, band.ratio, band.thresholdDb, band.gainDb, band.gainDb))
+                    if (newApi) {
+                        setBand(i, DynamicsProcessing.MbcBand(
+                            true, band.cutoffHz, 0.0009f, 0.005f, band.ratio, band.thresholdDb,
+                            0f, 0.02f, 1f, band.gainDb, band.gainDb))
+                    }
                 }
             }
         } else {
             // 3-полосный режим: 125/6000/20000 Гц, ratio 1.1, гейны из bass/treble
             DynamicsProcessing.Mbc(true, mbc.enabled, 3).apply {
-                setBand(0, DynamicsProcessing.MbcBand(true, 125f, 1.1f, 0f, mbc.bassGainDb(), mbc.bassGainDb()))
-                setBand(1, DynamicsProcessing.MbcBand(true, 6000f, 1.1f, 0f, 0f, 0f))
-                setBand(2, DynamicsProcessing.MbcBand(true, 20000f, 1.1f, 0f, mbc.trebleGainDb(), mbc.trebleGainDb()))
+                if (newApi) {
+                    val bass = mbc.bassGainDb()
+                    val treble = mbc.trebleGainDb()
+                    setBand(0, DynamicsProcessing.MbcBand(true, 125f, 0.0009f, 0.005f, 1.1f, 0f, 0f, 0.02f, 1f, bass, bass))
+                    setBand(1, DynamicsProcessing.MbcBand(true, 6000f, 0.0009f, 0.005f, 1.1f, 0f, 0f, 0.02f, 1f, 0f, 0f))
+                    setBand(2, DynamicsProcessing.MbcBand(true, 20000f, 0.0009f, 0.005f, 1.1f, 0f, 0f, 0.02f, 1f, treble, treble))
+                }
             }
         }
     }
