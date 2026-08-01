@@ -2,7 +2,7 @@ plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
-    kotlin("plugin.serialization")
+    kotlin("plugin.serialization") version "2.3.10"
     id("com.google.devtools.ksp")
 }
 
