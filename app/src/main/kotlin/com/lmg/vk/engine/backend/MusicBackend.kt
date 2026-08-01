@@ -5,8 +5,11 @@ import com.lmg.vk.engine.LyricsParser
 import com.lmg.vk.engine.backend.wave.WaveBatchResponse
 import com.lmg.vk.engine.backend.wave.WaveSessionStartResponse
 import com.lmg.vk.network.VkApiClient
+import com.lmg.vk.network.VkAuthSession
 import com.lmg.vk.network.VkResult
 import com.lmg.vk.network.VkSessionStore
+import com.lmg.vk.network.dto.AuthValidationType
+import com.lmg.vk.network.dto.RequestTokenResponse
 import com.lmg.vk.network.dto.music.AudioPlaylist
 import com.lmg.vk.network.dto.music.AudioAlbum
 import com.lmg.vk.network.dto.music.AlbumThumb
@@ -19,6 +22,7 @@ import com.lmg.vk.network.dto.music.MainArtist
 import com.lmg.vk.network.dto.music.VkArtistDto
 import com.lmg.vk.network.methods.VkAudioApi
 import com.lmg.vk.network.methods.VkCatalogApi
+import com.lmg.vk.network.methods.VkMethodsRegistry
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.sync.Mutex
@@ -88,7 +92,7 @@ object MusicBackend {
         catalogApi = VkCatalogApi(client)
         sessionStore = sessions
         isInitialized = true
-        MusicAuth.init(sessions)
+        MusicAuth.init(client, sessions)
     }
 
     fun getInstance(): MusicBackend = this
@@ -960,6 +964,24 @@ data class PlaylistTracksResponse(
     val tracks: List<PlaylistTrack> = emptyList()
 )
 
+/** Результат прямого VK OAuth-входа, который UI переводит в следующий шаг. */
+sealed interface VkLoginResult {
+    data object Success : VkLoginResult
+
+    data class TwoFactor(
+        val validationSid: String,
+        val destination: String,
+        val codeLength: Int,
+    ) : VkLoginResult
+
+    data class Captcha(
+        val captchaSid: String,
+        val imageUrl: String,
+    ) : VkLoginResult
+
+    data class Failure(val message: String) : VkLoginResult
+}
+
 /** Авторизация/подписка (бывш. IcmAuthRepository). */
 object MusicAuth {
     private val _isLoggedIn = MutableStateFlow(false)
@@ -984,20 +1006,117 @@ object MusicAuth {
     val telegramId: StateFlow<Long?> = _telegramId
 
     private var sessionStore: VkSessionStore? = null
+    private var apiClient: VkApiClient? = null
+    private var methods: VkMethodsRegistry? = null
 
-    internal fun init(store: VkSessionStore) {
+    internal fun init(client: VkApiClient, store: VkSessionStore) {
+        apiClient = client
+        methods = VkMethodsRegistry(client)
         sessionStore = store
         applySession(store.session)
     }
 
+    /**
+     * Прямой OAuth `token` официального Android-клиента VK. Логин и пароль
+     * используются только для текущего HTTPS-запроса и в сессию не попадают.
+     * Повторный вызов с validationSid/code продолжает 2FA, а с captcha — капчу.
+     */
+    suspend fun signIn(
+        username: String,
+        password: String,
+        validationSid: String? = null,
+        code: String? = null,
+        captchaSid: String? = null,
+        captchaKey: String? = null,
+    ): VkLoginResult {
+        if (username.isBlank() || password.isBlank()) {
+            return VkLoginResult.Failure("Enter your phone or email and password")
+        }
+
+        val registry = methods ?: return VkLoginResult.Failure("VK API is not initialized")
+        val extraParams = buildMap {
+            captchaSid?.takeIf(String::isNotBlank)?.let { put("captcha_sid", it) }
+            captchaKey?.takeIf(String::isNotBlank)?.let { put("captcha_key", it) }
+        }
+        return when (val result = registry.oauthToken(
+            username = username.trim(),
+            password = password,
+            sid = validationSid,
+            code = code,
+            extraParams = extraParams,
+        )) {
+            is VkResult.Error -> VkLoginResult.Failure(
+                result.message.ifBlank { "VK authorization failed (${result.code})" },
+            )
+            is VkResult.Success -> when (val response = result.data) {
+                is RequestTokenResponse.Success -> finishSignIn(response)
+                is RequestTokenResponse.TwoFactorRequired -> VkLoginResult.TwoFactor(
+                    validationSid = response.validationSid,
+                    destination = response.twoFactorDestination(),
+                    codeLength = response.codeLength.coerceAtLeast(1),
+                )
+                is RequestTokenResponse.CaptchaRequired -> VkLoginResult.Captcha(
+                    captchaSid = response.captchaSid,
+                    imageUrl = response.captchaImg,
+                )
+                is RequestTokenResponse.ClientError -> VkLoginResult.Failure(
+                    response.errorDescription.ifBlank { response.error.ifBlank { "VK authorization failed" } },
+                )
+                is RequestTokenResponse.NestedApiError -> VkLoginResult.Failure(
+                    response.error.error_msg.ifBlank { "VK error ${response.error.error_code}" },
+                )
+                is RequestTokenResponse.UnknownError -> VkLoginResult.Failure(
+                    response.errorDescription.ifBlank { response.error.ifBlank { "Unknown VK authorization response" } },
+                )
+            }
+        }
+    }
+
+    private suspend fun finishSignIn(response: RequestTokenResponse.Success): VkLoginResult {
+        if (response.accessToken.isBlank()) {
+            return VkLoginResult.Failure("VK returned an empty access token")
+        }
+        val nowSeconds = System.currentTimeMillis() / 1000
+        installSession(
+            VkAuthSession(
+                userId = response.userId,
+                accessToken = response.accessToken,
+                expiresAt = response.accessTokenExpiresIn
+                    .takeIf { it > 0 }
+                    ?.let { nowSeconds + it }
+                    ?: 0L,
+                trustedHash = response.trustedHash,
+            ),
+        )
+        // Профиль не является условием валидности токена: при временной ошибке
+        // users.get пользователь всё равно остаётся авторизованным.
+        runCatching { fetchUserData() }
+        return VkLoginResult.Success
+    }
+
+    private fun RequestTokenResponse.TwoFactorRequired.twoFactorDestination(): String = when {
+        phoneMask.isNotBlank() -> phoneMask
+        maskedEmail.isNotBlank() -> maskedEmail
+        deviceName.isNotBlank() -> deviceName
+        else -> when (validationType) {
+            AuthValidationType.Sms -> "SMS"
+            AuthValidationType.Push -> "VK notification"
+            AuthValidationType.Email -> "email"
+            AuthValidationType.App -> "authenticator app"
+            AuthValidationType.LibVerify -> "verification service"
+            AuthValidationType.CallReset -> "phone call"
+            AuthValidationType.ReserveCode -> "reserve code"
+        }
+    }
+
     /** Точка передачи аккаунта из восстанавливаемого VK auth-флоу. */
-    fun installSession(session: com.lmg.vk.network.VkAuthSession) {
+    fun installSession(session: VkAuthSession) {
         val store = checkNotNull(sessionStore) { "MusicAuth is not initialized" }
         store.session = session
         applySession(session)
     }
 
-    private fun applySession(session: com.lmg.vk.network.VkAuthSession) {
+    private fun applySession(session: VkAuthSession) {
         _isLoggedIn.value = session.accessToken.isNotBlank()
         _partnerUserId.value = session.userId.takeIf { it != 0L }
         val displayName = listOf(session.firstName, session.lastName)
@@ -1008,13 +1127,40 @@ object MusicAuth {
         _avatarUrl.value = session.avatar.takeIf(String::isNotBlank)
     }
 
-    suspend fun fetchUserData() { /* TODO(vk-wire: users.get) */ }
+    suspend fun fetchUserData() {
+        val store = sessionStore ?: return
+        if (store.session.accessToken.isBlank()) return
+        val registry = methods ?: return
+        val profile = when (val result = registry.usersGetCurrent()) {
+            is VkResult.Success -> result.data.firstOrNull()
+            is VkResult.Error -> null
+        } ?: return
+
+        val updated = store.session.copy(
+            userId = profile.id.takeIf { it != 0L } ?: store.session.userId,
+            username = profile.domain,
+            firstName = profile.firstName,
+            lastName = profile.lastName,
+            avatar = profile.photo200.ifBlank { profile.photo100 },
+        )
+        store.session = updated
+        applySession(updated)
+    }
     fun getEffectiveQuality(requested: String, premium: Boolean): String = if (premium) requested else "128K"
-    fun reissueSessionToken() { /* TODO(vk-wire) */ }
+    suspend fun reissueSessionToken() {
+        val client = apiClient ?: return
+        if (client.refreshToken()) {
+            sessionStore?.session?.let(::applySession)
+            fetchUserData()
+        }
+    }
     fun logout() {
-        sessionStore?.session = com.lmg.vk.network.VkAuthSession.EMPTY
+        sessionStore?.session = VkAuthSession.EMPTY
         _partnerUserId.value = null
         _isLoggedIn.value = false
+        _profileName.value = null
+        _avatarUrl.value = null
+        _userEmail.value = null
     }
 }
 

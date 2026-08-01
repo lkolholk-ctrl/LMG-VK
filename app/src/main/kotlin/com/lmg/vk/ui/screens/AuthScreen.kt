@@ -48,8 +48,8 @@ fun AuthScreen(
 ) {
     val lc = LiquidTheme.colors
 
-    // Вход выполняется в ProfileScreen/MainActivity (VK-флоу). Когда состояние
-    // логина переключается в true — покидаем экран входа.
+    // OAuth-флоу живёт в EmailAuthSheet. После сохранения VK-сессии состояние
+    // переключается в true и экран закрывается единым путём через MusicAuth.
     val isLoggedIn by com.lmg.vk.engine.backend.MusicAuth.isLoggedIn.collectAsState()
     LaunchedEffect(isLoggedIn) {
         if (isLoggedIn) onAuthSuccess()
@@ -144,7 +144,7 @@ fun AuthScreen(
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            // Вход (VK-флоу подключается в ProfileScreen; здесь — точка входа)
+            // Вход через восстановленный VK OAuth token-флоу.
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -158,7 +158,7 @@ fun AuthScreen(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    "Continue",
+                    "Continue with VK",
                     color = lc.textPrimary,
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 16.sp
@@ -168,7 +168,7 @@ fun AuthScreen(
             Spacer(modifier = Modifier.height(16.dp))
 
             Text(
-                text = "By continuing, you agree to our Terms of Service",
+                text = "Your VK password is never stored by LMG VK",
                 color = lc.textSecondary,
                 fontSize = 12.sp,
                 textAlign = TextAlign.Center,

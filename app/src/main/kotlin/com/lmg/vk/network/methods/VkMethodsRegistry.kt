@@ -22,6 +22,7 @@ import com.lmg.vk.network.dto.EcosystemCheckOtpResponse
 import com.lmg.vk.network.dto.EcosystemGetVerificationMethodsResponse
 import com.lmg.vk.network.dto.EcosystemSendOtpResponse
 import com.lmg.vk.network.dto.RequestTokenResponse
+import com.lmg.vk.network.dto.VkAccountProfile
 import com.lmg.vk.network.dto.gen.auth.ValidatePhoneResponse
 import com.lmg.vk.network.dto.music.AudioAudioDto
 import com.squareup.moshi.Json
@@ -240,6 +241,18 @@ class VkMethodsRegistry(private val client: VkApiClient) {
 
     suspend fun usersGet(userId: Long, fields: String = "photo_base,is_followed,can_follow") =
         execute<Any>("users.get") { param("fields", fields); param("user_id", userId) }
+
+    /** Профиль владельца текущего access token после успешного OAuth-входа. */
+    suspend fun usersGetCurrent(): VkResult<List<VkAccountProfile>> {
+        val listType = Types.newParameterizedType(List::class.java, VkAccountProfile::class.java)
+        val method = VkMethod(
+            "users.get",
+            MoshiEnvelopeParser<List<VkAccountProfile>>(listType),
+        ).apply {
+            param("fields", "photo_100,photo_200,domain")
+        }
+        return client.execute(method)
+    }
 
     /** Точный вариант AbstractC15297e.license. */
     suspend fun usersGetPhoto(userId: Long) = execute<Any>("users.get") {
