@@ -160,8 +160,10 @@ dependencies {
     // OkHttp (Coil image loader в LmgApplication)
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
 
-    // Room (избранное/история — data/local/db)
-    implementation("androidx.room:room-runtime:2.6.1")
-    implementation("androidx.room:room-ktx:2.6.1")
-    ksp("androidx.room:room-compiler:2.6.1")
+    // Room (избранное/история — data/local/db). 2.7.0 как у LMG: на 2.6.1
+    // KSP 2.3.7 падает с "unexpected jvm signature V".
+    val roomVersion = "2.7.0"
+    implementation("androidx.room:room-runtime:$roomVersion")
+    implementation("androidx.room:room-ktx:$roomVersion")
+    ksp("androidx.room:room-compiler:$roomVersion")
 }
