@@ -1008,6 +1008,9 @@ object MusicAuth {
     private var sessionStore: VkSessionStore? = null
     private var apiClient: VkApiClient? = null
     private var methods: VkMethodsRegistry? = null
+    private val anonymousTokenMutex = Mutex()
+    private var anonymousToken: String = ""
+    private var anonymousTokenExpiresAt: Long = 0L
 
     internal fun init(client: VkApiClient, store: VkSessionStore) {
         apiClient = client
@@ -1034,6 +1037,12 @@ object MusicAuth {
         }
 
         val registry = methods ?: return VkLoginResult.Failure("VK API is not initialized")
+        val currentAnonymousToken = when (val result = getAnonymousToken(registry)) {
+            is VkResult.Success -> result.data
+            is VkResult.Error -> return VkLoginResult.Failure(
+                result.message.ifBlank { "VK did not issue an anonymous authorization token" },
+            )
+        }
         val extraParams = buildMap {
             captchaSid?.takeIf(String::isNotBlank)?.let { put("captcha_sid", it) }
             captchaKey?.takeIf(String::isNotBlank)?.let { put("captcha_key", it) }
@@ -1043,6 +1052,7 @@ object MusicAuth {
             password = password,
             sid = validationSid,
             code = code,
+            anonymousToken = currentAnonymousToken,
             extraParams = extraParams,
         )) {
             is VkResult.Error -> VkLoginResult.Failure(
@@ -1071,6 +1081,35 @@ object MusicAuth {
             }
         }
     }
+
+    /**
+     * C14914e.Signature сначала вызывает C8221e.yandex/get_anonym_token и лишь
+     * затем OAuth token. Один anonymous_token сохраняется на весь 2FA/captcha
+     * диалог, чтобы продолжение относилось к той же попытке авторизации.
+     */
+    private suspend fun getAnonymousToken(registry: VkMethodsRegistry): VkResult<String> =
+        anonymousTokenMutex.withLock {
+            val nowSeconds = System.currentTimeMillis() / 1000
+            if (anonymousToken.isNotBlank() &&
+                (anonymousTokenExpiresAt == 0L || anonymousTokenExpiresAt > nowSeconds + 30)
+            ) {
+                return@withLock VkResult.Success(anonymousToken)
+            }
+
+            when (val result = registry.getAnonymToken()) {
+                is VkResult.Error -> result
+                is VkResult.Success -> {
+                    val token = result.data.token
+                    if (token.isBlank()) {
+                        VkResult.Error(0, "VK returned an empty anonymous authorization token")
+                    } else {
+                        anonymousToken = token
+                        anonymousTokenExpiresAt = result.data.expiredAt.toLong()
+                        VkResult.Success(token)
+                    }
+                }
+            }
+        }
 
     private suspend fun finishSignIn(response: RequestTokenResponse.Success): VkLoginResult {
         if (response.accessToken.isBlank()) {
@@ -1161,6 +1200,8 @@ object MusicAuth {
         _profileName.value = null
         _avatarUrl.value = null
         _userEmail.value = null
+        anonymousToken = ""
+        anonymousTokenExpiresAt = 0L
     }
 }
 
