@@ -67,10 +67,9 @@ class MoshiEnvelopeParser<T>(
     responseType: Type,
     moshi: Moshi = VkJson.moshi,
 ) : VkResponseParser<T> {
-    @Suppress("UNCHECKED_CAST")
-    private val adapter: JsonAdapter<VKResponse<T>> = moshi.adapter(
+    private val adapter: JsonAdapter<VKResponse<T>> = moshi.adapter<VKResponse<T>>(
         Types.newParameterizedType(VKResponse::class.java, responseType),
-    ) as JsonAdapter<VKResponse<T>>
+    )
 
     override suspend fun parse(raw: RawHttpResponse): VkParsedResponse<T> {
         val envelope = requireNotNull(adapter.fromJson(raw.bodyText())) {

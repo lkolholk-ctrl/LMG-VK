@@ -159,7 +159,7 @@ object MusicBackend {
             ownerId = currentUserId(),
             offset = 0,
             count = limit,
-        ).requireData().also(::cacheTracks).map(AudioTrack::toSearchItem)
+        ).requireData().also(::cacheTracks).map { it.toSearchItem() }
 
     suspend fun searchAll(query: String, region: String? = null, source: String = SearchSource.ALL, limit: Int = 30): SearchResponse? =
         runCatching {
@@ -167,7 +167,7 @@ object MusicBackend {
             val result = audioApi.searchMain(query = query, offset = 0, count = limit).requireData()
             val tracks = (result.audios.items + result.own_audios.items)
                 .distinctBy(AudioAudioDto::fullId)
-                .map(AudioAudioDto::toAudioTrack)
+                .map { it.toAudioTrack() }
                 .also(::cacheTracks)
             val albums = (result.albums.items + result.own_albums.items)
                 .distinctBy(AudioPlaylistDto::fullId)
@@ -178,11 +178,11 @@ object MusicBackend {
                 region = this.region,
                 source = "vk",
                 items = buildList {
-                    addAll(tracks.map(AudioTrack::toSearchItem))
+                    addAll(tracks.map { it.toSearchItem() })
                     addAll(result.artists.items.distinctBy { it.id ?: it.domain ?: it.name }
-                        .map(AudioArtistDto::toSearchItem))
-                    addAll(albums.map(AudioPlaylistDto::toSearchItem))
-                    addAll(playlists.map(AudioPlaylistDto::toSearchItem))
+                        .map { it.toSearchItem() })
+                    addAll(albums.map { it.toSearchItem() })
+                    addAll(playlists.map { it.toSearchItem() })
                 },
             )
         }.getOrNull()
@@ -203,17 +203,17 @@ object MusicBackend {
         }
 
         val blocks = buildList {
-            val releases = catalog.playlists.orEmpty().map(AudioPlaylist::toHomeItem)
+            val releases = catalog.playlists.orEmpty().map { it.toHomeItem() }
             if (releases.isNotEmpty()) {
                 add(HomeBlock("vk_new_releases", "Новые релизы", "new_releases", releases))
             }
             if (popularTracks.isNotEmpty()) {
-                add(HomeBlock("vk_charts", "Популярное", "charts", popularTracks.map(AudioTrack::toHomeItem)))
+                add(HomeBlock("vk_charts", "Популярное", "charts", popularTracks.map { it.toHomeItem() }))
             }
             if (catalogTracks.isNotEmpty()) {
-                add(HomeBlock("vk_recommendations", "Рекомендации", "recommendations", catalogTracks.map(AudioTrack::toHomeItem)))
+                add(HomeBlock("vk_recommendations", "Рекомендации", "recommendations", catalogTracks.map { it.toHomeItem() }))
             }
-            val artists = catalog.artists.orEmpty().map(VkArtistDto::toHomeItem)
+            val artists = catalog.artists.orEmpty().map { it.toHomeItem() }
             if (artists.isNotEmpty()) {
                 add(HomeBlock("vk_artists", "Исполнители", "artists", artists))
             }
@@ -230,8 +230,8 @@ object MusicBackend {
                 id = "vk_popular",
                 name = "VK Музыка",
                 query = "popular",
-                cover = tracks.firstNotNullOfOrNull(AudioTrack::coverUrl),
-                tracks = tracks.map(AudioTrack::toSearchItem),
+                cover = tracks.firstNotNullOfOrNull { it.coverUrl() },
+                tracks = tracks.map { it.toSearchItem() },
             ),
         )
     }
@@ -247,7 +247,7 @@ object MusicBackend {
             offset = 0,
             count = 6000,
         ).requireData().also(::cacheTracks)
-        AlbumResponse(playlist.toAlbum(), tracks.map(AudioTrack::toAlbumTrack))
+        AlbumResponse(playlist.toAlbum(), tracks.map { it.toAlbumTrack() })
     }.getOrNull()
 
     suspend fun getArtist(artistId: String): ArtistResponse? = runCatching {
@@ -268,7 +268,7 @@ object MusicBackend {
             is VkResult.Success -> response.data.artists
             is VkResult.Error -> emptyList()
         }
-        val albums = catalog.playlists.orEmpty().map(AudioPlaylist::toArtistAlbum)
+        val albums = catalog.playlists.orEmpty().map { it.toArtistAlbum() }
         ArtistResponse(
             id = artist.id,
             name = artist.name,
@@ -277,7 +277,7 @@ object MusicBackend {
             image = artist.coverUrl(),
             cover = artist.coverUrl(),
             bio = artist.bio,
-            topSongs = tracks.map(AudioTrack::toArtistSong),
+            topSongs = tracks.map { it.toArtistSong() },
             latestRelease = albums.maxByOrNull { it.year.orEmpty() },
             albums = albums.filterNot { it.type.equals("single", ignoreCase = true) },
             singles = albums.filter { it.type.equals("single", ignoreCase = true) },
@@ -291,7 +291,7 @@ object MusicBackend {
     suspend fun getArtistTopTracks(artistId: String): List<Track> =
         audioApi.getAudiosByArtist(artistId.removePrefix("vk_")).requireData()
             .also(::cacheTracks)
-            .map(AudioTrack::toEngineTrack)
+            .map { it.toEngineTrack() }
 
     // ---------- лайки / библиотека ----------
     suspend fun getLibraryLikes(source: String = "all", limit: Int = 500, offset: Int = 0): LibraryLikesResponse? =
@@ -302,7 +302,7 @@ object MusicBackend {
                 count = limit.coerceIn(1, 6000),
             ).requireData().also(::cacheTracks)
             LibraryLikesResponse(
-                items = tracks.map(AudioTrack::toLibraryTrack),
+                items = tracks.map { it.toLibraryTrack() },
                 count = tracks.size,
                 offset = offset,
                 limit = limit,
@@ -351,7 +351,7 @@ object MusicBackend {
             } else null
             PlaylistTracksResponse(
                 playlist = playlist,
-                tracks = tracks.map(AudioTrack::toPlaylistTrack),
+                tracks = tracks.map { it.toPlaylistTrack() },
             )
         }.getOrNull()
     suspend fun deleteUserPlaylist(playlistId: String): Boolean = runCatching {
@@ -434,7 +434,7 @@ object MusicBackend {
             status = if (tracks.isEmpty()) "empty" else "ok",
             region = this.region,
             source = "vk",
-            tracks = tracks.map(AudioTrack::toWaveTrack),
+            tracks = tracks.map { it.toWaveTrack() },
         )
     }
     suspend fun nextSessionBatch(
@@ -474,7 +474,7 @@ object MusicBackend {
             status = if (filtered.isEmpty()) "empty" else "ok",
             region = this.region,
             source = "vk",
-            tracks = filtered.map(AudioTrack::toWaveTrack),
+            tracks = filtered.map { it.toWaveTrack() },
         )
     }
     suspend fun moodBatch(
@@ -499,7 +499,7 @@ object MusicBackend {
             status = if (tracks.isEmpty()) "empty" else "ok",
             region = this.region,
             source = "vk",
-            tracks = tracks.map(AudioTrack::toWaveTrack),
+            tracks = tracks.map { it.toWaveTrack() },
         )
     }
     suspend fun nextTrackStation(
