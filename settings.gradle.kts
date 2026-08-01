@@ -24,6 +24,11 @@ dependencyResolutionManagement {
         }
         google()
         mavenCentral()
+        // JitPack: com.github.requery:sqlite-android, com.github.Adonai:jaudiotagger
+        maven {
+            url = uri("https://jitpack.io")
+            content { includeGroupByRegex("com\\.github\\..*") }
+        }
     }
 }
 
