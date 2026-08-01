@@ -1,7 +1,12 @@
-// LMG VK — восстановленный проект (com.lmg.vk)
+// LMG VK — проект (com.lmg.vk). Стек выровнен с LMG (проверенная связка CI).
+buildscript {
+    dependencies {
+        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:2.3.10")
+    }
+}
+
 plugins {
-    id("com.android.application") version "8.7.3" apply false
-    kotlin("android") version "2.1.0" apply false
-    kotlin("plugin.serialization") version "2.1.0" apply false
-    id("com.google.devtools.ksp") version "2.1.0-1.0.29" apply false
+    id("com.android.application") version "9.0.0" apply false
+    id("org.jetbrains.kotlin.plugin.compose") version "2.3.10" apply false
+    id("com.google.devtools.ksp") version "2.3.7" apply false
 }
