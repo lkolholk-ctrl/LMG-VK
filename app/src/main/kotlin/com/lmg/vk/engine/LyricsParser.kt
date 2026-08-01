@@ -125,7 +125,9 @@ object LyricsParser {
         // Return cached lyrics instantly if available
         getCachedLyrics(trackId)?.let { return@withContext it }
 
-        if (trackId.startsWith("vk_") || trackId.startsWith("secondary_")) {
+        // VK-треки теперь обслуживаются восстановленным audio.getLyrics.
+        // secondary_* по-прежнему не имеет подтверждённой ручки текстов.
+        if (trackId.startsWith("secondary_")) {
             return@withContext Lyrics.EMPTY
         }
 

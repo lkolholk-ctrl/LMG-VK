@@ -118,6 +118,7 @@ dependencies {
     // --- JSON: Moshi (network DTO) + kotlinx.serialization (backend models) ---
     implementation("com.squareup.moshi:moshi:1.15.1")
     implementation("com.squareup.moshi:moshi-kotlin:1.15.1")
+    ksp("com.squareup.moshi:moshi-kotlin-codegen:1.15.1")
 
     // --- плеер: media3 из НАШЕГО форка (media3-lmg, 1.5.1-lmg29) ---
     implementation("com.liquidmusicglass.media3:media3-common:1.5.1-lmg29")

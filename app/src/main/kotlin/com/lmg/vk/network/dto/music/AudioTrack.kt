@@ -12,12 +12,12 @@ import com.lmg.vk.network.dto.podcasts.PodcastInfo
  */
 @JsonClass(generateAdapter = true)
 data class AudioTrack(
-    val artist: String,
-    val id: Int,
-    val owner_id: Long,
-    val title: String,
-    val duration: Int,
-    val access_key: String,
+    val artist: String = "",
+    val id: Int = 0,
+    val owner_id: Long = 0L,
+    val title: String = "",
+    val duration: Int = 0,
+    val access_key: String? = null,
     val is_explicit: Boolean = false,
     val is_licensed: Boolean = false,
     val track_code: String = "",
@@ -39,7 +39,7 @@ data class AudioTrack(
     val podcast_info: PodcastInfo? = null,
     val audio_chart_info: AudioChartInfo? = null,
     val stream_duration: Int = 0,
-    val release_audio_id: String = "",
+    val release_audio_id: String? = null,
     val like: Boolean? = null,
 ) {
     /** Полный id VK: "ownerId_audioId" — используется в audio.getById/плеере. */
@@ -58,9 +58,9 @@ data class AudioTrack(
 /** Из `ua.lmg.vkapi2.objects.music.playlist.metadata.MainArtist`. */
 @JsonClass(generateAdapter = true)
 data class MainArtist(
-    val id: String,
-    val domain: String,
-    val name: String,
+    val id: String = "",
+    val domain: String = "",
+    val name: String = "",
     val photo: List<AlbumThumb>? = null,
     val is_cached: Boolean = false,
 )
@@ -68,6 +68,6 @@ data class MainArtist(
 /** Из `ua.lmg.vkapi2.objects.music.AudioChartInfo`. */
 @JsonClass(generateAdapter = true)
 data class AudioChartInfo(
-    val position: Int,
-    val state: Int, // 0=без изменений, 1=вверх, 2=вниз, 3=new (по константам приложения)
+    val position: Int = 0,
+    val state: Int = 0, // 0=без изменений, 1=вверх, 2=вниз, 3=new (по константам приложения)
 )

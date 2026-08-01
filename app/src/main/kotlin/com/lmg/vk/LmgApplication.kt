@@ -21,14 +21,20 @@ import com.lmg.vk.engine.automix.AudioTelemetry
 import com.lmg.vk.engine.automix.HapticMusicEngine
 import com.lmg.vk.engine.automix.RemoteQuirks
 import com.lmg.vk.engine.backend.MusicAuth
+import com.lmg.vk.engine.backend.MusicBackend
 import com.lmg.vk.engine.backend.WaveSignalQueue
 import com.lmg.vk.logging.CrashHandler
+import com.lmg.vk.network.EncryptedVkSessionStore
+import com.lmg.vk.network.VkApiClient
+import com.lmg.vk.network.VkApiLocator
 import com.lmg.vk.ui.DeviceTier
 import com.lmg.vk.ui.PowerSaveMonitor
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import io.ktor.client.HttpClient as KtorHttpClient
+import io.ktor.client.engine.okhttp.OkHttp as KtorOkHttp
 import okhttp3.ConnectionPool
 import okhttp3.Dispatcher
 import okhttp3.OkHttpClient
@@ -154,6 +160,18 @@ class LmgApplication : Application(), ImageLoaderFactory {
         // PlayerController — просто сохраняет context.
         PlayerController.init(this)
 
+        // VK API: Ktor-клиент + зашифрованная сессия + доменный фасад UI.
+        val vkSessionStore = EncryptedVkSessionStore(this)
+        val vkApiClient = VkApiClient(
+            httpClient = KtorHttpClient(KtorOkHttp) {
+                expectSuccess = false
+            },
+            sessionStore = vkSessionStore,
+            deviceIdProvider = ::resolveVkDeviceId,
+        )
+        VkApiLocator.init(vkApiClient)
+        MusicBackend.init(vkApiClient, vkSessionStore)
+
         // ── Сетевая живучесть ─────────────────────────────────────────────
         NetworkVitality.registerReviver("covers") { evictImageConnections() }
         // TODO(vk-wire): reviver для Ktor-клиента VkApiClient (evict пула).
@@ -163,6 +181,8 @@ class LmgApplication : Application(), ImageLoaderFactory {
 
         // Фоновые стартовые задачи (без таймаута главного потока).
         appScope.launch {
+            // C9616e: api.vk.com/ping.txt -> api.vk.ru/ping.txt.
+            vkApiClient.probeAndSelectApiDomain()
             // Дослать сигналы волны, не доставленные в прошлой сессии.
             runCatching { WaveSignalQueue.drain() }
             // Подтянуть серверные лайки в локальное избранное.
@@ -192,6 +212,14 @@ class LmgApplication : Application(), ImageLoaderFactory {
             runCatching { coil.Coil.imageLoader(this).memoryCache?.clear() }
             runCatching { LyricsParser.trimCache() }
         }
+    }
+
+    private fun resolveVkDeviceId(): String {
+        val preferences = getSharedPreferences("lmg_vk_device", MODE_PRIVATE)
+        preferences.getString("device_id", null)?.takeIf { it.isNotBlank() }?.let { return it }
+        val generated = java.util.UUID.randomUUID().toString()
+        preferences.edit().putString("device_id", generated).apply()
+        return generated
     }
 
     companion object {

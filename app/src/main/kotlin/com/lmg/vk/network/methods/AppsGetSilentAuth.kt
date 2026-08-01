@@ -6,7 +6,13 @@ import com.lmg.vk.network.VkParsedResponse
 import com.lmg.vk.network.VkResponseParser
 import com.lmg.vk.network.VkResult
 import com.lmg.vk.network.RawHttpResponse
+import com.lmg.vk.network.MappingVkResponseParser
+import com.lmg.vk.network.MoshiEnvelopeParser
+import com.lmg.vk.network.VkItems
 import com.lmg.vk.jni.LmgNative
+import com.squareup.moshi.Json
+import com.squareup.moshi.JsonClass
+import com.squareup.moshi.Types
 
 /**
  * Восстановлено из `defpackage.C10943e` — поток "silent authorization".
@@ -27,7 +33,7 @@ class AppsGetSilentAuth(
         }
 
         val code: String = when (val result = client.execute(method)) {
-            is VkResult.Success -> result.data.confirmationCode ?: ""
+            is VkResult.Success -> result.data.webviewUrl ?: ""
             is VkResult.Error -> ""
         }
 
@@ -39,11 +45,22 @@ class AppsGetSilentAuth(
         return mapOf("code" to obfuscated)
     }
 
-    data class AppsGetResponse(val confirmationCode: String?)
+    data class AppsGetResponse(val webviewUrl: String?)
+
+    @JsonClass(generateAdapter = true)
+    data class AppItem(
+        @Json(name = "webview_url") val webviewUrl: String? = null,
+    )
 
     private object AppsGetParser : VkResponseParser<AppsGetResponse> {
+        private val delegate = MappingVkResponseParser(
+            MoshiEnvelopeParser<VkItems<AppItem>>(
+                Types.newParameterizedType(VkItems::class.java, AppItem::class.java),
+            ),
+        ) { response -> AppsGetResponse(response.items.firstOrNull()?.webviewUrl) }
+
         override suspend fun parse(raw: RawHttpResponse): VkParsedResponse<AppsGetResponse> {
-            TODO("Moshi: VKResponse<AppsGetDto> — поле с кодом подтверждения")
+            return delegate.parse(raw)
         }
     }
 

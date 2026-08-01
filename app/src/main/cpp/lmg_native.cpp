@@ -80,8 +80,6 @@ inline constexpr char kLmgPlusBetaNotice[] =
 inline constexpr char kLmgPlusLearnMore[] = "Узнать больше:Telegram";
 // Внутренняя лицензионная константа (encoded)
 inline constexpr char kLmgLicenseBlob[] = "yssp9o9p9pamz5t-nvmq8spgwtin3e0==";
-// Ожидаемый SHA-хекс подписи приложения (самопроверка целостности)
-inline constexpr char kLmgExpectedSignature[] = "B4F6280F";
 // Публичный ключ ECDSA P-256 (X.509 SPKI, DER hex) для проверки лицензий LMG VK+
 inline constexpr char kLmgLicensePublicKeyHex[] =
     "3059301306072A8648CE3D020106082A8648CE3D03010703420004"
@@ -200,7 +198,7 @@ static jobject nativeGetVkApiData(JNIEnv* env, jclass /*clazz*/) {
 // ===========================================================================
 // native x01() — getLmgEnvironment()
 // Возвращает BundleNativeClass(12): окружение бэкенда LMG VK (ui/api хосты,
-// токен, JWT-заготовка, пейволл-тексты, лицензионный blob, хекс подписи,
+// токен, JWT-заготовка, пейволл-тексты, лицензионный blob,
 // публичный ключ ECDSA P-256 для проверки лицензии LMG VK+).
 // ===========================================================================
 static jobject nativeGetLmgEnvironment(JNIEnv* env, jclass /*clazz*/) {
@@ -211,7 +209,7 @@ static jobject nativeGetLmgEnvironment(JNIEnv* env, jclass /*clazz*/) {
         kLmgPlusBetaNotice,        // [3]
         kLmgPlusLearnMore,         // [4]
         kLmgLicenseBlob,           // [5]
-        kLmgExpectedSignature,     // [6]
+        "",                        // [6] проверка подписи APK удалена
         kLmgApiHost,               // [7]
         kLmgLicensePublicKeyHex,   // [8]
         // [9..11] — в эмуляции не декодированы (runtime key-layer); зарезервировано
@@ -312,11 +310,8 @@ static const JNINativeMethod kLmgNativeMethods[] = {
 // JNI_OnLoad (оригинал @ 0xB8F64):
 //   1. GetEnv(JNI_VERSION_1_6)
 //   2. disableXposedHooks()
-//   3. Самопроверка целостности: чтение собственного base.apk
-//      (/data/app/com.lmg.vk-1/base.apk), dl_iterate_phdr-обход,
-//      сверка подписи (kLmgExpectedSignature); при несовпадении — abort.
-//   4. Кэширование BundleNativeClass: ctor (I)V, add (ILjava/lang/Object;)V
-//   5. RegisterNatives("com/lmg/vk/jni/LmgNative", methods, 3)
+//   3. Кэширование BundleNativeClass: ctor (I)V, add (ILjava/lang/Object;)V
+//   4. RegisterNatives("com/lmg/vk/jni/LmgNative", methods, 3)
 // =============================================================================
 JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void* /*reserved*/) {
     JNIEnv* env = nullptr;
@@ -325,9 +320,6 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void* /*reserved*/) {
     }
 
     lmg::disableXposedHooks(env);
-
-    // NOTE: самопроверка целостности APK (п.3) опущена — в восстановленном
-    // коде она не нужна; в оригинале защищает от переподписи/патчинга.
 
     jclass bundleCls = env->FindClass("com/lmg/vk/jni/BundleNativeClass");
     if (!bundleCls) return JNI_ERR;

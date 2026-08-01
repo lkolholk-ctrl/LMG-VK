@@ -2,7 +2,7 @@
 
 > **Проект:** полное восстановление музыкального клиента VK X v8.12.1 (ПО `ua.itaysonlab.vkx`) из бинарного APK + порт UI из LiquidMusicGlass → собственное приложение **LMG VK** (`com.lmg.vk`).
 > **Репозиторий:** https://github.com/lkolholk-ctrl/LMG-VK
-> **Дата среза:** 2026-07-30 · **Статистика:** 212 Kotlin-файлов, ~53 000 строк, 2 коммита (`68f392c`, `4cfa78a`)
+> **Дата среза:** 2026-08-01 · восстановление продолжается по `VKLMG_Recovery.zip`
 
 ---
 
@@ -44,11 +44,11 @@ result = base64_std( input[i] XOR "THETRUTHLIES"[i % 12] )
 - Эндпоинты: `https://api.vk.ru/`, `https://oauth.vk.ru/` + прокси `vk-api-proxy.xtrafrancyz.net`, `vk-oauth-proxy.xtrafrancyz.net`
 - Креды официальных клиентов VK (base64): Android `2274003` / `hHbZxrka2uZ6jB1inYsH`; iOS `3140623` / `VeWdmVclDCtn6ihuP1nt`
 - UA-шаблоны `VKAndroidApp/{8.70, 7.1, 8.165.1}` (суффикс собирается из `android/os/Build`)
-- Бэкенд VK X: `ui.lmg.app`/`api.lmg.app` (бывш. vkx.app), токен, JWT-заготовка `eyJhbGciOiAibm9uZSJ9...`, лицензионный blob, **ECDSA P-256 публичный ключ** (X.509 SPKI hex), ожидаемый хекс подписи `B4F6280F`
+- Бэкенд VK X: `ui.lmg.app`/`api.lmg.app` (бывш. vkx.app), токен, JWT-заготовка `eyJhbGciOiAibm9uZSJ9...`, лицензионный blob, **ECDSA P-256 публичный ключ** (X.509 SPKI hex)
 
 **Защитные механизмы (задокументированы):**
 - Anti-Xposed: рефлексией `XposedBridge.disableHooks = TRUE`
-- Самопроверка: чтение собственного `base.apk` + `dl_iterate_phdr` + сверка подписи → при провале `abort()`
+- Самопроверка подписи и целостности APK удалена: восстановленные сборки подписываются ключом владельца проекта.
 
 ### Артефакты
 - `app/src/main/cpp/lmg_native.cpp` — чистый C++17 (компилируется и линкуется NDK r29 → `liblmg.so`, проверено toolchain `aarch64-linux-android-clang++`)
@@ -70,7 +70,7 @@ result = base64_std( input[i] XOR "THETRUTHLIES"[i % 12] )
 |---|---|---|
 | `C8221e` | `VkApiClient` | ядро: execute/rawCall, токены, ретраи |
 | `C5577e` | `VkMethod` | обёртка метода (name, v="5.272", params) |
-| `C18479e` | `VkAuthSession` | access/refresh/exchange токены, expiresAt |
+| `C18479e` | `VkAuthSession` | точный `VkAccount`: id, access/exchange token, сроки, профиль |
 | `C18301e` | `VkAuthApi.refreshTokens()` | протокол auth.refreshTokens |
 | `C9022e`/`C7220e` | `VkResult` | sealed Success/Error |
 | `InterfaceC11962e` | `VkResponseParser` | парсер конверта (Moshi) |
@@ -89,6 +89,51 @@ result = base64_std( input[i] XOR "THETRUTHLIES"[i % 12] )
 
 ### Методы (реестр 50+ эндпоинтов, `methods/VkMethodsRegistry.kt`)
 `audio.*` (get, search, getPlaylists, getPlaylistById, add/delete/restore, addDislike/removeDislike, getAudioIdsBySource, getAudioPreviewUrl, getRelatedArtists, getStreamMixSettings, reorderInPlaylist, followRadioStation/unfollow, searchArtists, searchMain), `audioBooks.*`, `podcasts.subscribe/unfollow`, `users.get`, `utils.resolveScreenName`, `storage.get/set`, `stats.trackEvents`, `musicStatResults.*`, `studio.getArtistYearRecapData`, полный **auth-флоу** (`validateAccount`, `processAuthCode(Multi)`, `ecosystem.*` OTP, `get_anonym_token`, OAuth `token` grant_type=password).
+
+Priority 2 добавил точный ответ `audio.searchMain` с 7 секциями
+(`albums/audios/artists/playlists/own_*`) и полный 43-key контракт
+`AudioPlaylistDto` из C9885e/C1471e. Число 41 в отчёте P2 было неточным:
+дескриптор C1471e явно объявляет 43 ключа. StreamMix и related artists совпали
+с DTO Priority 1. Старое `ua.lmg...AudioPlaylist` сохранено отдельным классом.
+
+Priority 3 добавил подтверждённые R8-merged фрагменты:
+- выбор API-хоста по `api.vk.com/ping.txt` → `api.vk.ru/ping.txt` с исходным
+  enum `VK_COM_WORKS/VK_RU_WORKS/NOTHING_WORKS`;
+- точные запросы `auth.getExchangeToken` (v5.180), `auth.validatePhone`,
+  `auth.validateAccount`, `get_anonym_token`, `ecosystem.sendOtp*` и два
+  варианта `users.get(fields=photo_100)`;
+- wire DTO `AnonymTokenResponse(token, expired_at)`,
+  `EcosystemSendOtpResponse(status, sid, code_length, info)`,
+  `BaseResult(result="0"|"1")`; в `ValidatePhoneResponse` возвращён десятый
+  ключ `phone_mask`;
+- новый типизированный контракт `audio.restore -> AudioAudioDto` оставлен
+  рядом со старым Unit-контрактом, не заменяя семейство `ua.lmg.vkapi2`.
+
+В отчёте P3 встречаются ошибочные смысловые подписи из-за горизонтального
+слияния R8. Источником истины при переносе считаются сериализатор и JSON
+descriptor: например, C7862e — `AnonymTokenResponseDto(token, expired_at)`,
+а C18422e — 39-польный `AudioAudioDto`.
+
+Priority 4 восстановил типизированный auth/OTP-слой:
+- `AuthGetExchangeTokenResponse` со списком пользовательских common/tier
+  exchange-токенов оставлен рядом с отдельным ответом `C7862e`;
+- `AuthValidateAccountResponse`, `AuthProcessAuthCodeResponse`,
+  `AuthGetAuthCodeStatusResponse`, `EcosystemCheckOtpResponse` и
+  `EcosystemGetVerificationMethodsResponse` подключены к реальным методам;
+- OAuth `token` разбирается в шесть подтверждённых sealed-веток
+  `RequestTokenResponse`: success, client error, 2FA, nested VK error,
+  captcha и unknown error;
+- параметры OAuth-флоу дополнены точными `flow_type=tg_flow`,
+  `sak_version=1.142` и `supported_ways=push,email`.
+
+### Раздельные старые интеграции
+- **VK Android OAuth**: client `2274003` и его secret используются только в
+  `token`, `get_anonym_token` и `auth.refreshTokens`.
+- **UMA service auth**: восстановлен `auth.getCredentialsForService` с отдельными
+  package/app_id/app_secret/digest_hash и точным `SilentCredentials` (11 полей).
+- **Last.fm**: восстановлены `track.updateNowPlaying` и `track.scrobble`, сортировка
+  параметров, MD5-подпись и form-urlencoded POST. Last.fm session key остаётся
+  отдельным пользовательским токеном и не попадает в VK-сессию.
 
 ### DTO-модель (~50 классов)
 - Ручные: `AudioTrack` (29 полей с `fullId="owner_audio"`), `AudioPlaylist`, `AudioAlbum`, `AlbumThumb`, `MainArtist`, `AudioLyrics(+timestamps)`, `Genre`, `RadioStation`, `MusicDynamicRestriction`, `PodcastInfo`, `VKError/VKResponse/VKRequestParameter`
@@ -210,16 +255,26 @@ UI ссылается на ресурсы LMG, которых нет в прое
 
 ## 2.2. Реализация бэкенда (оживление приложения)
 
-### A. `VkBackendImpl` — главная задача
-`engine/backend/MusicBackend` сейчас — фасад-заглушка (все методы `TODO("vk-wire")`). Нужна реализация:
-```
-MusicBackend.getTrackInfo     ← VkAudioApi / AudioTrack.url (прямая ссылка!)
-MusicBackend.searchTracks     ← VkAudioApi.searchAudios
-MusicBackend.loadHomeContent  ← catalog/getAudio (vkx home)
-MusicBackend.getLibraryLikes  ← audio.get (лайкнутые)
-MusicBackend.waveNext         ← audio.getStreamMixSettings / RadioStation (Волна VK)
-MusicBackend.getLyricsResult  ← audio.getLyrics (по lyrics_id)
-```
+### A. `MusicBackend` — Priority 1 подключён к VK API
+
+Готово по подтверждённым контрактам из APK:
+- `getTrackInfo/getStreamUrl/getTrackMeta/getBatchTrackMeta` ← `audio.getById` + 8-минутный кэш URL
+- `searchTracks` ← `audio.search`; `searchAll` ← `audio.searchMain` (7 секций Priority 2)
+- `getLibraryLikes/likeTrack/unlikeTrack` ← `audio.get/add/delete`
+- `getUserPlaylists/getUserPlaylistTracks/deleteUserPlaylist` ← методы плейлистов VK
+- `loadHomeContent/loadCharts` ← `catalog.getAudioAuto` + `audio.getPopular`
+- `getAlbum/getArtist/getArtistTopTracks` ← `catalog.getAudioArtist`, `audio.getAudiosByArtist`, `audio.getRelatedArtistsById`
+- `getLyricsResult` ← `audio.getLyrics` с синхронными `begin/end` и plain-text fallback
+- личная волна и batch-сессия ← `audio.getStreamMixAudios` (порции по 5), fallback `audio.getRecommendations`
+- настройки StreamMix ← `audio.getStreamMixSettings`
+- onboarding ← `audio.recommendationsOnboarding` / `audio.finishRecomsOnboarding`
+- follow/unfollow радиостанций добавлены в `VkAudioApi`
+- приложение инициализирует Ktor, `VkApiClient`, `MusicBackend` и AES/GCM-хранилище сессии
+- все сетевые `TODO()` в `com.lmg.vk.network` устранены; Moshi codegen подключён через KSP
+
+Осталось: профиль/подписка, полный auth UI, сигналы `stats.trackEvents`, пользовательские
+настройки/регион и старые серверные функции импорта/Apple-клипов (у них нет аналога
+среди восстановленных VK-ручек).
 **Ключевой маппер:** `network.dto.music.AudioTrack → engine.Track`
 (id=`fullId`, title, artist, albumName=album?.title, uri=Uri.parse(url), durationMs=duration*1000, coverUrl=album thumb, artists=main_artists, isExplicit, source="vk")
 
@@ -238,7 +293,7 @@ MusicBackend.getLyricsResult  ← audio.getLyrics (по lyrics_id)
 
 - ✅ `lmg_native.cpp` компилируется, JNI_OnLoad экспортирован
 - ⚠️ **TODO(backend)**: хосты `ui.lmg.app`/`api.lmg.app` — плейсхолдеры, указать реальные хосты своего бэкенда (см. `lmg_native.cpp:66`)
-- ⚠️ Константа `kLmgExpectedSignature="B4F6280F"` — хекс подписи ОРИГИНАЛА; при своей сборке/сертификате — пересчитать или выпилить самопроверку
+- ✅ Проверка подписи/целостности APK и старый хекс подписи удалены; переподписанная восстановленная сборка не блокируется.
 - ⚠️ Анти-Xposed блок оставлен активным (можно выпилить)
 - `x00[7..8]`, `x01[9..11]` — слоты под runtime key-layer в эмуляции не декодированы (нужен прогон на устройстве/Frida)
 

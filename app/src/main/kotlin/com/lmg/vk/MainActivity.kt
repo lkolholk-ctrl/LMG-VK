@@ -92,7 +92,7 @@ class MainActivity : ComponentActivity() {
         val isSecurityCompromised = mutableStateOf(false)
         val compromiseReason = mutableStateOf("")
 
-        // Security checks: Root/Emulator. Нативные проверки (Frida/Xposed/подпись)
+        // Security checks: Root/Emulator. Нативные проверки (Frida/Xposed)
         // — на стороне liblmg; здесь оставлен только лёгкий Java-уровень.
         if (PROTECTION_ENABLED) authScope.launch {
             val isRooted = SecurityUtils.isDeviceRooted()
@@ -158,9 +158,9 @@ class MainActivity : ComponentActivity() {
 
     companion object {
         /**
-         * Java-уровень защиты (Root/Emulator). Нативные проверки (Frida/Xposed/
-         * подпись/целостность APK) выполняет liblmg в JNI_OnLoad — см. lmg_native.cpp.
-         * TODO(security): включить оба слоя перед релизом.
+         * Java-уровень защиты (Root/Emulator). Проверка подписи и целостности APK
+         * отключена для восстановленных сборок, подписанных владельцем проекта.
+         * При необходимости отдельно включается только Root/Emulator-защита.
          */
         private const val PROTECTION_ENABLED = false
     }

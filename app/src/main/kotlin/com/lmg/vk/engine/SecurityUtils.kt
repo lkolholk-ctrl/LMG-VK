@@ -78,10 +78,10 @@ object SecurityUtils {
     }
 
     /**
-     * Checks if the environment is fully safe (no Frida, no Xposed, no hooks, no debuggers, valid signature).
-     * Wrapped in robust try-catch blocks to guarantee the app keeps working in case of NDK/JNI errors.
+     * Checks for runtime instrumentation and hooks. APK signature/integrity checks
+     * are intentionally not performed: recovered builds are signed by the owner.
      */
-    fun isEnvironmentSafe(context: android.content.Context): Boolean {
+    fun isEnvironmentSafe(@Suppress("UNUSED_PARAMETER") context: android.content.Context): Boolean {
         return try {
             // A. Check for system function hooks (Frida dynamic hooking)
             if (!NativeSecurity.nativeCheckHooks()) return false
@@ -89,31 +89,6 @@ object SecurityUtils {
             // B. Check for combined threats (Frida, Xposed/LSPosed, Debuggers, Emulators)
             val threats = NativeSecurity.nativeSecurityCheck()
             if (threats != 0) return false
-
-            // C. Check signature validity against expected hash
-            val pm = context.packageManager
-            val info = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
-                pm.getPackageInfo(context.packageName, android.content.pm.PackageManager.GET_SIGNING_CERTIFICATES)
-            } else {
-                @Suppress("DEPRECATION")
-                pm.getPackageInfo(context.packageName, android.content.pm.PackageManager.GET_SIGNATURES)
-            }
-            val signatures = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
-                info.signingInfo?.apkContentsSigners
-            } else {
-                @Suppress("DEPRECATION")
-                info.signatures
-            }
-            if (signatures != null && signatures.isNotEmpty()) {
-                val sigBytes = signatures[0].toByteArray()
-                if (!NativeSecurity.nativeVerifySignature(sigBytes)) return false
-            }
-
-            // D. Check APK file size integrity
-            val apkPath = context.packageCodePath
-            if (apkPath != null) {
-                if (!NativeSecurity.nativeCheckIntegrity(apkPath)) return false
-            }
 
             true
         } catch (_: Throwable) {

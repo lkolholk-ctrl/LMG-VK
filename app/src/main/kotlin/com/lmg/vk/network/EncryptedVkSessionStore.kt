@@ -1,0 +1,104 @@
+package com.lmg.vk.network
+
+import android.content.Context
+import android.security.keystore.KeyGenParameterSpec
+import android.security.keystore.KeyProperties
+import android.util.Base64
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.json.Json
+import java.security.KeyStore
+import javax.crypto.Cipher
+import javax.crypto.KeyGenerator
+import javax.crypto.SecretKey
+import javax.crypto.spec.GCMParameterSpec
+
+/**
+ * Постоянное хранилище VK-сессии. Токены никогда не записываются в preferences
+ * открытым текстом: JSON шифруется AES/GCM ключом из Android Keystore.
+ */
+class EncryptedVkSessionStore(context: Context) : VkSessionStore {
+    private val preferences = context.applicationContext.getSharedPreferences(
+        PREFERENCES_NAME,
+        Context.MODE_PRIVATE,
+    )
+    private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
+    private val lock = Any()
+
+    @Volatile
+    private var cached: VkAuthSession = readSession()
+
+    override var session: VkAuthSession
+        get() = cached
+        set(value) = synchronized(lock) {
+            if (value == VkAuthSession.EMPTY) {
+                check(preferences.edit().remove(KEY_PAYLOAD).commit()) {
+                    "Unable to clear VK session"
+                }
+            } else {
+                val encrypted = encrypt(json.encodeToString(value))
+                check(preferences.edit().putString(KEY_PAYLOAD, encrypted).commit()) {
+                    "Unable to persist VK session"
+                }
+            }
+            cached = value
+        }
+
+    private fun readSession(): VkAuthSession {
+        val payload = preferences.getString(KEY_PAYLOAD, null) ?: return VkAuthSession.EMPTY
+        return runCatching {
+            json.decodeFromString<VkAuthSession>(decrypt(payload))
+        }.getOrElse {
+            preferences.edit().remove(KEY_PAYLOAD).commit()
+            VkAuthSession.EMPTY
+        }
+    }
+
+    private fun encrypt(plainText: String): String {
+        val cipher = Cipher.getInstance(TRANSFORMATION)
+        cipher.init(Cipher.ENCRYPT_MODE, getOrCreateKey())
+        val iv = Base64.encodeToString(cipher.iv, Base64.NO_WRAP)
+        val encrypted = Base64.encodeToString(
+            cipher.doFinal(plainText.toByteArray(Charsets.UTF_8)),
+            Base64.NO_WRAP,
+        )
+        return "$iv.$encrypted"
+    }
+
+    private fun decrypt(payload: String): String {
+        val separator = payload.indexOf('.')
+        require(separator > 0 && separator < payload.lastIndex) { "Invalid VK session payload" }
+        val iv = Base64.decode(payload.substring(0, separator), Base64.NO_WRAP)
+        val encrypted = Base64.decode(payload.substring(separator + 1), Base64.NO_WRAP)
+        val cipher = Cipher.getInstance(TRANSFORMATION)
+        cipher.init(Cipher.DECRYPT_MODE, getOrCreateKey(), GCMParameterSpec(128, iv))
+        return cipher.doFinal(encrypted).toString(Charsets.UTF_8)
+    }
+
+    private fun getOrCreateKey(): SecretKey {
+        val keyStore = KeyStore.getInstance(ANDROID_KEYSTORE).apply { load(null) }
+        (keyStore.getKey(KEY_ALIAS, null) as? SecretKey)?.let { return it }
+
+        return KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, ANDROID_KEYSTORE).run {
+            init(
+                KeyGenParameterSpec.Builder(
+                    KEY_ALIAS,
+                    KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT,
+                )
+                    .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+                    .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+                    .setRandomizedEncryptionRequired(true)
+                    .build(),
+            )
+            generateKey()
+        }
+    }
+
+    private companion object {
+        const val PREFERENCES_NAME = "lmg_vk_session_v1"
+        const val KEY_PAYLOAD = "encrypted_session"
+        const val KEY_ALIAS = "lmg_vk_session_key_v1"
+        const val ANDROID_KEYSTORE = "AndroidKeyStore"
+        const val TRANSFORMATION = "AES/GCM/NoPadding"
+    }
+}

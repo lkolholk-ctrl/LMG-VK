@@ -4,6 +4,7 @@ import io.ktor.client.HttpClient
 import io.ktor.client.request.HttpRequestBuilder
 import io.ktor.client.request.forms.FormDataContent
 import io.ktor.client.request.header
+import io.ktor.client.request.get
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
@@ -14,6 +15,7 @@ import io.ktor.http.URLProtocol
 import io.ktor.http.path
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.CancellationException
 import com.lmg.vk.network.dto.VKError
 import com.lmg.vk.network.dto.VkErrorCodes
 
@@ -33,7 +35,7 @@ class VkApiClient(
     private val httpClient: HttpClient,
     private val sessionStore: VkSessionStore,
     private val deviceIdProvider: () -> String,
-    private val apiDomain: String = "vk.ru",
+    apiDomain: String = "vk.ru",
 ) {
     /** Обработчик "validation required" (error 17): возвращает доп. параметры для ретрая. */
     var validationHandler: (suspend (redirectUri: String) -> Map<String, String>?)? = null
@@ -42,6 +44,40 @@ class VkApiClient(
     var captchaHandler: (suspend (captchaImg: String, captchaSid: String?) -> Map<String, String>?)? = null
 
     private val tokenMutex = Mutex()
+
+    @Volatile
+    private var selectedApiDomain: String = apiDomain
+
+    val currentApiDomain: String
+        get() = selectedApiDomain
+
+    /**
+     * C9616e: проверяем хосты строго в исходном порядке — сначала vk.com,
+     * затем vk.ru — и сохраняем первый доступный для следующих API-вызовов.
+     */
+    suspend fun probeAndSelectApiDomain(): VkApiAvailability {
+        if (pingApiHost("vk.com")) {
+            selectedApiDomain = "vk.com"
+            return VkApiAvailability.VK_COM_WORKS
+        }
+        if (pingApiHost("vk.ru")) {
+            selectedApiDomain = "vk.ru"
+            return VkApiAvailability.VK_RU_WORKS
+        }
+        return VkApiAvailability.NOTHING_WORKS
+    }
+
+    private suspend fun pingApiHost(domain: String): Boolean {
+        return try {
+            val response = httpClient.get("https://api.$domain/ping.txt")
+            response.bodyAsText()
+            response.status.value in 200..299
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            false
+        }
+    }
 
     // ------------------------------------------------------------------
     // Публичный вход: выполнение метода (в jadx: `license(C5577e, cont)`)
@@ -56,7 +92,11 @@ class VkApiClient(
                 userAgent = null,
             )
 
-            if (!method.isContentMethod) {
+            if (raw.statusCode !in 200..299) {
+                return VkResult.Error(raw.statusCode, "HTTP ${raw.statusCode}: ${raw.url}")
+            }
+
+            if (method.isOneShot) {
                 return VkResult.Error(VkErrorCodes.NO_CONTENT, "BH.VkApi - One-Shot methods have no content")
             }
 
@@ -99,7 +139,7 @@ class VkApiClient(
                 }
 
                 VkErrorCodes.TOKEN_EXPIRED -> {
-                    if (!method.tokenRefreshRetried) {
+                    if (method.name != "auth.refreshTokens" && !method.tokenRefreshRetried) {
                         method.tokenRefreshRetried = true
                         if (refreshToken()) {
                             return execute(method) // один ретрай после refresh
@@ -110,6 +150,8 @@ class VkApiClient(
 
                 else -> VkResult.Error(error.error_code, error.error_msg)
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             e.printStackTrace()
             VkResult.Error(0, e.message ?: "")
@@ -131,14 +173,14 @@ class VkApiClient(
         val token: String? = when {
             explicit != null -> explicit
             name == "auth.getExchangeToken" -> sessionStore.session.exchangeToken
-            !useOAuth && name != "auth.refreshTokens" -> getValidToken()
+            !useOAuth && name != "auth.refreshTokens" -> getValidToken().takeIf { it.isNotBlank() }
             else -> null
         }
 
         val response: HttpResponse = httpClient.post {
             url {
                 protocol = URLProtocol.HTTPS
-                host = "api.$apiDomain"
+                host = "api.$selectedApiDomain"
                 path(if (useOAuth) "oauth" else "method", name)
             }
             header("Content-Type", "application/x-www-form-urlencoded")
@@ -182,21 +224,27 @@ class VkApiClient(
     /** Принудительный refresh (вызов auth.refreshTokens). Возвращает успех. */
     suspend fun refreshToken(): Boolean {
         return tokenMutex.withLock {
-            if (!sessionStore.session.isExpired) return@withLock true
             performTokenRefresh()
         }
     }
 
     private suspend fun performTokenRefresh(): Boolean {
-        // Реализация в оригинале: VkMethod("auth.refreshTokens", RefreshToken.Parser)
-        // с refresh-токеном сессии; ответ (RTToken) сохраняется в sessionStore.
-        TODO("wire VkAuthApi.refreshTokens(sessionStore) — см. methods/auth/RefreshToken")
+        val session = sessionStore.session
+        if (session.exchangeToken.isBlank()) return false
+        return VkAuthApi(this, sessionStore).refreshTokens()
     }
 
     companion object {
         /** api_id официального Android-клиента VK (хардкод в оригинале). */
-        const val VK_ANDROID_CLIENT_ID = "2274003"
+        const val VK_ANDROID_CLIENT_ID = RecoveredServiceConfig.VK_ANDROID_CLIENT_ID
     }
+}
+
+/** Имена восстановлены без обфускации из EnumC6583e. */
+enum class VkApiAvailability {
+    VK_COM_WORKS,
+    VK_RU_WORKS,
+    NOTHING_WORKS,
 }
 
 /** Маркер для DTO, которые могут нести ошибку внутри data (в jadx: C15748e). */

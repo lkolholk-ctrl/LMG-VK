@@ -39,24 +39,6 @@ object NativeSecurity {
         }
     }
 
-    fun nativeVerifySignature(signatureBytes: ByteArray): Boolean {
-        if (!libraryLoaded) return true
-        return try {
-            realNativeVerifySignature(signatureBytes)
-        } catch (_: Throwable) {
-            true
-        }
-    }
-
-    fun nativeCheckIntegrity(apkPath: String): Boolean {
-        if (!libraryLoaded) return true
-        return try {
-            realNativeCheckIntegrity(apkPath)
-        } catch (_: Throwable) {
-            true
-        }
-    }
-
     fun nativeCheckHooks(): Boolean {
         if (!libraryLoaded) return true
         return try {
@@ -67,7 +49,5 @@ object NativeSecurity {
     }
 
     private external fun realNativeSecurityCheck(): Int
-    private external fun realNativeVerifySignature(signatureBytes: ByteArray): Boolean
-    private external fun realNativeCheckIntegrity(apkPath: String): Boolean
     private external fun realNativeCheckHooks(): Boolean
 }

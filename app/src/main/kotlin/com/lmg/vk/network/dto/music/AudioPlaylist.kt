@@ -4,16 +4,17 @@ import com.squareup.moshi.Json
 import com.squareup.moshi.JsonClass
 
 /**
- * Восстановлено из `ua.lmg.vkapi2.objects.music.playlist.AudioPlaylist`
+ * Восстановлено из старого `ua.lmg.vkapi2.objects.music.playlist.AudioPlaylist`
  * (31 ключ Moshi) и `playlist.album.AudioAlbum`.
+ * Новый `bruhcollective...AudioPlaylistDto` хранится отдельно: это другой DTO.
  */
 @JsonClass(generateAdapter = true)
 data class AudioPlaylist(
-    val id: Int,
-    val owner_id: Long,
+    val id: Int = 0,
+    val owner_id: Long = 0L,
     val type: String? = null,
     val album: AlbumMeta? = null,
-    val title: String,
+    val title: String = "",
     val description: String? = null,
     val count: Int = 0,
     val followers: Int = 0,
@@ -65,10 +66,10 @@ data class AudioPlaylistPermissions(
 /** Из `ua.lmg.vkapi2.objects.music.playlist.album.AudioAlbum`. */
 @JsonClass(generateAdapter = true)
 data class AudioAlbum(
-    val id: Int,
-    val owner_id: Long,
-    val access_key: String,
-    val title: String,
+    val id: Int? = null,
+    val owner_id: Long? = null,
+    val access_key: String? = null,
+    val title: String? = null,
     val thumb: AlbumThumb? = null,
     val main_color: String? = null,
 )

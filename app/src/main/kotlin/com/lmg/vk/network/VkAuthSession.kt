@@ -5,23 +5,26 @@ import kotlinx.serialization.Serializable
 /**
  * Восстановлено из `defpackage.C18479e` (@Serializable).
  *
- * Авторизационная сессия VK: хранит access/refresh токены и время истечения.
+ * Авторизационная сессия VK (`VkAccount`, восстановлено из `C18479e`).
  * Объект по умолчанию (`EMPTY`) используется до логина.
  *
  * Поля восстановлены по потреблению в `C8221e`:
- *  - [accessToken]  — подставляется в "access_token" / "Authorization: Bearer"
- *  - [exchangeToken] — используется для метода "auth.getExchangeToken"
- *  - [expiresAt]    — при 0 сессия считается требующей проверки (см. getValidToken)
+ * Порядок и назначение всех 11 полей подтверждены `toString()` оригинального
+ * класса и сериализатором `C3940e`.
  */
 @Serializable
 data class VkAuthSession(
-    val expiresAt: Long = 0L,
-    val accessToken: String = "",
-    val refreshToken: String = "",
-    val exchangeToken: String = "",
     val userId: Long = 0L,
-    val secret: String = "",
-    val webviewToken: String = "",
+    val accessToken: String = "",
+    val expiresAt: Long = 0L,
+    val trustedHash: String = "",
+    val exchangeToken: String = "",
+    val metadataExpiresAt: Long = 0L,
+    val username: String = "",
+    val firstName: String = "",
+    val lastName: String = "",
+    val avatar: String = "",
+    val usesLatestApi: Boolean = true,
 ) {
     val isExpired: Boolean
         get() = expiresAt != 0L && expiresAt <= System.currentTimeMillis() / 1000

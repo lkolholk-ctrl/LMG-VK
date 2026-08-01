@@ -22,11 +22,8 @@ class VkMethod<T>(
     /** Идти на oauth-хост (path /oauth/<name> вместо /method/<name>). */
     var useOAuth: Boolean = false
 
-    /**
-     * "Обычный" метод с контентом. В execute() есть проверка:
-     * !isContentMethod -> Error(993, "BH.VkApi - One-Shot methods have no content")
-     */
-    var isContentMethod: Boolean = false
+    /** Флаг one-shot из `C5577e.appmetrica`: такой вызов не имеет тела ответа. */
+    var isOneShot: Boolean = false
 
     /** Внутренний флаг: уже пробовали refresh token после ошибки 1117. */
     internal var tokenRefreshRetried: Boolean = false

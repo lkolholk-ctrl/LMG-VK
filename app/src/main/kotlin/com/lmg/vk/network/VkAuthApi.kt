@@ -1,7 +1,7 @@
 package com.lmg.vk.network
 
 import com.squareup.moshi.JsonClass
-import kotlin.time.Duration.Companion.seconds
+import com.squareup.moshi.Json
 
 /**
  * Восстановлено из `defpackage.C18301e` (корутина refresh) +
@@ -21,10 +21,34 @@ class VkAuthApi(
     private val client: VkApiClient,
     private val sessionStore: VkSessionStore,
 ) {
+    /** Вложенный `access_token` из восстановленного AuthRefreshTokenDto. */
     @JsonClass(generateAdapter = true)
-    data class RTToken(val token: String)
+    data class RefreshAccessToken(
+        val token: String,
+        @Json(name = "expires_in") val expiresIn: Long,
+    )
 
-    /** Ответ auth.refreshTokens: список выданных токенов (берём первый). */
+    @JsonClass(generateAdapter = true)
+    data class RefreshTokenItem(
+        val index: Int,
+        @Json(name = "user_id") val userId: Long,
+        val banned: Boolean,
+        @Json(name = "access_token") val accessToken: RefreshAccessToken? = null,
+    )
+
+    @JsonClass(generateAdapter = true)
+    data class RefreshTokensResponse(
+        val success: List<RefreshTokenItem> = emptyList(),
+        val errors: List<RefreshTokenError> = emptyList(),
+    )
+
+    @JsonClass(generateAdapter = true)
+    data class RefreshTokenError(
+        val index: Int,
+        val code: Int,
+        val description: String,
+    )
+
     data class RefreshedToken(
         val accessToken: String,
         val expiresInSeconds: Long,
@@ -35,7 +59,7 @@ class VkAuthApi(
 
         val method = VkMethod("auth.refreshTokens", RefreshTokensParser).apply {
             param("client_id", VkApiClient.VK_ANDROID_CLIENT_ID.toLong())
-            param("client_secret", "hHbZxrka2uZ6jB1inYsH")
+            param("client_secret", RecoveredServiceConfig.VK_ANDROID_CLIENT_SECRET)
             param("exchange_tokens", listOf(session.exchangeToken).joinToString(","))
             param("active_index", 0)
             param("scope", "all")
@@ -47,8 +71,7 @@ class VkAuthApi(
                 val token = result.data.firstOrNull() ?: return false
                 sessionStore.session = session.copy(
                     accessToken = token.accessToken,
-                    expiresAt = (System.currentTimeMillis() / 1000) +
-                        token.expiresInSeconds.seconds.inWholeSeconds,
+                    expiresAt = (System.currentTimeMillis() / 1000) + token.expiresInSeconds,
                 )
                 true
             }
@@ -57,8 +80,18 @@ class VkAuthApi(
     }
 
     private object RefreshTokensParser : VkResponseParser<List<RefreshedToken>> {
+        private val delegate = MoshiEnvelopeParser<RefreshTokensResponse>(
+            RefreshTokensResponse::class.java,
+        )
+
         override suspend fun parse(raw: RawHttpResponse): VkParsedResponse<List<RefreshedToken>> {
-            TODO("Moshi: VKResponse<List<RefreshTokenItem>> -> map { RefreshedToken(it.token, it.expires_in) }")
+            val parsed = delegate.parse(raw)
+            return VkParsedResponse(
+                data = parsed.data?.success.orEmpty().mapNotNull { item ->
+                    item.accessToken?.let { RefreshedToken(it.token, it.expiresIn) }
+                },
+                error = parsed.error,
+            )
         }
     }
 }

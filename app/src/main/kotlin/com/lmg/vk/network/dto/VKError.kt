@@ -36,8 +36,8 @@ data class VKRequestParameter(
  */
 @JsonClass(generateAdapter = true)
 data class VKResponse<T>(
-    val response: T?,
-    val error: VKError?,
+    val response: T? = null,
+    val error: VKError? = null,
     val execute_errors: List<VKError>? = null,
 )
 
