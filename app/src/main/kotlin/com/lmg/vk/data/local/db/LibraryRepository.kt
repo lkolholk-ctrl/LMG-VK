@@ -5,7 +5,6 @@ import android.net.Uri
 import com.lmg.vk.engine.backend.MusicBackend
 import com.lmg.vk.engine.backend.MusicAuth
 import com.lmg.vk.engine.backend.LibraryTrack
-import com.lmg.vk.engine.backend.MusicBackend
 import com.lmg.vk.engine.PlayerController
 import com.lmg.vk.engine.Track
 import kotlinx.coroutines.CoroutineScope

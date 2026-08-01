@@ -229,8 +229,8 @@ fun ProfileScreen(
                                     "${parts[2]}.${parts[1]}.${parts[0]}"
                                 } catch (_: Exception) { dateStr }
                             }
-                            premiumExpiresAt > 0 -> SimpleDateFormat("dd.MM.yyyy", Locale.getDefault())
-                                .format(Date(premiumExpiresAt))
+                            (premiumExpiresAt ?: 0L) > 0L -> SimpleDateFormat("dd.MM.yyyy", Locale.getDefault())
+                                .format(Date(premiumExpiresAt ?: 0L))
                             else -> "Lifetime"
                         }
                         val daysLeftText = if (sub != null && sub.daysLeft > 0) " • ${sub.daysLeft} days left" else ""
@@ -437,9 +437,7 @@ fun ProfileScreen(
                                                     }.getOrNull() ?: regionInfo
                                                     MusicAuth.fetchUserData()
                                                     // Явный выбор юзера приоритетнее серверного
-                                                    // дефолта: ставим ПОСЛЕ fetchUserData (внутри него
-                                                    // syncRegionFromServer мог поставить /me/region.current).
-                                                    com.lmg.vk.engine.backend.MusicBackend.region = r.code
+                                                    // дефолта: region уже обновлён выше через updateUserRegion.
                                                 } else {
                                                     android.widget.Toast.makeText(
                                                         context, "Couldn't switch region",

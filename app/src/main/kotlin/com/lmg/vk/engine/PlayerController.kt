@@ -720,7 +720,7 @@ object PlayerController {
                     android.util.Log.e("PlayerController", "Stream error for ${startTrack.id}: ${startStreamResult.code}")
                     withContext(Dispatchers.Main) {
                         _isBuffering.value = false
-                        val msg = com.lmg.vk.engine.backend.backendUserMessage(0, startStreamResult.code)
+                        val msg = com.lmg.vk.engine.backend.backendUserMessage(0, startStreamResult.code.toIntOrNull() ?: 0)
                         android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_SHORT).show()
                     }
                 }

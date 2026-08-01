@@ -77,6 +77,7 @@ class DownloaderService : Service() {
                 enabled = false, // настройка "[playlist] " (C15409e)
             ),
             enabled = false,   // настройка папки артиста (C11999e)
+            sanitize = ::sanitizeFileName,
         )
         val dest: File = pathResolver.resolve(DOWNLOAD_ROOT, fileName)
 

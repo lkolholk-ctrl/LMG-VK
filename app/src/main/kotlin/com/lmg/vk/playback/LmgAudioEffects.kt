@@ -119,7 +119,7 @@ class DynamicsProcessingEffect : AudioEffectWrapper {
         val bands = config.equalizer.bands
         val eq = DynamicsProcessing.Eq(true, true, bands.size)
         bands.forEachIndexed { i, band ->
-            eq.setBand(i, DynamicsProcessing.Eq.Band(true, band.cutoffHz, band.gainDb))
+            eq.setBand(i, DynamicsProcessing.EqBand(true, band.cutoffHz, band.gainDb))
         }
         return eq
     }
@@ -130,16 +130,16 @@ class DynamicsProcessingEffect : AudioEffectWrapper {
         return if (custom != null) {
             DynamicsProcessing.Mbc(true, mbc.enabled, custom.size).apply {
                 custom.forEachIndexed { i, band ->
-                    setBand(i, DynamicsProcessing.Mbc.Band(
+                    setBand(i, DynamicsProcessing.MbcBand(
                         true, band.cutoffHz, band.ratio, band.thresholdDb, band.gainDb, band.gainDb))
                 }
             }
         } else {
             // 3-полосный режим: 125/6000/20000 Гц, ratio 1.1, гейны из bass/treble
             DynamicsProcessing.Mbc(true, mbc.enabled, 3).apply {
-                setBand(0, DynamicsProcessing.Mbc.Band(true, 125f, 1.1f, 0f, mbc.bassGainDb(), mbc.bassGainDb()))
-                setBand(1, DynamicsProcessing.Mbc.Band(true, 6000f, 1.1f, 0f, 0f, 0f))
-                setBand(2, DynamicsProcessing.Mbc.Band(true, 20000f, 1.1f, 0f, mbc.trebleGainDb(), mbc.trebleGainDb()))
+                setBand(0, DynamicsProcessing.MbcBand(true, 125f, 1.1f, 0f, mbc.bassGainDb(), mbc.bassGainDb()))
+                setBand(1, DynamicsProcessing.MbcBand(true, 6000f, 1.1f, 0f, 0f, 0f))
+                setBand(2, DynamicsProcessing.MbcBand(true, 20000f, 1.1f, 0f, mbc.trebleGainDb(), mbc.trebleGainDb()))
             }
         }
     }

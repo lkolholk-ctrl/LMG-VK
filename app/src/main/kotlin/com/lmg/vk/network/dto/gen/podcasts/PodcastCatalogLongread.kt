@@ -1,6 +1,7 @@
 package com.lmg.vk.network.dto.gen.podcasts
 
 import com.squareup.moshi.Json
+import com.lmg.vk.network.dto.podcasts.PodcastCover
 import com.squareup.moshi.JsonClass
 
 /** Auto-recovered from vkapi2/objects/podcasts/PodcastCatalogLongreadJsonAdapter (11 json keys). */

@@ -3,6 +3,9 @@ package com.lmg.vk.downloader
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import com.lmg.vk.network.dto.music.AudioTrack
+import io.ktor.client.request.get
+import io.ktor.client.statement.bodyAsChannel
+import io.ktor.utils.io.readAvailable
 import java.io.File
 
 /**

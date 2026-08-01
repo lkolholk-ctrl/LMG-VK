@@ -182,7 +182,7 @@ class EndlessPlaybackEngine(
                     // Волна VK: дозаправка пачками ротора, минуя backend-логику ниже.
                     if (isGlobal && refillCtx?.type == RefillContext.Type.YWAVE) {
                         return@withContext com.lmg.vk.engine.backend.MusicBackend
-                            .nextBatch()?.tracks?.map { it.toTrack() } ?: emptyList()
+                            .nextBatch().getOrNull()?.tracks?.map { it.toTrack() } ?: emptyList()
                     }
 
                     if (isGlobal && refillCtx?.type == RefillContext.Type.MOOD) {

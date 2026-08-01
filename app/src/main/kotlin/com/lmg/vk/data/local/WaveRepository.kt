@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.Log
 import com.lmg.vk.engine.backend.BackendException
 import com.lmg.vk.engine.backend.MusicBackend
+import com.lmg.vk.engine.backend.toTrack
 import com.lmg.vk.engine.backend.wave.WaveBatchResponse
 import com.lmg.vk.data.local.db.AppDatabase
 import com.lmg.vk.data.local.db.CachedTrack
@@ -371,6 +372,7 @@ class WaveRepository(context: Context) {
         }
 
         Log.d(TAG, "Final wave queue: ${queue.size} tracks (attempts: $attempts)")
+        return@withContext queue
     }
 
     suspend fun buildWaveModeQueue(

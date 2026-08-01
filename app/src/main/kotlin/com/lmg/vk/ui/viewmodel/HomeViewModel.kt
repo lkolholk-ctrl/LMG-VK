@@ -245,9 +245,7 @@ class HomeViewModel : ViewModel() {
             try {
                 val repo = WaveRepository.getInstance(context)
                 val tracks = repo.startPersonalWave()
-                com.lmg.vk.engine.backend.MusicBackendFileLogger.log(
-                    "D", "Wave", "buildWaveQueue: startPersonalWave -> ${tracks.size} tracks"
-                )
+                android.util.Log.d("Wave", "buildWaveQueue: startPersonalWave -> ${tracks.size} tracks")
 
                 if (tracks.isNotEmpty()) {
                     _waveTracks.value = tracks
@@ -270,8 +268,8 @@ class HomeViewModel : ViewModel() {
                     val fallback = buildGenreFallbackQueue(repo)
                     if (fallback != null) {
                         val (genres, genreTracks) = fallback
-                        com.lmg.vk.engine.backend.MusicBackendFileLogger.log(
-                            "D", "Wave",
+                        android.util.Log.d(
+                            "Wave",
                             "buildWaveQueue: personal empty -> search genre fallback $genres -> ${genreTracks.size} tracks"
                         )
                         _waveTracks.value = genreTracks

@@ -68,7 +68,6 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.kyant.backdrop.backdrops.LayerBackdrop
 import com.lmg.vk.R
-import com.lmg.vk.engine.backend.MusicBackendFileLogger
 import com.lmg.vk.engine.backend.MusicAuth
 import com.lmg.vk.engine.backend.MusicBackend
 import com.lmg.vk.data.local.db.FavoriteTrackDatabase
@@ -1795,7 +1794,7 @@ private fun ImportPlaylistDialog(
                                     .background(lc.glassTint, RoundedCornerShape(50))
                                     .clip(RoundedCornerShape(50))
                                     .clickable {
-                                        val logs = com.lmg.vk.engine.backend.MusicBackendFileLogger.getRecentLogs(100)
+                                        val logs = "Backend logs: see logcat tag MusicBackend"
                                         clipboard.setText(androidx.compose.ui.text.AnnotatedString(logs))
                                     },
                                 contentAlignment = Alignment.Center

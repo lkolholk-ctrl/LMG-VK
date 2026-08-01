@@ -165,8 +165,6 @@ object MusicBackend {
 
     suspend fun updateUserRegion(code: String): RegionResponse? = TODO("vk-wire")
 
-    var region: String = "ru"
-
     suspend fun getLibrarySubscriptions(limit: Int = 50): LibrarySubscriptionsResponse? = TODO("vk-wire")
 
     suspend fun updateUserPreferences(prefs: UserPreferences): UserPreferences? = TODO("vk-wire")
@@ -174,17 +172,6 @@ object MusicBackend {
 
     var streamQuality: String = "256K"
 }
-
-/** Ответ подписок на артистов (для профиля). */
-data class LibrarySubscriptionsResponse(
-    val items: List<LibraryArtist> = emptyList()
-)
-
-/** Ответ облачных лайков /library/likes. */
-data class LibraryLikesResponse(
-    val items: List<LibraryTrack> = emptyList(),
-    val source: String = "all"
-)
 
 /** Ответ треков плейлиста пользователя. */
 data class PlaylistTracksResponse(

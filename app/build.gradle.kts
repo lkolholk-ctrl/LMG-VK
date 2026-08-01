@@ -179,6 +179,9 @@ dependencies {
     // --- MP3-теги (PlaylistDownloadService) ---
     implementation("com.mpatric:mp3agic:0.9.1")
 
+    // --- FFT для automix (WaveRepository/AutoMixEngine) ---
+    implementation("com.github.wendykierp:JTransforms:3.2")
+
     // --- Glance (widget PlayerController) ---
     implementation("androidx.glance:glance-appwidget:1.1.1")
     implementation("androidx.glance:glance-material3:1.1.1")

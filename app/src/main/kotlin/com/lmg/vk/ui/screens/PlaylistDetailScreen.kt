@@ -112,7 +112,12 @@ fun PlaylistDetailScreen(
                     }
 
                     if (page == 1) {
-                        playlistInfo = response.playlist
+                        val p = response.playlist
+                        playlistInfo = if (p != null) com.lmg.vk.engine.backend.UserPlaylistInfo(
+                            idRaw = kotlinx.serialization.json.JsonPrimitive(p.id),
+                            name = p.title,
+                            trackCount = p.trackCount
+                        ) else null
                         totalExpected = response.playlist?.trackCount
                     }
 

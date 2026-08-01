@@ -213,7 +213,7 @@ interface VkSessionStore {
 class KtorRawHttpResponse(private val response: HttpResponse) : RawHttpResponse {
     override val statusCode: Int get() = response.status.value
     override val url: String get() = "HttpResponse[${response.call.request.url}, ${response.status}]"
-    override suspend fun bodyText(): String = io.ktor.client.statement.bodyAsText(response)
+    override suspend fun bodyText(): String = bodyAsText(response)
 }
 
 /**
