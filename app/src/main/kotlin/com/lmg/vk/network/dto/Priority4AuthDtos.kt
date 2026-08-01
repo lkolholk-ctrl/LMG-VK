@@ -14,18 +14,11 @@ data class AuthGetExchangeTokenResponse(
 @JsonClass(generateAdapter = true)
 data class AuthUserExchangeToken(
     @Json(name = "user_id") val userId: Long,
-    @Json(name = "profile_type") val profileType: AuthProfileType? = null,
+    /** VK отдаёт это поле JSON-числом (0/2), а не строковым enum. */
+    @Json(name = "profile_type") val profileType: Int? = null,
     @Json(name = "common_token") val commonToken: String? = null,
     @Json(name = "tier_tokens") val tierTokens: List<AuthExchangeToken>? = null,
 )
-
-enum class AuthProfileType {
-    @Json(name = "0")
-    NORMAL,
-
-    @Json(name = "2")
-    EDU,
-}
 
 @JsonClass(generateAdapter = true)
 data class AuthExchangeToken(
