@@ -12,61 +12,61 @@ import com.lmg.vk.network.RawHttpResponse
  * Каждый вызов: VkMethod(name, parser) + params + client.execute().
  *
  * Сгруппировано по доменам. Парсеры — Moshi-адаптеры соответствующих DTO
- * (см. dto/gen + vkapi2/methods/ * в jadx).
+ * (см. dto/gen + vkapi2/methods в jadx).
  */
 class VkMethodsRegistry(private val client: VkApiClient) {
 
     // ======================= AUDIO (дополнение к VkAudioApi) =======================
 
-    / ** audio.add — добавить трек к себе. */
+    /** audio.add — добавить трек к себе. */
     suspend fun audioAdd(audioId: Int, ownerId: Long, accessKey: String? = null) =
         execute<Unit>("audio.add") {
             param("audio_id", audioId); param("owner_id", ownerId); param("access_key", accessKey)
         }
 
-    / ** audio.delete / audio.restore. */
+    /** audio.delete / audio.restore. */
     suspend fun audioDelete(audioId: Int, ownerId: Long) =
         execute<Unit>("audio.delete") { param("audio_id", audioId); param("owner_id", ownerId) }
 
     suspend fun audioRestore(audioId: Int, ownerId: Long) =
         execute<Unit>("audio.restore") { param("audio_id", audioId); param("owner_id", ownerId) }
 
-    / ** audio.getAudioIdsBySource — resolve id треков по источнику (пост/аттач). */
+    /** audio.getAudioIdsBySource — resolve id треков по источнику (пост/аттач). */
     suspend fun getAudioIdsBySource(source: String, entityId: String) =
         execute<List<String>>("audio.getAudioIdsBySource") {
             param("source", source); param("entity_id", entityId)
         }
 
-    / ** audio.getAudioPreviewUrl — превью-трек (обрезанный). */
+    /** audio.getAudioPreviewUrl — превью-трек (обрезанный). */
     suspend fun getAudioPreviewUrl(audioId: String, previewType: String) =
         execute<String>("audio.getAudioPreviewUrl") {
             param("audio_id", audioId); param("preview_type", previewType)
         }
 
-    / ** audio.getRelatedArtistsById. */
+    /** audio.getRelatedArtistsById. */
     suspend fun getRelatedArtists(artistId: String, offset: Int, count: Int) =
         execute<Any>("audio.getRelatedArtistsById") {
             param("artist_id", artistId); param("offset", offset); param("count", count)
         }
 
-    / ** audio.getStreamMixSettings — настройки «микса» (волна/поток). */
+    /** audio.getStreamMixSettings — настройки «микса» (волна/поток). */
     suspend fun getStreamMixSettings(mixId: String) =
         execute<Any>("audio.getStreamMixSettings") { param("mix_id", mixId) }
 
-    / ** audio.reorderInPlaylist. */
+    /** audio.reorderInPlaylist. */
     suspend fun reorderInPlaylist(playlistId: Int, ownerId: Long) =
         execute<Unit>("audio.reorderInPlaylist") {
             param("playlist_id", playlistId); param("owner_id", ownerId)
         }
 
-    / ** audio.followRadioStation / unfollow. */
+    /** audio.followRadioStation / unfollow. */
     suspend fun followRadioStation(stationId: Int) =
         execute<Unit>("audio.followRadioStation") { param("station_id", stationId) }
 
     suspend fun unfollowRadioStation(stationId: Int) =
         execute<Unit>("audio.unfollowRadioStation") { param("station_id", stationId) }
 
-    / ** audio.searchArtists / searchMain. */
+    /** audio.searchArtists / searchMain. */
     suspend fun searchArtists(query: String, offset: Int, count: Int) =
         execute<Any>("audio.searchArtists") {
             param("q", query); param("offset", offset); param("count", count)
@@ -109,7 +109,7 @@ class VkMethodsRegistry(private val client: VkApiClient) {
     suspend fun resolveScreenName(screenName: String) =
         execute<Any>("utils.resolveScreenName") { param("screen_name", screenName) }
 
-    / ** storage.get/set — KV-хранилище VK (app_id = LMG VK). */
+    /** storage.get/set — KV-хранилище VK (app_id = LMG VK). */
     suspend fun storageGet(appId: Int) =
         execute<Map<String, String>>("storage.get") { param("app_id", appId) }
 
@@ -133,7 +133,7 @@ class VkMethodsRegistry(private val client: VkApiClient) {
 
     // ======================= AUTH FLOW =======================
 
-    / ** auth.validateAccount — первый шаг логина. */
+    /** auth.validateAccount — первый шаг логина. */
     suspend fun validateAccount(
         login: String,
         supportedWays: String = "sms,push,email,callreset",
@@ -147,7 +147,7 @@ class VkMethodsRegistry(private val client: VkApiClient) {
         param("sak_version", "1")
     }
 
-    / ** auth.processAuthCode(Multi) — подтверждение кода 2FA. */
+    /** auth.processAuthCode(Multi) — подтверждение кода 2FA. */
     suspend fun processAuthCode(action: Int, authCode: String) =
         execute<Any>("auth.processAuthCode") { param("action", action); param("auth_code", authCode) }
 
@@ -156,7 +156,7 @@ class VkMethodsRegistry(private val client: VkApiClient) {
             param("action", action); param("auth_code", authCode); param("access_tokens", accessTokens)
         }
 
-    / ** ecosystem.* — OTP-флоу (новая авторизация VK ID). */
+    /** ecosystem.* — OTP-флоу (новая авторизация VK ID). */
     suspend fun ecosystemCheckOtp(sid: String, code: String) =
         execute<Any>("ecosystem.checkOtp") { param("sid", sid); param("code", code) }
 
@@ -167,13 +167,13 @@ class VkMethodsRegistry(private val client: VkApiClient) {
 
     enum class OtpKind(val wireName: String) { Sms("Sms"), Email("Email"), Push("Push"), CallReset("CallReset") }
 
-    / ** get_anonym_token — анонимный токен (client credentials). */
+    /** get_anonym_token — анонимный токен (client credentials). */
     suspend fun getAnonymToken() = execute<Any>("get_anonym_token") {
         param("client_id", VkApiClient.VK_ANDROID_CLIENT_ID.toLong())
         param("client_secret", "hHbZxrka2uZ6jB1inYsH")
     }
 
-    / ** OAuth token — прямой логин по логину/паролю (oauth-хост). */
+    /** OAuth token — прямой логин по логину/паролю (oauth-хост). */
     suspend fun oauthToken(
         username: String,
         password: String,
@@ -208,10 +208,10 @@ class VkMethodsRegistry(private val client: VkApiClient) {
         return client.execute(method)
     }
 
-    / ** Универсальный парсер конверта (в оригинале — per-method синглтоны). */
+    /** Универсальный парсер конверта (в оригинале — per-method синглтоны). */
     private object GenericParser : VkResponseParser<Any> {
         override suspend fun parse(raw: RawHttpResponse): VkParsedResponse<Any> {
-            TODO("Moshi per-method adapters из vkapi2/methods/ * — механическая генерация")
+            TODO("Moshi per-method adapters из vkapi2/methods/* — механическая генерация")
         }
     }
 }
