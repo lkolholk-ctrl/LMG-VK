@@ -28,8 +28,10 @@ import com.lmg.vk.network.dto.VkErrorCodes
  *  - обработка ошибок VK: captcha(14), validation(17), token expired(1117)
  *  - языковой резолв (uk->ua, kk->kz, whitelist, иначе en)
  *
- * Эндпоинт: https://api.<domain>/method|oauth/<methodName>
- * (<domain> приходит из нативного окружения — LmgNative.getVkApiData, "vk.ru")
+ * Эндпоинты из восстановленного native x00:
+ *  - API:   https://api.<domain>/method/<methodName>
+ *  - OAuth: https://oauth.<domain>/<methodName>
+ * Домен автоматически выбирается между vk.com и vk.ru.
  */
 class VkApiClient(
     private val httpClient: HttpClient,
@@ -180,8 +182,15 @@ class VkApiClient(
         val response: HttpResponse = httpClient.post {
             url {
                 protocol = URLProtocol.HTTPS
-                host = "api.$selectedApiDomain"
-                path(if (useOAuth) "oauth" else "method", name)
+                if (useOAuth) {
+                    // OAuth — отдельный хост из native x00
+                    // (https://oauth.vk.ru/), а не /oauth на api-хосте.
+                    host = "oauth.$selectedApiDomain"
+                    path(name)
+                } else {
+                    host = "api.$selectedApiDomain"
+                    path("method", name)
+                }
             }
             header("Content-Type", "application/x-www-form-urlencoded")
             header("X-VK-Android-Client", "new")

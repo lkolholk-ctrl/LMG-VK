@@ -19,7 +19,7 @@ class VkMethod<T>(
     /** Версия API ("v" в form-body). */
     var apiVersion: String = "5.272"
 
-    /** Идти на oauth-хост (path /oauth/<name> вместо /method/<name>). */
+    /** Идти на `oauth.<domain>/<name>` вместо `api.<domain>/method/<name>`. */
     var useOAuth: Boolean = false
 
     /** Флаг one-shot из `C5577e.appmetrica`: такой вызов не имеет тела ответа. */
