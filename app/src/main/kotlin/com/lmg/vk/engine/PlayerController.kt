@@ -16,7 +16,6 @@ import androidx.glance.appwidget.updateAll
 import com.lmg.vk.debug.DebugLog
 import com.lmg.vk.engine.backend.MusicBackend
 import com.lmg.vk.engine.backend.StreamInfo
-import com.lmg.vk.engine.backend.MusicBackend
 import com.lmg.vk.data.local.WaveRepository
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
@@ -930,12 +929,8 @@ object PlayerController {
      * показывал бы трек, который закончился полчаса назад.
      */
     private fun refreshHomeWidget() {
-        val ctx = appContext ?: return
-        ioScope.launch {
-            runCatching {
-                com.lmg.vk.widget.NowPlayingWidget().updateAll(ctx)
-            }
-        }
+        // Виджет домашнего экрана (NowPlayingWidget) не портирован в LMG VK —
+        // заглушка, чтобы вызовы здесь не падали.
     }
 
     fun setPlaying(playing: Boolean) {
@@ -1312,7 +1307,7 @@ object PlayerController {
 
         return try {
             val quality = getEffectiveQuality(trackId)
-            val trackInfo = MusicBackend.getTrackInfoSync(trackId, quality = quality)
+            val trackInfo = MusicBackend.getTrackInfoSync(trackId, quality = quality ?: "lossless")
 
             if (trackInfo != null) {
                 val uri = Uri.parse(trackInfo.url)
@@ -1375,7 +1370,7 @@ object PlayerController {
         return try {
             withTimeout(15_000) {
                 val quality = getEffectiveQuality(trackId)
-                val trackInfo = MusicBackend.getTrackInfo(trackId, quality = quality)
+                val trackInfo = MusicBackend.getTrackInfo(trackId, quality = quality ?: "lossless")
 
                 if (trackInfo != null) {
                     cacheAndReturn(trackId, trackInfo)
@@ -1387,7 +1382,7 @@ object PlayerController {
                         error?.contains("region_unavailable") == true || error?.contains("451") == true -> {
                             val requiredRegion = apiException?.requiredRegion
                             if (requiredRegion != null) {
-                                val retryTrackInfo = MusicBackend.getTrackInfo(trackId, quality = quality, region = requiredRegion)
+                                val retryTrackInfo = MusicBackend.getTrackInfo(trackId, quality = quality ?: "lossless", region = requiredRegion)
                                 if (retryTrackInfo != null) {
                                     cacheAndReturn(trackId, retryTrackInfo)
                                 } else {
@@ -1421,19 +1416,8 @@ object PlayerController {
      * только с IO-потока (Media3 loader / ioScope). Токен и URL не логируются.
      */
     private fun resolveYandexStreamUrl(trackId: String): Uri? {
-        val direct = try {
-            client.getStreamInfo(bare, quality)?.directLink
-        } catch (e: Exception) {
-            android.util.Log.w("PlayerController", "ym stream resolve failed (${e.javaClass.simpleName})")
-            null
-        } ?: return null
-        val uri = Uri.parse(direct)
-        streamUrlCache[trackId] = CachedStreamUrl(
-            uri = uri,
-            expiresAtMs = System.currentTimeMillis() + YM_STREAM_CACHE_TTL_MS,
-            fileId = null
-        )
-        return uri
+        // Yandex (ym_) потоки не поддерживаются в LMG VK: legacy-клиент ЯМ не портирован.
+        return null
     }
 
     private fun cacheAndReturn(trackId: String, trackInfo: StreamInfo): StreamResult {
@@ -1483,11 +1467,8 @@ object PlayerController {
     }
 
     private fun getEffectiveQuality(trackId: String): String? {
-        val track = queue.find { it.id == trackId }
-        return com.lmg.vk.engine.backend.MusicAuth.getEffectiveQuality(
-            trackId = trackId,
-            source = track?.source
-        )
+        val premium = com.lmg.vk.engine.backend.MusicAuth.isPremium.value
+        return com.lmg.vk.engine.backend.MusicAuth.getEffectiveQuality("lossless", premium)
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -1563,15 +1544,7 @@ object PlayerController {
 
         // Обучение волны ЯМ: ym_-треки шлют trackFinished/skip в ротор,
         // пока волна активна (внутри движка это гейтится isActive).
-        if (track.id.startsWith("ym_")) {
-            ioScope.launch {
-                try {
-                        playedSeconds = playedSec.toDouble(),
-                        skipped = isSkippedForServer
-                    )
-                } catch (_: Exception) {}
-            }
-        }
+        // Yandex-треки в LMG VK не поддерживаются — сигнал не шлём.
     }
 
     fun logFinalPlayback() {

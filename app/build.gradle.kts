@@ -169,4 +169,20 @@ dependencies {
     implementation("androidx.room:room-runtime:$roomVersion")
     implementation("androidx.room:room-ktx:$roomVersion")
     ksp("androidx.room:room-compiler:$roomVersion")
+
+    // --- теги/метаданные аудио (TagEditor, TagEditScreen) ---
+    implementation("com.github.Adonai:jaudiotagger:2.3.15")
+
+    // --- SQLite (Room openHelperFactory как в LMG) ---
+    implementation("com.github.requery:sqlite-android:3.45.0")
+
+    // --- MP3-теги (PlaylistDownloadService) ---
+    implementation("com.mpatric:mp3agic:0.9.1")
+
+    // --- Glance (widget PlayerController) ---
+    implementation("androidx.glance:glance-appwidget:1.1.1")
+    implementation("androidx.glance:glance-material3:1.1.1")
+
+    // --- TFLite (VadLyricsEngine: Interpreter) ---
+    implementation("org.tensorflow:tensorflow-lite:2.16.1")
 }

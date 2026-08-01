@@ -100,7 +100,9 @@ fun NewScreen(
         val mood = previewMood ?: return@LaunchedEffect
         previewTracks = null
         previewTracks = withContext(Dispatchers.IO) {
-            runCatching { MusicBackend.searchTracks(mood.query, limit = 4) }.getOrDefault(emptyList())
+            runCatching { MusicBackend.searchTracks(mood.query, limit = 4) }
+                .getOrDefault(emptyList())
+                .map { it.toTrack() }
         }
     }
 

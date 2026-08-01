@@ -5,12 +5,10 @@ import android.util.Log
 import com.lmg.vk.engine.backend.BackendException
 import com.lmg.vk.engine.backend.MusicBackend
 import com.lmg.vk.engine.backend.wave.WaveBatchResponse
-import com.lmg.vk.engine.backend.MusicBackend
 import com.lmg.vk.data.local.db.AppDatabase
 import com.lmg.vk.data.local.db.CachedTrack
 import com.lmg.vk.data.local.db.GenreCount
 import com.lmg.vk.data.local.db.ListeningHistory
-import com.lmg.vk.data.wave.AppleCatalogFilter
 import com.lmg.vk.data.wave.DeadTrackRegistry
 import com.lmg.vk.data.wave.WaveCandidateFilter
 import com.lmg.vk.data.wave.WaveMode
@@ -373,8 +371,6 @@ class WaveRepository(context: Context) {
         }
 
         Log.d(TAG, "Final wave queue: ${queue.size} tracks (attempts: $attempts)")
-        // Досеиваем Apple music-video, которые backend не пометил isClip.
-        AppleCatalogFilter.stripVideoClips(queue)
     }
 
     suspend fun buildWaveModeQueue(
@@ -382,7 +378,7 @@ class WaveRepository(context: Context) {
         count: Int = WAVE_QUEUE_SIZE,
         exclude: Collection<String> = emptyList()
     ): List<Track> = withContext(Dispatchers.IO) {
-        // Клип-страховка (AppleCatalogFilter) стоит на «листьях» ниже:
+        // Клип-страховка стоит на «листьях» ниже:
         // fetchGenreOrMoodWaveBatch / acceptPersonalWaveTracks / buildWaveQueue /
         // buildGenreSearchQueue — так покрыты и прямые вызовы в обход диспетчера.
         when (mode) {
@@ -475,8 +471,8 @@ class WaveRepository(context: Context) {
         }
 
         val result = out.values.toList()
-        com.lmg.vk.engine.backend.MusicBackendFileLogger.log(
-            "D", "Wave",
+        Log.d(
+            TAG,
             "buildMultiGenreWaveQueue: genres=$cleanGenres exclude=${excludeSet.size} -> ${result.size} tracks"
         )
         // Серверный /wave/genre вернул пусто по ВСЕМ жанрам (сеть/пустой аккаунт) →
@@ -545,7 +541,7 @@ class WaveRepository(context: Context) {
                 Log.w(TAG, "Genre search '$genre' failed: ${e.message}")
                 emptyList()
             }
-            found.filter { it.id.isNotBlank() && !it.isLocallyRejected() }
+            found.map { it.toTrack() }.filter { it.id.isNotBlank() && !it.isLocallyRejected() }
         }
         // Round-robin по жанрам: [g0[0], g1[0], …, g0[1], g1[1], …] — так в начале
         // очереди намешаны все топ-жанры, а не только первый.
@@ -578,10 +574,11 @@ class WaveRepository(context: Context) {
         // тишины; анти-повтор очереди не даёт повтора подряд).
         val rawResult = roundRobin(filtered).ifEmpty { roundRobin(rawPerGenre) }
         // Поиск /search фильтрует клипы по isTrack, но backend неполно ставит isClip —
-        // Apple music-video просачиваются как обычные треки. Досеиваем по Apple-каталогу.
-        val result = AppleCatalogFilter.stripVideoClips(rawResult)
-        com.lmg.vk.engine.backend.MusicBackendFileLogger.log(
-            "D", "Wave",
+        // Apple music-video просачиваются как обычные треки. WaveRepository режет их
+        // по isClip выше (клипы не стримятся — 404 track_not_found).
+        val result = rawResult
+        Log.d(
+            TAG,
             "buildGenreSearchQueue: genres=$genres exclude=${excludeSet.size} " +
                 "negTracks=${negTrackSet.size} negArtists=${negArtistSet.size} -> ${result.size} tracks"
         )
@@ -829,13 +826,13 @@ class WaveRepository(context: Context) {
         val mapped = filtered.accepted.mapNotNull { candidate ->
             tracksById[candidate.id]?.toTrack()
         }
-        // isClip выше режет только помеченные ICM; часть Apple music-video он не
-        // помечает (и /track на них не 404) → досеиваем по Apple-каталогу.
-        val result = AppleCatalogFilter.stripVideoClips(mapped)
-        // DIAG (wave-diag build): видно в «Copy backend logs». server=сколько отдал ICM,
+        // isClip выше режет только помеченные сервером; часть Apple music-video он не
+        // помечает (и /track на них не 404) — такие просеивает клип-статистика дальше.
+        val result = mapped
+        // DIAG (wave-diag build): видно в «Copy backend logs». server=сколько отдал бэкенд,
         // filterAccepted=сколько прошло WaveCandidateFilter, mapped=сколько стало Track.
-        com.lmg.vk.engine.backend.MusicBackendFileLogger.log(
-            "D", "Wave",
+        Log.d(
+            TAG,
             "$label: server=${tracks.size} filterAccepted=${filtered.accepted.size} mapped=${mapped.size} afterClipFilter=${result.size}"
         )
         return result
@@ -868,7 +865,7 @@ class WaveRepository(context: Context) {
                 val next = MusicBackend.getWaveNext(
                     seedTrackId = null,
                     exclude = exclude.takeIf { it.isNotEmpty() }
-                ) ?: break
+                ).getOrNull() ?: break
                 if (next.status != "ok") break
                 val track = next.track ?: break
                 if (!track.isClip) tracks += track.toTrack()
@@ -1021,8 +1018,8 @@ class WaveRepository(context: Context) {
         val tracks = filtered.accepted.mapNotNull { candidate ->
             tracksById[candidate.id]?.toTrack()
         }
-        // backend неполно ставит isClip → досеиваем Apple music-video по каталогу.
-        return AppleCatalogFilter.stripVideoClips(tracks)
+        // backend неполно ставит isClip → досеиваем клипы по каталогу через WaveTrack.isClip
+        return tracks
     }
 
     private fun preparePersonalWaveState(

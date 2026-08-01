@@ -16,7 +16,10 @@ data class PodcastInfo(
     val position: Int? = null,
 ) {
     /** Преобразованная обложка (в оригинале — transient-геттер `ad()`). */
-    val thumb: AlbumThumb? get() = cover?.sizes?.maxByOrNull { it.width }
+    val thumb: AlbumThumb?
+        get() = cover?.sizes?.maxByOrNull { it.width }?.let {
+            AlbumThumb(width = it.width, height = it.height, src = it.src)
+        }
 }
 
 /** Из `ua.lmg.vkapi2.objects.podcasts.PodcastCover` (+ PodcastCoverSize). */

@@ -560,3 +560,85 @@ fun ProfileScreen(
         }
     }
 }
+
+@Composable
+private fun SettingRowNavigable(
+    icon: ImageVector,
+    label: String,
+    value: String,
+    compact: Boolean,
+    onClick: () -> Unit
+) {
+    val lc = LiquidTheme.colors
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .liquidClickable(onClick = onClick)
+            .padding(horizontal = 18.dp, vertical = if (compact) 12.dp else 14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = lc.textSecondary,
+            modifier = Modifier.size(20.dp)
+        )
+        Spacer(modifier = Modifier.width(14.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = label,
+                fontFamily = AppFontFamily,
+                color = lc.textPrimary,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Medium
+            )
+            Text(
+                text = value,
+                fontFamily = AppFontFamily,
+                color = lc.textSecondary,
+                fontSize = 12.sp,
+                modifier = Modifier.padding(top = 2.dp)
+            )
+        }
+        Icon(
+            imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+            contentDescription = null,
+            tint = lc.textTertiary,
+            modifier = Modifier.size(18.dp)
+        )
+    }
+}
+
+@Composable
+private fun SettingRowAction(
+    icon: ImageVector,
+    label: String,
+    tint: Color,
+    compact: Boolean,
+    onClick: () -> Unit
+) {
+    val lc = LiquidTheme.colors
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .liquidClickable(onClick = onClick)
+            .padding(horizontal = 18.dp, vertical = if (compact) 12.dp else 14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = tint,
+            modifier = Modifier.size(20.dp)
+        )
+        Spacer(modifier = Modifier.width(14.dp))
+        Text(
+            text = label,
+            fontFamily = AppFontFamily,
+            color = tint,
+            fontSize = 15.sp,
+            fontWeight = FontWeight.Medium,
+            modifier = Modifier.weight(1f)
+        )
+    }
+}

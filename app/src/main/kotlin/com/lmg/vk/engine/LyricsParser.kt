@@ -135,17 +135,14 @@ object LyricsParser {
                 com.lmg.vk.engine.backend.MusicBackend.getLyricsResult(trackId)
             }
             val response = outcome.getOrNull()
-            if (response != null && !response.lyrics.isNullOrBlank()) {
-                val parsed = parseLyrics(response.lyrics)
-                if (parsed.lines.isNotEmpty()) {
-                    val result = parsed.copy(
-                        title = title,
-                        artist = artist,
-                        source = "backend"
-                    )
-                    cacheLyrics(trackId, result)
-                    return@withContext result
-                }
+            if (response != null && response.lines.isNotEmpty()) {
+                val result = response.copy(
+                    title = title,
+                    artist = artist,
+                    source = "backend"
+                )
+                cacheLyrics(trackId, result)
+                return@withContext result
             }
             // Негатив запоминаем ТОЛЬКО когда сервер ответил и текста у трека нет.
             // Без этого каждое открытие шторки на инструментале стоило до 12 секунд

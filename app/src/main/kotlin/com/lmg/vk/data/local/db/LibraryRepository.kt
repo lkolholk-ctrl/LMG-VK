@@ -69,7 +69,7 @@ class LibraryRepository private constructor(context: Context) {
         // Без залинкованного partner_user_id облачной библиотеки нет: /library/likes
         // вернёт 401 partner_user_required. В ANR-логе Xiaomi это был повторяющийся
         // 401-шум на старте — не дёргаем сеть вообще, пока юзер не залинкован.
-        if (MusicAuth.partnerUserId.value.isNullOrBlank()) {
+        if (MusicAuth.partnerUserId.value == null) {
             return@withContext Result.success(Unit)
         }
         try {

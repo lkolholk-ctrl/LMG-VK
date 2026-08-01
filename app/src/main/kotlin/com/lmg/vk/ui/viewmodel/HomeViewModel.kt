@@ -84,7 +84,7 @@ class HomeViewModel : ViewModel() {
     fun clearLinkFlag() { _needsLink.value = false }
 
     private fun isLinked(): Boolean =
-        !MusicAuth.partnerUserId.value.isNullOrBlank()
+        MusicAuth.partnerUserId.value != null
 
     private val _topGenres = MutableStateFlow<List<String>>(emptyList())
     val topGenres: StateFlow<List<String>> = _topGenres
@@ -294,7 +294,7 @@ class HomeViewModel : ViewModel() {
                         // Даже жанровая волна пуста → по доке нужен онбординг (выбор
                         // seed-артистов). Если он ещё не пройден — показываем выбор.
                         val onboarded = try {
-                            MusicBackend.getWaveOnboarding()?.completed ?: false
+                            !MusicBackend.getWaveOnboarding().isNullOrEmpty()
                         } catch (e: CancellationException) {
                             throw e
                         } catch (_: Exception) {

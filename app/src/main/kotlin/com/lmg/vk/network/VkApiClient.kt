@@ -7,6 +7,7 @@ import io.ktor.client.request.header
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
+import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpMethod
 import io.ktor.http.Parameters
 import io.ktor.http.URLProtocol
@@ -57,10 +58,6 @@ class VkApiClient(
 
             if (!method.isContentMethod) {
                 return VkResult.Error(VkErrorCodes.NO_CONTENT, "BH.VkApi - One-Shot methods have no content")
-            }
-
-            if (raw.error != null && !method.useOAuth) {
-                return VkResult.Error(raw.error.error_code, raw.error.error_msg)
             }
 
             val parsed = method.parser.parse(raw)

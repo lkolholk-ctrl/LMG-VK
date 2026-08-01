@@ -143,7 +143,7 @@ fun ArtistDetailScreen(
         art.featuring.mapTo(albumIds) { it.id }
         art.latestRelease?.let { albumIds.add(it.id) }
 
-        if (albumIds.isNotEmpty() && MusicBackend.isInitialized.value) {
+        if (albumIds.isNotEmpty() && MusicBackend.isInitialized) {
             coroutineScope {
                 val albumResults = albumIds.distinct().map { albumId ->
                     async(Dispatchers.IO) {

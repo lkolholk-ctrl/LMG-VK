@@ -117,7 +117,7 @@ fun PlaylistDetailScreen(
                     }
 
                     val pageTracks = response.tracks.mapNotNull { tr ->
-                        val trackIdStr = tr.trackId?.takeIf { it.isNotBlank() }
+                        val trackIdStr = tr.id.takeIf { it.isNotBlank() }
                             ?: return@mapNotNull null
                         val durationSec = tr.duration ?: 0L
                         // Часть источников отдаёт секунды, часть миллисекунды —
