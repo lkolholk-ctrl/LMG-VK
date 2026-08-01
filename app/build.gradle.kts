@@ -160,6 +160,9 @@ dependencies {
     // OkHttp (Coil image loader в LmgApplication)
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
 
+    // DataStore (настройки: PlayerSettings, AudioFxController, LyricsFxController)
+    implementation("androidx.datastore:datastore-preferences:1.1.1")
+
     // Room (избранное/история — data/local/db). 2.7.0 как у LMG: на 2.6.1
     // KSP 2.3.7 падает с "unexpected jvm signature V".
     val roomVersion = "2.7.0"
