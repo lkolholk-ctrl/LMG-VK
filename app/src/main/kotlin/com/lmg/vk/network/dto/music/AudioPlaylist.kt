@@ -74,13 +74,21 @@ data class AudioAlbum(
     val main_color: String? = null,
 )
 
-/** Из `ua.lmg.vkapi2.objects.music.playlist.thumb.AlbumThumb` (srcSet обложек). */
 @JsonClass(generateAdapter = true)
 data class AlbumThumb(
     val width: Int = 0,
     val height: Int = 0,
     val src: String = "",
-)
+    val photo_34: String? = null,
+    val photo_68: String? = null,
+    val photo_135: String? = null,
+    val photo_270: String? = null,
+    val photo_300: String? = null,
+    val photo_600: String? = null,
+    val photo_1200: String? = null,
+) {
+    val bestUrl: String get() = photo_1200 ?: photo_600 ?: photo_300 ?: photo_270 ?: photo_135 ?: photo_68 ?: photo_34 ?: src
+}
 
 /** Из `playlist.metadata.FollowedMetadata` / `OriginalPlaylist` / `AudioPlaylistMeta`. */
 @JsonClass(generateAdapter = true)

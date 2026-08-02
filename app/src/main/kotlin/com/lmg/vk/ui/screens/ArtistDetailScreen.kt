@@ -310,8 +310,10 @@ fun ArtistDetailScreen(
                                     TopSongRow(
                                         position = index + 1,
                                         title = track.title,
-                                        subtitle = track.albumName.ifBlank { track.artist },
+                                        subtitle = track.artist.ifBlank { track.albumName },
                                         coverUrl = track.coverUrl,
+                                        isExplicit = track.isExplicit,
+                                        durationMs = track.durationMs,
                                         textPrimary = LiquidSurfaces.textPrimary(colors.isDark),
                                         textSecondary = LiquidSurfaces.textSecondary(colors.isDark),
                                         onClick = {
@@ -340,8 +342,10 @@ fun ArtistDetailScreen(
                                                 TopSongRow(
                                                     position = position + 1,
                                                     title = track.title,
-                                                    subtitle = track.albumName.ifBlank { track.artist },
+                                                    subtitle = track.artist.ifBlank { track.albumName },
                                                     coverUrl = track.coverUrl,
+                                                    isExplicit = track.isExplicit,
+                                                    durationMs = track.durationMs,
                                                     textPrimary = LiquidSurfaces.textPrimary(colors.isDark),
                                                     textSecondary = LiquidSurfaces.textSecondary(colors.isDark),
                                                     onClick = {
@@ -849,6 +853,8 @@ private fun TopSongRow(
     title: String,
     subtitle: String,
     coverUrl: String?,
+    isExplicit: Boolean = false,
+    durationMs: Long = 0L,
     textPrimary: Color,
     textSecondary: Color,
     onClick: () -> Unit
@@ -878,20 +884,50 @@ private fun TopSongRow(
         )
         Spacer(Modifier.width(14.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = title,
-                color = textPrimary,
-                fontSize = LiquidMetrics.RowTitle,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (isExplicit) {
+                    Box(
+                        modifier = Modifier
+                            .padding(end = 6.dp)
+                            .clip(RoundedCornerShape(3.dp))
+                            .background(textSecondary.copy(alpha = 0.2f))
+                            .padding(horizontal = 4.dp, vertical = 1.dp)
+                    ) {
+                        Text(
+                            text = "E",
+                            color = textSecondary,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+                Text(
+                    text = title,
+                    color = textPrimary,
+                    fontSize = LiquidMetrics.RowTitle,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false)
+                )
+            }
             Text(
                 text = subtitle,
                 color = textSecondary,
                 fontSize = LiquidMetrics.Caption,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
+            )
+        }
+        if (durationMs > 0L) {
+            val totalSec = durationMs / 1000L
+            val minutes = totalSec / 60
+            val seconds = totalSec % 60
+            Text(
+                text = String.format(java.util.Locale.US, "%d:%02d", minutes, seconds),
+                color = textSecondary,
+                fontSize = 13.sp,
+                modifier = Modifier.padding(start = 12.dp)
             )
         }
     }

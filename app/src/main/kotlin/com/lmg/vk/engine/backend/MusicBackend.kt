@@ -683,10 +683,14 @@ object MusicBackend {
     }
 
     private fun AudioTrack.coverUrl(): String? =
-        album?.thumb?.src?.takeIf(String::isNotBlank)
+        album?.thumb?.bestUrl?.takeIf(String::isNotBlank)
+            ?: album?.thumb?.src?.takeIf(String::isNotBlank)
 
     private fun AudioTrack.toMiniArtists(): List<MiniArtist> =
         main_artists.orEmpty().map { MiniArtist(id = it.id, name = it.name) }
+
+    private fun AudioTrack.resolvedArtist(): String =
+        artist.ifBlank { main_artists.orEmpty().joinToString(", ") { it.name } }
 
     private fun AudioTrack.toStreamInfo(quality: String) = StreamInfo(
         trackId = fullId,
@@ -701,8 +705,8 @@ object MusicBackend {
     private fun AudioTrack.toSearchItem() = SearchItem(
         id = fullId,
         title = title,
-        artist = artist,
-        artistName = artist,
+        artist = resolvedArtist(),
+        artistName = resolvedArtist(),
         artistId = main_artists?.firstOrNull()?.id,
         artists = toMiniArtists(),
         cover = coverUrl(),
@@ -874,7 +878,7 @@ object MusicBackend {
     private fun AudioTrack.toArtistSong() = ArtistSong(
         id = fullId,
         title = title,
-        artist = artist,
+        artist = resolvedArtist(),
         artistId = main_artists?.firstOrNull()?.id,
         artists = toMiniArtists(),
         cover = coverUrl().orEmpty(),
@@ -887,7 +891,7 @@ object MusicBackend {
     private fun AudioTrack.toWaveTrack() = WaveTrack(
         id = fullId,
         title = title,
-        artist = artist,
+        artist = resolvedArtist(),
         artistId = main_artists?.firstOrNull()?.id,
         cover = coverUrl(),
         duration = duration.toLong(),
@@ -899,7 +903,7 @@ object MusicBackend {
     private fun AudioTrack.toEngineTrack() = Track(
         id = fullId,
         title = title,
-        artist = artist,
+        artist = resolvedArtist(),
         albumName = album?.title.orEmpty(),
         uri = Uri.parse("https://byicloud.online/track/$fullId"),
         durationMs = duration * 1000L,
@@ -915,7 +919,7 @@ object MusicBackend {
         id = fullId,
         trackId = fullId,
         title = title,
-        artist = artist,
+        artist = resolvedArtist(),
         artistId = main_artists?.firstOrNull()?.id,
         cover = coverUrl(),
         duration = duration.toLong(),
@@ -928,7 +932,7 @@ object MusicBackend {
     private fun AudioTrack.toPlaylistTrack() = PlaylistTrack(
         id = fullId,
         title = title,
-        artist = artist,
+        artist = resolvedArtist(),
         artistId = main_artists?.firstOrNull()?.id.orEmpty(),
         cover = coverUrl().orEmpty(),
         collectionId = album?.id?.toString().orEmpty(),
@@ -941,7 +945,7 @@ object MusicBackend {
         name = title,
         source = "vk",
         trackCount = count,
-        cover = photo?.src ?: thumbs?.firstOrNull()?.src,
+        cover = photo?.bestUrl ?: photo?.src ?: thumbs?.firstOrNull()?.bestUrl ?: thumbs?.firstOrNull()?.src,
         createdAt = create_time,
         updatedAt = update_time,
     )
@@ -949,10 +953,10 @@ object MusicBackend {
     private fun AudioPlaylist.toAlbum() = Album(
         id = fullId,
         title = title,
-        artist = main_artists?.joinToString(", ") { it.name }.orEmpty(),
+        artist = main_artists?.joinToString(", ") { it.name }.orEmpty().ifBlank { main_artist.orEmpty() },
         artistId = main_artists?.firstOrNull()?.id,
-        cover = photo?.src ?: thumbs?.firstOrNull()?.src.orEmpty(),
-        year = year.takeIf { it > 0 }?.toString(),
+        cover = photo?.bestUrl ?: photo?.src ?: thumbs?.firstOrNull()?.bestUrl ?: thumbs?.firstOrNull()?.src.orEmpty(),
+        year = year.takeIf { it > 0 }?.toString() ?: create_time.takeIf { it > 0 }?.let { (it / 31536000 + 1970).toString() },
         type = type,
         description = description,
         trackCount = count,
@@ -961,10 +965,10 @@ object MusicBackend {
     private fun AudioPlaylist.toArtistAlbum() = ArtistAlbum(
         id = fullId,
         title = title,
-        artist = main_artists?.joinToString(", ") { it.name }.orEmpty(),
+        artist = main_artists?.joinToString(", ") { it.name }.orEmpty().ifBlank { main_artist.orEmpty() },
         artists = main_artists.orEmpty().map { MiniArtist(it.id, it.name) },
-        year = year.takeIf { it > 0 }?.toString(),
-        cover = photo?.src ?: thumbs?.firstOrNull()?.src.orEmpty(),
+        year = year.takeIf { it > 0 }?.toString() ?: create_time.takeIf { it > 0 }?.let { (it / 31536000 + 1970).toString() },
+        cover = photo?.bestUrl ?: photo?.src ?: thumbs?.firstOrNull()?.bestUrl ?: thumbs?.firstOrNull()?.src.orEmpty(),
         type = type,
         isAlbum = true,
     )
