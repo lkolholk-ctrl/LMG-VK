@@ -171,10 +171,22 @@ object MusicBackend {
         runCatching {
             requireInitialized()
             val result = audioApi.searchMain(query = query, offset = 0, count = limit).requireData()
-            val tracks = (result.audios.items + result.own_audios.items)
+            var tracks = (result.audios.items + result.own_audios.items)
                 .distinctBy(AudioAudioDto::fullId)
                 .map { it.toAudioTrack() }
                 .also(::cacheTracks)
+
+            // Фолбэк: если searchMain не вернул треков, дополнительно запрашиваем audio.searchAudios
+            if (tracks.isEmpty()) {
+                val fallback = runCatching {
+                    audioApi.searchAudios(query = query, ownerId = currentUserId(), offset = 0, count = limit).requireData()
+                }.getOrNull()
+                if (!fallback.isNullOrEmpty()) {
+                    cacheTracks(fallback)
+                    tracks = fallback
+                }
+            }
+
             val albums = (result.albums.items + result.own_albums.items)
                 .distinctBy(AudioPlaylistDto::fullId)
             val playlists = (result.playlists.items + result.own_playlists.items)
