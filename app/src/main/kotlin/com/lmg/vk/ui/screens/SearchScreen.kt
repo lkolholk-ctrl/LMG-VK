@@ -91,25 +91,18 @@ fun SearchScreen(
     // треков; результаты — видео-карточки, тап открывает плеер с видео.
     // Клипы у backend доступны только подписчикам → без премиума сегмент серый,
     // тап показывает премиум-окно (как у загрузок).
-    var videoMode by remember { mutableStateOf(false) }
-    val isPremiumUser by MusicAuth.isPremium.collectAsState()
-    var showVideoPromo by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
     val prefs = remember { context.getSharedPreferences("search_history", Context.MODE_PRIVATE) }
     val scope = rememberCoroutineScope()
 
-    // backend search state. viewModel(), НЕ remember{} (P1, аудит): remember создаёт
-    // VM мимо ViewModelStore — onCleared никогда не зовётся, debounce-коллектор
-    // из init жил вечно; каждый заход в поиск = +1 бессмертный SearchViewModel.
     val viewModel: SearchViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
     val query by viewModel.query.collectAsState()
     val searchResults by viewModel.searchResults.collectAsState()
     val categories by viewModel.categories.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val error by viewModel.error.collectAsState()
-    val selectedSource by viewModel.selectedSource.collectAsState()
 
     // Адаптив: поле поиска и сегменты остаются во всю ширину, а списки
     // результатов/истории в широком окне (альбом/планшет) центрируем узкой
@@ -213,46 +206,7 @@ fun SearchScreen(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Источники — единый сегмент-контрол пилюлей (вместо трёх чипов).
-            val segBg = if (LiquidTheme.colors.isDark) Color(0xFF1A1A1A) else Color(0xFFF2F2F7)
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp)
-                    .clip(RoundedCornerShape(50))
-                    .background(segBg)
-                    .padding(4.dp)
-            ) {
-                SourceSegment(
-                    text = "Apple Music",
-                    selected = !videoMode && selectedSource == SearchSource.APPLE,
-                    modifier = Modifier.weight(1f),
-                    onClick = { videoMode = false; viewModel.setSource(SearchSource.APPLE) }
-                )
-                SourceSegment(
-                    text = "VK",
-                    selected = !videoMode && selectedSource == SearchSource.VK,
-                    modifier = Modifier.weight(1f),
-                    onClick = { videoMode = false; viewModel.setSource(SearchSource.VK) }
-                )
-                SourceSegment(
-                    text = "All",
-                    selected = !videoMode && selectedSource == SearchSource.ALL,
-                    modifier = Modifier.weight(1f),
-                    onClick = { videoMode = false; viewModel.setSource(SearchSource.ALL) }
-                )
-                SourceSegment(
-                    text = "Video",
-                    selected = videoMode,
-                    enabled = isPremiumUser,
-                    modifier = Modifier.weight(1f),
-                    onClick = {
-                        if (isPremiumUser) videoMode = true else showVideoPromo = true
-                    }
-                )
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
             // Search field — пилюля с подсветкой при фокусе + Cancel рядом.
             val isDark = LiquidTheme.colors.isDark

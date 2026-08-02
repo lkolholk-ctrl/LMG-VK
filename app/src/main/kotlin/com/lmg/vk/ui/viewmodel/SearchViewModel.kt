@@ -45,10 +45,6 @@ class SearchViewModel : ViewModel() {
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error
 
-    // ─── Search Source ───
-    private val _selectedSource = MutableStateFlow(SearchSource.APPLE)
-    val selectedSource: StateFlow<String> = _selectedSource
-
     // ─── Is Search Active (query not empty) ───
     val isSearchActive: Boolean
         get() = _query.value.isNotBlank()
@@ -135,33 +131,17 @@ class SearchViewModel : ViewModel() {
             _isLoading.value = true
             _error.value = null
             try {
-                var result = MusicBackend.searchAll(q, source = _selectedSource.value)
-                // Транзиент от быстрого ввода: сервер мог ответить rate_limited
-                // на очередь запросов, или таймаут на слабой сети. Один ТИХИЙ
-                // повтор через 1.2с вместо мгновенного Error — к этому моменту
-                // очередь рассосалась. delay отменяемый: новый запрос его убьёт.
+                var result = MusicBackend.searchAll(q)
+                // Транзиент от быстрого ввода: один ТИХИЙ повтор через 1.2с при сбое
                 if (result == null && q == _query.value.trim()) {
                     kotlinx.coroutines.delay(1200)
                     if (q == _query.value.trim())
-                        result = MusicBackend.searchAll(q, source = _selectedSource.value)
+                        result = MusicBackend.searchAll(q)
                 }
-                // Пока летел ответ, пользователь уже напечатал другое — не
-                // показываем устаревшие результаты (отмена ловит не всё:
-                // новый debounce мог ещё не выстрелить).
                 if (q != _query.value.trim() && _query.value.trim().length >= 2)
                     return@launch
-                // Жёсткое разделение источников (полевой фидбек «Apple и VK
-                // смешиваются»): сервер фильтрует сам, но при переключении
-                // сегментов/гонках в выдачу могли попасть чужие items —
-                // отбрасываем всё, что не соответствует выбранному сегменту.
-                val requestedSource = _selectedSource.value
-                val items = (result?.items ?: emptyList()).let { list ->
-                    when (requestedSource) {
-                        SearchSource.APPLE -> list.filter { !it.isVk }
-                        SearchSource.VK -> list.filter { it.isVk }
-                        else -> list
-                    }
-                }
+
+                val items = result?.items ?: emptyList()
                 _searchResults.value = items
                 if (result == null) {
                     // Человекочитаемое сообщение вместо сырого JSON тела ответа.
