@@ -65,10 +65,7 @@ class LibraryRepository private constructor(context: Context) {
      * Call on app launch or when user pulls to refresh.
      */
     suspend fun syncWithCloud(): Result<Unit> = withContext(Dispatchers.IO) {
-        // Без залинкованного partner_user_id облачной библиотеки нет: /library/likes
-        // вернёт 401 partner_user_required. В ANR-логе Xiaomi это был повторяющийся
-        // 401-шум на старте — не дёргаем сеть вообще, пока юзер не залинкован.
-        if (MusicAuth.partnerUserId.value == null) {
+        if (!MusicBackend.isInitialized || !MusicAuth.isLoggedIn.value) {
             return@withContext Result.success(Unit)
         }
         try {
