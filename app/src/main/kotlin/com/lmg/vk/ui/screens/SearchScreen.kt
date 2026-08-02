@@ -322,9 +322,6 @@ fun SearchScreen(
                     .weight(1f)
                     .fillMaxWidth()
             ) {
-              if (videoMode) {
-                ClipResultsSection(query = query, onOpenPlayer = onOpenPlayer)
-              } else {
                 // ─── IDLE STATE: Categories + History ───
                 androidx.compose.animation.AnimatedVisibility(
                     visible = query.isBlank(),
@@ -616,7 +613,6 @@ fun SearchScreen(
                             }
                         }
                 }
-              }
             }
         }
 
@@ -624,33 +620,6 @@ fun SearchScreen(
         actionsTrack?.let { t ->
             TrackActionsSheet(track = t, onDismiss = { actionsTrack = null })
         }
-
-        // Премиум-окно для сегмента Video (то же, что у загрузок).
-        com.lmg.vk.ui.glass.GlassDialog(
-            visible = showVideoPromo,
-            onDismiss = { showVideoPromo = false },
-            icon = Icons.Rounded.PlayArrow,
-            iconTint = Color(0xFFFC3C44),
-            title = "Premium Required",
-            message = "Music videos are an exclusive feature for Premium subscribers. Upgrade to search and watch full video clips.",
-            primaryButton = com.lmg.vk.ui.glass.GlassDialogButton(
-                text = "Upgrade",
-                onClick = {
-                    showVideoPromo = false
-                    val intent = android.content.Intent(
-                        android.content.Intent.ACTION_VIEW,
-                        android.net.Uri.parse("https://t.me/byicmbot")
-                    )
-                    context.startActivity(intent)
-                }
-            ),
-            secondaryButton = com.lmg.vk.ui.glass.GlassDialogButton(
-                text = "Cancel",
-                onClick = { showVideoPromo = false },
-                backgroundColor = Color.White.copy(alpha = 0.08f),
-                textColor = Color.White.copy(alpha = 0.7f)
-            )
-        )
     }
 }
 

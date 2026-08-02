@@ -84,11 +84,9 @@ class SearchViewModel : ViewModel() {
     }
 
     /**
-     * Set search source (Apple, VK, All).
+     * Set search source (stub for backward compatibility).
      */
     fun setSource(source: String) {
-        _selectedSource.value = source
-        // Re-trigger search if query is not empty
         if (_query.value.isNotBlank()) {
             performSearch(_query.value.trim())
         }
@@ -147,10 +145,8 @@ class SearchViewModel : ViewModel() {
                     // Человекочитаемое сообщение вместо сырого JSON тела ответа.
                     _error.value = backendUserMessage(MusicBackend.lastApiException.value)
                 }
-                // Apple-поиск не отдаёт duration ВООБЩЕ (по доке /search) —
-                // длительности треков дотягиваем батчем /tracks/meta и вливаем
-                // в выдачу (иначе в строках пусто/0:00 — полевой фидбек).
-                enrichDurations(q, requestedSource, items)
+                // Длительности треков дотягиваем батчем /tracks/meta и вливаем в выдачу
+                enrichDurations(q, items)
             } catch (ce: CancellationException) {
                 throw ce   // отмена — не ошибка, не показываем её пользователю
             } catch (e: Exception) {
@@ -163,11 +159,9 @@ class SearchViewModel : ViewModel() {
     }
 
     /**
-     * Дотянуть длительности треков, у которых их нет в выдаче (Apple /search
-     * не отдаёт duration), батчем POST /tracks/meta (до 50 id). Ошибки тихие —
-     * длительность декоративна; без неё просто не показываем время.
+     * Дотянуть длительности треков, у которых их нет в выдаче, батчем.
      */
-    private fun enrichDurations(q: String, source: String, items: List<SearchItem>) {
+    private fun enrichDurations(q: String, items: List<SearchItem>) {
         val needIds = items
             .filter { it.isTrack && it.durationMs <= 0L }
             .map { it.id }
@@ -178,16 +172,13 @@ class SearchViewModel : ViewModel() {
             try {
                 val meta = com.lmg.vk.engine.backend.MusicBackend.getInstance()
                     .getBatchTrackMeta(needIds).getOrNull() ?: return@launch
-                // Пользователь уже ищет другое / сменил сегмент — не вливаем.
-                if (q != _query.value.trim() || source != _selectedSource.value) return@launch
+                if (q != _query.value.trim()) return@launch
                 val byId = meta.items
                     .filter { it.isSuccess && it.durationMs > 0L }
                     .associateBy { it.trackId ?: it.id }
                 if (byId.isEmpty()) return@launch
                 _searchResults.value = _searchResults.value.map { item ->
                     val m = byId[item.id]
-                    // durationMs уже нормализован в мс; source не трогаем —
-                    // значение > 30с не попадёт под повторную конвертацию.
                     if (m != null && item.durationMs <= 0L) item.copy(duration = m.durationMs)
                     else item
                 }
