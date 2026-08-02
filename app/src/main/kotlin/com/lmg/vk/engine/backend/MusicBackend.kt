@@ -682,12 +682,15 @@ object MusicBackend {
         is VkResult.Error -> throw backendFailure(code, message)
     }
 
+    private const val VK_OFFICIAL_DEFAULT_COVER_URL = "https://vk.com/images/audio_row_placeholder.png"
+
     private fun AudioTrack.coverUrl(): String? =
         album?.thumb?.bestUrl?.takeIf(String::isNotBlank)
             ?: album?.thumb?.src?.takeIf(String::isNotBlank)
             ?: main_artists.orEmpty().firstNotNullOfOrNull { artist ->
                 artist.photo.orEmpty().firstOrNull { it.bestUrl.isNotBlank() }?.bestUrl
             }
+            ?: VK_OFFICIAL_DEFAULT_COVER_URL
 
     private fun AudioTrack.toMiniArtists(): List<MiniArtist> =
         main_artists.orEmpty().map { MiniArtist(id = it.id, name = it.name) }

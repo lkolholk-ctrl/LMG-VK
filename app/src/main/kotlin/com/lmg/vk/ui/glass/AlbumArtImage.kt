@@ -226,11 +226,17 @@ private val VK_DEFAULT_GRADIENTS = listOf(
     Color(0xFFEC4899) to Color(0xFFBE185D)  // VK Magenta Dream
 )
 
+private const val VK_OFFICIAL_PLACEHOLDER_URL = "https://vk.com/images/audio_row_placeholder.png"
+
 @Composable
 private fun PlaceholderArt(modifier: Modifier = Modifier) {
-    VkDefaultAudioCover(
-        title = "",
-        artist = "",
-        modifier = modifier
+    AsyncImage(
+        model = ImageRequest.Builder(LocalContext.current)
+            .data(VK_OFFICIAL_PLACEHOLDER_URL)
+            .crossfade(true)
+            .build(),
+        contentDescription = null,
+        modifier = modifier,
+        contentScale = ContentScale.Crop
     )
 }

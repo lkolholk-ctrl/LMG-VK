@@ -2126,24 +2126,17 @@ private fun FavoriteTrackItem(
         verticalAlignment = Alignment.CenterVertically
     ) {
         val itemArtSize = if (compact) 44.dp else 56.dp
-        if (!track.imageUrl.isNullOrBlank()) {
-            AsyncImage(
-                model = track.imageUrl.replace("1000x1000", "300x300"),
-                contentDescription = null,
-                modifier = Modifier
-                    .size(itemArtSize)
-                    .clip(RoundedCornerShape(6.dp)),
-                contentScale = ContentScale.Crop
-            )
-        } else {
-            com.lmg.vk.ui.glass.VkDefaultAudioCover(
-                title = track.title,
-                artist = track.artistName.orEmpty(),
-                modifier = Modifier
-                    .size(itemArtSize)
-                    .clip(RoundedCornerShape(6.dp))
-            )
-        }
+        val coverToDisplay = track.imageUrl?.takeIf { it.isNotBlank() }
+            ?.replace("1000x1000", "300x300")
+            ?: "https://vk.com/images/audio_row_placeholder.png"
+        AsyncImage(
+            model = coverToDisplay,
+            contentDescription = null,
+            modifier = Modifier
+                .size(itemArtSize)
+                .clip(RoundedCornerShape(6.dp)),
+            contentScale = ContentScale.Crop
+        )
 
         Spacer(modifier = Modifier.width(12.dp))
 
@@ -2208,25 +2201,17 @@ private fun DownloadedTrackItem(
         verticalAlignment = Alignment.CenterVertically
     ) {
         val itemArtSize = if (compact) 44.dp else 56.dp
-        val coverToLoad = track.localCoverPath ?: track.imageUrl
-        if (!coverToLoad.isNullOrBlank()) {
-            AsyncImage(
-                model = coverToLoad,
-                contentDescription = null,
-                modifier = Modifier
-                    .size(itemArtSize)
-                    .clip(RoundedCornerShape(6.dp)),
-                contentScale = ContentScale.Crop
-            )
-        } else {
-            com.lmg.vk.ui.glass.VkDefaultAudioCover(
-                title = track.title,
-                artist = track.artistName.orEmpty(),
-                modifier = Modifier
-                    .size(itemArtSize)
-                    .clip(RoundedCornerShape(6.dp))
-            )
-        }
+        val coverToLoad = track.localCoverPath?.takeIf { it.isNotBlank() }
+            ?: track.imageUrl?.takeIf { it.isNotBlank() }
+            ?: "https://vk.com/images/audio_row_placeholder.png"
+        AsyncImage(
+            model = coverToLoad,
+            contentDescription = null,
+            modifier = Modifier
+                .size(itemArtSize)
+                .clip(RoundedCornerShape(6.dp)),
+            contentScale = ContentScale.Crop
+        )
 
         Spacer(modifier = Modifier.width(12.dp))
 
