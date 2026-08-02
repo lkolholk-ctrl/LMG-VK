@@ -183,12 +183,10 @@ class VkApiClient(
         }
 
         val requestParams = LinkedHashMap<String, String>().apply {
-            params.forEach { (key, value) ->
-                if (key != "access_token") put(key, value)
-            }
+            params.forEach { (key, value) -> put(key, value) }
+            token?.let { putIfAbsent("access_token", it) }
             putIfAbsent("v", apiVersion)
             putIfAbsent("https", "1")
-            putIfAbsent("api_id", VK_ANDROID_CLIENT_ID)
             putIfAbsent("lang", VkLocales.current())
             putIfAbsent("device_id", deviceIdProvider())
         }
