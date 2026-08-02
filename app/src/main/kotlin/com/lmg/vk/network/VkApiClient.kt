@@ -218,7 +218,7 @@ class VkApiClient(
                 header("X-Screen", "nowhere")
             }
             token?.let { header("Authorization", "Bearer $it") }
-            userAgent?.let { header("User-Agent", it) }
+            header("User-Agent", userAgent ?: VkUserAgents.api)
             if (httpMethod == VkHttpMethod.POST) {
                 header("Content-Type", "application/x-www-form-urlencoded")
                 setBody(FormDataContent(Parameters.build {
