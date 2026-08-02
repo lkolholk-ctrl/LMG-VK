@@ -2127,7 +2127,8 @@ private fun FavoriteTrackItem(
             modifier = Modifier
                 .size(if (compact) 44.dp else 56.dp)
                 .clip(RoundedCornerShape(6.dp))
-                .background(lc.glassTint)
+                .background(lc.glassTint),
+            contentAlignment = Alignment.Center
         ) {
             if (!track.imageUrl.isNullOrBlank()) {
                 AsyncImage(
@@ -2136,22 +2137,36 @@ private fun FavoriteTrackItem(
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop
                 )
+            } else {
+                Icon(
+                    imageVector = Icons.Rounded.MusicNote,
+                    contentDescription = null,
+                    tint = lc.textTertiary,
+                    modifier = Modifier.size(if (compact) 20.dp else 24.dp)
+                )
             }
         }
 
         Spacer(modifier = Modifier.width(12.dp))
 
         Column(modifier = Modifier.weight(1f)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (track.isExplicit) {
+                    GlassKit.ExplicitBadge()
+                    Spacer(modifier = Modifier.width(6.dp))
+                }
+                Text(
+                    text = track.title,
+                    color = lc.textPrimary,
+                    fontSize = if (compact) 13.sp else 15.sp,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false)
+                )
+            }
             Text(
-                text = track.title,
-                color = lc.textPrimary,
-                fontSize = if (compact) 13.sp else 15.sp,
-                fontWeight = FontWeight.Medium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Text(
-                text = track.artistName ?: "Unknown Artist",
+                text = track.artistName?.takeIf { it.isNotBlank() } ?: "Unknown Artist",
                 color = lc.textSecondary,
                 fontSize = if (compact) 11.5.sp else 13.sp,
                 maxLines = 1,
@@ -2198,9 +2213,9 @@ private fun DownloadedTrackItem(
             modifier = Modifier
                 .size(if (compact) 44.dp else 56.dp)
                 .clip(RoundedCornerShape(6.dp))
-                .background(lc.glassTint)
+                .background(lc.glassTint),
+            contentAlignment = Alignment.Center
         ) {
-            // Prefer local cover path, fallback to remote imageUrl
             val coverToLoad = track.localCoverPath ?: track.imageUrl
             if (!coverToLoad.isNullOrBlank()) {
                 AsyncImage(
@@ -2209,22 +2224,36 @@ private fun DownloadedTrackItem(
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop
                 )
+            } else {
+                Icon(
+                    imageVector = Icons.Rounded.MusicNote,
+                    contentDescription = null,
+                    tint = lc.textTertiary,
+                    modifier = Modifier.size(if (compact) 20.dp else 24.dp)
+                )
             }
         }
 
         Spacer(modifier = Modifier.width(12.dp))
 
         Column(modifier = Modifier.weight(1f)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (track.isExplicit) {
+                    GlassKit.ExplicitBadge()
+                    Spacer(modifier = Modifier.width(6.dp))
+                }
+                Text(
+                    text = track.title,
+                    color = lc.textPrimary,
+                    fontSize = if (compact) 13.sp else 15.sp,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false)
+                )
+            }
             Text(
-                text = track.title,
-                color = lc.textPrimary,
-                fontSize = if (compact) 13.sp else 15.sp,
-                fontWeight = FontWeight.Medium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Text(
-                text = track.artistName ?: "Unknown Artist",
+                text = track.artistName?.takeIf { it.isNotBlank() } ?: "Unknown Artist",
                 color = lc.textSecondary,
                 fontSize = if (compact) 11.5.sp else 13.sp,
                 maxLines = 1,
