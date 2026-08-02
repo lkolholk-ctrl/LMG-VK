@@ -72,17 +72,13 @@ class LibraryRepository private constructor(context: Context) {
             // 1. Pull cloud likes
             val cloudLikes = mutableListOf<LibraryTrack>()
             var offset = 0
-            val limit = 50
+            val limit = 500
             while (true) {
                 val response = MusicBackend.getLibraryLikes(
                     source = "all",
                     limit = limit,
                     offset = offset
                 )
-                // ОШИБКА сети/API посреди пагинации → ОБРЫВАЕМ ВЕСЬ синк.
-                // Раньше break с частичным списком: шаг 3 («удалить локальные,
-                // которых нет в облаке») сносил лайки, которые на сервере ЕСТЬ,
-                // просто не докачались — потеря данных на рваной сети.
                     ?: return@withContext Result.failure(
                         Exception("likes page fetch failed at offset=$offset")
                     )
