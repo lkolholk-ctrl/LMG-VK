@@ -188,37 +188,49 @@ private fun decodeSampledByteArray(bytes: ByteArray, maxSide: Int): Bitmap? {
 }
 
 @Composable
-private fun PlaceholderArt(modifier: Modifier = Modifier) {
+fun VkDefaultAudioCover(
+    title: String = "",
+    artist: String = "",
+    modifier: Modifier = Modifier,
+    iconSizeRatio: Float = 0.5f
+) {
+    val hash = (title.hashCode() * 31 + artist.hashCode())
+    val gradientIndex = (hash and 0x7FFFFFFF) % VK_DEFAULT_GRADIENTS.size
+    val (startColor, endColor) = VK_DEFAULT_GRADIENTS[gradientIndex]
+
     Box(
-        modifier = modifier,
+        modifier = modifier.background(
+            Brush.linearGradient(
+                colors = listOf(startColor, endColor)
+            )
+        ),
         contentAlignment = Alignment.Center
     ) {
-        // Darkened base gradient underneath
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.linearGradient(
-                        colors = listOf(
-                            Color(0xFF151520),
-                            Color(0xFF0A0A12),
-                            Color(0xFF050508)
-                        )
-                    )
-                )
-        )
-        // Dark overlay at 50% opacity to darken the base
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.5f))
-        )
-        // Bold, heavy icon on top
         Icon(
             imageVector = Icons.Rounded.MusicNote,
             contentDescription = null,
-            tint = Color.White.copy(alpha = 0.85f),
-            modifier = Modifier.fillMaxSize(0.55f)
+            tint = Color.White.copy(alpha = 0.9f),
+            modifier = Modifier.fillMaxSize(iconSizeRatio)
         )
     }
+}
+
+private val VK_DEFAULT_GRADIENTS = listOf(
+    Color(0xFF0077FF) to Color(0xFF0044B3), // VK Classic Blue
+    Color(0xFF7B2CBF) to Color(0xFF5A189A), // VK Royal Purple
+    Color(0xFFFF2A6D) to Color(0xFFD6004C), // VK Sunset Pink
+    Color(0xFF00B4D8) to Color(0xFF0077B6), // VK Cyan Wave
+    Color(0xFFFF9E00) to Color(0xFFE85D04), // VK Neon Amber
+    Color(0xFF10B981) to Color(0xFF047857), // VK Emerald Green
+    Color(0xFF8B5CF6) to Color(0xFF6D28D9), // VK Deep Violet
+    Color(0xFFEC4899) to Color(0xFFBE185D)  // VK Magenta Dream
+)
+
+@Composable
+private fun PlaceholderArt(modifier: Modifier = Modifier) {
+    VkDefaultAudioCover(
+        title = "",
+        artist = "",
+        modifier = modifier
+    )
 }

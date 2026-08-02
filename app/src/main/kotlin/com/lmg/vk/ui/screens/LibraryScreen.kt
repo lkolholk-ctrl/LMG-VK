@@ -2125,28 +2125,24 @@ private fun FavoriteTrackItem(
             .padding(horizontal = 16.dp, vertical = if (compact) 6.dp else 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(
-            modifier = Modifier
-                .size(if (compact) 44.dp else 56.dp)
-                .clip(RoundedCornerShape(6.dp))
-                .background(lc.glassTint),
-            contentAlignment = Alignment.Center
-        ) {
-            if (!track.imageUrl.isNullOrBlank()) {
-                AsyncImage(
-                    model = track.imageUrl.replace("1000x1000", "300x300"),
-                    contentDescription = null,
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop
-                )
-            } else {
-                Icon(
-                    imageVector = Icons.Rounded.MusicNote,
-                    contentDescription = null,
-                    tint = lc.textTertiary,
-                    modifier = Modifier.size(if (compact) 20.dp else 24.dp)
-                )
-            }
+        val itemArtSize = if (compact) 44.dp else 56.dp
+        if (!track.imageUrl.isNullOrBlank()) {
+            AsyncImage(
+                model = track.imageUrl.replace("1000x1000", "300x300"),
+                contentDescription = null,
+                modifier = Modifier
+                    .size(itemArtSize)
+                    .clip(RoundedCornerShape(6.dp)),
+                contentScale = ContentScale.Crop
+            )
+        } else {
+            com.lmg.vk.ui.glass.VkDefaultAudioCover(
+                title = track.title,
+                artist = track.artistName.orEmpty(),
+                modifier = Modifier
+                    .size(itemArtSize)
+                    .clip(RoundedCornerShape(6.dp))
+            )
         }
 
         Spacer(modifier = Modifier.width(12.dp))
@@ -2211,29 +2207,25 @@ private fun DownloadedTrackItem(
             .padding(horizontal = 16.dp, vertical = if (compact) 6.dp else 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(
-            modifier = Modifier
-                .size(if (compact) 44.dp else 56.dp)
-                .clip(RoundedCornerShape(6.dp))
-                .background(lc.glassTint),
-            contentAlignment = Alignment.Center
-        ) {
-            val coverToLoad = track.localCoverPath ?: track.imageUrl
-            if (!coverToLoad.isNullOrBlank()) {
-                AsyncImage(
-                    model = coverToLoad,
-                    contentDescription = null,
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop
-                )
-            } else {
-                Icon(
-                    imageVector = Icons.Rounded.MusicNote,
-                    contentDescription = null,
-                    tint = lc.textTertiary,
-                    modifier = Modifier.size(if (compact) 20.dp else 24.dp)
-                )
-            }
+        val itemArtSize = if (compact) 44.dp else 56.dp
+        val coverToLoad = track.localCoverPath ?: track.imageUrl
+        if (!coverToLoad.isNullOrBlank()) {
+            AsyncImage(
+                model = coverToLoad,
+                contentDescription = null,
+                modifier = Modifier
+                    .size(itemArtSize)
+                    .clip(RoundedCornerShape(6.dp)),
+                contentScale = ContentScale.Crop
+            )
+        } else {
+            com.lmg.vk.ui.glass.VkDefaultAudioCover(
+                title = track.title,
+                artist = track.artistName.orEmpty(),
+                modifier = Modifier
+                    .size(itemArtSize)
+                    .clip(RoundedCornerShape(6.dp))
+            )
         }
 
         Spacer(modifier = Modifier.width(12.dp))
