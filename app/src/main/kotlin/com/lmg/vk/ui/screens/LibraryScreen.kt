@@ -34,6 +34,7 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.LibraryMusic
@@ -253,10 +254,10 @@ fun LibraryScreen(
                                 .background(lc.cardSurface)
                         ) {
                             MenuCard(
-                                title = "Favorites",
-                                subtitle = "${favorites.size} tracks",
-                                icon = Icons.Default.Favorite,
-                                tint = AppleRed,
+                                title = "Мои аудиозаписи",
+                                subtitle = "${favorites.size} треков",
+                                icon = Icons.Rounded.MusicNote,
+                                tint = lc.accentPrimary,
                                 compact = win.useSideBySide,
                                 onClick = { currentView = LibraryView.FAVORITES },
                                 trailing = {
@@ -389,7 +390,7 @@ fun LibraryScreen(
             LibraryView.FAVORITES -> {
                 Column(modifier = Modifier.fillMaxSize()) {
                     // Header
-                    SubHeader("Favorites", onBack = { currentView = LibraryView.MAIN }) {
+                    SubHeader("Мои аудиозаписи", onBack = { currentView = LibraryView.MAIN }) {
                         if (isSyncing) {
                             CircularProgressIndicator(
                                 modifier = Modifier.size(20.dp),
@@ -2176,9 +2177,9 @@ private fun FavoriteTrackItem(
 
         IconButton(onClick = onToggleLike) {
             Icon(
-                imageVector = if (isLiked) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
-                contentDescription = null,
-                tint = if (isLiked) AppleRed else lc.textTertiary,
+                imageVector = if (isLiked) Icons.Rounded.Check else Icons.Rounded.Add,
+                contentDescription = if (isLiked) "Удалить из Моих аудиозаписей" else "Добавить в Мои аудиозаписи",
+                tint = if (isLiked) lc.accentPrimary else lc.textTertiary,
                 modifier = Modifier.size(if (compact) 19.dp else 22.dp)
             )
         }
