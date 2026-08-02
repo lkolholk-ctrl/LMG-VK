@@ -36,6 +36,7 @@ import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.LibraryMusic
 import androidx.compose.material.icons.rounded.MusicNote
@@ -2177,9 +2178,9 @@ private fun FavoriteTrackItem(
 
         IconButton(onClick = onToggleLike) {
             Icon(
-                imageVector = if (isLiked) Icons.Rounded.Check else Icons.Rounded.Add,
-                contentDescription = if (isLiked) "Удалить из Моих аудиозаписей" else "Добавить в Мои аудиозаписи",
-                tint = if (isLiked) lc.accentPrimary else lc.textTertiary,
+                imageVector = Icons.Rounded.MoreVert,
+                contentDescription = "Опции",
+                tint = lc.textTertiary,
                 modifier = Modifier.size(if (compact) 19.dp else 22.dp)
             )
         }

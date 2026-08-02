@@ -166,15 +166,6 @@ fun MiniPlayer(
 
         Spacer(modifier = Modifier.width(8.dp))
 
-        LikeBurstHeart(
-            isLiked = isLiked,
-            modifier = Modifier.size(44.dp),
-            iconSize = 24.dp,
-            idleTint = if (lc.isDark) Color.White.copy(alpha = 0.70f)
-                       else Color.Black.copy(alpha = 0.55f),
-            onToggle = onToggleLike
-        )
-
         Box(
             modifier = Modifier
                 .size(44.dp)
