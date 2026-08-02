@@ -258,7 +258,7 @@ fun LibraryScreen(
                                 title = "Мои аудиозаписи",
                                 subtitle = "${favorites.size} треков",
                                 icon = Icons.Rounded.MusicNote,
-                                tint = lc.accentPrimary,
+                                tint = lc.accent,
                                 compact = win.useSideBySide,
                                 onClick = { currentView = LibraryView.FAVORITES },
                                 trailing = {
@@ -2239,21 +2239,14 @@ private fun DownloadedTrackItem(
         Spacer(modifier = Modifier.width(12.dp))
 
         Column(modifier = Modifier.weight(1f)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                if (track.isExplicit) {
-                    GlassKit.ExplicitBadge()
-                    Spacer(modifier = Modifier.width(6.dp))
-                }
-                Text(
-                    text = track.title,
-                    color = lc.textPrimary,
-                    fontSize = if (compact) 13.sp else 15.sp,
-                    fontWeight = FontWeight.Medium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f, fill = false)
-                )
-            }
+            Text(
+                text = track.title,
+                color = lc.textPrimary,
+                fontSize = if (compact) 13.sp else 15.sp,
+                fontWeight = FontWeight.Medium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
             Text(
                 text = track.artistName?.takeIf { it.isNotBlank() } ?: "Unknown Artist",
                 color = lc.textSecondary,

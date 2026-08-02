@@ -956,7 +956,7 @@ object MusicBackend {
     private fun AudioPlaylist.toAlbum() = Album(
         id = fullId,
         title = title,
-        artist = main_artists?.joinToString(", ") { it.name }.orEmpty().ifBlank { main_artist.orEmpty() },
+        artist = main_artists?.joinToString(", ") { it.name }.orEmpty(),
         artistId = main_artists?.firstOrNull()?.id,
         cover = photo?.bestUrl ?: photo?.src ?: thumbs?.firstOrNull()?.bestUrl ?: thumbs?.firstOrNull()?.src.orEmpty(),
         year = year.takeIf { it > 0 }?.toString() ?: create_time.takeIf { it > 0 }?.let { (it / 31536000 + 1970).toString() },
@@ -968,7 +968,7 @@ object MusicBackend {
     private fun AudioPlaylist.toArtistAlbum() = ArtistAlbum(
         id = fullId,
         title = title,
-        artist = main_artists?.joinToString(", ") { it.name }.orEmpty().ifBlank { main_artist.orEmpty() },
+        artist = main_artists?.joinToString(", ") { it.name }.orEmpty(),
         artists = main_artists.orEmpty().map { MiniArtist(it.id, it.name) },
         year = year.takeIf { it > 0 }?.toString() ?: create_time.takeIf { it > 0 }?.let { (it / 31536000 + 1970).toString() },
         cover = photo?.bestUrl ?: photo?.src ?: thumbs?.firstOrNull()?.bestUrl ?: thumbs?.firstOrNull()?.src.orEmpty(),
