@@ -1352,7 +1352,7 @@ object MusicAuth {
             username = profile.domain,
             firstName = profile.firstName,
             lastName = profile.lastName,
-            avatar = profile.photo200.ifBlank { profile.photo100 },
+            avatar = profile.bestPhotoUrl,
         )
         store.session = updated
         applySession(updated)

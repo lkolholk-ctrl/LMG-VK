@@ -59,9 +59,6 @@ import com.lmg.vk.ui.glass.liquidClickable
 import com.lmg.vk.ui.theme.AppFontFamily
 import com.lmg.vk.ui.theme.LiquidTheme
 import kotlinx.coroutines.launch
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 private val AppleRed = Color(0xFFFC3C44)
 private val PremiumPurple = Color(0xFF8B5CF6)
@@ -84,10 +81,8 @@ fun ProfileScreen(
     val isPremium by MusicAuth.isPremium.collectAsState()
     val userEmail by MusicAuth.userEmail.collectAsState()
     val telegramId by MusicAuth.telegramId.collectAsState()
-    val premiumExpiresAt by MusicAuth.premiumExpiresAt.collectAsState()
     val profileName by MusicAuth.profileName.collectAsState()
     val avatarUrl by MusicAuth.avatarUrl.collectAsState()
-    val subscription by MusicAuth.subscription.collectAsState()
 
 
     LaunchedEffect(isLoggedIn) {
@@ -211,70 +206,6 @@ fun ProfileScreen(
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(6.dp))
-
-                    // Premium status text — clean, no background substrate
-                    if (isPremium) {
-                        val sub = subscription
-                        val planLabel = when (sub?.planType) {
-                            "family" -> if (sub.isFamilyOwner) "Premium (Family Owner)" else "Premium (Family Member)"
-                            "personal" -> "Premium (Personal)"
-                            else -> "Premium"
-                        }
-                        val expiryText = when {
-                            !sub?.expiresAtIso.isNullOrBlank() -> {
-                                val dateStr = sub!!.expiresAtIso.substringBefore("T")
-                                try {
-                                    val parts = dateStr.split("-")
-                                    "${parts[2]}.${parts[1]}.${parts[0]}"
-                                } catch (_: Exception) { dateStr }
-                            }
-                            (premiumExpiresAt ?: 0L) > 0L -> SimpleDateFormat("dd.MM.yyyy", Locale.getDefault())
-                                .format(Date(premiumExpiresAt ?: 0L))
-                            else -> "Lifetime"
-                        }
-                        val daysLeftText = if (sub != null && sub.daysLeft > 0) " • ${sub.daysLeft} days left" else ""
-                        Text(
-                            text = "$planLabel • Until $expiryText$daysLeftText",
-                            fontFamily = AppFontFamily,
-                            color = lc.textSecondary,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Medium,
-                            letterSpacing = 0.5.sp
-                        )
-                        // Region line
-                        val regionName = sub?.regions?.firstOrNull()?.name ?: "Global"
-                        val rawCode = sub?.regions?.firstOrNull()?.code
-                        val regionCode = if (rawCode.equals("nz", ignoreCase = true)) "US"
-                            else rawCode?.uppercase() ?: "WW"
-                        // NZ — аварийное зеркало US (см. регион-селектор ниже):
-                        // показываем как America, не раскрывая юзеру фейловер.
-                        val regionCodeRaw = sub?.regions?.firstOrNull()?.code
-                        val displayRegion = when {
-                            regionCodeRaw.equals("nz", ignoreCase = true) ||
-                            regionName.equals("США", ignoreCase = true) ||
-                            regionName.equals("US", ignoreCase = true) ||
-                            regionName.equals("United States", ignoreCase = true) -> "America"
-                            else -> regionName
-                        }
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = "Region: $displayRegion ($regionCode)",
-                            fontFamily = AppFontFamily,
-                            color = lc.textSecondary,
-                            fontSize = 12.sp,
-                            letterSpacing = 0.3.sp
-                        )
-                    } else {
-                        Text(
-                            text = "Free Plan",
-                            fontFamily = AppFontFamily,
-                            color = lc.textSecondary,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Medium,
-                            letterSpacing = 0.5.sp
-                        )
-                    }
                 }
             }
 

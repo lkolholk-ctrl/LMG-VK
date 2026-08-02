@@ -252,7 +252,10 @@ class VkMethodsRegistry(private val client: VkApiClient) {
             "users.get",
             MoshiEnvelopeParser<List<VkAccountProfile>>(listType),
         ).apply {
-            param("fields", "photo_100,photo_200,domain")
+            param(
+                "fields",
+                "photo_100,photo_200,photo_200_orig,photo_400_orig,photo_max_orig,domain",
+            )
         }
         return client.execute(method)
     }
