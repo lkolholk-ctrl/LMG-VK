@@ -576,19 +576,17 @@ data class AccountLinkCallback(
 
 // ─── Domain Model Conversion ───
 
-fun SearchItem.toTrack(uri: String? = null): com.lmg.vk.engine.Track {
+fun SearchItem.toTrack(): com.lmg.vk.engine.Track {
     return com.lmg.vk.engine.Track(
         id = id,
         title = title,
         artist = displayArtist,
         albumName = album ?: collectionId ?: "Single",
-        // ВАЖНО: НЕ падать на `preview` — это 30-сек сэмпл Apple. Для плеера
-        // всегда resolvable-URL трека (PlayerController резолвит через POST
-        // /track в полный поток). Полевой баг: поиск играл 30 сек, т.к. у
-        // SearchItem есть только этот extension (не member), и preview
-        // подставлялся как playback-URI.
-        uri = android.net.Uri.parse(uri ?: "https://byicloud.online/track/$id"),
-        // `secondary_*` / `vk_*` tracks come back with `duration` in seconds; Apple in ms.
+        // Не используем preview или сторонний resolver как playback URI.
+        // Реальный URL возвращает VK; при его отсутствии плеер разрешит fullId
+        // через audio.getById непосредственно перед воспроизведением.
+        uri = com.lmg.vk.engine.VkAudioIdentity.playbackUri(),
+        // VK возвращает длительность в секундах; модель нормализует её в мс.
         // Reuse the model's normalized accessor so the progress bar shows the right scale.
         durationMs = durationMs,
         albumId = collectionId?.hashCode()?.toLong() ?: id.hashCode().toLong(),
@@ -611,7 +609,7 @@ fun AlbumTrack.toTrack(): com.lmg.vk.engine.Track {
         title = title,
         artist = artist,
         albumName = "",
-        uri = android.net.Uri.parse("https://byicloud.online/track/$id"),
+        uri = com.lmg.vk.engine.VkAudioIdentity.playbackUri(),
         durationMs = durationMs,
         albumId = collectionId?.hashCode()?.toLong() ?: id.hashCode().toLong(),
         coverUrl = cover.replace("1000x1000", "600x600"),
@@ -632,7 +630,7 @@ fun ArtistSong.toTrack(): com.lmg.vk.engine.Track {
         title = title,
         artist = artists.firstOrNull()?.displayName ?: artist.takeIf { it.isNotBlank() } ?: "Unknown Artist",
         albumName = albumName ?: "",
-        uri = android.net.Uri.parse("https://byicloud.online/track/$id"),
+        uri = com.lmg.vk.engine.VkAudioIdentity.playbackUri(),
         durationMs = durationMs,
         albumId = 0L,
         coverUrl = cover.replace("300x300", "600x600"),
@@ -650,7 +648,7 @@ fun PlaylistTrack.toTrack(): com.lmg.vk.engine.Track {
         title = title,
         artist = artist,
         albumName = "",
-        uri = android.net.Uri.parse("https://byicloud.online/track/$id"),
+        uri = com.lmg.vk.engine.VkAudioIdentity.playbackUri(),
         durationMs = durationMs,
         albumId = collectionId.hashCode().toLong(),
         coverUrl = cover.replace("1000x1000", "600x600"),
@@ -797,7 +795,7 @@ data class WaveTrack(
             title = title,
             artist = artist ?: "Unknown Artist",
             albumName = "",
-            uri = android.net.Uri.parse("https://byicloud.online/track/$id"),
+            uri = com.lmg.vk.engine.VkAudioIdentity.playbackUri(),
             durationMs = durationMs,
             albumId = collectionId?.hashCode()?.toLong() ?: id.hashCode().toLong(),
             coverUrl = cover?.replace("1000x1000", "600x600"),

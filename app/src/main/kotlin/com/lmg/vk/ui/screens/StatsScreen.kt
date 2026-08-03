@@ -1,6 +1,5 @@
 package com.lmg.vk.ui.screens
 
-import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -208,7 +207,7 @@ private fun playStatTrack(context: android.content.Context, stat: TrackPlayStat)
         title = stat.title,
         artist = stat.artist,
         albumName = "",
-        uri = Uri.parse("https://byicloud.online/track/${stat.trackId}"),
+        uri = com.lmg.vk.engine.VkAudioIdentity.playbackUri(),
         durationMs = 0L,
         albumId = -1L,
         coverUrl = null

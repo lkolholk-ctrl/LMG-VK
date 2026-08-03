@@ -243,7 +243,7 @@ object PlaybackSyncManager {
             title = meta.title,
             artist = meta.artist.ifBlank { "Unknown Artist" },
             albumName = "",
-            uri = android.net.Uri.parse("https://byicloud.online/track/${meta.id}"),
+            uri = com.lmg.vk.engine.VkAudioIdentity.playbackUri(),
             durationMs = meta.durationMs,
             albumId = meta.collectionId?.hashCode()?.toLong() ?: meta.id.hashCode().toLong(),
             coverUrl = meta.cover.takeIf { it.isNotBlank() }

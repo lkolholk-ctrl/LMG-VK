@@ -79,14 +79,7 @@ fun LyricsSheet(
     val screenHeightPx = with(density) { configuration.screenHeightDp.dp.toPx() }
 
     val resolvedTrackId = remember(trackId, audioFileUri) {
-        trackId ?: run {
-            val path = audioFileUri?.toString() ?: ""
-            when {
-                path.startsWith("https://byicloud.online/track/") ->
-                    path.removePrefix("https://byicloud.online/track/").takeWhile { it != '?' }
-                else -> audioFileUri?.lastPathSegment ?: ""
-            }
-        }
+        trackId ?: com.lmg.vk.engine.VkAudioIdentity.trackIdFromUri(audioFileUri).orEmpty()
     }
 
     // Check cache first for instant display

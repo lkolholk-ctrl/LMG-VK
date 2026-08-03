@@ -82,7 +82,7 @@ private fun HomeItem.toTrack(): Track {
         title = title,
         artist = displayArtist,
         albumName = album ?: "",
-        uri = Uri.parse("https://byicloud.online/track/$id"),
+        uri = com.lmg.vk.engine.VkAudioIdentity.playbackUri(),
         durationMs = durationMs,
         albumId = collectionId?.hashCode()?.toLong() ?: -1L,
         coverUrl = cover,

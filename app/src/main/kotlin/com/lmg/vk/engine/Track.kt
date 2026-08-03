@@ -34,9 +34,13 @@ data class Track(
 
     /** Является ли трек онлайн-треком, требующим разрешения стрим-URL. */
     val isOnlineTrack: Boolean
-        get() = uri.toString().startsWith("https://byicloud.online")
-            || uri.toString().startsWith("http://byicloud.online")
-            || (uri.scheme != "http" && uri.scheme != "https" && uri.scheme != "file" && uri.scheme != "content" && uri.toString().isNotBlank())
+        get() {
+            val scheme = uri.scheme?.lowercase()
+            if (scheme in setOf("file", "content", "asset", "android.resource", "rawresource")) {
+                return false
+            }
+            return source.equals("vk", ignoreCase = true) || VkAudioIdentity.isFullId(id)
+        }
 
     /** URI для отображения обложки (coverUrl имеет приоритет).
      *  Автоматически оборачивает локальные пути в file:// URI. */

@@ -1,34 +1,20 @@
 package com.lmg.vk.engine.backend.lmg
 
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
-import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.OkHttpClient
-import okhttp3.Request
-import okhttp3.RequestBody.Companion.toRequestBody
-import org.json.JSONObject
-
 /**
- * Клиент синхронизации через наш брокер: продолжение воспроизведения на другом
- * устройстве, комнаты совместного прослушивания и совместные плейлисты.
+ * Compatibility surface for UI that was copied from the separate LMG/ICM project.
  *
- * Порт `com.liquidmusicglass.api.lmg.LmgSyncApi` (LMG). В VK X нет ICM-слоя,
- * поэтому HTTP-клиент собственный (OkHttp), заголовки идентификации не шлём —
- * эндпоинты брокера остаются теми же, что и в LMG.
+ * The VK X and VK MP3 MOD reference archives contain no VK methods for this
+ * broker-specific continuity, listening-room, collaborative-playlist or external
+ * credits service. Network implementations are therefore intentionally disabled:
+ * inventing VK endpoints or silently retaining the foreign service would violate
+ * the VK-only contract of this project.
+ *
+ * The data types stay temporarily so the copied UI can be separated in a later
+ * small batch without breaking unrelated VK screens.
  */
+@Suppress("UNUSED_PARAMETER")
 object LmgSyncApi {
 
-    /** Базовый URL брокера синхронизации. */
-    private const val SERVER_BASE = "https://byicloud.online"
-
-    private val JSON = "application/json; charset=utf-8".toMediaType()
-
-    private val client = OkHttpClient.Builder()
-        .connectTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
-        .readTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
-        .build()
-
-    /** Состояние воспроизведения, которым обмениваются устройства. */
     data class PlaybackState(
         val trackId: String,
         val positionMs: Long,
@@ -38,96 +24,39 @@ object LmgSyncApi {
         val coverUrl: String,
         val isPlaying: Boolean,
         val deviceName: String = "",
-        /** Момент по часам СЕРВЕРА, а не устройства. */
-        val updatedAt: Long = 0L
+        val updatedAt: Long = 0L,
     )
 
-    /** Ответ комнаты: состояние плюс опора времени для подстройки позиции. */
     data class Room(
         val code: String,
         val hostPid: String,
         val state: PlaybackState?,
         val memberNames: List<String>,
-        val serverTimeMs: Long
+        val serverTimeMs: Long,
     )
 
-    /** true, если этот пользователь ведёт комнату. */
     fun isHost(room: Room): Boolean = room.hostPid.isNotBlank()
 
-    // ── Continuity ───────────────────────────────────────────────────────────
+    suspend fun saveState(state: PlaybackState): Boolean = false
 
-    suspend fun saveState(state: PlaybackState): Boolean = withContext(Dispatchers.IO) {
-        val body = JSONObject().apply {
-            put("trackId", state.trackId)
-            put("positionMs", state.positionMs)
-            put("durationMs", state.durationMs)
-            put("title", state.title)
-            put("artist", state.artist)
-            put("coverUrl", state.coverUrl)
-            put("isPlaying", state.isPlaying)
-            put("deviceName", state.deviceName)
-        }
-        runCatching { post("/state", body) != null }.getOrDefault(false)
-    }
+    suspend fun fetchState(): Pair<PlaybackState, Boolean>? = null
 
-    /**
-     * Последнее состояние пользователя.
-     *
-     * @return состояние и признак «это же устройство» — на своём устройстве
-     *   предлагать «продолжить» бессмысленно, там всё и так открыто.
-     */
-    suspend fun fetchState(): Pair<PlaybackState, Boolean>? = withContext(Dispatchers.IO) {
-        val json = runCatching { get("/state") }.getOrNull() ?: return@withContext null
-        val stateJson = json.optJSONObject("state") ?: return@withContext null
-        parseState(stateJson) to json.optBoolean("sameDevice", false)
-    }
+    suspend fun createRoom(name: String): Room? = null
 
-    // ── Совместное прослушивание ─────────────────────────────────────────────
+    suspend fun joinRoom(code: String, name: String): Room? = null
 
-    suspend fun createRoom(name: String): Room? = withContext(Dispatchers.IO) {
-        val body = JSONObject().put("name", name)
-        runCatching { post("/rooms", body)?.let(::parseRoom) }.getOrNull()
-    }
+    suspend fun fetchRoom(code: String): Room? = null
 
-    suspend fun joinRoom(code: String, name: String): Room? = withContext(Dispatchers.IO) {
-        val body = JSONObject().put("name", name)
-        runCatching { post("/rooms/${code.uppercase()}/join", body)?.let(::parseRoom) }.getOrNull()
-    }
+    suspend fun publishRoomState(code: String, state: PlaybackState): Room? = null
 
-    suspend fun fetchRoom(code: String): Room? = withContext(Dispatchers.IO) {
-        runCatching { get("/rooms/${code.uppercase()}")?.let(::parseRoom) }.getOrNull()
-    }
+    suspend fun leaveRoom(code: String): Boolean = false
 
-    /** Публикация состояния — принимается только от хозяина комнаты. */
-    suspend fun publishRoomState(code: String, state: PlaybackState): Room? =
-        withContext(Dispatchers.IO) {
-            val body = JSONObject().apply {
-                put("trackId", state.trackId)
-                put("positionMs", state.positionMs)
-                put("durationMs", state.durationMs)
-                put("title", state.title)
-                put("artist", state.artist)
-                put("coverUrl", state.coverUrl)
-                put("isPlaying", state.isPlaying)
-            }
-            runCatching { post("/rooms/${code.uppercase()}/state", body)?.let(::parseRoom) }
-                .getOrNull()
-        }
-
-    suspend fun leaveRoom(code: String): Boolean = withContext(Dispatchers.IO) {
-        runCatching { post("/rooms/${code.uppercase()}/leave", JSONObject()) != null }
-            .getOrDefault(false)
-    }
-
-    // ── Совместные плейлисты ─────────────────────────────────────────────────
-
-    /** Трек в совместном списке: кто добавил — видно всем участникам. */
     data class SharedTrack(
         val trackId: String,
         val title: String,
         val artist: String,
         val coverUrl: String,
-        val addedBy: String
+        val addedBy: String,
     )
 
     data class SharedPlaylist(
@@ -135,202 +64,43 @@ object LmgSyncApi {
         val title: String,
         val ownerPid: String,
         val tracks: List<SharedTrack>,
-        val editorNames: List<String>
+        val editorNames: List<String>,
     )
 
-    /** Краткая карточка для списка «мои совместные». */
     data class SharedPlaylistSummary(
         val code: String,
         val title: String,
         val trackCount: Int,
-        val editorCount: Int
+        val editorCount: Int,
     )
 
-    suspend fun createPlaylist(title: String, name: String): SharedPlaylist? =
-        withContext(Dispatchers.IO) {
-            val body = JSONObject().put("title", title).put("name", name)
-            runCatching { post("/playlists", body)?.let(::parsePlaylist) }.getOrNull()
-        }
+    suspend fun createPlaylist(title: String, name: String): SharedPlaylist? = null
 
-    suspend fun listPlaylists(): List<SharedPlaylistSummary> = withContext(Dispatchers.IO) {
-        val json = runCatching { get("/playlists") }.getOrNull() ?: return@withContext emptyList()
-        val array = json.optJSONArray("playlists") ?: return@withContext emptyList()
-        (0 until array.length()).mapNotNull { i ->
-            array.optJSONObject(i)?.let {
-                SharedPlaylistSummary(
-                    code = it.optString("code"),
-                    title = it.optString("title"),
-                    trackCount = it.optInt("trackCount"),
-                    editorCount = it.optInt("editorCount")
-                )
-            }
-        }
-    }
+    suspend fun listPlaylists(): List<SharedPlaylistSummary> = emptyList()
 
-    suspend fun openPlaylist(code: String): SharedPlaylist? = withContext(Dispatchers.IO) {
-        runCatching { get("/playlists/${code.uppercase()}")?.let(::parsePlaylist) }.getOrNull()
-    }
+    suspend fun openPlaylist(code: String): SharedPlaylist? = null
 
-    suspend fun joinPlaylist(code: String, name: String): SharedPlaylist? =
-        withContext(Dispatchers.IO) {
-            val body = JSONObject().put("name", name)
-            runCatching { post("/playlists/${code.uppercase()}/join", body)?.let(::parsePlaylist) }
-                .getOrNull()
-        }
+    suspend fun joinPlaylist(code: String, name: String): SharedPlaylist? = null
 
-    suspend fun addTrackToPlaylist(code: String, track: SharedTrack): SharedPlaylist? =
-        withContext(Dispatchers.IO) {
-            val body = JSONObject().apply {
-                put("trackId", track.trackId)
-                put("title", track.title)
-                put("artist", track.artist)
-                put("coverUrl", track.coverUrl)
-            }
-            runCatching { post("/playlists/${code.uppercase()}/tracks", body)?.let(::parsePlaylist) }
-                .getOrNull()
-        }
+    suspend fun addTrackToPlaylist(code: String, track: SharedTrack): SharedPlaylist? = null
 
-    suspend fun removeTrackFromPlaylist(code: String, trackId: String): SharedPlaylist? =
-        withContext(Dispatchers.IO) {
-            runCatching {
-                delete("/playlists/${code.uppercase()}/tracks?trackId=$trackId")?.let(::parsePlaylist)
-            }.getOrNull()
-        }
+    suspend fun removeTrackFromPlaylist(code: String, trackId: String): SharedPlaylist? = null
 
-    suspend fun leavePlaylist(code: String): Boolean = withContext(Dispatchers.IO) {
-        runCatching { post("/playlists/${code.uppercase()}/leave", JSONObject()) != null }
-            .getOrDefault(false)
-    }
+    suspend fun leavePlaylist(code: String): Boolean = false
 
-    // ── Кредиты трека ────────────────────────────────────────────────────────
-
-    /** Человек и его роль в записи: автор, продюсер, сведение и т.п. */
     data class CreditPerson(val name: String, val role: String)
 
     data class TrackCredits(
         val found: Boolean,
         val label: String,
         val year: String,
-        val people: List<CreditPerson>
+        val people: List<CreditPerson>,
     )
 
-    /**
-     * Кто написал, спродюсировал и издал трек. Считает сервер: сопоставление
-     * идёт по названию, исполнителю и длительности.
-     */
     suspend fun fetchCredits(
         trackId: String,
         title: String,
         artist: String,
-        durationMs: Long
-    ): TrackCredits? = withContext(Dispatchers.IO) {
-        val path = "/credits?trackId=" + enc(trackId) +
-            "&title=" + enc(title) +
-            "&artist=" + enc(artist) +
-            "&durationMs=" + durationMs
-        val json = runCatching { get(path) }.getOrNull() ?: return@withContext null
-        val people = mutableListOf<CreditPerson>()
-        json.optJSONArray("people")?.let { array ->
-            for (i in 0 until array.length()) {
-                val item = array.optJSONObject(i) ?: continue
-                people += CreditPerson(item.optString("name"), item.optString("role"))
-            }
-        }
-        TrackCredits(
-            found = json.optBoolean("found", false),
-            label = json.optString("label"),
-            year = json.optString("year"),
-            people = people
-        )
-    }
-
-    private fun enc(value: String): String =
-        java.net.URLEncoder.encode(value, "UTF-8")
-
-    // ── HTTP ─────────────────────────────────────────────────────────────────
-
-    private fun get(path: String): JSONObject? = execute(
-        Request.Builder().url(SERVER_BASE + path).get().build()
-    )
-
-    private fun post(path: String, body: JSONObject): JSONObject? = execute(
-        Request.Builder()
-            .url(SERVER_BASE + path)
-            .post(body.toString().toRequestBody(JSON))
-            .build()
-    )
-
-    private fun delete(path: String): JSONObject? = execute(
-        Request.Builder().url(SERVER_BASE + path).delete().build()
-    )
-
-    private fun execute(request: Request): JSONObject? {
-        client.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) return null
-            val text = response.body?.string().orEmpty()
-            if (text.isBlank()) return null
-            return JSONObject(text)
-        }
-    }
-
-    private fun parseState(json: JSONObject) = PlaybackState(
-        trackId = json.optString("trackId"),
-        positionMs = json.optLong("positionMs"),
-        durationMs = json.optLong("durationMs"),
-        title = json.optString("title"),
-        artist = json.optString("artist"),
-        coverUrl = json.optString("coverUrl"),
-        isPlaying = json.optBoolean("isPlaying"),
-        deviceName = json.optString("deviceName"),
-        updatedAt = json.optLong("updatedAt")
-    )
-
-    private fun parsePlaylist(json: JSONObject): SharedPlaylist {
-        val tracks = mutableListOf<SharedTrack>()
-        json.optJSONArray("tracks")?.let { array ->
-            for (i in 0 until array.length()) {
-                val item = array.optJSONObject(i) ?: continue
-                tracks += SharedTrack(
-                    trackId = item.optString("trackId"),
-                    title = item.optString("title"),
-                    artist = item.optString("artist"),
-                    coverUrl = item.optString("coverUrl"),
-                    addedBy = item.optString("addedBy")
-                )
-            }
-        }
-        val editors = mutableListOf<String>()
-        json.optJSONObject("editors")?.let { obj ->
-            val keys = obj.keys()
-            while (keys.hasNext()) {
-                val key = keys.next()
-                obj.optJSONObject(key)?.optString("name")?.takeIf { it.isNotBlank() }
-                    ?.let(editors::add)
-            }
-        }
-        return SharedPlaylist(
-            code = json.optString("code"),
-            title = json.optString("title"),
-            ownerPid = json.optString("ownerPid"),
-            tracks = tracks,
-            editorNames = editors
-        )
-    }
-
-    private fun parseRoom(json: JSONObject): Room {
-        val members = mutableListOf<String>()
-        json.optJSONArray("members")?.let { array ->
-            for (i in 0 until array.length()) {
-                array.optJSONObject(i)?.optString("name")?.takeIf { it.isNotBlank() }
-                    ?.let(members::add)
-            }
-        }
-        return Room(
-            code = json.optString("code"),
-            hostPid = json.optString("hostPid"),
-            state = json.optJSONObject("state")?.let(::parseState),
-            memberNames = members,
-            serverTimeMs = json.optLong("serverTimeMs")
-        )
-    }
+        durationMs: Long,
+    ): TrackCredits? = null
 }

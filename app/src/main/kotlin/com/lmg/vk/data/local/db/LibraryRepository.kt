@@ -1,7 +1,6 @@
 package com.lmg.vk.data.local.db
 
 import android.content.Context
-import android.net.Uri
 import com.lmg.vk.engine.backend.MusicBackend
 import com.lmg.vk.engine.backend.MusicAuth
 import com.lmg.vk.engine.backend.LibraryTrack
@@ -336,7 +335,7 @@ class LibraryRepository private constructor(context: Context) {
             title = title,
             artist = artistName ?: "Unknown Artist",
             albumName = albumTitle ?: "",
-            uri = Uri.parse("https://byicloud.online/track/$trackId"),
+            uri = com.lmg.vk.engine.VkAudioIdentity.playbackUri(),
             durationMs = durationMs,
             albumId = collectionId?.hashCode()?.toLong() ?: trackId.hashCode().toLong(),
             coverUrl = imageUrl,

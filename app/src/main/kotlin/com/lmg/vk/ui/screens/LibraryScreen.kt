@@ -2,7 +2,6 @@ package com.lmg.vk.ui.screens
 
 import android.content.Context
 import android.content.pm.PackageManager
-import android.net.Uri
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -238,7 +237,7 @@ fun LibraryScreen(
                             title = it.title.orEmpty(),
                             artist = it.artist.orEmpty(),
                             albumName = "",
-                            uri = Uri.parse("https://byicloud.online/track/${it.trackId ?: it.id}"),
+                            uri = com.lmg.vk.engine.VkAudioIdentity.playbackUri(),
                             durationMs = it.durationMs,
                             albumId = it.collectionId?.hashCode()?.toLong() ?: -1L,
                             coverUrl = it.cover,
@@ -691,7 +690,7 @@ fun LibraryScreen(
                                                 title = track.title,
                                                 artist = track.artistName ?: "Unknown Artist",
                                                 albumName = track.albumTitle ?: "",
-                                                uri = Uri.parse("https://byicloud.online/track/${track.trackId}"),
+                                                uri = com.lmg.vk.engine.VkAudioIdentity.playbackUri(),
                                                 durationMs = track.durationMs,
                                                 albumId = track.collectionId?.hashCode()?.toLong() ?: -1L,
                                                 coverUrl = track.imageUrl

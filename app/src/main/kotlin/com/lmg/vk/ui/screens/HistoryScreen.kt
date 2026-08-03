@@ -1,6 +1,5 @@
 package com.lmg.vk.ui.screens
 
-import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -158,7 +157,7 @@ private fun playEntry(context: android.content.Context, entry: ListenHistoryEnti
         title = entry.title,
         artist = entry.artist,
         albumName = "",
-        uri = Uri.parse("https://byicloud.online/track/${entry.trackId}"),
+        uri = com.lmg.vk.engine.VkAudioIdentity.playbackUri(),
         durationMs = entry.durationMs,
         albumId = -1L,
         coverUrl = entry.coverUrl

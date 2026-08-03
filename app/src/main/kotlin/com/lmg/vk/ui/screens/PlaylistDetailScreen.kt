@@ -1,6 +1,5 @@
 package com.lmg.vk.ui.screens
 
-import android.net.Uri
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -186,7 +185,7 @@ fun PlaylistDetailScreen(
                             title = tr.title.orEmpty(),
                             artist = tr.artist.orEmpty(),
                             albumName = "",
-                            uri = Uri.parse("https://byicloud.online/track/$trackIdStr"),
+                            uri = com.lmg.vk.engine.VkAudioIdentity.playbackUri(),
                             durationMs = durationMs,
                             albumId = tr.collectionId?.hashCode()?.toLong()
                                 ?: trackIdStr.hashCode().toLong(),
@@ -529,7 +528,7 @@ private fun PlaylistManager.Playlist.toEngineTracks(): List<Track> = tracks.map 
         title = track.title,
         artist = track.artist,
         albumName = "",
-        uri = Uri.parse("https://byicloud.online/track/${track.id}"),
+        uri = com.lmg.vk.engine.VkAudioIdentity.playbackUri(),
         durationMs = track.durationMs,
         albumId = track.id.hashCode().toLong(),
         coverUrl = track.coverUrl,

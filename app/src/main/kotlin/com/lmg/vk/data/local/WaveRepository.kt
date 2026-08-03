@@ -17,6 +17,7 @@ import com.lmg.vk.data.wave.WaveSessionState
 import com.lmg.vk.data.wave.negativeWaveCandidate
 import com.lmg.vk.data.wave.toWaveCandidate
 import com.lmg.vk.engine.Track
+import com.lmg.vk.engine.VkAudioIdentity
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -355,8 +356,8 @@ class WaveRepository(context: Context) {
                     }
                 }
 
-                // Добавляем трек как есть (uri = byicloud.online/track/<id>). НЕ резолвим
-                // стрим-URL заранее: при воспроизведении StreamingDataSource всё равно
+                // Добавляем трек с unresolved URI. НЕ резолвим
+                // стрим-URL заранее: при воспроизведении StreamingDataSource
                 // резолвит свежий URL по id (resolveStreamUrlSync). Ранний getStreamUrl —
                 // это лишний сетевой round-trip на каждый трек (удваивает время сборки
                 // волны и «запекает» подписанный URL, который к моменту проигрывания
@@ -1264,7 +1265,13 @@ class WaveRepository(context: Context) {
             title = track.title,
             artist = track.artist,
             genre = track.genre,
-            streamUrl = track.uri.toString(),
+            // Signed VK URLs are temporary and foreign resolver URLs must never be persisted.
+            // Keep only genuine local URIs; online tracks are resolved again through VK.
+            streamUrl = track.uri.toString().takeIf {
+                track.uri.scheme?.lowercase() in setOf(
+                    "file", "content", "asset", "android.resource", "rawresource"
+                )
+            },
             coverUrl = track.coverUrl,
             durationMs = track.durationMs,
             isFavorite = source == "FAVORITES" || track.genre == "Tech House" || track.genre == "House",
@@ -1285,15 +1292,25 @@ class WaveRepository(context: Context) {
     // ─── Private ───
 
     private fun CachedTrack.toEngineTrack(): Track {
+        val storedUri = streamUrl
+            ?.takeIf { it.isNotBlank() }
+            ?.let(android.net.Uri::parse)
+        val isLocalUri = storedUri?.scheme?.lowercase() in setOf(
+            "file", "content", "asset", "android.resource", "rawresource"
+        )
+
         return Track(
             id = id,
             title = title,
             artist = artist,
             albumName = "",
-            uri = android.net.Uri.parse(streamUrl ?: ""),
+            // Ignore historical foreign resolver URLs already present in Room.
+            // A valid VK full id will be resolved through audio.getById at playback time.
+            uri = if (isLocalUri) storedUri!! else VkAudioIdentity.playbackUri(),
             durationMs = durationMs,
             albumId = -1L,
             coverUrl = coverUrl,
+            source = if (VkAudioIdentity.isFullId(id)) "vk" else null,
             genre = genre
         )
     }

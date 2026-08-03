@@ -262,7 +262,7 @@ fun NewScreen(
                                             title = entry.title,
                                             artist = entry.artist,
                                             albumName = "",
-                                            uri = Uri.parse("https://byicloud.online/track/${entry.trackId}"),
+                                            uri = com.lmg.vk.engine.VkAudioIdentity.playbackUri(),
                                             durationMs = entry.durationMs,
                                             albumId = -1L,
                                             coverUrl = entry.coverUrl

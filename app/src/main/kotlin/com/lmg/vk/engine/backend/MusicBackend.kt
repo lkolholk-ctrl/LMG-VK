@@ -36,7 +36,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.JsonPrimitive
-import android.net.Uri
 import java.util.ArrayDeque
 import java.util.concurrent.ConcurrentHashMap
 
@@ -1216,7 +1215,7 @@ object MusicBackend {
         title = title,
         artist = resolvedArtist(),
         albumName = album?.title.orEmpty(),
-        uri = Uri.parse("https://byicloud.online/track/$fullId"),
+        uri = com.lmg.vk.engine.VkAudioIdentity.playbackUri(url),
         durationMs = duration * 1000L,
         albumId = album?.id?.toLong() ?: fullId.hashCode().toLong(),
         coverUrl = coverUrl(),

@@ -5,7 +5,6 @@ import android.app.NotificationManager
 import android.content.Context
 import android.media.AudioFocusRequest
 import android.media.AudioManager
-import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -475,9 +474,6 @@ class AudioService : MediaSessionService() {
         // Инициализация кэша (lazy, не блокирует старт)
         serviceScope.launch {
             MediaCacheManager.init(this@AudioService)
-            // Синхронизация с другими устройствами: состояние надо отправлять и
-            // при закрытом экране, поэтому запускаем вместе с сервисом.
-            com.lmg.vk.engine.sync.PlaybackSyncManager.start()
             FavoritesAutoDownloader.start(this@AudioService)
         }
 

@@ -1,6 +1,5 @@
 package com.lmg.vk.ui.screens
 
-import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -58,7 +57,7 @@ private fun FavoriteTrackEntity.toTrack(): Track = Track(
     title = title,
     artist = artistName ?: "Unknown Artist",
     albumName = albumTitle ?: "",
-    uri = Uri.parse("https://byicloud.online/track/$trackId"),
+    uri = com.lmg.vk.engine.VkAudioIdentity.playbackUri(),
     durationMs = durationMs,
     albumId = -1L,
     coverUrl = imageUrl,

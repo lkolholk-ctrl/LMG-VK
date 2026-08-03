@@ -156,7 +156,11 @@ fun TrackActionsSheet(
                 Spacer(Modifier.height(8.dp))
             }
             ActionRow(rowBg, Icons.Rounded.Share, "Share") {
-                val text = "${track.title} — ${track.artist}\nhttps://byicloud.online/track/${track.id}"
+                val vkUrl = com.lmg.vk.engine.VkAudioIdentity.shareUrl(track.id)
+                val text = buildString {
+                    append("${track.title} — ${track.artist}")
+                    if (vkUrl != null) append("\n").append(vkUrl)
+                }
                 val send = Intent(Intent.ACTION_SEND).apply {
                     type = "text/plain"
                     putExtra(Intent.EXTRA_TEXT, text)
