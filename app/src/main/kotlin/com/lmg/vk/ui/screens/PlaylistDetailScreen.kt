@@ -137,7 +137,8 @@ fun PlaylistDetailScreen(
                             durationMs = durationMs,
                             albumId = tr.collectionId?.hashCode()?.toLong()
                                 ?: trackIdStr.hashCode().toLong(),
-                            coverUrl = tr.cover.toDetailThumb()
+                            coverUrl = tr.cover.toDetailThumb(),
+                            isAvailable = tr.isAvailable,
                         )
                     }
 
@@ -161,6 +162,7 @@ fun PlaylistDetailScreen(
             playlistInfo?.name ?: "Playlist"
         }
     }
+    val playableTracks = remember(tracks) { tracks.filter { it.isAvailable } }
 
     val listState = rememberLazyListState()
     val showTopBarTitle by remember {
@@ -208,11 +210,11 @@ fun PlaylistDetailScreen(
                             coverUrl = tracks.firstOrNull()?.coverUrl,
                             isDark = isDark,
                             onPlay = {
-                                if (tracks.isNotEmpty()) PlayerController.play(context, tracks, 0)
+                                if (playableTracks.isNotEmpty()) PlayerController.play(context, playableTracks, 0)
                             },
                             onShuffle = {
-                                if (tracks.isNotEmpty()) {
-                                    PlayerController.play(context, tracks.shuffled(), 0)
+                                if (playableTracks.isNotEmpty()) {
+                                    PlayerController.play(context, playableTracks.shuffled(), 0)
                                 }
                             }
                         )
@@ -228,7 +230,13 @@ fun PlaylistDetailScreen(
                             coverUrl = track.coverUrl,
                             isDark = isDark,
                             showDivider = index < tracks.lastIndex,
-                            onClick = { PlayerController.play(context, tracks, index) }
+                            enabled = track.isAvailable,
+                            onClick = {
+                                val playableIndex = playableTracks.indexOfFirst { it.id == track.id }
+                                if (playableIndex >= 0) {
+                                    PlayerController.play(context, playableTracks, playableIndex)
+                                }
+                            }
                         )
                     }
                 }

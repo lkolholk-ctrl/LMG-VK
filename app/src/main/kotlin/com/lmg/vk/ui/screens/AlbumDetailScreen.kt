@@ -71,6 +71,7 @@ fun AlbumDetailScreen(
     val albumTracks = remember(album) {
         album?.tracks?.map { it.toTrack() }?.distinctBy { it.id } ?: emptyList()
     }
+    val playableTracks = remember(albumTracks) { albumTracks.filter { it.isAvailable } }
 
     val listState = rememberLazyListState()
     val showTopBarTitle by remember {
@@ -120,13 +121,13 @@ fun AlbumDetailScreen(
                             coverUrl = info?.cover.toDetailThumb(),
                             isDark = isDark,
                             onPlay = {
-                                if (albumTracks.isNotEmpty()) {
-                                    PlayerController.play(context, albumTracks, 0)
+                                if (playableTracks.isNotEmpty()) {
+                                    PlayerController.play(context, playableTracks, 0)
                                 }
                             },
                             onShuffle = {
-                                if (albumTracks.isNotEmpty()) {
-                                    PlayerController.play(context, albumTracks.shuffled(), 0)
+                                if (playableTracks.isNotEmpty()) {
+                                    PlayerController.play(context, playableTracks.shuffled(), 0)
                                 }
                             }
                         )
@@ -142,7 +143,13 @@ fun AlbumDetailScreen(
                             coverUrl = null,
                             isDark = isDark,
                             showDivider = index < albumTracks.lastIndex,
-                            onClick = { PlayerController.play(context, albumTracks, index) }
+                            enabled = track.isAvailable,
+                            onClick = {
+                                val playableIndex = playableTracks.indexOfFirst { it.id == track.id }
+                                if (playableIndex >= 0) {
+                                    PlayerController.play(context, playableTracks, playableIndex)
+                                }
+                            }
                         )
                     }
                 }

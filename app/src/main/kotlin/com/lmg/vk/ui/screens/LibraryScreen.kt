@@ -46,6 +46,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.draw.clip
@@ -432,6 +433,7 @@ fun LibraryScreen(
                                 FavoriteTrackItem(
                                     track = track,
                                     isLiked = track.trackId in favoriteIds,
+                                    enabled = track.isAvailable,
                                     compact = win.useSideBySide,
                                     onClick = { viewModel.playTrack(context, track.trackId) },
                                     onToggleLike = {
@@ -2113,6 +2115,7 @@ private fun ActionButton(
 private fun FavoriteTrackItem(
     track: FavoriteTrackEntity,
     isLiked: Boolean,
+    enabled: Boolean = true,
     onClick: () -> Unit,
     onToggleLike: () -> Unit,
     compact: Boolean = false
@@ -2121,7 +2124,8 @@ private fun FavoriteTrackItem(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .alpha(if (enabled) 1f else 0.42f)
+            .clickable(enabled = enabled, onClick = onClick)
             .padding(horizontal = 16.dp, vertical = if (compact) 6.dp else 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -2157,7 +2161,11 @@ private fun FavoriteTrackItem(
                 )
             }
             Text(
-                text = track.artistName?.takeIf { it.isNotBlank() } ?: "Unknown Artist",
+                text = if (enabled) {
+                    track.artistName?.takeIf { it.isNotBlank() } ?: "Unknown Artist"
+                } else {
+                    "Недоступно · ${track.artistName?.takeIf { it.isNotBlank() } ?: "Unknown Artist"}"
+                },
                 color = lc.textSecondary,
                 fontSize = if (compact) 11.5.sp else 13.sp,
                 maxLines = 1,

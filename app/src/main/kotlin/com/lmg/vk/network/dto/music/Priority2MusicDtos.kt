@@ -33,6 +33,7 @@ data class AudioAudioDto(
     val track_code: String? = null,
     val url: String? = null,
     val date: Int? = null,
+    val content_restricted: Int? = null,
     val album_id: Int? = null,
     val has_lyrics: Boolean? = null,
     val album: AudioAudioAlbumDto? = null,
@@ -42,6 +43,9 @@ data class AudioAudioDto(
     val release_audio_id: String? = null,
 ) {
     val fullId: String get() = "${owner_id}_$id"
+    val isAvailable: Boolean
+        get() = (content_restricted ?: 0) == 0 &&
+            !url.orEmpty().contains("audio_api_unavailable.mp3", ignoreCase = true)
 }
 
 @JsonClass(generateAdapter = true)

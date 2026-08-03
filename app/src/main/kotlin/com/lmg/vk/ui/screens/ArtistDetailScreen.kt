@@ -75,10 +75,6 @@ import com.lmg.vk.ui.theme.LiquidMetrics
 import com.lmg.vk.ui.theme.LiquidMotion
 import com.lmg.vk.ui.theme.LiquidSurfaces
 import com.lmg.vk.ui.theme.LiquidTheme
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.coroutineScope
 
 
 /** Обложки каталога приходят огромными; для карточек это лишний трафик и память. */
@@ -126,48 +122,16 @@ fun ArtistDetailScreen(
         }
     }
 
-    // Полная выборка треков артиста: топ + все релизы. Нужна и кнопке
-    // воспроизведения, и личному блоку — по ней считается прослушанное.
+    // Треки артиста уже приходят отдельным audio.getAudiosByArtist. Не обходим
+    // здесь каждый релиз: после полной дискографии это создавало десятки
+    // одновременных getAlbum-запросов ещё до тапа пользователя по альбому.
     var artistTracks by remember {
         mutableStateOf<List<com.lmg.vk.engine.Track>>(emptyList())
     }
 
     LaunchedEffect(artist) {
         val art = artist ?: return@LaunchedEffect
-        val allTracks = mutableListOf<com.lmg.vk.engine.Track>()
-        art.topSongs.mapTo(allTracks) { it.toTrack() }
-
-        val albumIds = mutableListOf<String>()
-        art.albums.mapTo(albumIds) { it.id }
-        art.singles.mapTo(albumIds) { it.id }
-        art.featuring.mapTo(albumIds) { it.id }
-        art.latestRelease?.let { albumIds.add(it.id) }
-
-        if (albumIds.isNotEmpty() && MusicBackend.isInitialized) {
-            coroutineScope {
-                val albumResults = albumIds.distinct().map { albumId ->
-                    async(Dispatchers.IO) {
-                        try { MusicBackend.getAlbum(albumId) } catch (_: Exception) { null }
-                    }
-                }.awaitAll()
-
-                for (album in albumResults.filterNotNull()) {
-                    album.tracks.mapTo(allTracks) { track ->
-                        com.lmg.vk.engine.Track(
-                            id = track.id,
-                            title = track.title,
-                            artist = track.artist,
-                            albumName = album.album.title,
-                            uri = android.net.Uri.parse("https://byicloud.online/track/${track.id}"),
-                            durationMs = track.durationMs,
-                            albumId = album.album.id.hashCode().toLong(),
-                            coverUrl = album.album.cover.toThumb()
-                        )
-                    }
-                }
-            }
-        }
-        artistTracks = allTracks.distinctBy { it.id }
+        artistTracks = art.topSongs.map { it.toTrack() }.distinctBy { it.id }
     }
 
     // Личный блок: сколько раз слушали именно этого артиста и что чаще всего.
@@ -191,6 +155,7 @@ fun ArtistDetailScreen(
     }
 
     val topSongs = remember(artist) { artist?.topSongs.orEmpty() }
+    val playableArtistTracks = remember(artistTracks) { artistTracks.filter { it.isAvailable } }
 
     // Дискографию делим по типу релиза: сборники и концертные записи слушают
     // иначе, чем студийные альбомы, и в общей куче они только мешают искать.
@@ -248,13 +213,13 @@ fun ArtistDetailScreen(
                             videoUrl = art?.editorialVideoUrl,
                             isDark = colors.isDark,
                             onPlay = {
-                                if (artistTracks.isNotEmpty()) {
-                                    PlayerController.play(context, artistTracks, 0)
+                                if (playableArtistTracks.isNotEmpty()) {
+                                    PlayerController.play(context, playableArtistTracks, 0)
                                 }
                             },
                             onShuffle = {
-                                if (artistTracks.isNotEmpty()) {
-                                    PlayerController.play(context, artistTracks.shuffled(), 0)
+                                if (playableArtistTracks.isNotEmpty()) {
+                                    PlayerController.play(context, playableArtistTracks.shuffled(), 0)
                                 }
                             }
                         )
@@ -314,10 +279,14 @@ fun ArtistDetailScreen(
                                         coverUrl = track.coverUrl,
                                         isExplicit = track.isExplicit,
                                         durationMs = track.durationMs,
+                                        enabled = track.isAvailable,
                                         textPrimary = LiquidSurfaces.textPrimary(colors.isDark),
                                         textSecondary = LiquidSurfaces.textSecondary(colors.isDark),
                                         onClick = {
-                                            PlayerController.play(context, artistTracks, index)
+                                            val playableIndex = playableArtistTracks.indexOfFirst { it.id == track.id }
+                                            if (playableIndex >= 0) {
+                                                PlayerController.play(context, playableArtistTracks, playableIndex)
+                                            }
                                         }
                                     )
                                 }
@@ -346,10 +315,15 @@ fun ArtistDetailScreen(
                                                     coverUrl = track.coverUrl,
                                                     isExplicit = track.isExplicit,
                                                     durationMs = track.durationMs,
+                                                    enabled = track.isAvailable,
                                                     textPrimary = LiquidSurfaces.textPrimary(colors.isDark),
                                                     textSecondary = LiquidSurfaces.textSecondary(colors.isDark),
                                                     onClick = {
-                                                        PlayerController.play(context, songs, position)
+                                                        val playableSongs = songs.filter { it.isAvailable }
+                                                        val playableIndex = playableSongs.indexOfFirst { it.id == track.id }
+                                                        if (playableIndex >= 0) {
+                                                            PlayerController.play(context, playableSongs, playableIndex)
+                                                        }
                                                     }
                                                 )
                                             }
@@ -855,6 +829,7 @@ private fun TopSongRow(
     coverUrl: String?,
     isExplicit: Boolean = false,
     durationMs: Long = 0L,
+    enabled: Boolean = true,
     textPrimary: Color,
     textSecondary: Color,
     onClick: () -> Unit
@@ -862,8 +837,9 @@ private fun TopSongRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .alpha(if (enabled) 1f else 0.42f)
             .clip(RoundedCornerShape(18.dp))
-            .liquidClickable(pressedScale = LiquidMotion.PressButton, onClick = onClick)
+            .liquidClickable(enabled = enabled, pressedScale = LiquidMotion.PressButton, onClick = onClick)
             .padding(vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -902,7 +878,7 @@ private fun TopSongRow(
                     }
                 }
                 Text(
-                    text = title,
+                    text = if (enabled) title else "$title · Недоступно",
                     color = textPrimary,
                     fontSize = LiquidMetrics.RowTitle,
                     fontWeight = FontWeight.SemiBold,

@@ -174,7 +174,8 @@ class VkAudioApi(
         ).apply {
             param("q", query)
             param("offset", offset.coerceAtLeast(0))
-            param("count", count.coerceIn(1, 100))
+            // C18378e создаёт диапазон 0..300 для searchMain.
+            param("count", count.coerceIn(1, 300))
         }
         return client.execute(method)
     }

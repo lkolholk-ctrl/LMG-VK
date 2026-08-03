@@ -53,6 +53,11 @@ data class AudioTrack(
 
     val isLiked: Boolean get() = likedOverride ?: (like == true)
     val isDisliked: Boolean get() = likedOverride?.let { !it } ?: dislike
+
+    /** VK MP3 MOD treats the service placeholder as an unavailable audio. */
+    val isAvailable: Boolean
+        get() = content_restricted == 0 &&
+            !url.contains("audio_api_unavailable.mp3", ignoreCase = true)
 }
 
 /** Из `ua.lmg.vkapi2.objects.music.playlist.metadata.MainArtist`. */

@@ -29,6 +29,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -62,6 +63,7 @@ private fun FavoriteTrackEntity.toTrack(): Track = Track(
     albumId = -1L,
     coverUrl = imageUrl,
     source = source,
+    isAvailable = isAvailable,
 )
 
 private fun fmtDuration(ms: Long): String {
@@ -88,6 +90,7 @@ fun LandscapeHome(
     val context = LocalContext.current
     val libraryRepo = remember { LibraryRepository.getInstance(context) }
     val favorites by libraryRepo.favoritesFlow.collectAsState(initial = emptyList())
+    val playableFavorites = remember(favorites) { favorites.filter { it.isAvailable }.map { it.toTrack() } }
     val queue by PlayerController.queueFlow.collectAsState()
     val currentTrack by PlayerController.currentTrack.collectAsState()
 
@@ -156,13 +159,17 @@ fun LandscapeHome(
                         )
                         Spacer(Modifier.height(6.dp))
                     }
-                    itemsIndexed(favorites, key = { _, f -> f.trackId }) { index, fav ->
+                    itemsIndexed(favorites, key = { _, f -> f.trackId }) { _, fav ->
                         TrackRow(
                             fav.title, fav.artistName ?: "Unknown Artist", fav.imageUrl,
-                            duration = fmtDuration(fav.durationMs)
+                            duration = fmtDuration(fav.durationMs),
+                            enabled = fav.isAvailable,
                         ) {
-                            PlayerController.playFromList(context, favorites.map { it.toTrack() }, index)
-                            onOpenPlayer()
+                            val playableIndex = playableFavorites.indexOfFirst { it.id == fav.trackId }
+                            if (playableIndex >= 0) {
+                                PlayerController.playFromList(context, playableFavorites, playableIndex)
+                                onOpenPlayer()
+                            }
                         }
                     }
                     if (favorites.isEmpty()) {
@@ -294,6 +301,7 @@ private fun TrackRow(
     cover: String?,
     duration: String = "",
     highlight: Boolean = false,
+    enabled: Boolean = true,
     onClick: () -> Unit,
 ) {
     val lc = LiquidTheme.colors
@@ -301,9 +309,10 @@ private fun TrackRow(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
+            .alpha(if (enabled) 1f else 0.42f)
             .clip(RoundedCornerShape(10.dp))
             .background(if (highlight) lc.accent.copy(alpha = 0.12f) else Color.Transparent)
-            .liquidClickable(onClick = onClick)
+            .liquidClickable(enabled = enabled, onClick = onClick)
             .padding(vertical = 5.dp, horizontal = 6.dp)
     ) {
         Box(
@@ -322,7 +331,8 @@ private fun TrackRow(
         Spacer(Modifier.width(10.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                title, color = lc.textPrimary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                if (enabled) title else "$title · Недоступно",
+                color = lc.textPrimary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
                 maxLines = 1, overflow = TextOverflow.Ellipsis
             )
             Text(artist, color = lc.textSecondary, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)

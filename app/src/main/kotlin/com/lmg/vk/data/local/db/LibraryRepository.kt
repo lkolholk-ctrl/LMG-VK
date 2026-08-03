@@ -38,7 +38,7 @@ class LibraryRepository private constructor(context: Context) {
 
     /** Get all favorites as Track objects for playback */
     suspend fun getAllFavoritesAsTracks(): List<Track> = withContext(Dispatchers.IO) {
-        db.getAllFavorites().map { it.toTrack() }
+        db.getAllFavorites().filter(FavoriteTrackEntity::isAvailable).map { it.toTrack() }
     }
 
     /** Get count of favorites */
@@ -109,6 +109,8 @@ class LibraryRepository private constructor(context: Context) {
                             collectionId = cloudTrack.collectionId,
                             isExplicit = cloudTrack.isExplicit,
                             source = cloudTrack.source,
+                            isAvailable = cloudTrack.isAvailable,
+                            likedAt = cloudTrack.likedAt ?: System.currentTimeMillis(),
                             isSynced = true,
                             pendingDelete = false
                         )
@@ -116,6 +118,24 @@ class LibraryRepository private constructor(context: Context) {
                 } else if (!existing.isSynced) {
                     // Local was pending insert, now confirmed by cloud
                     db.markSynced(cloudTrack.id)
+                } else {
+                    // audio.get is the source of truth for display metadata. Without
+                    // this branch renamed tracks, artist links and covers stayed stale.
+                    db.update(
+                        existing.copy(
+                            title = cloudTrack.title,
+                            artistName = cloudTrack.artist,
+                            durationMs = cloudTrack.durationMs,
+                            imageUrl = cloudTrack.cover,
+                            artistId = cloudTrack.artistId,
+                            collectionId = cloudTrack.collectionId,
+                            isExplicit = cloudTrack.isExplicit,
+                            source = cloudTrack.source,
+                            likedAt = cloudTrack.likedAt ?: existing.likedAt,
+                            isAvailable = cloudTrack.isAvailable,
+                            isSynced = true,
+                        )
+                    )
                 }
             }
 
@@ -186,6 +206,7 @@ class LibraryRepository private constructor(context: Context) {
                     genre = track.genre,
                     isExplicit = track.isExplicit,
                     source = track.source,
+                    isAvailable = track.isAvailable,
                     isSynced = false,
                     pendingDelete = false
                 )
@@ -326,7 +347,8 @@ class LibraryRepository private constructor(context: Context) {
             } ?: emptyList(),
             isExplicit = isExplicit,
             source = source,
-            genre = genre
+            genre = genre,
+            isAvailable = isAvailable,
         )
     }
 

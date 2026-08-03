@@ -271,14 +271,16 @@ fun DetailTrackRow(
     coverUrl: String?,
     isDark: Boolean,
     showDivider: Boolean,
+    enabled: Boolean = true,
     onClick: () -> Unit
 ) {
     Column(modifier = Modifier.padding(horizontal = LiquidMetrics.ScreenPadding)) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .alpha(if (enabled) 1f else 0.42f)
                 .clip(LiquidMetrics.CoverShapeSmall)
-                .liquidClickable(pressedScale = LiquidMotion.PressButton, onClick = onClick)
+                .liquidClickable(enabled = enabled, pressedScale = LiquidMotion.PressButton, onClick = onClick)
                 .padding(vertical = if (coverUrl != null) 8.dp else 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -310,7 +312,7 @@ fun DetailTrackRow(
 
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = title,
+                    text = if (enabled) title else "$title · Недоступно",
                     color = LiquidSurfaces.textPrimary(isDark),
                     fontSize = LiquidMetrics.RowTitle,
                     fontWeight = FontWeight.Medium,

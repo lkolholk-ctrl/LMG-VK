@@ -71,6 +71,7 @@ class FavoriteTrackDatabase private constructor(context: Context) : SQLiteOpenHe
                 collectionId TEXT,
                 isExplicit INTEGER DEFAULT 0,
                 source TEXT,
+                isAvailable INTEGER DEFAULT 1,
                 likedAt INTEGER DEFAULT 0,
                 isSynced INTEGER DEFAULT 0,
                 pendingDelete INTEGER DEFAULT 0
@@ -119,18 +120,26 @@ class FavoriteTrackDatabase private constructor(context: Context) : SQLiteOpenHe
                 """.trimIndent()
             )
             db.execSQL("CREATE INDEX IF NOT EXISTS idx_downloaded_track_id ON downloaded_tracks(trackId)")
-        } else if (oldVersion < 3) {
+        }
+        if (oldVersion < 3 && !db.hasColumn("downloaded_tracks", "quality")) {
             // Migration: add quality column to existing downloaded_tracks table
             db.execSQL("ALTER TABLE downloaded_tracks ADD COLUMN quality TEXT")
-        } else if (oldVersion < 4) {
+        }
+        if (oldVersion < 4 && !db.hasColumn("downloaded_tracks", "localCoverPath")) {
             // Migration: add localCoverPath column to existing downloaded_tracks table
             db.execSQL("ALTER TABLE downloaded_tracks ADD COLUMN localCoverPath TEXT")
-        } else {
-            db.execSQL("DROP TABLE IF EXISTS favorite_tracks")
-            db.execSQL("DROP TABLE IF EXISTS downloaded_tracks")
-            onCreate(db)
+        }
+        if (oldVersion < 5 && !db.hasColumn("favorite_tracks", "isAvailable")) {
+            db.execSQL("ALTER TABLE favorite_tracks ADD COLUMN isAvailable INTEGER DEFAULT 1")
         }
     }
+
+    private fun SQLiteDatabase.hasColumn(table: String, column: String): Boolean =
+        rawQuery("PRAGMA table_info($table)", null).use { cursor ->
+            val nameIndex = cursor.getColumnIndexOrThrow("name")
+            generateSequence { if (cursor.moveToNext()) cursor.getString(nameIndex) else null }
+                .any { it == column }
+        }
 
     private fun reloadFavorites() {
         val list = readableDatabase.rawQuery(
@@ -240,6 +249,7 @@ class FavoriteTrackDatabase private constructor(context: Context) : SQLiteOpenHe
             put("collectionId", entity.collectionId)
             put("isExplicit", if (entity.isExplicit) 1 else 0)
             put("source", entity.source)
+            put("isAvailable", if (entity.isAvailable) 1 else 0)
             put("likedAt", entity.likedAt)
             put("isSynced", if (entity.isSynced) 1 else 0)
             put("pendingDelete", if (entity.pendingDelete) 1 else 0)
@@ -276,6 +286,7 @@ class FavoriteTrackDatabase private constructor(context: Context) : SQLiteOpenHe
             put("collectionId", entity.collectionId)
             put("isExplicit", if (entity.isExplicit) 1 else 0)
             put("source", entity.source)
+            put("isAvailable", if (entity.isAvailable) 1 else 0)
             put("likedAt", entity.likedAt)
             put("isSynced", if (entity.isSynced) 1 else 0)
             put("pendingDelete", if (entity.pendingDelete) 1 else 0)
@@ -452,6 +463,7 @@ class FavoriteTrackDatabase private constructor(context: Context) : SQLiteOpenHe
             collectionId = cursor.getString(cursor.getColumnIndexOrThrow("collectionId")),
             isExplicit = cursor.getInt(cursor.getColumnIndexOrThrow("isExplicit")) == 1,
             source = cursor.getString(cursor.getColumnIndexOrThrow("source")),
+            isAvailable = cursor.getInt(cursor.getColumnIndexOrThrow("isAvailable")) == 1,
             likedAt = cursor.getLong(cursor.getColumnIndexOrThrow("likedAt")),
             isSynced = cursor.getInt(cursor.getColumnIndexOrThrow("isSynced")) == 1,
             pendingDelete = cursor.getInt(cursor.getColumnIndexOrThrow("pendingDelete")) == 1
@@ -476,7 +488,7 @@ class FavoriteTrackDatabase private constructor(context: Context) : SQLiteOpenHe
 
     companion object {
         private const val DB_NAME = "favorite_tracks.db"
-        private const val DB_VERSION = 4
+        private const val DB_VERSION = 5
 
         @Volatile
         private var INSTANCE: FavoriteTrackDatabase? = null

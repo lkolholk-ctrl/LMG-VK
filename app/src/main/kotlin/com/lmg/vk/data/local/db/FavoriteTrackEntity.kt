@@ -18,6 +18,7 @@ data class FavoriteTrackEntity(
     val collectionId: String? = null,
     val isExplicit: Boolean = false,
     val source: String? = null,
+    val isAvailable: Boolean = true,
     /** Timestamp when the track was liked locally */
     val likedAt: Long = System.currentTimeMillis(),
     /** true = synced with cloud, false = pending sync */

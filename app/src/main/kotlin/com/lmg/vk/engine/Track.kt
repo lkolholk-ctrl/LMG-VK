@@ -24,7 +24,9 @@ data class Track(
     /** Music source: "apple", "vk", "wave", etc. Used for stream quality selection. */
     val source: String? = null,
     /** Жанр трека для аналитики "Моей волны". */
-    val genre: String? = null
+    val genre: String? = null,
+    /** false для регионально/лицензионно недоступного аудио VK. */
+    val isAvailable: Boolean = true
 ) {
     /** Uri обложки альбома из MediaStore (для локальных треков). */
     val albumArtUri: Uri

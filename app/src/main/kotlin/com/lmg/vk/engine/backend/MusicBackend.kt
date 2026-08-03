@@ -26,6 +26,8 @@ import com.lmg.vk.network.methods.VkCatalogApi
 import com.lmg.vk.network.methods.VkMethodsRegistry
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -111,6 +113,7 @@ object MusicBackend {
             }
         }
         val track = resolveTrack(trackId, forceNetwork = true)
+        if (!track.isAvailable) throw backendFailure(451, "Аудиозапись недоступна")
         if (track.url.isBlank()) throw backendFailure(404, "VK не вернул URL трека")
         return track.toStreamInfo(quality).also {
             streamCache[track.fullId] = CachedStream(it, System.currentTimeMillis())
@@ -171,37 +174,64 @@ object MusicBackend {
     suspend fun searchAll(query: String, region: String? = null, source: String = SearchSource.ALL, limit: Int = 30): SearchResponse? =
         runCatching {
             requireInitialized()
-            val result = audioApi.searchMain(query = query, offset = 0, count = limit).requireData()
-            var tracks = (result.audios.items + result.own_audios.items)
-                .distinctBy(AudioAudioDto::fullId)
-                .map { it.toAudioTrack() }
-                .also(::cacheTracks)
-
-            // Фолбэк: если searchMain не вернул треков, дополнительно запрашиваем audio.searchAudios
-            if (tracks.isEmpty()) {
-                val fallback = runCatching {
-                    audioApi.searchAudios(query = query, ownerId = currentUserId(), offset = 0, count = limit).requireData()
-                }.getOrNull()
-                if (!fallback.isNullOrEmpty()) {
-                    cacheTracks(fallback)
-                    tracks = fallback
+            val requestedCount = limit.coerceIn(1, 300)
+            val (mainResult, audioResult, artistResult) = coroutineScope {
+                val main = async { audioApi.searchMain(query, offset = 0, count = requestedCount) }
+                val audios = async {
+                    audioApi.searchAudios(query, currentUserId(), offset = 0, count = requestedCount)
                 }
+                val artists = async {
+                    audioApi.searchArtists(query, offset = 0, count = requestedCount.coerceAtMost(100))
+                }
+                Triple(main.await(), audios.await(), artists.await())
             }
 
-            val albums = (result.albums.items + result.own_albums.items)
-                .distinctBy(AudioPlaylistDto::fullId)
-            val playlists = (result.playlists.items + result.own_playlists.items)
-                .distinctBy(AudioPlaylistDto::fullId)
+            val main = (mainResult as? VkResult.Success)?.data
+            val directTracks = (audioResult as? VkResult.Success)?.data.orEmpty()
+            val mainTracks = main?.let { response ->
+                (response.audios.items + response.own_audios.items).map { it.toAudioTrack() }
+            }.orEmpty()
+            val tracks = (directTracks + mainTracks)
+                .distinctBy(AudioTrack::fullId)
+                .also(::cacheTracks)
+
+            val directArtists = (artistResult as? VkResult.Success)?.data?.items.orEmpty()
+            val artists = (directArtists + main?.artists?.items.orEmpty())
+                .distinctBy { it.id?.takeIf(String::isNotBlank) ?: it.domain ?: it.name.lowercase() }
+
+            val mainAlbums = main?.let { response ->
+                response.albums.items + response.own_albums.items
+            }.orEmpty()
+            val fallbackAlbums = if (mainAlbums.isEmpty()) {
+                when (val fallback = audioApi.searchPlaylists(
+                    query = query,
+                    ownerId = currentUserId(),
+                    offset = 0,
+                    count = requestedCount.coerceAtMost(100),
+                )) {
+                    is VkResult.Success -> fallback.data.filter { it.isAlbumRelease() }
+                    is VkResult.Error -> emptyList()
+                }
+            } else {
+                emptyList()
+            }
+
+            if (main == null && directTracks.isEmpty() && directArtists.isEmpty() && fallbackAlbums.isEmpty()) {
+                val failure = sequenceOf(mainResult, audioResult, artistResult)
+                    .filterIsInstance<VkResult.Error>()
+                    .firstOrNull()
+                throw backendFailure(failure?.code ?: 0, failure?.message ?: "VK search failed")
+            }
+
             SearchResponse(
                 query = query,
                 region = this.region,
                 source = "vk",
                 items = buildList {
                     addAll(tracks.map { it.toSearchItem() })
-                    addAll(result.artists.items.distinctBy { it.id ?: it.domain ?: it.name }
-                        .map { it.toSearchItem() })
-                    addAll(albums.map { it.toSearchItem() })
-                    addAll(playlists.map { it.toSearchItem() })
+                    addAll(artists.map { it.toSearchItem() })
+                    addAll(mainAlbums.distinctBy(AudioPlaylistDto::fullId).map { it.toSearchItem() })
+                    addAll(fallbackAlbums.distinctBy(AudioPlaylist::fullId).map { it.toSearchItem() })
                 },
             )
         }.getOrNull()
@@ -283,11 +313,39 @@ object MusicBackend {
                 name = tracks.firstOrNull()?.main_artists?.firstOrNull()?.name
                     ?: tracks.firstOrNull()?.artist.orEmpty(),
             )
-        val related = when (val response = audioApi.getRelatedArtistsById(normalizedId)) {
-            is VkResult.Success -> response.data.artists
-            is VkResult.Error -> emptyList()
+        val (related, searchedAlbums, legacyAlbums) = coroutineScope {
+            val relatedRequest = async { audioApi.getRelatedArtistsById(normalizedId) }
+            val mainRequest = async { audioApi.searchMain(artist.name, count = 300) }
+            val playlistRequest = async {
+                audioApi.searchPlaylists(
+                    query = artist.name,
+                    ownerId = currentUserId(),
+                    offset = 0,
+                    count = 100,
+                )
+            }
+            val relatedResult = relatedRequest.await()
+            val mainResult = mainRequest.await()
+            val playlistResult = playlistRequest.await()
+            Triple(
+                (relatedResult as? VkResult.Success)?.data?.artists.orEmpty(),
+                (mainResult as? VkResult.Success)?.data?.let {
+                    it.albums.items + it.own_albums.items
+                }.orEmpty(),
+                (playlistResult as? VkResult.Success)?.data.orEmpty(),
+            )
         }
-        val albums = catalog.playlists.orEmpty().map { it.toArtistAlbum() }
+        val albums = buildList {
+            addAll(catalog.playlists.orEmpty()
+                .filter { it.isAlbumRelease() }
+                .map { it.toArtistAlbum() })
+            addAll(searchedAlbums
+                .filter { it.belongsToArtist(normalizedId, artist.name) }
+                .map { it.toArtistAlbum() })
+            addAll(legacyAlbums
+                .filter { it.isAlbumRelease() && it.belongsToArtist(normalizedId, artist.name) }
+                .map { it.toArtistAlbum() })
+        }.distinctBy(ArtistAlbum::id)
         ArtistResponse(
             id = artist.id,
             name = artist.name,
@@ -298,8 +356,8 @@ object MusicBackend {
             bio = artist.bio,
             topSongs = tracks.map { it.toArtistSong() },
             latestRelease = albums.maxByOrNull { it.year.orEmpty() },
-            albums = albums.filterNot { it.type.equals("single", ignoreCase = true) },
-            singles = albums.filter { it.type.equals("single", ignoreCase = true) },
+            albums = albums.filterNot { it.isSingleOrEp() },
+            singles = albums.filter { it.isSingleOrEp() },
             similarArtists = related.map {
                 SimilarArtist(id = it.id, name = it.name, url = it.domain, cover = it.coverUrl())
             },
@@ -723,6 +781,7 @@ object MusicBackend {
         duration = duration.toLong(),
         source = "vk",
         trackId = fullId,
+        isAvailable = isAvailable,
     )
 
     private fun AudioAudioDto.toAudioTrack() = AudioTrack(
@@ -737,6 +796,7 @@ object MusicBackend {
         track_code = track_code.orEmpty(),
         url = url.orEmpty(),
         date = date?.toLong() ?: 0L,
+        content_restricted = content_restricted ?: 0,
         album = album?.let { value ->
             AudioAlbum(
                 id = value.id,
@@ -789,7 +849,12 @@ object MusicBackend {
             artist = name,
             artistName = name,
             artistId = artistId,
-            cover = photo.orEmpty().maxByOrNull { it.width * it.height }?.url,
+            cover = sequence {
+                yieldAll(photo.orEmpty())
+                photos.orEmpty().forEach { yieldAll(it.photo) }
+            }.filter { it.url.isNotBlank() }
+                .maxByOrNull { it.width * it.height }
+                ?.url,
             source = "vk",
             isArtist = true,
         )
@@ -802,13 +867,18 @@ object MusicBackend {
         artistName = main_artists?.joinToString(", ") { it.name },
         artistId = main_artists?.firstOrNull()?.id,
         artists = main_artists.orEmpty().map { MiniArtist(id = it.id, name = it.name) },
-        cover = photo?.src ?: thumbs?.maxByOrNull { it.width * it.height }?.src,
+        cover = photo?.bestUrl ?: thumbs?.maxByOrNull { it.width * it.height }?.bestUrl,
         collectionId = fullId,
         album = title,
         isExplicit = is_explicit == true,
         source = "vk",
         isAlbum = true,
     )
+
+    private fun AudioPlaylist.isAlbumRelease(): Boolean =
+        type.orEmpty().contains("album", ignoreCase = true) ||
+            album != null ||
+            meta?.view.orEmpty().contains("album", ignoreCase = true)
 
     private fun VkArtistDto.toSearchItem() = SearchItem(
         id = id,
@@ -880,6 +950,7 @@ object MusicBackend {
         isExplicit = is_explicit,
         duration = duration.toLong(),
         source = "vk",
+        isAvailable = isAvailable,
     )
 
     private fun AudioTrack.toArtistSong() = ArtistSong(
@@ -893,6 +964,7 @@ object MusicBackend {
         isExplicit = is_explicit,
         source = "vk",
         duration = duration.toLong(),
+        isAvailable = isAvailable,
     )
 
     private fun AudioTrack.toWaveTrack() = WaveTrack(
@@ -920,6 +992,7 @@ object MusicBackend {
         isExplicit = is_explicit,
         source = "vk",
         genre = track_genre_id?.toString() ?: genre_id?.toString(),
+        isAvailable = isAvailable,
     )
 
     private fun AudioTrack.toLibraryTrack() = LibraryTrack(
@@ -933,7 +1006,8 @@ object MusicBackend {
         collectionId = album?.id?.toString(),
         isExplicit = is_explicit,
         source = "vk",
-        likedAt = date.takeIf { it > 0 },
+        likedAt = date.takeIf { it > 0 }?.times(1000L),
+        isAvailable = isAvailable,
     )
 
     private fun AudioTrack.toPlaylistTrack() = PlaylistTrack(
@@ -945,6 +1019,7 @@ object MusicBackend {
         collectionId = album?.id?.toString().orEmpty(),
         duration = duration.toLong(),
         isExplicit = is_explicit,
+        isAvailable = isAvailable,
     )
 
     private fun AudioPlaylist.toUserPlaylist() = UserPlaylist(
@@ -979,6 +1054,37 @@ object MusicBackend {
         type = type,
         isAlbum = true,
     )
+
+    private fun AudioPlaylistDto.toArtistAlbum() = ArtistAlbum(
+        id = fullId,
+        title = title,
+        artist = main_artist ?: main_artists.orEmpty().joinToString(", ") { it.name },
+        artists = main_artists.orEmpty().map { MiniArtist(it.id, it.name) },
+        year = year?.takeIf { it > 0 }?.toString()
+            ?: original_year?.takeIf { it > 0 }?.toString(),
+        cover = coverUrl().orEmpty(),
+        type = album_type ?: type,
+        isAlbum = true,
+    )
+
+    private fun AudioPlaylistDto.belongsToArtist(artistId: String, artistName: String): Boolean {
+        val candidates = main_artists.orEmpty() + artists.orEmpty()
+        return candidates.any {
+            it.id == artistId || it.name.equals(artistName, ignoreCase = true)
+        } || main_artist.equals(artistName, ignoreCase = true)
+    }
+
+    private fun AudioPlaylist.belongsToArtist(artistId: String, artistName: String): Boolean =
+        main_artists.orEmpty().any {
+            it.id == artistId || it.name.equals(artistName, ignoreCase = true)
+        }
+
+    private fun ArtistAlbum.isSingleOrEp(): Boolean {
+        val releaseType = type.orEmpty()
+        return releaseType.contains("single", ignoreCase = true) ||
+            releaseType.equals("ep", ignoreCase = true) ||
+            releaseType.contains("extended_play", ignoreCase = true)
+    }
 
     private const val STREAM_CACHE_TTL_MS = 8L * 60L * 1000L
 }

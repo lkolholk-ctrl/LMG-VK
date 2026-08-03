@@ -153,7 +153,8 @@ data class SearchItem(
     @SerialName("isClip") val isClip: Boolean = false,
     val duration: Long? = null,
     val source: String? = null,
-    @SerialName("trackId") val trackId: String? = null
+    @SerialName("trackId") val trackId: String? = null,
+    @SerialName("isAvailable") val isAvailable: Boolean = true
 ) {
     val displayArtist: String
         get() = artist?.takeIf { it.isNotBlank() && it != "Исполнитель" }
@@ -236,7 +237,8 @@ data class AlbumTrack(
     val region: String? = null,
     @SerialName("trackNumber") val trackNumber: Int? = null,
     val duration: Long? = null,
-    val source: String? = null
+    val source: String? = null,
+    @SerialName("isAvailable") val isAvailable: Boolean = true
 ) {
     val durationMs: Long
         get() = normalizeDurationMs(duration, source)
@@ -288,7 +290,8 @@ data class ArtistSong(
     @SerialName("isCustom") val isCustom: Boolean = false,
     val region: String? = null,
     val source: String? = null,
-    val duration: Long? = null
+    val duration: Long? = null,
+    @SerialName("isAvailable") val isAvailable: Boolean = true
 ) {
     val isVk: Boolean
         get() = id.startsWith("vk_") || source == "vk"
@@ -400,7 +403,8 @@ data class PlaylistTrack(
     @SerialName("collectionId") val collectionId: String,
     val duration: Long,
     @SerialName("is_explicit") val isExplicit: Boolean = false,
-    @SerialName("isCustom") val isCustom: Boolean = false
+    @SerialName("isCustom") val isCustom: Boolean = false,
+    @SerialName("isAvailable") val isAvailable: Boolean = true
 ) {
     // У модели нет поля source — нормализация по величине (фолбэк).
     val durationMs: Long
@@ -552,7 +556,8 @@ fun SearchItem.toTrack(uri: String? = null): com.lmg.vk.engine.Track {
         },
         isExplicit = isExplicit,
         isCustom = isCustom,
-        source = source
+        source = source,
+        isAvailable = isAvailable
     )
 }
 
@@ -572,7 +577,8 @@ fun AlbumTrack.toTrack(): com.lmg.vk.engine.Track {
         else emptyList(),
         isExplicit = isExplicit,
         isCustom = isCustom,
-        source = source
+        source = source,
+        isAvailable = isAvailable
     )
 }
 
@@ -589,7 +595,8 @@ fun ArtistSong.toTrack(): com.lmg.vk.engine.Track {
         artists = artists,
         isExplicit = isExplicit,
         isCustom = isCustom,
-        source = source
+        source = source,
+        isAvailable = isAvailable
     )
 }
 
@@ -605,7 +612,8 @@ fun PlaylistTrack.toTrack(): com.lmg.vk.engine.Track {
         coverUrl = cover.replace("1000x1000", "600x600"),
         artists = emptyList(),
         isExplicit = isExplicit,
-        isCustom = isCustom
+        isCustom = isCustom,
+        isAvailable = isAvailable,
     )
 }
 
@@ -812,7 +820,8 @@ data class LibraryTrack(
     @SerialName("is_explicit") val isExplicit: Boolean = false,
     @SerialName("isCustom") val isCustom: Boolean = false,
     val source: String? = null,
-    @SerialName("liked_at") val likedAt: Long? = null
+    @SerialName("liked_at") val likedAt: Long? = null,
+    @SerialName("isAvailable") val isAvailable: Boolean = true
 ) {
     /** VK/secondary return duration in seconds, Apple in milliseconds. Normalized to ms. */
     val durationMs: Long

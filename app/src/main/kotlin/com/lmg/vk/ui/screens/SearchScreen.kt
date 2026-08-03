@@ -43,6 +43,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
@@ -544,37 +545,44 @@ fun SearchScreen(
                                         item(key = "tracks_label") {
                                             SearchSectionLabel("Songs", compact)
                                         }
-                                        val playableTracks = tracks.map { it.toTrack() }
+                                        val playableTracks = tracks.filter { it.isAvailable }.map { it.toTrack() }
                                         itemsIndexed(
                                             items = tracks,
                                             key = { index, track -> "track_${index}_${track.id}" }
                                         ) { _, item ->
                                             SearchResultRow(
                                                 title = item.title,
-                                                subtitle = item.displayArtist,
+                                                subtitle = if (item.isAvailable) item.displayArtist
+                                                    else "Недоступно · ${item.displayArtist}",
                                                 icon = Icons.Rounded.MusicNote,
                                                 coverUrl = item.cover,
                                                 isExplicit = item.isExplicit,
                                                 isCustom = item.isCustom,
+                                                enabled = item.isAvailable,
                                                 compact = compact,
                                                 durationMs = item.durationMs,
                                                 onClick = {
                                                     hideKeyboard()
                                                     val startIdx = playableTracks.indexOfFirst { it.id == item.id }
-                                                        .coerceAtLeast(0)
-                                                    PlayerController.playFromList(
-                                                        context = context,
-                                                        tracks = playableTracks,
-                                                        startIndex = startIdx,
-                                                        autoRefillType = "search",
-                                                        autoRefillId = query,
-                                                        autoRefillName = query
-                                                    )
+                                                    if (startIdx >= 0) {
+                                                        PlayerController.playFromList(
+                                                            context = context,
+                                                            tracks = playableTracks,
+                                                            startIndex = startIdx,
+                                                            autoRefillType = "search",
+                                                            autoRefillId = query,
+                                                            autoRefillName = query
+                                                        )
+                                                    }
                                                 },
-                                                onLongClick = {
-                                                    hideKeyboard()
-                                                    actionsTrack = playableTracks
-                                                        .firstOrNull { it.id == item.id }
+                                                onLongClick = if (item.isAvailable) {
+                                                    {
+                                                        hideKeyboard()
+                                                        actionsTrack = playableTracks
+                                                            .firstOrNull { it.id == item.id }
+                                                    }
+                                                } else {
+                                                    null
                                                 }
                                             )
                                         }
@@ -855,6 +863,7 @@ private fun SearchResultRow(
     coverUrl: String?,
     isExplicit: Boolean = false,
     isCustom: Boolean = false,
+    enabled: Boolean = true,
     compact: Boolean = false,
     durationMs: Long = 0L,
     onClick: () -> Unit,
@@ -864,11 +873,13 @@ private fun SearchResultRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .alpha(if (enabled) 1f else 0.42f)
             .padding(horizontal = 16.dp)
             .height(if (compact) 52.dp else 64.dp)
             .clip(RoundedCornerShape(50))   // строки-пилюли, как в настройках
             .background(if (LiquidTheme.colors.isDark) Color(0xFF1A1A1A) else Color(0xFFF2F2F7))
             .combinedClickable(
+                enabled = enabled,
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
                 onClick = onClick,
