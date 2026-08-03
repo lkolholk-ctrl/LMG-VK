@@ -8,6 +8,7 @@ import com.lmg.vk.network.VkApiClient
 import com.lmg.vk.network.VkAuthSession
 import com.lmg.vk.network.VkResult
 import com.lmg.vk.network.VkSessionStore
+import com.lmg.vk.network.getOrNull
 import com.lmg.vk.network.dto.AuthFlowName
 import com.lmg.vk.network.dto.AuthVerificationMethod
 import com.lmg.vk.network.dto.RequestTokenResponse
@@ -17,6 +18,7 @@ import com.lmg.vk.network.dto.music.AlbumThumb
 import com.lmg.vk.network.dto.music.AudioPlaylistDto
 import com.lmg.vk.network.dto.music.AudioAudioDto
 import com.lmg.vk.network.dto.music.AudioArtistDto
+import com.lmg.vk.network.dto.music.AudioSearchMainResponse
 import com.lmg.vk.network.dto.music.AudioStreamMix
 import com.lmg.vk.network.dto.music.AudioTrack
 import com.lmg.vk.network.dto.music.MainArtist
@@ -186,14 +188,8 @@ object MusicBackend {
                 Triple(main.await(), audios.await(), artists.await())
             }
 
-            val main = when (mainResult) {
-                is VkResult.Success -> mainResult.data
-                is VkResult.Error -> null
-            }
-            val directTracks = when (audioResult) {
-                is VkResult.Success -> audioResult.data
-                is VkResult.Error -> emptyList()
-            }
+            val main: AudioSearchMainResponse? = mainResult.getOrNull()
+            val directTracks: List<AudioTrack> = audioResult.getOrNull().orEmpty()
             val mainTracks = main?.let { response ->
                 (response.audios.items + response.own_audios.items).map { it.toAudioTrack() }
             }.orEmpty()
@@ -201,26 +197,29 @@ object MusicBackend {
                 .distinctBy(AudioTrack::fullId)
                 .also(::cacheTracks)
 
-            val directArtists = when (artistResult) {
-                is VkResult.Success -> artistResult.data.items
-                is VkResult.Error -> emptyList()
+            val directArtists: List<VkArtistDto> = artistResult.getOrNull()?.items.orEmpty()
+            // searchArtists возвращает VkArtistDto, а searchMain — другой wire DTO,
+            // AudioArtistDto. Объединяем только после нормализации в SearchItem,
+            // иначе Kotlin выводит List<Any> и теряет id/domain/name.
+            val artists: List<SearchItem> = buildList {
+                addAll(directArtists.map { it.toSearchItem() })
+                addAll(main?.artists?.items.orEmpty().map { it.toSearchItem() })
+            }.distinctBy {
+                it.artistId?.takeIf(String::isNotBlank)
+                    ?: it.id.takeIf(String::isNotBlank)
+                    ?: it.title.lowercase()
             }
-            val artists = (directArtists + main?.artists?.items.orEmpty())
-                .distinctBy { it.id?.takeIf(String::isNotBlank) ?: it.domain ?: it.name.lowercase() }
 
             val mainAlbums = main?.let { response ->
                 response.albums.items + response.own_albums.items
             }.orEmpty()
-            val fallbackAlbums = if (mainAlbums.isEmpty()) {
-                when (val fallback = audioApi.searchPlaylists(
+            val fallbackAlbums: List<AudioPlaylist> = if (mainAlbums.isEmpty()) {
+                audioApi.searchPlaylists(
                     query = query,
                     ownerId = currentUserId(),
                     offset = 0,
                     count = requestedCount.coerceAtMost(100),
-                )) {
-                    is VkResult.Success -> fallback.data.filter { it.isAlbumRelease() }
-                    is VkResult.Error -> emptyList()
-                }
+                ).getOrNull().orEmpty().filter { it.isAlbumRelease() }
             } else {
                 emptyList()
             }
@@ -238,7 +237,7 @@ object MusicBackend {
                 source = "vk",
                 items = buildList {
                     addAll(tracks.map { it.toSearchItem() })
-                    addAll(artists.map { it.toSearchItem() })
+                    addAll(artists)
                     addAll(mainAlbums.distinctBy(AudioPlaylistDto::fullId).map { it.toSearchItem() })
                     addAll(fallbackAlbums.distinctBy(AudioPlaylist::fullId).map { it.toSearchItem() })
                 },
@@ -336,18 +335,12 @@ object MusicBackend {
             val relatedResult = relatedRequest.await()
             val mainResult = mainRequest.await()
             val playlistResult = playlistRequest.await()
-            val relatedArtists = when (relatedResult) {
-                is VkResult.Success -> relatedResult.data.artists
-                is VkResult.Error -> emptyList()
-            }
-            val mainAlbums = when (mainResult) {
-                is VkResult.Success -> mainResult.data.albums.items + mainResult.data.own_albums.items
-                is VkResult.Error -> emptyList()
-            }
-            val foundPlaylists = when (playlistResult) {
-                is VkResult.Success -> playlistResult.data
-                is VkResult.Error -> emptyList()
-            }
+            val relatedArtists: List<VkArtistDto> =
+                relatedResult.getOrNull()?.artists.orEmpty()
+            val mainAlbums: List<AudioPlaylistDto> = mainResult.getOrNull()?.let {
+                it.albums.items + it.own_albums.items
+            }.orEmpty()
+            val foundPlaylists: List<AudioPlaylist> = playlistResult.getOrNull().orEmpty()
             Triple(
                 relatedArtists,
                 mainAlbums,
