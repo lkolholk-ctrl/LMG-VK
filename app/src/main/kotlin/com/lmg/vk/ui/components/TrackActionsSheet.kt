@@ -8,6 +8,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.PlaylistAdd
 import androidx.compose.material.icons.rounded.QueueMusic
 import androidx.compose.material.icons.rounded.Share
+import androidx.compose.material.icons.rounded.Download
+import androidx.compose.material.icons.rounded.Favorite
+import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
@@ -39,6 +42,9 @@ import com.lmg.vk.ui.theme.LiquidTheme
 @Composable
 fun TrackActionsSheet(
     track: Track,
+    isFavorite: Boolean? = null,
+    onToggleFavorite: (() -> Unit)? = null,
+    onCache: (() -> Unit)? = null,
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
@@ -96,6 +102,24 @@ fun TrackActionsSheet(
                 onDismiss()
             }
             Spacer(Modifier.height(8.dp))
+            if (isFavorite != null && onToggleFavorite != null) {
+                ActionRow(
+                    rowBg,
+                    if (isFavorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+                    if (isFavorite) "Remove from My tracks" else "Add to My tracks",
+                ) {
+                    onToggleFavorite()
+                    onDismiss()
+                }
+                Spacer(Modifier.height(8.dp))
+            }
+            if (onCache != null) {
+                ActionRow(rowBg, Icons.Rounded.Download, "Cache track") {
+                    onCache()
+                    onDismiss()
+                }
+                Spacer(Modifier.height(8.dp))
+            }
             ActionRow(rowBg, Icons.Rounded.Share, "Share") {
                 val text = "${track.title} — ${track.artist}\nhttps://byicloud.online/track/${track.id}"
                 val send = Intent(Intent.ACTION_SEND).apply {

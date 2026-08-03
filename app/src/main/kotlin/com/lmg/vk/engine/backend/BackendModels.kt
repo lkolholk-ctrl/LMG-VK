@@ -223,10 +223,12 @@ data class Album(
     val description: String? = null,
     @SerialName("trackCount") val trackCount: Int? = null,
     val plays: Int? = null,
+    val followers: Int? = null,
     @SerialName("createdAt") val createdAt: Long? = null,
     @SerialName("updatedAt") val updatedAt: Long? = null,
     @SerialName("isFollowing") val isFollowing: Boolean = false,
     @SerialName("canFollow") val canFollow: Boolean = false,
+    @SerialName("isOwned") val isOwned: Boolean = false,
 )
 
 @Serializable

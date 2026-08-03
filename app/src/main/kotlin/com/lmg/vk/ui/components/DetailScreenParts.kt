@@ -20,8 +20,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.Shuffle
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -272,6 +274,7 @@ fun DetailTrackRow(
     isDark: Boolean,
     showDivider: Boolean,
     enabled: Boolean = true,
+    onMore: (() -> Unit)? = null,
     onClick: () -> Unit
 ) {
     Column(modifier = Modifier.padding(horizontal = LiquidMetrics.ScreenPadding)) {
@@ -338,6 +341,20 @@ fun DetailTrackRow(
                     fontSize = LiquidMetrics.Caption,
                     modifier = Modifier.padding(start = 8.dp)
                 )
+            }
+            if (onMore != null) {
+                IconButton(
+                    enabled = enabled,
+                    onClick = onMore,
+                    modifier = Modifier.size(36.dp),
+                ) {
+                    Icon(
+                        Icons.Rounded.MoreVert,
+                        contentDescription = "Track actions",
+                        tint = LiquidSurfaces.textTertiary(isDark),
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
             }
         }
         if (showDivider) {

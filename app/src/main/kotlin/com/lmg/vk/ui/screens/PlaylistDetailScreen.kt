@@ -3,17 +3,35 @@ package com.lmg.vk.ui.screens
 import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.Download
+import androidx.compose.material.icons.rounded.QueueMusic
+import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -22,20 +40,35 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.lmg.vk.engine.AudioDownloadManager
+import com.lmg.vk.engine.backend.Album
 import com.lmg.vk.engine.backend.MusicBackend
+import com.lmg.vk.engine.backend.MusicAuth
 import com.lmg.vk.engine.PlayerController
 import com.lmg.vk.engine.Track
+import com.lmg.vk.data.local.db.FavoriteTrackDatabase
+import com.lmg.vk.data.local.db.LibraryRepository
 import com.lmg.vk.ui.components.DetailHeader
 import com.lmg.vk.ui.components.DetailTopBar
 import com.lmg.vk.ui.components.DetailTrackRow
+import com.lmg.vk.ui.components.TrackActionsSheet
 import com.lmg.vk.ui.components.formatTotalDuration
 import com.lmg.vk.ui.components.toDetailThumb
 import com.lmg.vk.ui.theme.LiquidSurfaces
+import com.lmg.vk.ui.glass.liquidClickable
+import com.lmg.vk.ui.theme.LiquidMotion
 import com.lmg.vk.ui.theme.LiquidTheme
 import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 /**
  * Экран плейлиста — на тех же общих частях, что альбом.
@@ -54,18 +87,30 @@ fun PlaylistDetailScreen(
     val isDark = colors.isDark
     val scope = rememberCoroutineScope()
 
-    var playlistInfo by remember {
-        mutableStateOf<com.lmg.vk.engine.backend.UserPlaylistInfo?>(null)
-    }
+    var playlistInfo by remember { mutableStateOf<Album?>(null) }
     var tracks by remember { mutableStateOf<List<Track>>(emptyList()) }
-    var isLoading by remember { mutableStateOf(false) }
+    var isLoading by remember { mutableStateOf(true) }
     var errorMsg by remember { mutableStateOf<String?>(null) }
+    var reloadKey by remember { mutableStateOf(0) }
+    var loadedCount by remember { mutableStateOf(0) }
+    var totalExpected by remember { mutableStateOf<Int?>(null) }
+    var isFollowing by remember { mutableStateOf(false) }
+    var followBusy by remember { mutableStateOf(false) }
+    var cacheRequested by remember { mutableStateOf(false) }
+    var actionsTrack by remember { mutableStateOf<Track?>(null) }
+
+    val libraryRepository = remember(context) { LibraryRepository.getInstance(context) }
+    val favoriteIds by libraryRepository.favoriteIdsFlow.collectAsState(initial = emptySet())
+    val downloadDb = remember(context) { FavoriteTrackDatabase.getInstance(context) }
+    val downloadedTracks by downloadDb.downloadsFlow.collectAsState(initial = emptyList())
+    val downloadProgress by AudioDownloadManager.downloadProgress.collectAsState()
+    val isPremium by MusicAuth.isPremium.collectAsState()
 
     // Локальные плейлисты живут в приложении, облачные — на сервере. Отличаются
     // по префиксу идентификатора.
     val isLocalPlaylist = playlistId.startsWith("pl_")
 
-    LaunchedEffect(playlistId) {
+    LaunchedEffect(playlistId, reloadKey) {
         if (playlistId.isBlank()) {
             errorMsg = "Invalid playlist"
             return@LaunchedEffect
@@ -73,6 +118,13 @@ fun PlaylistDetailScreen(
 
         isLoading = true
         errorMsg = null
+        tracks = emptyList()
+        playlistInfo = null
+        loadedCount = 0
+        totalExpected = null
+        isFollowing = false
+        followBusy = false
+        cacheRequested = false
 
         if (isLocalPlaylist) {
             val localPlaylist = com.lmg.vk.engine.PlaylistManager.getById(playlistId)
@@ -93,13 +145,14 @@ fun PlaylistDetailScreen(
                     coverUrl = pt.coverUrl
                 )
             }
+            loadedCount = tracks.size
+            totalExpected = tracks.size
             isLoading = false
         } else {
-            scope.launch {
+            try {
                 val allTracks = mutableListOf<Track>()
                 var offset = 0
                 val limit = 200
-                var totalExpected: Int? = null
                 var page = 0
 
                 while (true) {
@@ -107,18 +160,19 @@ fun PlaylistDetailScreen(
                     val response =
                         MusicBackend.getUserPlaylistTracks(playlistId, limit = limit, offset = offset)
                     if (response == null) {
-                        if (page == 1) errorMsg = "Failed to load playlist"
+                        errorMsg = if (page == 1) {
+                            "Failed to load playlist"
+                        } else {
+                            "Some tracks could not be loaded"
+                        }
                         break
                     }
 
                     if (page == 1) {
                         val p = response.playlist
-                        playlistInfo = if (p != null) com.lmg.vk.engine.backend.UserPlaylistInfo(
-                            idRaw = kotlinx.serialization.json.JsonPrimitive(p.id),
-                            name = p.title,
-                            trackCount = p.trackCount
-                        ) else null
-                        totalExpected = response.playlist?.trackCount
+                        playlistInfo = p
+                        isFollowing = p?.isFollowing == true
+                        totalExpected = p?.trackCount
                     }
 
                     val pageTracks = response.tracks.mapNotNull { tr ->
@@ -143,13 +197,15 @@ fun PlaylistDetailScreen(
                     }
 
                     allTracks.addAll(pageTracks)
+                    tracks = allTracks.distinctBy(Track::id)
+                    loadedCount = tracks.size
 
                     if (response.tracks.size < limit) break
-                    if (totalExpected != null && allTracks.size >= totalExpected) break
+                    val expected = totalExpected
+                    if (expected != null && allTracks.size >= expected) break
                     offset += limit
                 }
-
-                tracks = allTracks
+            } finally {
                 isLoading = false
             }
         }
@@ -159,10 +215,25 @@ fun PlaylistDetailScreen(
         if (isLocalPlaylist) {
             com.lmg.vk.engine.PlaylistManager.getById(playlistId)?.name ?: "Playlist"
         } else {
-            playlistInfo?.name ?: "Playlist"
+            playlistInfo?.title ?: "Playlist"
         }
     }
     val playableTracks = remember(tracks) { tracks.filter { it.isAvailable } }
+    val downloadedIds = remember(downloadedTracks) { downloadedTracks.map { it.trackId }.toSet() }
+    val cachedCount = remember(playableTracks, downloadedIds) {
+        playableTracks.count { it.id in downloadedIds }
+    }
+    val activeDownloadProgress = remember(playableTracks, downloadProgress) {
+        playableTracks.mapNotNull { downloadProgress[it.id] }
+    }
+    val cacheProgress = remember(playableTracks, cachedCount, activeDownloadProgress) {
+        when {
+            playableTracks.isEmpty() -> 0f
+            activeDownloadProgress.isNotEmpty() ->
+                ((cachedCount + activeDownloadProgress.sum()) / playableTracks.size).coerceIn(0f, 1f)
+            else -> cachedCount.toFloat() / playableTracks.size
+        }
+    }
 
     val listState = rememberLazyListState()
     val showTopBarTitle by remember {
@@ -180,11 +251,15 @@ fun PlaylistDetailScreen(
 
             errorMsg != null && tracks.isEmpty() ->
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text(
-                        text = errorMsg.orEmpty(),
-                        color = LiquidSurfaces.textSecondary(isDark),
-                        fontSize = 14.sp
-                    )
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = errorMsg.orEmpty(),
+                            color = LiquidSurfaces.textSecondary(isDark),
+                            fontSize = 14.sp,
+                        )
+                        Spacer(Modifier.height(14.dp))
+                        RetryButton(isDark = isDark) { reloadKey++ }
+                    }
                 }
 
             else -> {
@@ -201,13 +276,19 @@ fun PlaylistDetailScreen(
                             title = name,
                             // Обложки у плейлиста нет — берём обложку первого трека:
                             // пустой квадрат смотрелся бы как ошибка загрузки.
-                            subtitle = if (isLocalPlaylist) "Your playlist" else "Playlist",
+                            subtitle = if (isLocalPlaylist) {
+                                "Your playlist"
+                            } else {
+                                playlistInfo?.artist?.takeIf(String::isNotBlank) ?: "VK Music"
+                            },
                             facts = buildList {
                                 if (tracks.isNotEmpty()) add("${tracks.size} songs")
                                 val total = tracks.sumOf { it.durationMs }
                                 if (total > 0) add(formatTotalDuration(total))
+                                playlistInfo?.followers?.takeIf { it > 0 }?.let { add("${formatPlaylistCount(it)} followers") }
                             },
-                            coverUrl = tracks.firstOrNull()?.coverUrl,
+                            coverUrl = playlistInfo?.cover?.toDetailThumb()
+                                ?: tracks.firstOrNull()?.coverUrl,
                             isDark = isDark,
                             onPlay = {
                                 if (playableTracks.isNotEmpty()) PlayerController.play(context, playableTracks, 0)
@@ -218,6 +299,57 @@ fun PlaylistDetailScreen(
                                 }
                             }
                         )
+                    }
+
+                    item {
+                        PlaylistActionsRow(
+                            isDark = isDark,
+                            isLocal = isLocalPlaylist,
+                            isOwned = playlistInfo?.isOwned == true,
+                            isFollowing = isFollowing,
+                            followEnabled = playlistInfo?.canFollow == true && !followBusy,
+                            cacheEnabled = isPremium && playableTracks.isNotEmpty(),
+                            queueEnabled = playableTracks.isNotEmpty(),
+                            onAdd = {
+                                if (!isLocalPlaylist && !isFollowing && playlistInfo?.canFollow == true) {
+                                    scope.launch {
+                                        followBusy = true
+                                        if (MusicBackend.followPlaylist(playlistId)) isFollowing = true
+                                        followBusy = false
+                                    }
+                                }
+                            },
+                            onCache = {
+                                cacheRequested = true
+                                playableTracks
+                                    .filterNot { it.id in downloadedIds }
+                                    .forEach { AudioDownloadManager.downloadTrack(context, it) }
+                            },
+                            onQueue = { playableTracks.forEach(PlayerController::addToQueue) },
+                        )
+                    }
+
+                    if (cacheRequested || cachedCount > 0) {
+                        item {
+                            PlaylistCacheProgress(
+                                cached = cachedCount,
+                                total = playableTracks.size,
+                                progress = cacheProgress,
+                                isActive = activeDownloadProgress.isNotEmpty(),
+                                isDark = isDark,
+                            )
+                        }
+                    }
+
+                    if (tracks.isEmpty() && !isLoading) {
+                        item {
+                            Text(
+                                text = "This playlist is empty",
+                                color = LiquidSurfaces.textSecondary(isDark),
+                                fontSize = 14.sp,
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 32.dp),
+                            )
+                        }
                     }
 
                     itemsIndexed(tracks, key = { index, track -> "${track.id}-$index" }) { index, track ->
@@ -231,6 +363,9 @@ fun PlaylistDetailScreen(
                             isDark = isDark,
                             showDivider = index < tracks.lastIndex,
                             enabled = track.isAvailable,
+                            onMore = if (track.isAvailable) {
+                                { actionsTrack = track }
+                            } else null,
                             onClick = {
                                 val playableIndex = playableTracks.indexOfFirst { it.id == track.id }
                                 if (playableIndex >= 0) {
@@ -238,6 +373,37 @@ fun PlaylistDetailScreen(
                                 }
                             }
                         )
+                    }
+
+                    if (isLoading && tracks.isNotEmpty()) {
+                        item {
+                            PlaylistLoadingMore(
+                                loaded = loadedCount,
+                                total = totalExpected,
+                                isDark = isDark,
+                            )
+                        }
+                    }
+
+                    errorMsg?.takeIf { tracks.isNotEmpty() }?.let { partialError ->
+                        item {
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(
+                                    partialError,
+                                    color = LiquidSurfaces.textSecondary(isDark),
+                                    fontSize = 12.sp,
+                                    modifier = Modifier.weight(1f),
+                                )
+                                RetryButton(isDark = isDark) { reloadKey++ }
+                            }
+                        }
+                    }
+
+                    playlistInfo?.let { info ->
+                        item { PlaylistMetadata(info = info, isDark = isDark) }
                     }
                 }
             }
@@ -249,5 +415,176 @@ fun PlaylistDetailScreen(
             isDark = isDark,
             onBack = onBack
         )
+
+        actionsTrack?.let { selected ->
+            TrackActionsSheet(
+                track = selected,
+                isFavorite = selected.id in favoriteIds,
+                onToggleFavorite = {
+                    scope.launch { libraryRepository.toggleFavorite(selected) }
+                },
+                onCache = if (isPremium && selected.id !in downloadedIds) {
+                    { AudioDownloadManager.downloadTrack(context, selected) }
+                } else null,
+                onDismiss = { actionsTrack = null },
+            )
+        }
     }
+}
+
+@Composable
+private fun PlaylistActionsRow(
+    isDark: Boolean,
+    isLocal: Boolean,
+    isOwned: Boolean,
+    isFollowing: Boolean,
+    followEnabled: Boolean,
+    cacheEnabled: Boolean,
+    queueEnabled: Boolean,
+    onAdd: () -> Unit,
+    onCache: () -> Unit,
+    onQueue: () -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 10.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        PlaylistActionButton(
+            title = when {
+                isLocal -> "Local"
+                isOwned -> "Yours"
+                isFollowing -> "Added"
+                else -> "Add"
+            },
+            icon = if (isLocal || isOwned || isFollowing) Icons.Rounded.Check else Icons.Rounded.Add,
+            enabled = !isLocal && !isOwned && !isFollowing && followEnabled,
+            isDark = isDark,
+            onClick = onAdd,
+        )
+        PlaylistActionButton("Cache", Icons.Rounded.Download, cacheEnabled, isDark, onCache)
+        PlaylistActionButton("Queue", Icons.Rounded.QueueMusic, queueEnabled, isDark, onQueue)
+    }
+}
+
+@Composable
+private fun RowScope.PlaylistActionButton(
+    title: String,
+    icon: ImageVector,
+    enabled: Boolean,
+    isDark: Boolean,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .weight(1f)
+            .alpha(if (enabled) 1f else 0.42f)
+            .clip(RoundedCornerShape(16.dp))
+            .background(LiquidSurfaces.card(isDark))
+            .liquidClickable(enabled = enabled, pressedScale = LiquidMotion.PressButton, onClick = onClick)
+            .padding(horizontal = 8.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center,
+    ) {
+        Icon(icon, null, tint = LiquidSurfaces.textPrimary(isDark), modifier = Modifier.size(18.dp))
+        Text(
+            title,
+            color = LiquidSurfaces.textPrimary(isDark),
+            fontSize = 12.sp,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(start = 6.dp),
+        )
+    }
+}
+
+@Composable
+private fun PlaylistCacheProgress(
+    cached: Int,
+    total: Int,
+    progress: Float,
+    isActive: Boolean,
+    isDark: Boolean,
+) {
+    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp)) {
+        Text(
+            text = when {
+                total > 0 && cached >= total -> "Playlist cached"
+                isActive -> "Caching playlist · $cached/$total"
+                else -> "Cached tracks · $cached/$total"
+            },
+            color = LiquidSurfaces.textSecondary(isDark),
+            fontSize = 12.sp,
+        )
+        LinearProgressIndicator(
+            progress = { progress },
+            modifier = Modifier.fillMaxWidth().padding(top = 6.dp).clip(RoundedCornerShape(4.dp)),
+        )
+    }
+}
+
+@Composable
+private fun PlaylistLoadingMore(loaded: Int, total: Int?, isDark: Boolean) {
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        CircularProgressIndicator(modifier = Modifier.size(22.dp), strokeWidth = 2.dp)
+        Text(
+            text = total?.let { "Loading tracks · $loaded/$it" } ?: "Loading tracks · $loaded",
+            color = LiquidSurfaces.textSecondary(isDark),
+            fontSize = 12.sp,
+            modifier = Modifier.padding(top = 7.dp),
+        )
+    }
+}
+
+@Composable
+private fun RetryButton(isDark: Boolean, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(16.dp))
+            .background(LiquidSurfaces.card(isDark))
+            .liquidClickable(pressedScale = LiquidMotion.PressButton, onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 9.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(Icons.Rounded.Refresh, null, tint = LiquidSurfaces.textPrimary(isDark), modifier = Modifier.size(17.dp))
+        Text(
+            "Retry",
+            color = LiquidSurfaces.textPrimary(isDark),
+            fontSize = 12.sp,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(start = 6.dp),
+        )
+    }
+}
+
+@Composable
+private fun PlaylistMetadata(info: Album, isDark: Boolean) {
+    val lines = buildList {
+        info.plays?.takeIf { it > 0 }?.let { add("${formatPlaylistCount(it)} plays") }
+        info.followers?.takeIf { it > 0 }?.let { add("${formatPlaylistCount(it)} followers") }
+        info.createdAt?.takeIf { it > 0L }?.let { add("Created ${formatPlaylistDate(it)}") }
+        info.updatedAt?.takeIf { it > 0L }?.let { add("Updated ${formatPlaylistDate(it)}") }
+    }
+    if (lines.isEmpty() && info.description.isNullOrBlank()) return
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 20.dp),
+        verticalArrangement = Arrangement.spacedBy(5.dp),
+    ) {
+        info.description?.takeIf(String::isNotBlank)?.let {
+            Text(it, color = LiquidSurfaces.textPrimary(isDark), fontSize = 14.sp)
+        }
+        lines.forEach {
+            Text(it, color = LiquidSurfaces.textSecondary(isDark), fontSize = 12.sp)
+        }
+    }
+}
+
+private fun formatPlaylistDate(seconds: Long): String =
+    SimpleDateFormat("d MMM yyyy", Locale.getDefault()).format(Date(seconds * 1000L))
+
+private fun formatPlaylistCount(value: Int): String = when {
+    value >= 1_000_000 -> "%.1fM".format(Locale.US, value / 1_000_000f)
+    value >= 1_000 -> "%.1fK".format(Locale.US, value / 1_000f)
+    else -> value.toString()
 }

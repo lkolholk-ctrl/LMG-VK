@@ -317,6 +317,8 @@ object MusicBackend {
         true
     }.getOrDefault(false)
 
+    suspend fun followPlaylist(playlistId: String): Boolean = followAlbum(playlistId)
+
     suspend fun getArtist(artistId: String): ArtistResponse? = runCatching {
         requireInitialized()
         val normalizedId = artistId.removePrefix("vk_")
@@ -1171,7 +1173,8 @@ object MusicBackend {
     private fun AudioPlaylist.toAlbum() = Album(
         id = fullId,
         title = title,
-        artist = main_artists?.joinToString(", ") { it.name }.orEmpty(),
+        artist = main_artists?.joinToString(", ") { it.name }
+            ?.takeIf(String::isNotBlank) ?: subtitle.orEmpty(),
         artistId = main_artists?.firstOrNull()?.id,
         cover = photo?.bestUrl ?: photo?.src ?: thumbs?.firstOrNull()?.bestUrl ?: thumbs?.firstOrNull()?.src.orEmpty(),
         year = year.takeIf { it > 0 }?.toString() ?: create_time.takeIf { it > 0 }?.let { (it / 31536000 + 1970).toString() },
@@ -1180,10 +1183,12 @@ object MusicBackend {
         description = description,
         trackCount = count,
         plays = plays,
+        followers = followers,
         createdAt = create_time.takeIf { it > 0 },
         updatedAt = update_time?.takeIf { it > 0 },
         isFollowing = is_following == true,
         canFollow = permissions?.follow == true,
+        isOwned = permissions?.edit == true || permissions?.delete == true,
     )
 
     private fun AudioPlaylist.toArtistAlbum() = ArtistAlbum(
