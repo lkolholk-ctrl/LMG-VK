@@ -1198,6 +1198,31 @@ private fun MenuCard(
     }
 }
 
+/** Разделитель строк внутри системной карточки (с отступом под иконку). */
+@Composable
+private fun SystemRowDivider(compact: Boolean = false) {
+    val lc = LiquidTheme.colors
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = if (compact) 64.dp else 74.dp, end = 16.dp)
+            .height(0.8.dp)
+            .background(lc.textPrimary.copy(alpha = 0.06f))
+    )
+}
+
+/** UI-модель ячейки локального или VK-плейлиста. */
+private data class PlaylistCellData(
+    val key: String,
+    val id: String,
+    val name: String,
+    val trackCount: Int,
+    val covers: List<String>,
+    val badge: String?,
+    val isImported: Boolean,
+    val isCloud: Boolean,
+)
+
 @Composable
 private fun PlaylistCell(
     data: PlaylistCellData,

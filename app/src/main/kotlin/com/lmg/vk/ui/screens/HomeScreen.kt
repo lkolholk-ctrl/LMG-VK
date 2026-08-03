@@ -650,24 +650,6 @@ fun HomeScreen(
             Spacer(modifier = Modifier.height(200.dp))
         }
     }
-
-    // Wave Onboarding overlay
-    if (showWaveOnboarding) {
-        WaveOnboardingScreen(
-            onComplete = {
-                showWaveOnboarding = false
-                // Retry the pending mood after onboarding
-                pendingMoodId?.let { moodId ->
-                    pendingMoodId = null
-                    playMoodStation(moodId)
-                }
-            },
-            onDismiss = {
-                showWaveOnboarding = false
-                pendingMoodId = null
-            }
-        )
-    }
 }
 
 // ═══════════════════════════════════════════════════════════
