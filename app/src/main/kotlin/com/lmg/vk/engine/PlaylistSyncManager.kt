@@ -1,0 +1,192 @@
+package com.lmg.vk.engine
+
+import com.lmg.vk.engine.backend.MusicAuth
+import com.lmg.vk.engine.backend.MusicBackend
+import com.lmg.vk.engine.backend.UserPlaylist
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+
+/**
+ * Двустороннее слияние локальных плейлистов с плейлистами текущего VK-аккаунта.
+ *
+ * Автоматически ничего не удаляет: отсутствие сущности в одном сетевом ответе
+ * может быть временной ошибкой или неполной страницей. Удаление обеих копий
+ * выполняется только через [deleteEverywhere] после явного действия пользователя.
+ */
+object PlaylistSyncManager {
+
+    data class SyncReport(
+        val pushed: Int = 0,
+        val pulled: Int = 0,
+        val unchanged: Int = 0,
+        val unsupportedTracks: Int = 0,
+        val failed: Int = 0,
+    )
+
+    data class SyncState(
+        val isSyncing: Boolean = false,
+        val lastReport: SyncReport? = null,
+        val lastSuccessAt: Long? = null,
+        val error: String? = null,
+    )
+
+    private val mutex = Mutex()
+    private val _state = MutableStateFlow(SyncState())
+    val state: StateFlow<SyncState> = _state
+
+    suspend fun sync(): Result<SyncReport> = mutex.withLock {
+        if (!MusicAuth.isLoggedIn.value) {
+            val failure = IllegalStateException("Sign in to sync playlists")
+            _state.value = _state.value.copy(error = failure.message)
+            return@withLock Result.failure(failure)
+        }
+
+        _state.value = _state.value.copy(isSyncing = true, error = null)
+        try {
+            val report = merge()
+            _state.value = SyncState(
+                isSyncing = false,
+                lastReport = report,
+                lastSuccessAt = System.currentTimeMillis(),
+            )
+            Result.success(report)
+        } catch (cancelled: CancellationException) {
+            _state.value = _state.value.copy(isSyncing = false)
+            throw cancelled
+        } catch (error: Throwable) {
+            _state.value = _state.value.copy(
+                isSyncing = false,
+                error = error.message ?: "Playlist sync failed",
+            )
+            Result.failure(error)
+        }
+    }
+
+    /** Удаляет связанную VK-копию и лишь после успеха — локальную. */
+    suspend fun deleteEverywhere(localId: String): Result<Unit> = mutex.withLock {
+        val local = PlaylistManager.getById(localId)
+            ?: return@withLock Result.success(Unit)
+        val remoteId = local.remoteId
+        if (remoteId != null && !MusicBackend.deleteUserPlaylist(remoteId)) {
+            return@withLock Result.failure(IllegalStateException("Couldn't delete VK playlist"))
+        }
+        PlaylistManager.delete(localId)
+        Result.success(Unit)
+    }
+
+    private suspend fun merge(): SyncReport {
+        val remotePlaylists = MusicBackend.getUserPlaylists(limit = 1000).items
+            .filter { !it.id.isNullOrBlank() }
+        val remoteById = remotePlaylists.associateBy { it.id.orEmpty() }
+        var pushed = 0
+        var pulled = 0
+        var unchanged = 0
+        var unsupported = 0
+        var failed = 0
+
+        // Сначала разрешаем уже связанные пары.
+        PlaylistManager.playlists.value.filter { it.remoteId != null }.forEach { local ->
+            val remote = remoteById[local.remoteId]
+            if (remote == null) {
+                // Не удаляем и не пересоздаём: ответ мог быть неполным.
+                unchanged++
+                return@forEach
+            }
+            val remoteStamp = remote.remoteTimestampMs()
+            val localDirty = local.modifiedAt > local.lastSyncedAt
+            val remoteDirty = remoteStamp > local.remoteUpdatedAt ||
+                remote.name.orEmpty() != local.name ||
+                (remote.trackCount != null &&
+                    remote.trackCount != local.tracks.count { it.id.isVkAudioId() })
+
+            when {
+                localDirty && (!remoteDirty || local.modifiedAt >= remoteStamp) -> {
+                    if (push(local)) {
+                        pushed++
+                        unsupported += local.tracks.count { !it.id.isVkAudioId() }
+                    } else failed++
+                }
+                remoteDirty -> {
+                    if (pull(remote)) pulled++ else failed++
+                }
+                else -> unchanged++
+            }
+        }
+
+        // Новые локальные плейлисты создаём в текущем VK-аккаунте.
+        PlaylistManager.playlists.value.filter { it.remoteId == null }.forEach { local ->
+            if (push(local)) {
+                pushed++
+                unsupported += local.tracks.count { !it.id.isVkAudioId() }
+            } else failed++
+        }
+
+        // Новые VK-плейлисты импортируем как полноценные локальные копии.
+        val linkedRemoteIds = PlaylistManager.playlists.value.mapNotNull { it.remoteId }.toSet()
+        remotePlaylists.filter { remote ->
+            remote.id?.let { it !in linkedRemoteIds } == true
+        }.forEach { remote ->
+            if (pull(remote)) pulled++ else failed++
+        }
+
+        return SyncReport(pushed, pulled, unchanged, unsupported, failed)
+    }
+
+    private suspend fun push(local: PlaylistManager.Playlist): Boolean {
+        val remoteId = local.remoteId
+        val success = if (remoteId == null) {
+            val createdId = MusicBackend.createUserPlaylist(local.name, local.trackIds)
+                ?: return false
+            PlaylistManager.markSynced(local.id, createdId)
+            true
+        } else {
+            if (!MusicBackend.updateUserPlaylist(remoteId, local.name, local.trackIds)) return false
+            PlaylistManager.markSynced(local.id, remoteId)
+            true
+        }
+        return success
+    }
+
+    private suspend fun pull(remote: UserPlaylist): Boolean {
+        val remoteId = remote.id ?: return false
+        val response = MusicBackend.getUserPlaylistTracks(
+            playlistId = remoteId,
+            limit = 6000,
+            offset = 0,
+        ) ?: return false
+        val remoteTracks = response.tracks.map { track ->
+            PlaylistManager.PlaylistTrack(
+                id = track.id,
+                title = track.title,
+                artist = track.artist,
+                coverUrl = track.cover,
+                durationMs = track.durationMs,
+            )
+        }
+        // VK принимает только owner_id_audio_id. Треки других источников остаются
+        // локальной частью связанного плейлиста и не исчезают при pull.
+        val localOnlyTracks = PlaylistManager.getByRemoteId(remoteId)
+            ?.tracks.orEmpty()
+            .filter { !it.id.isVkAudioId() }
+        val tracks = (remoteTracks + localOnlyTracks).distinctBy { it.id }
+        PlaylistManager.applyRemote(
+            remoteId = remoteId,
+            name = remote.name.orEmpty().ifBlank { "Playlist" },
+            tracks = tracks,
+            remoteUpdatedAt = remote.remoteTimestampMs(),
+        )
+        return true
+    }
+
+    private fun UserPlaylist.remoteTimestampMs(): Long =
+        ((updatedAt ?: createdAt ?: 0L) * 1000L).coerceAtLeast(0L)
+
+    private fun String.isVkAudioId(): Boolean {
+        val normalized = removePrefix("vk_")
+        val parts = normalized.split('_')
+        return parts.size >= 2 && parts[0].toLongOrNull() != null && parts[1].toLongOrNull() != null
+    }
+}

@@ -250,6 +250,37 @@ class VkAudioApi(
         return client.execute(method)
     }
 
+    /** `audio.createPlaylist`: контракт owner_id/title подтверждён VK MP3. */
+    suspend fun createPlaylist(
+        ownerId: Long,
+        title: String,
+    ): VkResult<AudioPlaylist> {
+        val method = VkMethod("audio.createPlaylist", PlaylistParser).apply {
+            param("owner_id", ownerId)
+            param("title", title)
+        }
+        return client.execute(method)
+    }
+
+    /**
+     * `audio.editPlaylist`: title меняет имя, audio_ids атомарно заменяет состав.
+     * Именно эти две формы восстановлены из `AudioEdit` в архиве VK MP3.
+     */
+    suspend fun editPlaylist(
+        ownerId: Long,
+        playlistId: Int,
+        title: String,
+        audioIds: Collection<String>,
+    ): VkResult<Unit> {
+        val method = VkMethod("audio.editPlaylist", UnitParser).apply {
+            param("owner_id", ownerId)
+            param("playlist_id", playlistId)
+            param("title", title)
+            param("audio_ids", audioIds.joinToString(",") { it.removePrefix("vk_") })
+        }
+        return client.execute(method)
+    }
+
     suspend fun edit(
         audioFullId: String,
         title: String,

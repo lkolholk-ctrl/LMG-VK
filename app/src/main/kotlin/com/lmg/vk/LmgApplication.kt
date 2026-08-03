@@ -17,6 +17,8 @@ import com.lmg.vk.engine.LyricsParser
 import com.lmg.vk.engine.NetworkVitality
 import com.lmg.vk.engine.PlayerController
 import com.lmg.vk.engine.PlayerSettings
+import com.lmg.vk.engine.PlaylistManager
+import com.lmg.vk.engine.PlaylistSyncManager
 import com.lmg.vk.engine.automix.AudioTelemetry
 import com.lmg.vk.engine.automix.HapticMusicEngine
 import com.lmg.vk.engine.automix.RemoteQuirks
@@ -32,6 +34,8 @@ import com.lmg.vk.ui.PowerSaveMonitor
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import io.ktor.client.HttpClient as KtorHttpClient
 import io.ktor.client.engine.okhttp.OkHttp as KtorOkHttp
@@ -159,6 +163,7 @@ class LmgApplication : Application(), ImageLoaderFactory {
 
         // PlayerController — просто сохраняет context.
         PlayerController.init(this)
+        PlaylistManager.init(this)
 
         // VK API: Ktor-клиент + зашифрованная сессия + доменный фасад UI.
         val vkSessionStore = EncryptedVkSessionStore(this)
@@ -181,6 +186,13 @@ class LmgApplication : Application(), ImageLoaderFactory {
 
         // Фоновые стартовые задачи (без таймаута главного потока).
         appScope.launch {
+            PlaylistManager.changes.collectLatest {
+                // Склеиваем серию add/remove/rename в один сетевой editPlaylist.
+                delay(900)
+                if (MusicAuth.isLoggedIn.value) runCatching { PlaylistSyncManager.sync() }
+            }
+        }
+        appScope.launch {
             // C9616e: api.vk.com/ping.txt -> api.vk.ru/ping.txt.
             vkApiClient.probeAndSelectApiDomain()
             // Дослать сигналы волны, не доставленные в прошлой сессии.
@@ -188,6 +200,7 @@ class LmgApplication : Application(), ImageLoaderFactory {
             // Подтянуть серверные лайки в локальное избранное.
             if (MusicAuth.isLoggedIn.value) {
                 runCatching { LibraryRepository.getInstance(this@LmgApplication).syncWithCloud() }
+                runCatching { PlaylistSyncManager.sync() }
             }
         }
 
@@ -199,6 +212,7 @@ class LmgApplication : Application(), ImageLoaderFactory {
         if (MusicAuth.isLoggedIn.value) {
             runCatching { MusicAuth.fetchUserData() }
             runCatching { LibraryRepository.getInstance(this).syncWithCloud() }
+            runCatching { PlaylistSyncManager.sync() }
         }
     }
 

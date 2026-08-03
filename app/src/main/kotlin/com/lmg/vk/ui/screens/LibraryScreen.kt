@@ -84,6 +84,7 @@ import com.lmg.vk.data.local.db.AppDatabase
 import com.lmg.vk.engine.AudioDownloadManager
 import com.lmg.vk.engine.PlaybackContext
 import com.lmg.vk.engine.PlayerController
+import com.lmg.vk.engine.PlaylistSyncManager
 import com.lmg.vk.engine.Track
 import com.lmg.vk.ui.glass.GlassDialog
 import com.lmg.vk.ui.glass.GlassDialogButton
@@ -160,8 +161,10 @@ fun LibraryScreen(
     var isPlaylistsLoading by remember { mutableStateOf(false) }
     var showImportDialog by remember { mutableStateOf(false) }
     val localPlaylists by com.lmg.vk.engine.PlaylistManager.playlists.collectAsState()
+    val playlistSyncState by PlaylistSyncManager.state.collectAsState()
 
     val allPlaylistCells = remember(localPlaylists, importedPlaylists) {
+        val linkedRemoteIds = localPlaylists.mapNotNull { it.remoteId }.toSet()
         localPlaylists.map { p ->
             PlaylistCellData(
                 key = "local_${p.id}",
@@ -169,10 +172,13 @@ fun LibraryScreen(
                 name = p.name,
                 trackCount = p.tracks.size,
                 covers = p.tracks.mapNotNull { it.coverUrl }.distinct().take(4),
-                badge = "Local",
+                badge = if (p.remoteId != null) "Synced" else "Local",
                 isImported = false,
+                isCloud = p.remoteId != null,
             )
-        } + importedPlaylists.map { p ->
+        } + importedPlaylists.filterNot { playlist ->
+            playlist.id?.let { it in linkedRemoteIds } == true
+        }.map { p ->
             PlaylistCellData(
                 key = "cloud_${p.id}",
                 id = p.id ?: "",
@@ -186,6 +192,7 @@ fun LibraryScreen(
                     else -> "Cloud"
                 },
                 isImported = true,
+                isCloud = true,
             )
         }
     }
@@ -196,7 +203,8 @@ fun LibraryScreen(
             scope.launch {
                 isPlaylistsLoading = true
                 try {
-                    val response = MusicBackend.getUserPlaylists(limit = 100)
+                    PlaylistSyncManager.sync()
+                    val response = MusicBackend.getUserPlaylists(limit = 1000)
                     importedPlaylists = response.items
                 } catch (error: CancellationException) {
                     throw error
@@ -430,8 +438,8 @@ fun LibraryScreen(
                         .filter {
                             when (playlistSource) {
                                 PlaylistSource.ALL -> true
-                                PlaylistSource.LOCAL -> !it.isImported
-                                PlaylistSource.CLOUD -> it.isImported
+                                PlaylistSource.LOCAL -> !it.isCloud
+                                PlaylistSource.CLOUD -> it.isCloud
                             }
                         }
                         .let { cells ->
@@ -446,9 +454,44 @@ fun LibraryScreen(
 
                 Column(modifier = Modifier.fillMaxSize()) {
                     SubHeader("Playlists", onBack = { currentView = LibraryView.MAIN }) {
-                        IconButton(onClick = { showImportDialog = true }) {
-                            Icon(Icons.Rounded.Add, "Add playlist", tint = lc.accent)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            if (playlistSyncState.isSyncing) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(20.dp),
+                                    color = lc.accent,
+                                    strokeWidth = 2.dp,
+                                )
+                            } else if (isLoggedIn) {
+                                IconButton(onClick = { loadImportedPlaylists() }) {
+                                    Icon(Icons.Filled.Refresh, "Sync playlists", tint = lc.iconMuted)
+                                }
+                            }
+                            IconButton(onClick = { showImportDialog = true }) {
+                                Icon(Icons.Rounded.Add, "Add playlist", tint = lc.accent)
+                            }
                         }
+                    }
+                    val syncMessage = when {
+                        playlistSyncState.isSyncing -> "Synchronizing local and VK playlists…"
+                        playlistSyncState.error != null -> playlistSyncState.error
+                        playlistSyncState.lastReport != null -> playlistSyncState.lastReport?.let {
+                            buildString {
+                                append("Synced · ${it.pushed} uploaded · ${it.pulled} downloaded")
+                                if (it.failed > 0) append(" · ${it.failed} failed")
+                                if (it.unsupportedTracks > 0) append(" · ${it.unsupportedTracks} local-only tracks")
+                            }
+                        }
+                        else -> null
+                    }
+                    syncMessage?.let { message ->
+                        Text(
+                            text = message,
+                            color = if (playlistSyncState.error != null) AppleRed else lc.textSecondary,
+                            fontSize = 12.sp,
+                            modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                        )
                     }
                     LibrarySearchField(
                         value = playlistQuery,
@@ -509,7 +552,10 @@ fun LibraryScreen(
                                         loadImportedPlaylists()
                                     }
                                 } else {
-                                    com.lmg.vk.engine.PlaylistManager.delete(cell.id)
+                                    scope.launch {
+                                        PlaylistSyncManager.deleteEverywhere(cell.id)
+                                        loadImportedPlaylists()
+                                    }
                                 }
                                 playlistToDelete = null
                             },
@@ -865,7 +911,10 @@ fun LibraryScreen(
                         primaryButton = GlassDialogButton(
                             text = "Delete",
                             onClick = {
-                                com.lmg.vk.engine.PlaylistManager.delete(playlist.id)
+                                scope.launch {
+                                    PlaylistSyncManager.deleteEverywhere(playlist.id)
+                                    loadImportedPlaylists()
+                                }
                                 playlistToDelete = null
                             },
                             backgroundColor = Color(0xFFFF5252),
@@ -1258,7 +1307,8 @@ private data class PlaylistCellData(
     val trackCount: Int,
     val covers: List<String>,
     val badge: String?,
-    val isImported: Boolean
+    val isImported: Boolean,
+    val isCloud: Boolean,
 )
 
 /** Ячейка плейлиста: мозаика 2×2 из обложек (или одна/заглушка) + имя + счётчик. */

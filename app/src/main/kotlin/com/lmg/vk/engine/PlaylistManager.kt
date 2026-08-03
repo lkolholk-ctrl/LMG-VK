@@ -3,6 +3,8 @@ package com.lmg.vk.engine
 import android.content.Context
 import android.content.SharedPreferences
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import org.json.JSONArray
 import org.json.JSONObject
@@ -37,7 +39,15 @@ object PlaylistManager {
         val name: String,
         val tracks: List<PlaylistTrack>,
         val createdAt: Long,
-        val coverTrackId: String? // первый трек для обложки
+        val coverTrackId: String?, // первый трек для обложки
+        /** Полный VK id (`owner_id_playlist_id`), если локальная копия связана с облаком. */
+        val remoteId: String? = null,
+        /** Время последнего локального изменения. */
+        val modifiedAt: Long = createdAt,
+        /** Последний известный `update_time` VK в миллисекундах. */
+        val remoteUpdatedAt: Long = 0L,
+        /** Момент успешного слияния локальной и VK-копии. */
+        val lastSyncedAt: Long = 0L,
     ) {
         /** Backward compat: list of track IDs */
         val trackIds: List<String> get() = tracks.map { it.id }
@@ -45,6 +55,9 @@ object PlaylistManager {
 
     private val _playlists = MutableStateFlow<List<Playlist>>(emptyList())
     val playlists: StateFlow<List<Playlist>> = _playlists
+    private val _changes = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    /** Локальные пользовательские изменения; облачные apply/markSynced сюда не попадают. */
+    val changes: SharedFlow<Unit> = _changes
 
     fun init(context: Context) {
         prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -55,12 +68,14 @@ object PlaylistManager {
      * Создать новый плейлист.
      */
     fun create(name: String): Playlist {
-        val id = "pl_${System.currentTimeMillis()}"
-        val playlist = Playlist(id, name, emptyList(), System.currentTimeMillis(), null)
+        val now = System.currentTimeMillis()
+        val id = "pl_$now"
+        val playlist = Playlist(id, name, emptyList(), now, null, modifiedAt = now)
         val list = _playlists.value.toMutableList()
         list.add(0, playlist)
         _playlists.value = list
         saveToPrefs()
+        _changes.tryEmit(Unit)
         return playlist
     }
 
@@ -89,12 +104,14 @@ object PlaylistManager {
             name = displayName,
             tracks = tracks.toList(), // defensive copy
             createdAt = System.currentTimeMillis(),
-            coverTrackId = tracks.firstOrNull()?.id
+            coverTrackId = tracks.firstOrNull()?.id,
+            modifiedAt = System.currentTimeMillis(),
         )
         val list = _playlists.value.toMutableList()
         list.add(0, playlist)
         _playlists.value = list
         saveToPrefs()
+        _changes.tryEmit(Unit)
         return playlist
     }
 
@@ -105,18 +122,22 @@ object PlaylistManager {
         val list = _playlists.value.toMutableList()
         val idx = list.indexOfFirst { it.id == playlistId }
         if (idx >= 0) {
-            list[idx] = list[idx].copy(name = newName)
+            list[idx] = list[idx].copy(name = newName, modifiedAt = System.currentTimeMillis())
             _playlists.value = list
             saveToPrefs()
+            _changes.tryEmit(Unit)
         }
     }
 
     /**
      * Удалить плейлист.
      */
-    fun delete(playlistId: String) {
+    fun delete(playlistId: String): Playlist? {
+        val deleted = _playlists.value.firstOrNull { it.id == playlistId }
         _playlists.value = _playlists.value.filter { it.id != playlistId }
         saveToPrefs()
+        _changes.tryEmit(Unit)
+        return deleted
     }
 
     /**
@@ -131,10 +152,12 @@ object PlaylistManager {
                 val newTracks = pl.tracks + track
                 list[idx] = pl.copy(
                     tracks = newTracks,
-                    coverTrackId = pl.coverTrackId ?: track.id
+                    coverTrackId = pl.coverTrackId ?: track.id,
+                    modifiedAt = System.currentTimeMillis(),
                 )
                 _playlists.value = list
                 saveToPrefs()
+                _changes.tryEmit(Unit)
             }
         }
     }
@@ -150,10 +173,12 @@ object PlaylistManager {
             val newTracks = pl.tracks.filter { it.id != trackId }
             list[idx] = pl.copy(
                 tracks = newTracks,
-                coverTrackId = if (pl.coverTrackId == trackId) newTracks.firstOrNull()?.id else pl.coverTrackId
+                coverTrackId = if (pl.coverTrackId == trackId) newTracks.firstOrNull()?.id else pl.coverTrackId,
+                modifiedAt = System.currentTimeMillis(),
             )
             _playlists.value = list
             saveToPrefs()
+            _changes.tryEmit(Unit)
         }
     }
 
@@ -169,9 +194,10 @@ object PlaylistManager {
             if (fromIndex in tracks.indices && toIndex in tracks.indices) {
                 val item = tracks.removeAt(fromIndex)
                 tracks.add(toIndex, item)
-                list[idx] = pl.copy(tracks = tracks)
+                list[idx] = pl.copy(tracks = tracks, modifiedAt = System.currentTimeMillis())
                 _playlists.value = list
                 saveToPrefs()
+                _changes.tryEmit(Unit)
             }
         }
     }
@@ -181,6 +207,72 @@ object PlaylistManager {
      */
     fun getById(playlistId: String): Playlist? {
         return _playlists.value.find { it.id == playlistId }
+    }
+
+    fun getByRemoteId(remoteId: String): Playlist? =
+        _playlists.value.find { it.remoteId == remoteId }
+
+    /** Связать созданный в VK плейлист с его локальным оригиналом. */
+    fun markSynced(
+        playlistId: String,
+        remoteId: String,
+        remoteUpdatedAt: Long = System.currentTimeMillis(),
+    ) {
+        update(playlistId) {
+            it.copy(
+                remoteId = remoteId,
+                remoteUpdatedAt = remoteUpdatedAt,
+                lastSyncedAt = System.currentTimeMillis(),
+            )
+        }
+    }
+
+    /** Применить облачную версию, не помечая её новым локальным изменением. */
+    fun applyRemote(
+        remoteId: String,
+        name: String,
+        tracks: List<PlaylistTrack>,
+        remoteUpdatedAt: Long,
+    ): Playlist {
+        val existing = getByRemoteId(remoteId)
+        val now = System.currentTimeMillis()
+        val updated = if (existing != null) {
+            existing.copy(
+                name = name,
+                tracks = tracks,
+                coverTrackId = tracks.firstOrNull()?.id,
+                remoteUpdatedAt = remoteUpdatedAt,
+                modifiedAt = now,
+                lastSyncedAt = now,
+            )
+        } else {
+            Playlist(
+                id = "pl_vk_${remoteId.replace('-', '_')}",
+                name = name,
+                tracks = tracks,
+                createdAt = now,
+                coverTrackId = tracks.firstOrNull()?.id,
+                remoteId = remoteId,
+                modifiedAt = now,
+                remoteUpdatedAt = remoteUpdatedAt,
+                lastSyncedAt = now,
+            )
+        }
+        val list = _playlists.value.toMutableList()
+        val index = list.indexOfFirst { it.id == updated.id }
+        if (index >= 0) list[index] = updated else list.add(0, updated)
+        _playlists.value = list
+        saveToPrefs()
+        return updated
+    }
+
+    private fun update(playlistId: String, transform: (Playlist) -> Playlist) {
+        val list = _playlists.value.toMutableList()
+        val index = list.indexOfFirst { it.id == playlistId }
+        if (index < 0) return
+        list[index] = transform(list[index])
+        _playlists.value = list
+        saveToPrefs()
     }
 
     /**
@@ -203,6 +295,10 @@ object PlaylistManager {
                 put("name", pl.name)
                 put("created", pl.createdAt)
                 put("cover", pl.coverTrackId ?: "")
+                put("remoteId", pl.remoteId ?: "")
+                put("modifiedAt", pl.modifiedAt)
+                put("remoteUpdatedAt", pl.remoteUpdatedAt)
+                put("lastSyncedAt", pl.lastSyncedAt)
                 val trackArr = JSONArray()
                 pl.tracks.forEach { track ->
                     trackArr.put(JSONObject().apply {
@@ -260,12 +356,18 @@ object PlaylistManager {
                 }
 
                 val coverId = obj.optString("cover", "")
+                val remoteId = obj.optString("remoteId", "")
+                val createdAt = obj.optLong("created", 0L)
                 list.add(Playlist(
                     id = obj.getString("id"),
                     name = obj.getString("name"),
                     tracks = tracks,
-                    createdAt = obj.optLong("created", 0L),
-                    coverTrackId = if (coverId.isEmpty()) null else coverId
+                    createdAt = createdAt,
+                    coverTrackId = if (coverId.isEmpty()) null else coverId,
+                    remoteId = remoteId.takeIf { it.isNotEmpty() },
+                    modifiedAt = obj.optLong("modifiedAt", createdAt),
+                    remoteUpdatedAt = obj.optLong("remoteUpdatedAt", 0L),
+                    lastSyncedAt = obj.optLong("lastSyncedAt", 0L),
                 ))
             }
             _playlists.value = list

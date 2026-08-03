@@ -594,11 +594,21 @@ object MusicBackend {
     // ---------- плейлисты пользователя ----------
     suspend fun getUserPlaylists(limit: Int = 100): UserPlaylistsResponse {
         val ownerId = currentUserId()
-        val playlists = audioApi.getPlaylists(
-            ownerId = ownerId,
-            offset = 0,
-            count = limit.coerceIn(1, 100),
-        ).requireData()
+        val requested = limit.coerceIn(1, 1000)
+        val playlists = buildList<AudioPlaylist> {
+            var offset = 0
+            while (size < requested) {
+                val pageSize = minOf(100, requested - size)
+                val page = audioApi.getPlaylists(
+                    ownerId = ownerId,
+                    offset = offset,
+                    count = pageSize,
+                ).requireData()
+                addAll(page)
+                if (page.size < pageSize) break
+                offset += page.size
+            }
+        }.distinctBy { it.fullId }
         return UserPlaylistsResponse(
             count = playlists.size,
             items = playlists.map { playlist -> playlist.toUserPlaylist() },
@@ -625,6 +635,32 @@ object MusicBackend {
     suspend fun deleteUserPlaylist(playlistId: String): Boolean = runCatching {
         val (ownerId, id) = parsePlaylistId(playlistId)
         audioApi.deletePlaylist(ownerId, id).requireData()
+        true
+    }.getOrDefault(false)
+
+    /** Создать плейлист в текущем VK-аккаунте и вернуть полный id owner_playlist. */
+    suspend fun createUserPlaylist(name: String, trackIds: List<String>): String? = runCatching {
+        val ownerId = currentUserId()
+        val created = audioApi.createPlaylist(ownerId, name.trim()).requireData()
+        val playlistId = created.id
+        require(playlistId != 0) { "VK returned an empty playlist id" }
+        val resolvedOwnerId = created.owner_id.takeIf { it != 0L } ?: ownerId
+        val audioIds = trackIds.map(::normalizeTrackId).filter { it.isVkAudioFullId() }
+        if (audioIds.isNotEmpty()) {
+            audioApi.editPlaylist(resolvedOwnerId, playlistId, name.trim(), audioIds).requireData()
+        }
+        "${resolvedOwnerId}_$playlistId"
+    }.getOrNull()
+
+    /** Полностью применить локальное имя и порядок треков к связанному VK-плейлисту. */
+    suspend fun updateUserPlaylist(
+        playlistId: String,
+        name: String,
+        trackIds: List<String>,
+    ): Boolean = runCatching {
+        val (ownerId, id) = parsePlaylistId(playlistId)
+        val audioIds = trackIds.map(::normalizeTrackId).filter { it.isVkAudioFullId() }
+        audioApi.editPlaylist(ownerId, id, name.trim(), audioIds).requireData()
         true
     }.getOrDefault(false)
     suspend fun previewPlaylist(source: String, url: String): PlaylistPreviewResponse? = TODO("vk-wire")
@@ -904,6 +940,11 @@ object MusicBackend {
     }
 
     private fun normalizeTrackId(id: String): String = id.removePrefix("vk_")
+
+    private fun String.isVkAudioFullId(): Boolean {
+        val parts = split('_')
+        return parts.size >= 2 && parts[0].toLongOrNull() != null && parts[1].toLongOrNull() != null
+    }
 
     private fun parsePlaylistId(value: String): Pair<Long, Int> {
         val normalized = value.removePrefix("vk_")
