@@ -1,7 +1,7 @@
 package com.lmg.vk.data.wave
 
 /**
- * Process-global memory of track IDs that ICM's `POST /track` reported as
+ * Process-global memory of track IDs that failed terminal stream resolution
  * permanently unavailable (`404 track_not_found`).
  *
  * Зачем: backend-каталог (`/wave`, `/search`) отдаёт айди, которых нет в стрим-слое —

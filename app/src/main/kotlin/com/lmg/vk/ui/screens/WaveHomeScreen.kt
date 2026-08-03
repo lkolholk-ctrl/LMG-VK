@@ -1,21 +1,6 @@
 package com.lmg.vk.ui.screens
 
-import android.net.Uri
-import androidx.compose.animation.Crossfade
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.core.withInfiniteAnimationFrameMillis
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.Orientation
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
-import androidx.compose.foundation.gestures.draggable
-import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -28,93 +13,35 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.FavoriteBorder
-import androidx.compose.material.icons.rounded.Pause
-import androidx.compose.material.icons.rounded.AccountCircle
-import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Search
-import androidx.compose.material.icons.rounded.ThumbDown
-import androidx.compose.material.icons.rounded.Whatshot
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.State
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.produceState
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.lerp
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage
-import coil.request.ImageRequest
-import com.lmg.vk.engine.backend.Chart
-import com.lmg.vk.engine.backend.HomeItem
-import com.lmg.vk.engine.backend.MusicBackend
-import com.lmg.vk.engine.backend.WaveSignalQueue
-import com.lmg.vk.engine.backend.toTrack
-import com.lmg.vk.engine.AudioReactor
-import com.lmg.vk.engine.LyricsParser
-import com.lmg.vk.engine.PlaybackBackend
-import com.lmg.vk.engine.PlayerController
-import com.lmg.vk.engine.Track
-import com.lmg.vk.ui.glass.AlbumArtImage
-import com.lmg.vk.ui.glass.liquidClickable
-import com.lmg.vk.ui.glass.rememberAlbumColors
-import com.lmg.vk.ui.player.AuraBackground
 import com.lmg.vk.ui.theme.AppFontFamily
-import com.lmg.vk.ui.theme.LiquidMotion
 import com.lmg.vk.ui.viewmodel.HomeViewModel
-import java.util.Calendar
-import kotlin.math.PI
-import kotlin.math.abs
-import kotlin.math.min
-import kotlin.math.sin
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 /**
- * "My Wave" — the main screen, our own take on the Yandex-Music style feed.
+ * Presentation-only shell for the future VK Mix screen.
  *
- * The screen is now just the wave hero, vertically centered (idle: big title +
- * Play; playing: artist, cover, flat controls and a live wave progress line in
- * the title pill). Mood tiles and content sections (recently played, charts,
- * recommendations) live in the New tab.
- *
- * Glass is intentionally avoided (heavy blur lags on devices) — controls are flat
- * and the background is a single animated aura Canvas. Tapping the cover or the
- * title panel opens the full-screen player via [onOpenPlayer].
+ * No repository, player, cache, recommendation or legacy setup state is read here.
+ * VK-backed behaviour will be connected later as a separate, source-verified step.
  */
+@Suppress("UNUSED_PARAMETER")
 @Composable
 fun WaveHomeScreen(
     viewModel: HomeViewModel,

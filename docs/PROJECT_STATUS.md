@@ -189,7 +189,7 @@ Priority 4 восстановил типизированный auth/OTP-слой
 | `ui/glass/` | 5 | GlassKit, LiquidGlassSurface, AlbumArtImage, AlbumColorExtractor, PressScale, AnimatedListItem, GlassDialog |
 | `ui/liquid/` | 5 | DampedDragAnimation, InteractiveHighlight, LiquidSlider, LiquidToggle, DragGestureInspector |
 | `ui/player/` | 10 | FullPlayer, MiniPlayer, AnimatedPlayerBackground, AuraBackground, QueueSheet, LyricsSheet, CreditsSheet, LandscapeBottomBar, VolumeObserver, WaveformVisualizer, SystemRoutePicker |
-| `ui/screens/` | 17 | Home, Search, Library, LocalLibrary, Album/Artist/Playlist Detail, History, New, Profile, Settings, Stats, TagEdit, AudioFx, Wave(Home/Mood/Onboarding), LandscapeHome |
+| `ui/screens/` | 17 | Home, Search, Library, LocalLibrary, Album/Artist/Playlist Detail, History, New, Profile, Settings, Stats, TagEdit, AudioFx, Wave(Home), LandscapeHome |
 | `ui/lyrics/` | 6 | LyricsScreen, LyricsBackground, LyricsTimeProcessor, LyricShareCard, MarkupPreview, WaitingDots |
 | `ui/navigation/` | 4 | NavRoutes, LiquidNavHost, BottomBar, LiquidBottomTab, SideBar |
 | `ui/components/` | 4 | DetailScreenParts, LikeBurstHeart, TrackActionsSheet, WrapRow |
@@ -267,7 +267,7 @@ UI ссылается на ресурсы LMG, которых нет в прое
 - `getLyricsResult` ← `audio.getLyrics` с синхронными `begin/end` и plain-text fallback
 - личная волна и batch-сессия ← `audio.getStreamMixAudios` (порции по 5), fallback `audio.getRecommendations`
 - настройки StreamMix ← `audio.getStreamMixSettings`
-- onboarding ← `audio.recommendationsOnboarding` / `audio.finishRecomsOnboarding`
+- Wave onboarding удалён из текущего приложения; старые методы не подключать обратно без новой явной команды владельца.
 - follow/unfollow радиостанций добавлены в `VkAudioApi`
 - приложение инициализирует Ktor, `VkApiClient`, `MusicBackend` и AES/GCM-хранилище сессии
 - все сетевые `TODO()` в `com.lmg.vk.network` устранены; Moshi codegen подключён через KSP

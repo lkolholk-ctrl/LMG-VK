@@ -6,8 +6,6 @@ import com.lmg.vk.engine.backend.MusicAuth
 import com.lmg.vk.engine.backend.MusicBackend
 import com.lmg.vk.engine.backend.backendUserMessage
 import com.lmg.vk.engine.backend.SearchItem
-import com.lmg.vk.engine.backend.SearchSource
-import com.lmg.vk.engine.backend.WaveOnboardingArtist
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
@@ -21,7 +19,7 @@ import kotlinx.coroutines.launch
 
 /**
  * ViewModel for the Search screen.
- * Manages search query with debounce, search results, and genre categories.
+ * Manages the VK search query and result state.
  */
 @OptIn(FlowPreview::class)
 class SearchViewModel : ViewModel() {
@@ -33,10 +31,6 @@ class SearchViewModel : ViewModel() {
     // ─── Search Results ───
     private val _searchResults = MutableStateFlow<List<SearchItem>>(emptyList())
     val searchResults: StateFlow<List<SearchItem>> = _searchResults
-
-    // ─── Categories (Popular Artists from wave onboarding) ───
-    private val _categories = MutableStateFlow<List<WaveOnboardingArtist>>(emptyList())
-    val categories: StateFlow<List<WaveOnboardingArtist>> = _categories
 
     // ─── Loading / Error ───
     private val _isLoading = MutableStateFlow(false)
@@ -81,30 +75,6 @@ class SearchViewModel : ViewModel() {
         _query.value = ""
         _searchResults.value = emptyList()
         _error.value = null
-    }
-
-    /**
-     * Set search source (stub for backward compatibility).
-     */
-    fun setSource(source: String) {
-        if (_query.value.isNotBlank()) {
-            performSearch(_query.value.trim())
-        }
-    }
-
-    /**
-     * Load categories (popular artists) for the idle state.
-     */
-    fun loadCategories() {
-        viewModelScope.launch {
-            try {
-                val artists = MusicBackend.getWavePopularArtists()
-                _categories.value = artists
-            } catch (e: Exception) {
-                // Silently fail — categories are decorative
-                _categories.value = emptyList()
-            }
-        }
     }
 
     /**

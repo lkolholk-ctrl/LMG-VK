@@ -70,12 +70,6 @@ class HomeViewModel : ViewModel() {
     private val _isBuildingWave = MutableStateFlow(false)
     val isBuildingWave: StateFlow<Boolean> = _isBuildingWave
 
-    // Пустая персональная волна → по доке нужен онбординг (выбор seed-артистов).
-    private val _needsOnboarding = MutableStateFlow(false)
-    val needsOnboarding: StateFlow<Boolean> = _needsOnboarding
-
-    fun clearOnboardingFlag() { _needsOnboarding.value = false }
-
     // Персонализация волны работает только при залинкованном TG-аккаунте
     // (partner_user_id). Без него сервер отдаёт общую выдачу — это и есть «отсебятина».
     private val _needsLink = MutableStateFlow(false)
@@ -288,17 +282,6 @@ class HomeViewModel : ViewModel() {
                         )
                         _isBuildingWave.value = false
                         PlayerController.ensureWaveRefill()
-                    } else {
-                        // Даже жанровая волна пуста → по доке нужен онбординг (выбор
-                        // seed-артистов). Если он ещё не пройден — показываем выбор.
-                        val onboarded = try {
-                            !MusicBackend.getWaveOnboarding().isNullOrEmpty()
-                        } catch (e: CancellationException) {
-                            throw e
-                        } catch (_: Exception) {
-                            false
-                        }
-                        if (!onboarded) _needsOnboarding.value = true
                     }
                 }
             } catch (e: CancellationException) {
@@ -376,7 +359,7 @@ class HomeViewModel : ViewModel() {
                     mode = WaveMode.Mood(
                         mood = query,
                         displayName = name,
-                        source = "apple",
+                        source = "vk",
                         diversity = 0.5
                     ),
                     count = WaveRepository.FAST_START_COUNT

@@ -108,14 +108,7 @@ class WaveRepository(context: Context) {
             Log.d(TAG, "Top genres: ${topGenres.map { "${it.genre}=${it.count}" }}")
             topGenres.map { it.genre }
         } else {
-            val onboarding = com.lmg.vk.engine.AppSettings.onboardingGenres.value
-            if (onboarding.isNotEmpty()) {
-                Log.d(TAG, "No history, using onboarding genres: $onboarding")
-                onboarding
-            } else {
-                Log.d(TAG, "No history, using defaults")
-                listOf("Electronic", "Electro House", "Techno")
-            }
+            emptyList()
         }
     }
 
@@ -228,9 +221,9 @@ class WaveRepository(context: Context) {
         val queue = mutableListOf<Track>()
         val excludeIds = mutableSetOf<String>()
         val callerExcludeIsEmpty = exclude.isEmpty()
-        val effectiveSeedTrackId = seedTrackId?.takeIf { MusicBackend.isAppleSeedTrackId(it) }
+        val effectiveSeedTrackId = seedTrackId?.takeIf { MusicBackend.isVkAudioId(it) }
         if (seedTrackId != null && effectiveSeedTrackId == null) {
-            Log.w(TAG, "Track station seed is not an Apple numeric id ($seedTrackId), falling back to personal wave")
+            Log.w(TAG, "Track station seed is not a VK audio id ($seedTrackId), falling back to personal wave")
         }
 
         // Anti-repeat: caller-supplied IDs (текущая очередь + уже игравшие в этой волне).
@@ -443,7 +436,7 @@ class WaveRepository(context: Context) {
         val pools: List<List<Track>> = cleanGenres.map { genre ->
             try {
                 buildWaveModeQueue(
-                    mode = WaveMode.Genre(genre = genre, source = "apple", diversity = 0.5),
+                    mode = WaveMode.Genre(genre = genre, source = "vk", diversity = 0.5),
                     count = perGenre,
                     exclude = excludeSet
                 )
@@ -532,12 +525,10 @@ class WaveRepository(context: Context) {
         // игранное (но не забаненное), а не отдать пусто.
         val rawPerGenre: Map<String, List<Track>> = genres.associateWith { genre ->
             val found = try {
-                // source="apple" + searchTracks (не searchTracksByGenre):
-                //  • apple-каталог стабильно стримится; source=all тянул VK/кастом,
-                //    часть которых у этого юзера не играла («не все треки работают»);
+                // VK search is the only catalog source in this project.
                 //  • searchTracks фильтрует isTrack — searchTracksByGenre мапил в
                 //    «треки» И альбомы/артистов, которые физически не проигрываются.
-                MusicBackend.searchTracks(query = genre, source = "apple", limit = 30)
+                MusicBackend.searchTracks(query = genre, source = "vk", limit = 30)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -1100,7 +1091,7 @@ class WaveRepository(context: Context) {
             }
 
             val started = MusicBackend.startSession(
-                source = "apple",
+                source = "vk",
                 diversity = PERSONAL_WAVE_DIVERSITY
             ).getOrElse { error ->
                 Log.w(TAG, "Failed to start personal wave session: ${error.message}")
@@ -1111,7 +1102,7 @@ class WaveRepository(context: Context) {
             val expiresAtMs = started.expiresIn?.let { now + it.coerceAtLeast(1) * 1000L }
             val sessionMode = WaveMode.Session(
                 sessionId = started.sessionId,
-                source = started.source ?: "apple",
+                source = started.source ?: "vk",
                 region = started.region,
                 diversity = started.diversity ?: PERSONAL_WAVE_DIVERSITY,
                 expiresAtMs = expiresAtMs

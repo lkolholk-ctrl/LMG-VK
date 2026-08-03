@@ -217,24 +217,15 @@ class LibraryRepository private constructor(context: Context) {
             // Asynchronously push to cloud
             CoroutineScope(Dispatchers.IO).launch {
                 try {
-                    if (track.id.startsWith("ym_")) {
-                        // Y-трек: лайк пишется в аккаунт Яндекса, а не в ICM/волну backend.
-                        com.lmg.vk.engine.backend.MusicBackend.likeTrack(track.id, liked = true)
+                    val success = MusicBackend.likeTrack(track.id)
+                    if (success) {
+                        // markSynced ОБЯЗАТЕЛЕН: без него локальный pending-флаг
+                        // повторно отправит уже применённое изменение.
                         db.markSynced(track.id)
-                    } else {
-                        val success = MusicBackend.likeTrack(track.id)
-                        if (success) {
-                            // markSynced ОБЯЗАТЕЛЕН: без него лайк остаётся pending и
-                            // syncWithCloud (шаг 5) РЕ-ПУШИТ его через toggle, а toggle
-                            // снимает уже поставленный лайк → «опять исчезает».
-                            db.markSynced(track.id)
-                        }
-                        // Лайк = «больше такого» для волны (more_track + more_artist).
-                        // Через оффлайн-очередь: обрыв сети не теряет сигнал.
-                        com.lmg.vk.engine.backend.WaveSignalQueue.sendFeedback("more_track", track.id)
-                        track.artists.firstOrNull()?.id?.let {
-                            com.lmg.vk.engine.backend.WaveSignalQueue.sendFeedback("more_artist", it)
-                        }
+                    }
+                    com.lmg.vk.engine.backend.WaveSignalQueue.sendFeedback("more_track", track.id)
+                    track.artists.firstOrNull()?.id?.let {
+                        com.lmg.vk.engine.backend.WaveSignalQueue.sendFeedback("more_artist", it)
                     }
                 } catch (_: Exception) {}
             }
@@ -261,18 +252,11 @@ class LibraryRepository private constructor(context: Context) {
             // Asynchronously push delete to cloud
             CoroutineScope(Dispatchers.IO).launch {
                 try {
-                    if (trackId.startsWith("ym_")) {
-                        // Y-трек: снятие лайка пишется в аккаунт Яндекса.
-                        com.lmg.vk.engine.backend.MusicBackend.likeTrack(trackId, liked = false)
+                    val success = MusicBackend.unlikeTrack(trackId)
+                    if (success) {
                         db.deleteByTrackId(trackId)
-                    } else {
-                        val success = MusicBackend.unlikeTrack(trackId)
-                        if (success) {
-                            db.deleteByTrackId(trackId)
-                        }
-                        // Снятие лайка = «реже такого» в волне (через оффлайн-очередь).
-                        com.lmg.vk.engine.backend.WaveSignalQueue.sendFeedback("less_track", trackId)
                     }
+                    com.lmg.vk.engine.backend.WaveSignalQueue.sendFeedback("less_track", trackId)
                 } catch (_: Exception) {}
             }
 

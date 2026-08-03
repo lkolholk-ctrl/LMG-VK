@@ -81,42 +81,6 @@ object PlaylistManager {
     }
 
     /**
-     * Создать плейлист из импортированных треков.
-     * Bulk insert — все треки записываются за одну транзакцию.
-     *
-     * @param name Название плейлиста
-     * @param tracks Список треков с метаданными
-     * @param sourceType Источник импорта (для префикса названия)
-     * @return Созданный плейлист
-     */
-    fun createFromImport(
-        name: String,
-        tracks: List<PlaylistTrack>,
-        sourceType: String = "Imported"
-    ): Playlist {
-        val id = "pl_${System.currentTimeMillis()}"
-        val displayName = if (name.startsWith("$sourceType:") || name.startsWith("Yandex Music:")) {
-            name
-        } else {
-            "$sourceType: $name"
-        }
-        val playlist = Playlist(
-            id = id,
-            name = displayName,
-            tracks = tracks.toList(), // defensive copy
-            createdAt = System.currentTimeMillis(),
-            coverTrackId = tracks.firstOrNull()?.id,
-            modifiedAt = System.currentTimeMillis(),
-        )
-        val list = _playlists.value.toMutableList()
-        list.add(0, playlist)
-        _playlists.value = list
-        saveToPrefs()
-        _changes.tryEmit(Unit)
-        return playlist
-    }
-
-    /**
      * Переименовать плейлист.
      */
     fun rename(playlistId: String, newName: String) {

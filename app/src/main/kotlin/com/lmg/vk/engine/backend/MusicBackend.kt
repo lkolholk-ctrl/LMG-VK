@@ -662,9 +662,6 @@ object MusicBackend {
         audioApi.editPlaylist(ownerId, id, name.trim(), audioIds).requireData()
         true
     }.getOrDefault(false)
-    suspend fun previewPlaylist(source: String, url: String): PlaylistPreviewResponse? = TODO("vk-wire")
-    suspend fun importPlaylist(source: String, url: String, name: String?): PlaylistImportResponse? = TODO("vk-wire")
-    suspend fun getImportJobStatus(jobId: String): PlaylistImportJobResponse? = TODO("vk-wire")
 
     // ---------- тексты ----------
     suspend fun getLyricsResult(trackId: String): Result<LyricsParser.Lyrics?> = runCatching {
@@ -819,21 +816,12 @@ object MusicBackend {
     }
     suspend fun getWaveNext(seedTrackId: String?, exclude: List<String>? = null): Result<WaveResponse> =
         nextTrackStation(seedTrackId, exclude)
-    suspend fun getWaveOnboarding(): List<WaveOnboardingArtist> =
-        audioApi.recommendationsOnboarding().requireData().items.map {
-            WaveOnboardingArtist(id = it.id, name = it.name, image = it.coverUrl())
-        }
-    suspend fun saveWaveOnboarding(payload: List<WaveOnboardingArtistSave>): Boolean = runCatching {
-        audioApi.finishRecommendationsOnboarding(payload.map { it.id }).requireData()
-        true
-    }.getOrDefault(false)
-    suspend fun getWavePopularArtists(): List<WaveOnboardingArtist> = getWaveOnboarding()
     suspend fun resetWave(): Boolean {
         waveMutex.withLock { resetWaveLocked() }
         return true
     }
 
-    fun isAppleSeedTrackId(id: String): Boolean = id.matches(Regex("-?\\d+_\\d+"))
+    fun isVkAudioId(id: String): Boolean = com.lmg.vk.engine.VkAudioIdentity.isFullId(id)
 
     fun getUserRegion(): RegionResponse? = null
 

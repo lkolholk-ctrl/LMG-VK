@@ -166,7 +166,6 @@ object PlayerController {
     // Прямые ссылки живут заметно меньше подписанных backend-URL и TTL в них
     // не приходит — кэшируем коротко, только чтобы схлопнуть повторные резолвы
     // одного трека (префетч + загрузчик).
-    private const val YM_STREAM_CACHE_TTL_MS = 60_000L
 
     // In-flight резолвы: один и тот же трек резолвится максимум ОДНОЙ корутиной,
     // остальные ждут тот же результат — без дублирующих POST /track (их раньше
@@ -1300,10 +1299,7 @@ object PlayerController {
             return cached.uri
         }
 
-        // ym_-треки резолвятся через legacy API, а не через ICM
-        if (trackId.startsWith("ym_")) {
-            return resolveYandexStreamUrl(trackId)
-        }
+        if (!VkAudioIdentity.isFullId(trackId)) return null
 
         return try {
             val quality = getEffectiveQuality(trackId)
@@ -1358,14 +1354,8 @@ object PlayerController {
     }
 
     private suspend fun doResolveStreamUrl(trackId: String): StreamResult {
-        // ym_-треки: прямая ссылка через legacy API (блокирующий вызов — мы на ioScope)
-        if (trackId.startsWith("ym_")) {
-            val uri = resolveYandexStreamUrl(trackId)
-            return if (uri != null) {
-                StreamResult.Success(uri)
-            } else {
-                StreamResult.Error("yandex_unavailable", "Failed to resolve ym stream url")
-            }
+        if (!VkAudioIdentity.isFullId(trackId)) {
+            return StreamResult.Error("unsupported_source", "Only VK audio ids are supported")
         }
         return try {
             withTimeout(15_000) {
@@ -1408,16 +1398,6 @@ object PlayerController {
         } catch (e: Exception) {
             StreamResult.Error("network_error", e.message)
         }
-    }
-
-    /**
-     * Свежая прямая ссылка для ЯМ-трека (`ym_<id>`): download-info → лучший
-     * битрейт → подписанный get-mp3 URL. Блокирующий сетевой вызов — звать
-     * только с IO-потока (Media3 loader / ioScope). Токен и URL не логируются.
-     */
-    private fun resolveYandexStreamUrl(trackId: String): Uri? {
-        // Yandex (ym_) потоки не поддерживаются в LMG VK: legacy-клиент ЯМ не портирован.
-        return null
     }
 
     private fun cacheAndReturn(trackId: String, trackInfo: StreamInfo): StreamResult {
@@ -1542,9 +1522,6 @@ object PlayerController {
             } catch (_: Exception) {}
         }
 
-        // Обучение волны ЯМ: ym_-треки шлют trackFinished/skip в ротор,
-        // пока волна активна (внутри движка это гейтится isActive).
-        // Yandex-треки в LMG VK не поддерживаются — сигнал не шлём.
     }
 
     fun logFinalPlayback() {
@@ -1786,14 +1763,14 @@ object PlayerController {
      */
     fun startTrackWave(context: Context, seedTrack: Track, seedPool: List<String> = emptyList()) {
         ioScope.launch {
-            val stationSeedId = seedTrack.id.takeIf { canUseAsAppleStationSeed(seedTrack) }
+            val stationSeedId = seedTrack.id.takeIf { canUseAsVkStationSeed(seedTrack) }
             val stationSeedPool = if (stationSeedId != null) {
-                seedPool.filter { MusicBackend.isAppleSeedTrackId(it) }
+                seedPool.filter { MusicBackend.isVkAudioId(it) }
             } else {
                 emptyList()
             }
             if (stationSeedId == null) {
-                DebugLog.add("WAVE track station skipped: non-Apple seed ${seedTrack.id}")
+                DebugLog.add("WAVE track station skipped: non-VK seed ${seedTrack.id}")
             }
 
             // Мгновенный старт: seed-трек играет СРАЗУ (ноль сетевых запросов),
@@ -1823,12 +1800,12 @@ object PlayerController {
         }
     }
 
-    private fun canUseAsAppleStationSeed(track: Track): Boolean {
+    private fun canUseAsVkStationSeed(track: Track): Boolean {
         val scheme = track.uri.scheme?.lowercase()
         if (scheme == "content" || scheme == "file" || track.isCustom) return false
-        if (!MusicBackend.isAppleSeedTrackId(track.id)) return false
+        if (!MusicBackend.isVkAudioId(track.id)) return false
         val source = track.source?.lowercase()
-        return source == null || source == "apple"
+        return source == null || source == "vk"
     }
 
     /**

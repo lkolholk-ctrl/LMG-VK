@@ -1209,7 +1209,7 @@ fun FullPlayer(
                 ) {
                     // Стриминговые пункты (волна / скачать / 👍👎) — только для
                     // онлайн-треков. Для локальных/оффлайн они не имеют смысла:
-                    // волна и фидбек — фичи ICM, скачивать скачанное не надо.
+                    // повторно кешировать уже загруженный трек не нужно.
                     val isLocalTrack = currentTrackObj?.let {
                         it.source == "local" || it.uri.scheme == "content" || it.uri.scheme == "file"
                     } ?: false
@@ -1534,18 +1534,11 @@ fun FullPlayer(
             onDismiss = { showPromoDialog = false },
             icon = Icons.Rounded.Download,
             iconTint = Color(0xFFFC3C44),
-            title = "Premium Required",
-            message = "Offline listening is strictly an exclusive feature for Premium subscribers under aggregator rules. Upgrade to save tracks and play offline.",
+            title = "VK Music subscription required",
+            message = "Offline caching will use VK-only subscription and audio data after the download flow is restored.",
             primaryButton = GlassDialogButton(
-                text = "Upgrade",
-                onClick = {
-                    showPromoDialog = false
-                    val intent = android.content.Intent(
-                        android.content.Intent.ACTION_VIEW,
-                        android.net.Uri.parse("https://t.me/byicmbot")
-                    )
-                    context.startActivity(intent)
-                }
+                text = "OK",
+                onClick = { showPromoDialog = false }
             ),
             secondaryButton = GlassDialogButton(
                 text = "Cancel",

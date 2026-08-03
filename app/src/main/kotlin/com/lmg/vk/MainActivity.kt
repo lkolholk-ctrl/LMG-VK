@@ -43,7 +43,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 
 /**
- * Точка входа UI. Порт LMG MainActivity без ICM/Telegram/NativeSecurity:
+ * Точка входа UI. Восстановленная точка входа UI:
  * security-блок сохранён, но отключён флагом [PROTECTION_ENABLED]
  * (наши проверки целостности живут в liblmg — см. lmg_native.cpp).
  */

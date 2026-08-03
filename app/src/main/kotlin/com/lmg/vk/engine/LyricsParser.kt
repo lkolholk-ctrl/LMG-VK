@@ -82,7 +82,7 @@ object LyricsParser {
         val isSynced: Boolean,
         val title: String?,
         val artist: String?,
-        // источники: "embedded", "lrclib", "icm", "mine_word" (моя пословная), "none"
+        // источники: "embedded", "lrclib", "vk", "mine_word", "none"
         val source: String = "none"
     ) {
         /** Есть ли пословная разметка (караоке-подсветка вместо построчной). */
@@ -191,20 +191,6 @@ object LyricsParser {
                 if (embedded.lines.isNotEmpty()) return embedded
             }
             return Lyrics.EMPTY
-        }
-
-        // ── Y-трек (ym_…): синхро-текст из LRCLIB. У Яндекса тексты от Musixmatch
-        //    отдаются только как plain (без таймкодов) — LRCLIB даёт синхро-LRC,
-        //    поэтому для Y-треков берём именно его (по названию/артисту/длительности). ──
-        if (!trackId.isNullOrBlank() && trackId.startsWith("ym_")) {
-            return fetchLrcLib(
-                context = context,
-                uri = null,
-                title = title,
-                artist = artist,
-                durationMs = durationMs,
-                trackId = trackId
-            )
         }
 
         // ── СТРИМИНГ/backend: без изменений ──

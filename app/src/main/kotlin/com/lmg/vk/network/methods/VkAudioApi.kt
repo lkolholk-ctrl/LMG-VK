@@ -180,25 +180,6 @@ class VkAudioApi(
         return client.execute(method)
     }
 
-    /** `audio.recommendationsOnboarding` (C14197e/C1400e). */
-    suspend fun recommendationsOnboarding(): VkResult<VkRootItems<VkArtistDto>> {
-        val responseType = Types.newParameterizedType(VkRootItems::class.java, VkArtistDto::class.java)
-        return client.execute(
-            VkMethod(
-                "audio.recommendationsOnboarding",
-                MoshiEnvelopeParser<VkRootItems<VkArtistDto>>(responseType),
-            ),
-        )
-    }
-
-    /** `audio.finishRecomsOnboarding` — имя метода именно такое в APK. */
-    suspend fun finishRecommendationsOnboarding(artistIds: Collection<String>): VkResult<Unit> {
-        val method = VkMethod("audio.finishRecomsOnboarding", UnitParser).apply {
-            param("artist_ids", artistIds.joinToString(","))
-        }
-        return client.execute(method)
-    }
-
     /** `audio.getRelatedArtistsById` (C17019e/C10990e). */
     suspend fun getRelatedArtistsById(
         artistId: String,

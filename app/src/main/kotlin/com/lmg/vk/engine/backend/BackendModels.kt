@@ -865,7 +865,7 @@ data class LibraryTrack(
     @SerialName("liked_at") val likedAt: Long? = null,
     @SerialName("isAvailable") val isAvailable: Boolean = true
 ) {
-    /** VK/secondary return duration in seconds, Apple in milliseconds. Normalized to ms. */
+    /** Duration normalized to milliseconds. */
     val durationMs: Long
         get() = normalizeDurationMs(duration, source)
 }
@@ -877,18 +877,17 @@ data class LibraryArtist(
     val cover: String? = null,
     val image: String? = null,
     @SerialName("isCustom") val isCustom: Boolean = false,
-    @SerialName("isTidal") val isTidal: Boolean = false,
     val source: String? = null
 ) {
     val displayName: String
         get() = name ?: "Unknown Artist"
 
-    /** Prefer Apple `image` field, fallback to legacy `cover`. */
+    /** Prefer the explicit image field, fallback to cover. */
     val displayImage: String?
         get() = image ?: cover
 }
 
-// ─── Wave Feedback & Onboarding ───
+// ─── Wave Feedback ───
 
 @Serializable
 data class WaveFeedbackRequest(
@@ -908,36 +907,6 @@ data class WaveResetResponse(
 ) {
     val isSuccess: Boolean get() = status == "ok"
 }
-
-@Serializable
-data class WaveOnboardingResponse(
-    @SerialName("artists") val artists: List<WaveOnboardingArtist> = emptyList(),
-    @SerialName("completed") val completed: Boolean = false
-)
-
-@Serializable
-data class WaveOnboardingArtist(
-    @SerialName("id") val id: String,
-    @SerialName("name") val name: String,
-    @SerialName("image") val image: String? = null
-)
-
-@Serializable
-data class WaveOnboardingSaveRequest(
-    @SerialName("artists") val artists: List<WaveOnboardingArtistSave>
-)
-
-@Serializable
-data class WaveOnboardingArtistSave(
-    @SerialName("id") val id: String,
-    @SerialName("name") val name: String
-)
-
-@Serializable
-data class WaveOnboardingSaveResponse(
-    @SerialName("ok") val ok: Boolean = false,
-    @SerialName("saved") val saved: Int? = null
-)
 
 // ─── Wave Playback Logging ───
 
@@ -1176,145 +1145,6 @@ data class UpdateRegionRequest(
 @Serializable
 data class UpdateRegionResponse(
     @SerialName("region") val region: String
-)
-
-// ─── Playlist Import ───
-
-@Serializable
-data class PlaylistImportRequest(
-    @SerialName("source") val source: String,
-    @SerialName("url") val url: String,
-    @SerialName("name") val name: String? = null
-)
-
-@Serializable
-data class PlaylistImportTrack(
-    @SerialName("trackId") val trackIdRaw: JsonElement? = null,
-    @SerialName("id") val idRaw: JsonElement? = null,
-    @SerialName("track_id") val trackIdUnderscore: JsonElement? = null,
-    @SerialName("title") val title: String? = null,
-    @SerialName("artist") val artist: String? = null,
-    @SerialName("cover") val cover: String? = null,
-    @SerialName("collectionId") val collectionId: String? = null,
-    @SerialName("duration") val duration: Long? = null,
-    @SerialName("match_score") val matchScore: Double? = null
-) {
-    val trackId: String?
-        get() = (trackIdRaw ?: idRaw ?: trackIdUnderscore)?.let {
-            when {
-                it is JsonPrimitive && it.isString -> it.content
-                it is JsonPrimitive && !it.isString -> it.longOrNull?.toString()
-                else -> null
-            }
-        }
-}
-
-@Serializable
-data class PlaylistImportResponse(
-    // API returns Int for Apple sync import, String for async job — accept both via JsonElement
-    @SerialName("playlist_id") val playlistIdRaw: JsonElement? = null,
-    @SerialName("name") val name: String? = null,
-    @SerialName("source") val source: String? = null,
-    @SerialName("source_url") val sourceUrl: String? = null,
-    @SerialName("total") val total: Int? = null,
-    @SerialName("matched") val matched: Int? = null,
-    @SerialName("failed") val failed: Int? = null,
-    @SerialName("tracks") val tracks: List<PlaylistImportTrack>? = null,
-    @SerialName("failed_tracks") val failedTracks: List<FailedTrack>? = null,
-
-    // Async fields (Yandex)
-    @SerialName("job_id") val jobId: String? = null,
-    @SerialName("status") val status: String? = null,
-    @SerialName("poll_url") val pollUrl: String? = null,
-    @SerialName("poll_after") val pollAfter: Int? = null
-) {
-    /** Normalized playlist id as String (handles both Int and String from API) */
-    val playlistId: String?
-        get() = playlistIdRaw?.let {
-            when {
-                it is JsonPrimitive && it.isString -> it.content
-                it is JsonPrimitive && !it.isString -> it.longOrNull?.toString()
-                else -> null
-            }
-        }
-}
-
-@Serializable
-data class FailedTrack(
-    @SerialName("yandex_title") val yandexTitle: String? = null,
-    @SerialName("yandex_artists") val yandexArtists: List<String> = emptyList(),
-    @SerialName("reason") val reason: String? = null
-)
-
-// ─── Playlist Preview ───
-
-@Serializable
-data class PlaylistPreviewResponse(
-    @SerialName("source") val source: String? = null,
-    @SerialName("name") val name: String? = null,
-    @SerialName("total") val total: Int? = null,
-    @SerialName("tracks") val tracks: List<PreviewTrack> = emptyList()
-)
-
-@Serializable
-data class PreviewTrack(
-    @SerialName("id") val id: String? = null,
-    @SerialName("title") val title: String? = null,
-    @SerialName("artist") val artist: String? = null,
-    @SerialName("artists") val artists: List<String> = emptyList(),
-    @SerialName("album") val album: String? = null,
-    @SerialName("albumName") val albumName: String? = null,
-    @SerialName("collectionId") val collectionId: String? = null,
-    @SerialName("cover") val cover: String? = null,
-    @SerialName("duration") val duration: Long? = null,
-    @SerialName("release_date") val releaseDate: String? = null,
-    @SerialName("version") val version: String? = null,
-    @SerialName("duration_ms") val durationMs: Long? = null
-)
-
-// ─── Playlist Job ───
-
-@Serializable
-data class PlaylistImportJobResponse(
-    // 202 async response
-    @SerialName("job_id") val jobId: String? = null,
-    @SerialName("poll_url") val pollUrl: String? = null,
-    @SerialName("poll_after") val pollAfter: Int? = null,
-
-    // Poll response — pending
-    @SerialName("status") val status: String? = null,
-    @SerialName("progress") val progress: ImportJobProgress? = null,
-
-    // When ready — API returns Int for playlist_id
-    @SerialName("playlist_id") val playlistIdRaw: JsonElement? = null,
-    @SerialName("name") val name: String? = null,
-    @SerialName("source") val source: String? = null,
-    @SerialName("total") val total: Int? = null,
-    @SerialName("matched") val matched: Int? = null,
-    @SerialName("failed") val failed: Int? = null,
-    @SerialName("tracks") val tracks: List<PlaylistImportTrack>? = null,
-    @SerialName("failed_tracks") val failedTracks: List<FailedTrack>? = null,
-
-    // When failed
-    @SerialName("error") val error: String? = null,
-    @SerialName("message") val message: String? = null
-) {
-    /** Normalized playlist id as String (handles both Int and String from API) */
-    val playlistId: String?
-        get() = playlistIdRaw?.let {
-            when {
-                it is JsonPrimitive && it.isString -> it.content
-                it is JsonPrimitive && !it.isString -> it.longOrNull?.toString()
-                else -> null
-            }
-        }
-}
-
-@Serializable
-data class ImportJobProgress(
-    @SerialName("total") val total: Int? = null,
-    @SerialName("matched") val matched: Int? = null,
-    @SerialName("failed") val failed: Int? = null
 )
 
 // ─── Playlist Management ───

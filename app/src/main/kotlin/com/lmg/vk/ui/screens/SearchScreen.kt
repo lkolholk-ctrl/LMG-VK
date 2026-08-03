@@ -66,8 +66,6 @@ import coil.request.ImageRequest
 import com.lmg.vk.engine.backend.MusicAuth
 import com.lmg.vk.engine.backend.MusicBackend
 import com.lmg.vk.engine.backend.SearchItem
-import com.lmg.vk.engine.backend.SearchSource
-import com.lmg.vk.engine.backend.WaveOnboardingArtist
 import com.lmg.vk.engine.backend.toTrack
 import com.lmg.vk.engine.PlayerController
 import com.lmg.vk.engine.PlaylistManager
@@ -82,7 +80,7 @@ import com.lmg.vk.ui.theme.LiquidTheme
 import com.lmg.vk.ui.viewmodel.SearchViewModel
 import kotlinx.coroutines.launch
 
-private val AppleRed = Color(0xFFFC3C44)
+private val SearchAccent = Color(0xFFFC3C44)
 
 @Composable
 fun SearchScreen(
@@ -91,10 +89,6 @@ fun SearchScreen(
     onOpenPlayer: () -> Unit = {},
     onBack: (() -> Unit)? = null,
 ) {
-    // Режим «Видео»: 4-й сегмент источника ищет видеоклипы (Apple Music) вместо
-    // треков; результаты — видео-карточки, тап открывает плеер с видео.
-    // Клипы у backend доступны только подписчикам → без премиума сегмент серый,
-    // тап показывает премиум-окно (как у загрузок).
     val context = LocalContext.current
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
@@ -104,7 +98,6 @@ fun SearchScreen(
     val viewModel: SearchViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
     val query by viewModel.query.collectAsState()
     val searchResults by viewModel.searchResults.collectAsState()
-    val categories by viewModel.categories.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val error by viewModel.error.collectAsState()
 
@@ -116,11 +109,6 @@ fun SearchScreen(
     // В широком окне (телефон-альбом / планшет) уменьшаем шрифты/обложки/высоты
     // ~на 25%, чтобы контент не выглядел портретно-крупным на невысоком экране.
     val compact = win.useSideBySide
-
-    // Load categories on first composition
-    LaunchedEffect(Unit) {
-        viewModel.loadCategories()
-    }
 
     fun hideKeyboard() {
         focusManager.clearFocus()
@@ -217,7 +205,7 @@ fun SearchScreen(
             // Search field — пилюля с подсветкой при фокусе + Cancel рядом.
             val isDark = LiquidTheme.colors.isDark
             val searchBarBg = if (isDark) Color(0xFF1A1A1A) else Color(0xFFF2F2F7)
-            val accentColor = AppleRed
+            val accentColor = SearchAccent
             var searchFocused by remember { mutableStateOf(false) }
             val focusBorder by animateColorAsState(
                 targetValue = if (searchFocused) accentColor.copy(alpha = 0.65f) else Color.Transparent,
@@ -338,44 +326,6 @@ fun SearchScreen(
                         modifier = Modifier.fillMaxSize(),
                         contentPadding = PaddingValues(start = resultsSidePad, end = resultsSidePad, bottom = 178.dp)
                     ) {
-                        if (categories.isNotEmpty()) {
-                            item {
-                                Text(
-                                    text = "Browse",
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = if (compact) 17.sp else 22.sp,
-                                    color = LiquidTheme.colors.textPrimary,
-                                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp)
-                                )
-                            }
-                            val chunkedCategories = categories.chunked(2)
-                            itemsIndexed(
-                                items = chunkedCategories,
-                                key = { index, pair -> "cat_${index}_${pair.first().id}" }
-                            ) { _, pair ->
-                                Row(
-                                    modifier = Modifier.animateItem().fillMaxWidth().padding(horizontal = 20.dp),
-                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                                ) {
-                                    pair.forEach { category ->
-                                        CategoryCard(
-                                            category = category,
-                                            modifier = Modifier.weight(1f),
-                                            compact = compact,
-                                            onClick = {
-                                                hideKeyboard()
-                                                onNavigateToArtist(category.id)
-                                            }
-                                        )
-                                    }
-                                    if (pair.size == 1) {
-                                        Spacer(modifier = Modifier.weight(1f))
-                                    }
-                                }
-                                Spacer(modifier = Modifier.height(10.dp))
-                            }
-                        }
-
                         if (history.isNotEmpty()) {
                             item {
                                 Row(
@@ -393,7 +343,7 @@ fun SearchScreen(
                                     )
                                     Text(
                                         text = "Clear",
-                                        color = AppleRed,
+                                        color = SearchAccent,
                                         fontSize = 13.sp,
                                         fontWeight = FontWeight.Medium,
                                         modifier = Modifier.liquidClickable(pressedScale = LiquidMotion.PressButton) { clearHistory() }
@@ -476,7 +426,7 @@ fun SearchScreen(
                                             fontWeight = FontWeight.SemiBold,
                                             modifier = Modifier
                                                 .clip(RoundedCornerShape(50))
-                                                .background(AppleRed)
+                                                .background(SearchAccent)
                                                 .liquidClickable(pressedScale = LiquidMotion.PressButton) { viewModel.searchNow() }
                                                 .padding(horizontal = 24.dp, vertical = 10.dp)
                                         )
@@ -658,60 +608,6 @@ fun SearchScreen(
 // ═══════════════════════════════════════════════════════════
 //  UI Components
 // ═══════════════════════════════════════════════════════════
-
-@Composable
-private fun CategoryCard(
-    category: WaveOnboardingArtist,
-    modifier: Modifier = Modifier,
-    compact: Boolean = false,
-    onClick: () -> Unit
-) {
-    val gradientColors = remember(category.id) {
-        // Generate consistent gradient from category id hash
-        val hash = category.id.hashCode()
-        val hue1 = (hash % 360).let { if (it < 0) it + 360 else it }
-        val hue2 = ((hash * 31) % 360).let { if (it < 0) it + 360 else it }
-        listOf(
-            android.graphics.Color.HSVToColor(floatArrayOf(hue1.toFloat(), 0.7f, 0.4f)),
-            android.graphics.Color.HSVToColor(floatArrayOf(hue2.toFloat(), 0.8f, 0.25f))
-        ).map { Color(it) }
-    }
-
-    Box(
-        modifier = modifier
-            .height(if (compact) 78.dp else 100.dp)
-            .clip(RoundedCornerShape(24.dp))   // большой радиус, в тон карточкам
-            .background(Brush.linearGradient(gradientColors))
-            .liquidClickable { onClick() }
-            .padding(if (compact) 12.dp else 16.dp)
-    ) {
-        // Artist image (small, bottom-right)
-        if (category.image != null) {
-            AsyncImage(
-                model = ImageRequest.Builder(LocalContext.current)
-                    .data(category.image)
-                    .crossfade(true)
-                    .build(),
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .size(if (compact) 46.dp else 60.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .align(Alignment.BottomEnd)
-            )
-        }
-        // Category name
-        Text(
-            text = category.name,
-            color = Color.White,
-            fontSize = if (compact) 13.sp else 16.sp,
-            fontWeight = FontWeight.Bold,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.align(Alignment.TopStart)
-        )
-    }
-}
 
 @Composable
 private fun ArtistChip(
@@ -983,43 +879,6 @@ private fun SearchResultRow(
     }
 }
 
-/** Сегмент источника внутри единой пилюли (Apple Music / VK / All). */
-@Composable
-private fun SourceSegment(
-    text: String,
-    selected: Boolean,
-    modifier: Modifier = Modifier,
-    enabled: Boolean = true,
-    onClick: () -> Unit
-) {
-    val bg by animateColorAsState(
-        targetValue = if (selected && enabled) AppleRed else Color.Transparent,
-        animationSpec = tween(220),
-        label = "segBg"
-    )
-    Box(
-        modifier = modifier
-            .height(32.dp)
-            .clip(RoundedCornerShape(50))
-            .background(bg)
-            // Клик активен и у «серого» сегмента — он показывает премиум-окно.
-            .liquidClickable(pressedScale = LiquidMotion.PressButton) { onClick() },
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = text,
-            color = when {
-                !enabled -> LiquidTheme.colors.textTertiary   // серый: без премиума
-                selected -> Color.White
-                else -> LiquidTheme.colors.textSecondary
-            },
-            fontSize = 13.sp,
-            fontWeight = FontWeight.Medium,
-            maxLines = 1
-        )
-    }
-}
-
 @Composable
 private fun SearchSectionLabel(text: String, compact: Boolean = false) {
     Text(
@@ -1029,118 +888,4 @@ private fun SearchSectionLabel(text: String, compact: Boolean = false) {
         color = LiquidTheme.colors.textPrimary,
         modifier = Modifier.padding(horizontal = 20.dp, vertical = if (compact) 8.dp else 12.dp)
     )
-}
-
-// ═══════════════════════════════════════════════════════════
-//  Встроенный поиск видеоклипов (сегмент «Video» в обычном поиске)
-// ═══════════════════════════════════════════════════════════
-
-@Composable
-private fun ClipResultsSection(
-    query: String,
-    onOpenPlayer: () -> Unit,
-) {
-    val lc = LiquidTheme.colors
-    val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-
-    var results by remember { mutableStateOf<List<com.lmg.vk.engine.backend.ClipItem>>(emptyList()) }
-    var loading by remember { mutableStateOf(false) }
-    var resolving by remember { mutableStateOf<String?>(null) }
-    var error by remember { mutableStateOf<String?>(null) }
-
-    // Дебаунс поиска клипов по общему полю запроса.
-    LaunchedEffect(query) {
-        val q = query.trim()
-        if (q.length < 2) { results = emptyList(); error = null; loading = false; return@LaunchedEffect }
-        error = null; loading = true
-        kotlinx.coroutines.delay(350)
-        val r = com.lmg.vk.engine.backend.MusicBackend.getInstance().searchClips(q)
-        loading = false
-        r.onSuccess { results = it.results }
-            .onFailure { error = com.lmg.vk.engine.backend.backendUserMessage(it); results = emptyList() }
-    }
-
-    fun openClip(clip: com.lmg.vk.engine.backend.ClipItem) {
-        if (resolving != null) return
-        resolving = clip.id; error = null
-        scope.launch {
-            val r = com.lmg.vk.engine.backend.MusicBackend.getInstance().resolveClipStreamUrl(clip.id)
-            resolving = null
-            r.onSuccess { url ->
-                PlayerController.playClip(context, url, clip.id, clip.title, clip.artist, clip.thumbnail)
-                onOpenPlayer()
-            }.onFailure { error = com.lmg.vk.engine.backend.backendUserMessage(it) }
-        }
-    }
-
-    Column(modifier = Modifier.fillMaxSize()) {
-        error?.let {
-            Text(it, color = Color(0xFFFC3C44), fontSize = 13.sp,
-                modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp))
-        }
-        if (loading && results.isEmpty()) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(color = Color(0xFF88C088))
-            }
-        } else if (results.isEmpty() && query.trim().length >= 2 && !loading) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("No videos found", color = lc.textTertiary, fontSize = 15.sp)
-            }
-        } else {
-            androidx.compose.foundation.lazy.grid.LazyVerticalGrid(
-                columns = androidx.compose.foundation.lazy.grid.GridCells.Adaptive(minSize = 200.dp),
-                horizontalArrangement = Arrangement.spacedBy(14.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
-                contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 178.dp),
-                modifier = Modifier.fillMaxSize()
-            ) {
-                gridItems(results, key = { it.id }) { clip ->
-                    ClipResultCard(clip, resolving == clip.id) { openClip(clip) }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun ClipResultCard(
-    clip: com.lmg.vk.engine.backend.ClipItem,
-    isResolving: Boolean,
-    onClick: () -> Unit,
-) {
-    val lc = LiquidTheme.colors
-    Column(modifier = Modifier.liquidClickable(onClick = onClick)) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .aspectRatio(16f / 9f)
-                .clip(RoundedCornerShape(12.dp))
-                .background(if (lc.isDark) Color(0xFF1C1C1E) else Color(0xFFE5E5EA)),
-            contentAlignment = Alignment.Center
-        ) {
-            if (!clip.thumbnail.isNullOrBlank()) {
-                AsyncImage(model = clip.thumbnail, contentDescription = null,
-                    contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.fillMaxSize())
-            }
-            Box(
-                modifier = Modifier
-                    .size(48.dp)
-                    .clip(CircleShape)
-                    .background(Color.Black.copy(alpha = 0.5f)),
-                contentAlignment = Alignment.Center
-            ) {
-                if (isResolving) {
-                    CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
-                } else {
-                    Icon(Icons.Rounded.PlayArrow, null, tint = Color.White, modifier = Modifier.size(28.dp))
-                }
-            }
-        }
-        Spacer(Modifier.height(6.dp))
-        Text(clip.title, color = lc.textPrimary, fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
-            maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
-        Text(clip.artist, color = lc.textSecondary, fontSize = 12.sp,
-            maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
-    }
 }

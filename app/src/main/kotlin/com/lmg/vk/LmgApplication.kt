@@ -49,7 +49,7 @@ import java.util.concurrent.TimeUnit
  * Точка входа приложения (слияние восстановленного VKXApplication + LMG App).
  *
  * Порядок инициализации — как в LMG: сначала лёгкое (settings), потом engine,
- * сетевые оживители и фоновый drain. ICM-части заменены фасадом engine/backend.
+ * сетевые оживители и фоновый drain. сетевые компоненты ограничены VK-слоем.
  */
 class LmgApplication : Application(), ImageLoaderFactory {
 

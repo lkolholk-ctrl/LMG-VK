@@ -70,7 +70,6 @@ import com.lmg.vk.ui.screens.AudioFxScreen
 import com.lmg.vk.ui.screens.SettingsScreen
 import com.lmg.vk.ui.screens.AuthScreen
 import com.lmg.vk.ui.screens.ProfileScreen
-import com.lmg.vk.ui.screens.WaveOnboardingScreen
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
@@ -224,19 +223,7 @@ fun AppRoot() {
     val lc = LiquidTheme.colors
     val rootBg = if (lc.isDark) Color.Black else Color(0xFFF5F5F7)
 
-    val isOnboardingCompleted by AppSettings.isOnboardingCompleted.collectAsState()
-
-    if (!isOnboardingCompleted) {
-        WaveOnboardingScreen(
-            onComplete = {
-                AppSettings.setOnboardingCompleted(true)
-            },
-            onDismiss = {
-                AppSettings.setOnboardingCompleted(true)
-            }
-        )
-    } else {
-        Box(
+    Box(
             modifier = Modifier
                 .fillMaxSize()
                 .background(rootBg) // visible behind scaled content
@@ -671,5 +658,4 @@ fun AppRoot() {
         }
 
         }
-    }
 }

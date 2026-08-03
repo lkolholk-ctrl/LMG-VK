@@ -192,7 +192,7 @@ class EndlessPlaybackEngine(
                                 mode = WaveMode.Mood(
                                     mood = mood,
                                     displayName = refillCtx.name,
-                                    source = "apple",
+                                    source = "vk",
                                     diversity = 0.5
                                 ),
                                 count = REFILL_BATCH_SIZE,
@@ -219,7 +219,7 @@ class EndlessPlaybackEngine(
                                 mode = WaveMode.Genre(
                                     genre = genre,
                                     displayName = refillCtx.name,
-                                    source = "apple",
+                                    source = "vk",
                                     diversity = 0.5
                                 ),
                                 count = REFILL_BATCH_SIZE,

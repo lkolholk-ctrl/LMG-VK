@@ -17,7 +17,7 @@ sealed interface WaveMode {
     data class Genre(
         val genre: String,
         override val displayName: String? = genre,
-        val source: String = "apple",
+        val source: String = "vk",
         val region: String? = null,
         val diversity: Double = 0.6
     ) : WaveMode
@@ -25,7 +25,7 @@ sealed interface WaveMode {
     data class Mood(
         val mood: String,
         override val displayName: String? = mood,
-        val source: String = "apple",
+        val source: String = "vk",
         val region: String? = null,
         val diversity: Double = 0.6
     ) : WaveMode
@@ -33,7 +33,7 @@ sealed interface WaveMode {
     data class Session(
         val sessionId: String,
         override val displayName: String? = "My Wave",
-        val source: String = "apple",
+        val source: String = "vk",
         val region: String? = null,
         val diversity: Double = 0.6,
         val expiresAtMs: Long? = null
