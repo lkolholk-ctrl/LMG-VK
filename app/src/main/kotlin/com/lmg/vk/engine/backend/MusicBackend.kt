@@ -381,6 +381,11 @@ object MusicBackend {
             .flatMap { it.playlists_ids.orEmpty() }
             .map(::normalizeTrackId)
             .toSet()
+        val linkedArtistIds = catalogBlocks
+            .filter { it.matchesSection("link", "связ", "artist") }
+            .flatMap { it.artists_ids.orEmpty() }
+            .map(::normalizeTrackId)
+            .toSet()
 
         val albumCandidates = buildList {
             addAll(catalogPages.flatMap { it.playlists.orEmpty() }
@@ -401,18 +406,65 @@ object MusicBackend {
             .filter { artistPlaylistIds.isEmpty() || normalizeTrackId(it.fullId) in artistPlaylistIds }
             .distinctBy(AudioPlaylist::fullId)
 
-        val officialPages = catalogPages.flatMap { it.profiles.orEmpty() + it.groups.orEmpty() }
-            .filter { it.id != 0L && it.displayName.isNotBlank() }
+        val catalogProfiles = catalogPages.flatMap { it.profiles.orEmpty() }
+        val catalogGroups = catalogPages.flatMap { it.groups.orEmpty() }
+        val musicOwners = catalogPages.flatMap { it.music_owners.orEmpty() }
+        val knownArtists = (catalogArtists + related)
+            .filter { it.id.isNotBlank() && it.name.isNotBlank() }
             .distinctBy { it.id }
-            .map {
+        val ownerArtistMatches = musicOwners.mapNotNull { owner ->
+            val match = knownArtists.firstOrNull {
+                it.name.trim().equals(owner.displayName.trim(), ignoreCase = true)
+            } ?: return@mapNotNull null
+            owner.id to SimilarArtist(
+                id = match.id,
+                name = owner.displayName,
+                url = match.domain,
+                cover = owner.photo_base ?: match.coverUrl(),
+            )
+        }
+        val linkedOwnerIds = ownerArtistMatches.map { it.first }.toSet()
+        val groupIds = catalogGroups.flatMap { listOf(it.id, -it.id) }.toSet()
+
+        val officialProfiles = (catalogProfiles + musicOwners.filter {
+            it.id !in linkedOwnerIds && it.id !in groupIds && it.id >= 0L
+        })
+            .mapNotNull {
+                if (it.id == 0L || it.displayName.isBlank()) return@mapNotNull null
                 ArtistOfficialPage(
                     id = it.id,
                     name = it.displayName,
                     cover = it.photo_base,
-                    subtitle = if (it.id < 0) "Community" else "Official page",
+                    subtitle = "Official profile",
                     isFollowed = it.is_followed == true,
+                    isCommunity = false,
                 )
             }
+        val communities = (catalogGroups + musicOwners.filter {
+            it.id !in linkedOwnerIds && (it.id < 0L || it.id in groupIds)
+        })
+            .mapNotNull {
+                if (it.id == 0L || it.displayName.isBlank()) return@mapNotNull null
+                ArtistOfficialPage(
+                    id = it.id,
+                    name = it.displayName,
+                    cover = it.photo_base,
+                    subtitle = "Community",
+                    isFollowed = it.is_followed == true,
+                    isCommunity = true,
+                )
+            }
+        val officialPages = (officialProfiles + communities).distinctBy { it.id }
+        val blockLinkedArtists = catalogArtists
+            .filter { it.id != normalizedId && it.id.isNotBlank() && it.name.isNotBlank() }
+            .filter { linkedArtistIds.isEmpty() || normalizeTrackId(it.id) in linkedArtistIds }
+            .distinctBy { it.id }
+            .map {
+                SimilarArtist(id = it.id, name = it.name, url = it.domain, cover = it.coverUrl())
+            }
+        val linkedArtists = (ownerArtistMatches.map { it.second } + blockLinkedArtists)
+            .filter { it.id != normalizedId }
+            .distinctBy { it.id }
         val links = catalogPages.flatMap { it.links.orEmpty() }
             .filter { it.id.isNotBlank() && it.url.isNotBlank() }
             .distinctBy { it.id }
@@ -470,6 +522,7 @@ object MusicBackend {
             },
             appearsOn = appearsOn,
             officialPages = officialPages,
+            linkedArtists = linkedArtists,
             links = links,
             videos = videos,
             source = "vk",

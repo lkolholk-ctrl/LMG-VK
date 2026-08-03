@@ -107,7 +107,6 @@ fun ArtistDetailScreen(
     onNavigateToAlbum: (String) -> Unit = {},
     onNavigateToArtist: (String) -> Unit = {},
     onNavigateToPlaylist: (String) -> Unit = {},
-    onOpenInternalUrl: (String) -> Unit = {},
 ) {
     val context = LocalContext.current
     val colors = LiquidTheme.colors
@@ -191,7 +190,11 @@ fun ArtistDetailScreen(
     val singles = remember(artist) { artist?.singles.orEmpty().distinctBy { it.id } }
     val appearsOn = remember(artist) { artist?.appearsOn.orEmpty().distinctBy { it.id } }
     val playlists = remember(artist) { artist?.playlists.orEmpty().distinctBy { it.id } }
-    val similar = remember(artist) { artist?.similarArtists.orEmpty().distinctBy { it.id } }
+    val linkedArtists = remember(artist) { artist?.linkedArtists.orEmpty().distinctBy { it.id } }
+    val similar = remember(artist, linkedArtists) {
+        val linkedIds = linkedArtists.map { it.id }.toSet()
+        artist?.similarArtists.orEmpty().distinctBy { it.id }.filterNot { it.id in linkedIds }
+    }
 
     var showAllSongs by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
@@ -515,6 +518,19 @@ fun ArtistDetailScreen(
                         }
                     }
 
+                    if (linkedArtists.isNotEmpty()) {
+                        item { SectionHeaderThemed(colors.isDark, "Links") }
+                        items(linkedArtists, key = { "linked-artist-${it.id}" }) { linked ->
+                            ArtistLinkRow(
+                                title = linked.displayName,
+                                subtitle = "Artist",
+                                cover = linked.cover,
+                                isDark = colors.isDark,
+                                onClick = { onNavigateToArtist(linked.id) },
+                            )
+                        }
+                    }
+
                     art?.links.orEmpty().let { links ->
                         val concerts = links.filter { it.matches("concert", "ticket", "концерт", "билет") }
                         val merch = links.filter { it.matches("merch", "shop", "store", "мерч", "магазин") }
@@ -522,35 +538,41 @@ fun ArtistDetailScreen(
                         if (concerts.isNotEmpty()) {
                             item { SectionHeaderThemed(colors.isDark, "Concerts") }
                             items(concerts, key = { "concert-${it.id}" }) { link ->
-                                ArtistLinkRow(link.title, link.subtitle, link.cover, colors.isDark) {
-                                    onOpenInternalUrl(link.url)
-                                }
+                                ArtistLinkRow(link.title, link.subtitle, link.cover, colors.isDark)
                             }
                         }
                         if (merch.isNotEmpty()) {
                             item { SectionHeaderThemed(colors.isDark, "Merch") }
                             items(merch, key = { "merch-${it.id}" }) { link ->
-                                ArtistLinkRow(link.title, link.subtitle, link.cover, colors.isDark) {
-                                    onOpenInternalUrl(link.url)
-                                }
+                                ArtistLinkRow(link.title, link.subtitle, link.cover, colors.isDark)
                             }
                         }
                         if (other.isNotEmpty()) {
-                            item { SectionHeaderThemed(colors.isDark, "Links") }
+                            item { SectionHeaderThemed(colors.isDark, "Information") }
                             items(other, key = { "link-${it.id}" }) { link ->
-                                ArtistLinkRow(link.title, link.subtitle, link.cover, colors.isDark) {
-                                    onOpenInternalUrl(link.url)
-                                }
+                                ArtistLinkRow(link.title, link.subtitle, link.cover, colors.isDark)
                             }
                         }
                     }
 
-                    if (art?.officialPages.orEmpty().isNotEmpty()) {
-                        item { SectionHeaderThemed(colors.isDark, "Official pages") }
-                        items(art?.officialPages.orEmpty(), key = { "page-${it.id}" }) { page ->
-                            ArtistLinkRow(page.name, page.subtitle, page.cover, colors.isDark) {
-                                val prefix = if (page.id < 0L) "club" else "id"
-                                onOpenInternalUrl("https://vk.com/$prefix${kotlin.math.abs(page.id)}")
+                    art?.officialPages.orEmpty().let { pages ->
+                        val profiles = pages.filterNot { it.isCommunity }
+                        val communities = pages.filter { it.isCommunity }
+                        if (profiles.isNotEmpty()) {
+                            item { SectionHeaderThemed(colors.isDark, "Official profiles") }
+                            items(profiles, key = { "profile-${it.id}" }) { page ->
+                                ArtistLinkRow(page.name, page.subtitle, page.cover, colors.isDark)
+                            }
+                        }
+                        if (communities.isNotEmpty()) {
+                            item { SectionHeaderThemed(colors.isDark, "Communities") }
+                            items(communities, key = { "community-${it.id}" }) { community ->
+                                ArtistLinkRow(
+                                    community.name,
+                                    community.subtitle,
+                                    community.cover,
+                                    colors.isDark,
+                                )
                             }
                         }
                     }
@@ -563,10 +585,7 @@ fun ArtistDetailScreen(
                                 horizontalArrangement = Arrangement.spacedBy(14.dp),
                             ) {
                                 items(art?.videos.orEmpty(), key = { it.id }) { video ->
-                                    ArtistVideoCard(video.title, video.cover, video.duration, colors.isDark) {
-                                        val url = video.url ?: "https://vk.com/video${video.id}"
-                                        onOpenInternalUrl(url)
-                                    }
+                                    ArtistVideoCard(video.title, video.cover, video.duration, colors.isDark)
                                 }
                             }
                         }
@@ -1007,14 +1026,21 @@ private fun ArtistLinkRow(
     subtitle: String?,
     cover: String?,
     isDark: Boolean,
-    onClick: () -> Unit,
+    onClick: (() -> Unit)? = null,
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = LiquidMetrics.ScreenPadding, vertical = 4.dp)
             .clip(RoundedCornerShape(18.dp))
-            .liquidClickable(pressedScale = LiquidMotion.PressButton, onClick = onClick)
+            .then(
+                if (onClick != null) {
+                    Modifier.liquidClickable(
+                        pressedScale = LiquidMotion.PressButton,
+                        onClick = onClick,
+                    )
+                } else Modifier
+            )
             .padding(vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -1054,14 +1080,21 @@ private fun ArtistVideoCard(
     cover: String?,
     duration: Long,
     isDark: Boolean,
-    onClick: () -> Unit,
+    onClick: (() -> Unit)? = null,
 ) {
     Column(modifier = Modifier.width(238.dp)) {
         Box(
             modifier = Modifier
                 .size(width = 238.dp, height = 134.dp)
                 .clip(RoundedCornerShape(16.dp))
-                .liquidClickable(pressedScale = LiquidMotion.PressButton, onClick = onClick),
+                .then(
+                    if (onClick != null) {
+                        Modifier.liquidClickable(
+                            pressedScale = LiquidMotion.PressButton,
+                            onClick = onClick,
+                        )
+                    } else Modifier
+                ),
         ) {
             AlbumArtImage(
                 uri = null,

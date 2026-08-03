@@ -21,7 +21,6 @@ import com.lmg.vk.ui.screens.SettingsScreen
 import com.lmg.vk.ui.screens.AlbumDetailScreen
 import com.lmg.vk.ui.screens.ArtistDetailScreen
 import com.lmg.vk.ui.screens.LibraryScreen
-import com.lmg.vk.ui.screens.InAppBrowserScreen
 import com.lmg.vk.ui.screens.LocalAlbumDetailScreen
 import com.lmg.vk.ui.screens.LocalArtistDetailScreen
 import com.lmg.vk.ui.screens.LocalLibraryScreen
@@ -119,7 +118,6 @@ fun LiquidNavHost(
                     onNavigateToArtist = { navController.navigate(NavRoutes.artist(NavRoutes.TAB_LIBRARY, it)) },
                     onOpenPlaylist = { navController.navigate(NavRoutes.playlist(NavRoutes.TAB_LIBRARY, it)) },
                     onOpenLocalLibrary = { navController.navigate(NavRoutes.LOCAL_LIBRARY) },
-                    onOpenInternalUrl = { navController.navigate(NavRoutes.browser(NavRoutes.TAB_LIBRARY, it)) },
                     backdrop = backdrop
                 )
             }
@@ -220,7 +218,6 @@ private fun NavGraphBuilder.musicDetailDestinations(
             onNavigateToAlbum = { navController.navigate(NavRoutes.album(tab, it)) },
             onNavigateToArtist = { navController.navigate(NavRoutes.artist(tab, it)) },
             onNavigateToPlaylist = { navController.navigate(NavRoutes.playlist(tab, it)) },
-            onOpenInternalUrl = { navController.navigate(NavRoutes.browser(tab, it)) },
         )
     }
     composable(
@@ -231,15 +228,6 @@ private fun NavGraphBuilder.musicDetailDestinations(
         PlaylistDetailScreen(
             playlistId = id,
             onBack = { navController.popBackStack() }
-        )
-    }
-    composable(
-        NavRoutes.browserRoute(tab),
-        arguments = listOf(navArgument(NavRoutes.ARG_URL) { type = NavType.StringType }),
-    ) { entry ->
-        InAppBrowserScreen(
-            initialUrl = entry.arguments?.getString(NavRoutes.ARG_URL).orEmpty(),
-            onBack = { navController.popBackStack() },
         )
     }
 }

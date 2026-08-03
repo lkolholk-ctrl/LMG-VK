@@ -1,7 +1,5 @@
 package com.lmg.vk.ui.navigation
 
-import android.net.Uri
-
 /**
  * Маршруты навигации (батч 15). Каждая нижняя вкладка — это ВЛОЖЕННЫЙ граф со
  * своим стартовым экраном и своими экранами-деталями. За счёт вложенных графов
@@ -32,7 +30,6 @@ object NavRoutes {
     // ── Аргументы ──
     const val ARG_ID = "id"
     const val ARG_NAME = "name"
-    const val ARG_URL = "url"
 
     /** Роут детали альбома внутри вкладки [tab] (tab = "wave"/"library"/"new"). */
     fun albumRoute(tab: String) = "$tab/album/{$ARG_ID}"
@@ -43,10 +40,6 @@ object NavRoutes {
 
     fun playlistRoute(tab: String) = "$tab/playlist/{$ARG_ID}"
     fun playlist(tab: String, id: String) = "$tab/playlist/$id"
-
-    fun browserRoute(tab: String) = "$tab/browser?url={$ARG_URL}"
-    fun browser(tab: String, url: String) = "$tab/browser?url=${Uri.encode(url)}"
-
 
     // ── Локальная медиатека (только внутри Библиотеки) ──
     const val LOCAL_LIBRARY = "library/local"

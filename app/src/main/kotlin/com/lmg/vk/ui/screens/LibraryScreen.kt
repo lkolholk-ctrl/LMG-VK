@@ -112,7 +112,6 @@ fun LibraryScreen(
     onNavigateToArtist: (String) -> Unit = {},
     onOpenPlaylist: (String) -> Unit = {},
     onOpenLocalLibrary: () -> Unit = {},
-    onOpenInternalUrl: (String) -> Unit = {},
 
     backdrop: LayerBackdrop? = null
 ) {
@@ -364,7 +363,7 @@ fun LibraryScreen(
                                 icon = Icons.Rounded.MusicNote,
                                 tint = Color(0xFF30D158),
                                 compact = win.useSideBySide,
-                                onClick = { onOpenInternalUrl("https://t.me/byicmbot") },
+                                onClick = {},
                                 trailing = {
                                     if (isPremium) Icon(Icons.Rounded.Check, null, tint = Color(0xFF30D158))
                                 },
@@ -712,7 +711,7 @@ fun LibraryScreen(
                     }
 
                     if (!isPremium && downloadedTracks.isEmpty()) {
-                        PremiumDownloadsPromo(onOpenInternalUrl = onOpenInternalUrl, backdrop = backdrop)
+                        PremiumDownloadsPromo(backdrop = backdrop)
                     } else if (downloadedTracks.isEmpty()) {
                         EmptyState("No downloaded tracks yet", Icons.Default.Download)
                     } else {
@@ -2690,10 +2689,7 @@ private fun EmptyState(message: String, icon: androidx.compose.ui.graphics.vecto
 }
 
 @Composable
-private fun PremiumDownloadsPromo(
-    onOpenInternalUrl: (String) -> Unit,
-    backdrop: LayerBackdrop? = null,
-) {
+private fun PremiumDownloadsPromo(backdrop: LayerBackdrop? = null) {
     val lc = LiquidTheme.colors
     Box(
         modifier = Modifier
@@ -2737,12 +2733,11 @@ private fun PremiumDownloadsPromo(
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(14.dp))
                     .background(AppleRed)
-                    .clickable { onOpenInternalUrl("https://t.me/byicmbot") }
                     .padding(vertical = 14.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = "Upgrade via Telegram",
+                    text = "Premium required",
                     color = Color.White,
                     fontSize = 15.sp,
                     fontWeight = FontWeight.Bold

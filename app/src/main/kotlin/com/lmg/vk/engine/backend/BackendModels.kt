@@ -280,6 +280,7 @@ data class ArtistResponse(
     val playlists: List<ArtistPlaylist> = emptyList(),
     @SerialName("appearsOn") val appearsOn: List<ArtistAlbum> = emptyList(),
     @SerialName("officialPages") val officialPages: List<ArtistOfficialPage> = emptyList(),
+    @SerialName("linkedArtists") val linkedArtists: List<SimilarArtist> = emptyList(),
     val links: List<ArtistLink> = emptyList(),
     val videos: List<ArtistVideo> = emptyList(),
     @SerialName("source") val source: String? = null
@@ -364,6 +365,7 @@ data class ArtistOfficialPage(
     val cover: String? = null,
     val subtitle: String? = null,
     @SerialName("isFollowed") val isFollowed: Boolean = false,
+    @SerialName("isCommunity") val isCommunity: Boolean = false,
 )
 
 @Serializable

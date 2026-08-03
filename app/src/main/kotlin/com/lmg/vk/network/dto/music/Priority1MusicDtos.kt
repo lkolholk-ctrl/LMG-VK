@@ -128,6 +128,7 @@ data class VkCatalogResponse(
     val artist_videos: List<VkCatalogVideo>? = null,
     val videos: List<VkCatalogVideo>? = null,
     val links: List<VkCatalogLink>? = null,
+    val music_owners: List<VkCatalogProfile>? = null,
     val audios: List<AudioTrack>? = null,
     val playlists: List<AudioPlaylist>? = null,
     val artists: List<VkArtistDto>? = null,
