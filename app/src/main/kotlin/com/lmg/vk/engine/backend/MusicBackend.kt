@@ -186,8 +186,14 @@ object MusicBackend {
                 Triple(main.await(), audios.await(), artists.await())
             }
 
-            val main = (mainResult as? VkResult.Success)?.data
-            val directTracks = (audioResult as? VkResult.Success)?.data.orEmpty()
+            val main = when (mainResult) {
+                is VkResult.Success -> mainResult.data
+                is VkResult.Error -> null
+            }
+            val directTracks = when (audioResult) {
+                is VkResult.Success -> audioResult.data
+                is VkResult.Error -> emptyList()
+            }
             val mainTracks = main?.let { response ->
                 (response.audios.items + response.own_audios.items).map { it.toAudioTrack() }
             }.orEmpty()
@@ -195,7 +201,10 @@ object MusicBackend {
                 .distinctBy(AudioTrack::fullId)
                 .also(::cacheTracks)
 
-            val directArtists = (artistResult as? VkResult.Success)?.data?.items.orEmpty()
+            val directArtists = when (artistResult) {
+                is VkResult.Success -> artistResult.data.items
+                is VkResult.Error -> emptyList()
+            }
             val artists = (directArtists + main?.artists?.items.orEmpty())
                 .distinctBy { it.id?.takeIf(String::isNotBlank) ?: it.domain ?: it.name.lowercase() }
 
@@ -327,12 +336,22 @@ object MusicBackend {
             val relatedResult = relatedRequest.await()
             val mainResult = mainRequest.await()
             val playlistResult = playlistRequest.await()
+            val relatedArtists = when (relatedResult) {
+                is VkResult.Success -> relatedResult.data.artists
+                is VkResult.Error -> emptyList()
+            }
+            val mainAlbums = when (mainResult) {
+                is VkResult.Success -> mainResult.data.albums.items + mainResult.data.own_albums.items
+                is VkResult.Error -> emptyList()
+            }
+            val foundPlaylists = when (playlistResult) {
+                is VkResult.Success -> playlistResult.data
+                is VkResult.Error -> emptyList()
+            }
             Triple(
-                (relatedResult as? VkResult.Success)?.data?.artists.orEmpty(),
-                (mainResult as? VkResult.Success)?.data?.let {
-                    it.albums.items + it.own_albums.items
-                }.orEmpty(),
-                (playlistResult as? VkResult.Success)?.data.orEmpty(),
+                relatedArtists,
+                mainAlbums,
+                foundPlaylists,
             )
         }
         val albums = buildList {
