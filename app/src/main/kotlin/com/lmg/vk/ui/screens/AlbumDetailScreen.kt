@@ -56,6 +56,7 @@ import com.lmg.vk.engine.backend.MusicBackend
 import com.lmg.vk.engine.backend.MusicAuth
 import com.lmg.vk.engine.backend.toTrack
 import com.lmg.vk.engine.PlayerController
+import com.lmg.vk.engine.PlaylistManager
 import com.lmg.vk.data.local.db.AppDatabase
 import com.lmg.vk.data.local.db.FavoriteTrackDatabase
 import com.lmg.vk.data.local.db.LibraryRepository
@@ -63,6 +64,7 @@ import com.lmg.vk.ui.components.DetailHeader
 import com.lmg.vk.ui.components.DetailTopBar
 import com.lmg.vk.ui.components.DetailTrackRow
 import com.lmg.vk.ui.components.TrackActionsSheet
+import com.lmg.vk.ui.components.PlaylistPickerSheet
 import com.lmg.vk.ui.components.formatTotalDuration
 import com.lmg.vk.ui.components.toDetailThumb
 import com.lmg.vk.ui.theme.LiquidSurfaces
@@ -99,6 +101,8 @@ fun AlbumDetailScreen(
     var followBusy by remember(albumId) { mutableStateOf(false) }
     var reloadKey by remember(albumId) { mutableStateOf(0) }
     var actionsTrack by remember(albumId) { mutableStateOf<Track?>(null) }
+    var playlistPickerTrack by remember(albumId) { mutableStateOf<Track?>(null) }
+    val editablePlaylists by PlaylistManager.playlists.collectAsState()
 
     val libraryRepository = remember(context) { LibraryRepository.getInstance(context) }
     val favoriteIds by libraryRepository.favoriteIdsFlow.collectAsState(initial = emptySet())
@@ -429,7 +433,24 @@ fun AlbumDetailScreen(
                 onCache = if (isPremium && selected.id !in downloadedIds) {
                     { AudioDownloadManager.downloadTrack(context, selected) }
                 } else null,
+                onAddToPlaylist = { playlistPickerTrack = selected },
                 onDismiss = { actionsTrack = null },
+            )
+        }
+
+        playlistPickerTrack?.let { selected ->
+            PlaylistPickerSheet(
+                playlists = editablePlaylists,
+                onSelect = { playlist ->
+                    val added = PlaylistManager.addTrack(playlist.id, selected)
+                    Toast.makeText(
+                        context,
+                        if (added) "Added to ${playlist.name}" else "Already in ${playlist.name}",
+                        Toast.LENGTH_SHORT,
+                    ).show()
+                    playlistPickerTrack = null
+                },
+                onDismiss = { playlistPickerTrack = null },
             )
         }
     }

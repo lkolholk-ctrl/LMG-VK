@@ -11,6 +11,9 @@ import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.FavoriteBorder
+import androidx.compose.material.icons.rounded.ArrowUpward
+import androidx.compose.material.icons.rounded.ArrowDownward
+import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
@@ -45,6 +48,10 @@ fun TrackActionsSheet(
     isFavorite: Boolean? = null,
     onToggleFavorite: (() -> Unit)? = null,
     onCache: (() -> Unit)? = null,
+    onAddToPlaylist: (() -> Unit)? = null,
+    onRemoveFromPlaylist: (() -> Unit)? = null,
+    onMoveUp: (() -> Unit)? = null,
+    onMoveDown: (() -> Unit)? = null,
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
@@ -102,6 +109,34 @@ fun TrackActionsSheet(
                 onDismiss()
             }
             Spacer(Modifier.height(8.dp))
+            if (onAddToPlaylist != null) {
+                ActionRow(rowBg, Icons.Rounded.PlaylistAdd, "Add to playlist") {
+                    onAddToPlaylist()
+                    onDismiss()
+                }
+                Spacer(Modifier.height(8.dp))
+            }
+            if (onMoveUp != null) {
+                ActionRow(rowBg, Icons.Rounded.ArrowUpward, "Move up") {
+                    onMoveUp()
+                    onDismiss()
+                }
+                Spacer(Modifier.height(8.dp))
+            }
+            if (onMoveDown != null) {
+                ActionRow(rowBg, Icons.Rounded.ArrowDownward, "Move down") {
+                    onMoveDown()
+                    onDismiss()
+                }
+                Spacer(Modifier.height(8.dp))
+            }
+            if (onRemoveFromPlaylist != null) {
+                ActionRow(rowBg, Icons.Rounded.Delete, "Remove from playlist") {
+                    onRemoveFromPlaylist()
+                    onDismiss()
+                }
+                Spacer(Modifier.height(8.dp))
+            }
             if (isFavorite != null && onToggleFavorite != null) {
                 ActionRow(
                     rowBg,

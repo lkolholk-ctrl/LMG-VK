@@ -2,6 +2,7 @@ package com.lmg.vk.ui.screens
 
 import android.content.Context
 import android.net.Uri
+import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloat
@@ -69,7 +70,9 @@ import com.lmg.vk.engine.backend.SearchSource
 import com.lmg.vk.engine.backend.WaveOnboardingArtist
 import com.lmg.vk.engine.backend.toTrack
 import com.lmg.vk.engine.PlayerController
+import com.lmg.vk.engine.PlaylistManager
 import com.lmg.vk.engine.Track
+import com.lmg.vk.ui.components.PlaylistPickerSheet
 import com.lmg.vk.ui.components.TrackActionsSheet
 import com.lmg.vk.ui.components.WrapRow
 import com.lmg.vk.ui.glass.AlbumArtImage
@@ -166,6 +169,8 @@ fun SearchScreen(
 
     // Долгий тап по треку → контекст-меню (в очередь / поделиться).
     var actionsTrack by remember { mutableStateOf<Track?>(null) }
+    var playlistPickerTrack by remember { mutableStateOf<Track?>(null) }
+    val editablePlaylists by PlaylistManager.playlists.collectAsState()
 
     Box(modifier = Modifier.fillMaxSize().background(LiquidTheme.colors.settingsBackground)) {
         Column(
@@ -626,7 +631,26 @@ fun SearchScreen(
 
         // Контекст-меню трека (долгий тап по строке результата).
         actionsTrack?.let { t ->
-            TrackActionsSheet(track = t, onDismiss = { actionsTrack = null })
+            TrackActionsSheet(
+                track = t,
+                onAddToPlaylist = { playlistPickerTrack = t },
+                onDismiss = { actionsTrack = null },
+            )
+        }
+        playlistPickerTrack?.let { track ->
+            PlaylistPickerSheet(
+                playlists = editablePlaylists,
+                onSelect = { playlist ->
+                    val added = PlaylistManager.addTrack(playlist.id, track)
+                    Toast.makeText(
+                        context,
+                        if (added) "Added to ${playlist.name}" else "Already in ${playlist.name}",
+                        Toast.LENGTH_SHORT,
+                    ).show()
+                    playlistPickerTrack = null
+                },
+                onDismiss = { playlistPickerTrack = null },
+            )
         }
     }
 }

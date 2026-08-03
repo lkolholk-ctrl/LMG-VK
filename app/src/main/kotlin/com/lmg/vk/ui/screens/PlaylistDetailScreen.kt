@@ -1,6 +1,7 @@
 package com.lmg.vk.ui.screens
 
 import android.net.Uri
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
@@ -25,6 +26,7 @@ import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.QueueMusic
 import androidx.compose.material.icons.rounded.Refresh
+import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
@@ -52,6 +54,7 @@ import com.lmg.vk.engine.backend.Album
 import com.lmg.vk.engine.backend.MusicBackend
 import com.lmg.vk.engine.backend.MusicAuth
 import com.lmg.vk.engine.PlayerController
+import com.lmg.vk.engine.PlaylistManager
 import com.lmg.vk.engine.Track
 import com.lmg.vk.data.local.db.FavoriteTrackDatabase
 import com.lmg.vk.data.local.db.LibraryRepository
@@ -59,6 +62,8 @@ import com.lmg.vk.ui.components.DetailHeader
 import com.lmg.vk.ui.components.DetailTopBar
 import com.lmg.vk.ui.components.DetailTrackRow
 import com.lmg.vk.ui.components.TrackActionsSheet
+import com.lmg.vk.ui.components.PlaylistNameDialog
+import com.lmg.vk.ui.components.PlaylistPickerSheet
 import com.lmg.vk.ui.components.formatTotalDuration
 import com.lmg.vk.ui.components.toDetailThumb
 import com.lmg.vk.ui.theme.LiquidSurfaces
@@ -98,6 +103,8 @@ fun PlaylistDetailScreen(
     var followBusy by remember { mutableStateOf(false) }
     var cacheRequested by remember { mutableStateOf(false) }
     var actionsTrack by remember { mutableStateOf<Track?>(null) }
+    var playlistPickerTrack by remember { mutableStateOf<Track?>(null) }
+    var showRenameDialog by remember { mutableStateOf(false) }
 
     val libraryRepository = remember(context) { LibraryRepository.getInstance(context) }
     val favoriteIds by libraryRepository.favoriteIdsFlow.collectAsState(initial = emptySet())
@@ -105,10 +112,14 @@ fun PlaylistDetailScreen(
     val downloadedTracks by downloadDb.downloadsFlow.collectAsState(initial = emptyList())
     val downloadProgress by AudioDownloadManager.downloadProgress.collectAsState()
     val isPremium by MusicAuth.isPremium.collectAsState()
+    val managedPlaylists by PlaylistManager.playlists.collectAsState()
 
     // Локальные плейлисты живут в приложении, облачные — на сервере. Отличаются
     // по префиксу идентификатора.
     val isLocalPlaylist = playlistId.startsWith("pl_")
+    val localPlaylist = remember(playlistId, managedPlaylists) {
+        managedPlaylists.firstOrNull { it.id == playlistId }
+    }
 
     LaunchedEffect(playlistId, reloadKey) {
         if (playlistId.isBlank()) {
@@ -127,24 +138,12 @@ fun PlaylistDetailScreen(
         cacheRequested = false
 
         if (isLocalPlaylist) {
-            val localPlaylist = com.lmg.vk.engine.PlaylistManager.getById(playlistId)
             if (localPlaylist == null) {
                 errorMsg = "Playlist not found"
                 isLoading = false
                 return@LaunchedEffect
             }
-            tracks = localPlaylist.tracks.map { pt ->
-                Track(
-                    id = pt.id,
-                    title = pt.title,
-                    artist = pt.artist,
-                    albumName = "",
-                    uri = Uri.parse("https://byicloud.online/track/${pt.id}"),
-                    durationMs = pt.durationMs,
-                    albumId = pt.id.hashCode().toLong(),
-                    coverUrl = pt.coverUrl
-                )
-            }
+            tracks = localPlaylist.toEngineTracks()
             loadedCount = tracks.size
             totalExpected = tracks.size
             isLoading = false
@@ -211,9 +210,19 @@ fun PlaylistDetailScreen(
         }
     }
 
-    val name = remember(playlistId, playlistInfo) {
+    LaunchedEffect(isLocalPlaylist, localPlaylist?.modifiedAt) {
+        if (isLocalPlaylist && localPlaylist != null) {
+            tracks = localPlaylist.toEngineTracks()
+            loadedCount = tracks.size
+            totalExpected = tracks.size
+            errorMsg = null
+            isLoading = false
+        }
+    }
+
+    val name = remember(playlistId, playlistInfo, localPlaylist) {
         if (isLocalPlaylist) {
-            com.lmg.vk.engine.PlaylistManager.getById(playlistId)?.name ?: "Playlist"
+            localPlaylist?.name ?: "Playlist"
         } else {
             playlistInfo?.title ?: "Playlist"
         }
@@ -305,6 +314,7 @@ fun PlaylistDetailScreen(
                         PlaylistActionsRow(
                             isDark = isDark,
                             isLocal = isLocalPlaylist,
+                            isSynced = localPlaylist?.remoteId != null,
                             isOwned = playlistInfo?.isOwned == true,
                             isFollowing = isFollowing,
                             followEnabled = playlistInfo?.canFollow == true && !followBusy,
@@ -326,6 +336,7 @@ fun PlaylistDetailScreen(
                                     .forEach { AudioDownloadManager.downloadTrack(context, it) }
                             },
                             onQueue = { playableTracks.forEach(PlayerController::addToQueue) },
+                            onRename = { showRenameDialog = true },
                         )
                     }
 
@@ -417,6 +428,7 @@ fun PlaylistDetailScreen(
         )
 
         actionsTrack?.let { selected ->
+            val selectedIndex = tracks.indexOfFirst { it.id == selected.id }
             TrackActionsSheet(
                 track = selected,
                 isFavorite = selected.id in favoriteIds,
@@ -426,7 +438,46 @@ fun PlaylistDetailScreen(
                 onCache = if (isPremium && selected.id !in downloadedIds) {
                     { AudioDownloadManager.downloadTrack(context, selected) }
                 } else null,
+                onAddToPlaylist = { playlistPickerTrack = selected },
+                onRemoveFromPlaylist = if (isLocalPlaylist) {
+                    { PlaylistManager.removeTrack(playlistId, selected.id) }
+                } else null,
+                onMoveUp = if (isLocalPlaylist && selectedIndex > 0) {
+                    { PlaylistManager.moveTrack(playlistId, selectedIndex, selectedIndex - 1) }
+                } else null,
+                onMoveDown = if (isLocalPlaylist && selectedIndex in 0 until tracks.lastIndex) {
+                    { PlaylistManager.moveTrack(playlistId, selectedIndex, selectedIndex + 1) }
+                } else null,
                 onDismiss = { actionsTrack = null },
+            )
+        }
+
+        playlistPickerTrack?.let { selected ->
+            PlaylistPickerSheet(
+                playlists = managedPlaylists,
+                onSelect = { playlist ->
+                    val added = PlaylistManager.addTrack(playlist.id, selected)
+                    Toast.makeText(
+                        context,
+                        if (added) "Added to ${playlist.name}" else "Already in ${playlist.name}",
+                        Toast.LENGTH_SHORT,
+                    ).show()
+                    playlistPickerTrack = null
+                },
+                onDismiss = { playlistPickerTrack = null },
+            )
+        }
+
+        if (showRenameDialog && localPlaylist != null) {
+            PlaylistNameDialog(
+                title = "Rename playlist",
+                initialName = localPlaylist.name,
+                confirmLabel = "Rename",
+                onConfirm = { newName ->
+                    PlaylistManager.rename(playlistId, newName)
+                    showRenameDialog = false
+                },
+                onDismiss = { showRenameDialog = false },
             )
         }
     }
@@ -436,6 +487,7 @@ fun PlaylistDetailScreen(
 private fun PlaylistActionsRow(
     isDark: Boolean,
     isLocal: Boolean,
+    isSynced: Boolean,
     isOwned: Boolean,
     isFollowing: Boolean,
     followEnabled: Boolean,
@@ -444,6 +496,7 @@ private fun PlaylistActionsRow(
     onAdd: () -> Unit,
     onCache: () -> Unit,
     onQueue: () -> Unit,
+    onRename: () -> Unit,
 ) {
     Row(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 10.dp),
@@ -451,6 +504,7 @@ private fun PlaylistActionsRow(
     ) {
         PlaylistActionButton(
             title = when {
+                isSynced -> "Synced"
                 isLocal -> "Local"
                 isOwned -> "Yours"
                 isFollowing -> "Added"
@@ -463,7 +517,23 @@ private fun PlaylistActionsRow(
         )
         PlaylistActionButton("Cache", Icons.Rounded.Download, cacheEnabled, isDark, onCache)
         PlaylistActionButton("Queue", Icons.Rounded.QueueMusic, queueEnabled, isDark, onQueue)
+        if (isLocal) {
+            PlaylistActionButton("Rename", Icons.Rounded.Edit, true, isDark, onRename)
+        }
     }
+}
+
+private fun PlaylistManager.Playlist.toEngineTracks(): List<Track> = tracks.map { track ->
+    Track(
+        id = track.id,
+        title = track.title,
+        artist = track.artist,
+        albumName = "",
+        uri = Uri.parse("https://byicloud.online/track/${track.id}"),
+        durationMs = track.durationMs,
+        albumId = track.id.hashCode().toLong(),
+        coverUrl = track.coverUrl,
+    )
 }
 
 @Composable

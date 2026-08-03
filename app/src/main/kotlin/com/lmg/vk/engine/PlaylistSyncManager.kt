@@ -24,6 +24,7 @@ object PlaylistSyncManager {
         val unchanged: Int = 0,
         val unsupportedTracks: Int = 0,
         val failed: Int = 0,
+        val deleted: Int = 0,
     )
 
     data class SyncState(
@@ -65,27 +66,52 @@ object PlaylistSyncManager {
         }
     }
 
-    /** Удаляет связанную VK-копию и лишь после успеха — локальную. */
+    /** Локально удаляет сразу; неудачное VK-удаление сохраняет в офлайн-очередь. */
     suspend fun deleteEverywhere(localId: String): Result<Unit> = mutex.withLock {
         val local = PlaylistManager.getById(localId)
             ?: return@withLock Result.success(Unit)
         val remoteId = local.remoteId
-        if (remoteId != null && !MusicBackend.deleteUserPlaylist(remoteId)) {
-            return@withLock Result.failure(IllegalStateException("Couldn't delete VK playlist"))
-        }
         PlaylistManager.delete(localId)
+        if (remoteId != null) {
+            if (MusicBackend.deleteUserPlaylist(remoteId)) {
+                PlaylistManager.confirmRemoteDelete(remoteId)
+            } else {
+                PlaylistManager.queueRemoteDelete(remoteId)
+            }
+        }
+        Result.success(Unit)
+    }
+
+    suspend fun deleteRemote(remoteId: String): Result<Unit> = mutex.withLock {
+        if (remoteId.isBlank()) return@withLock Result.success(Unit)
+        if (MusicBackend.deleteUserPlaylist(remoteId)) {
+            PlaylistManager.confirmRemoteDelete(remoteId)
+        } else {
+            PlaylistManager.queueRemoteDelete(remoteId)
+        }
         Result.success(Unit)
     }
 
     private suspend fun merge(): SyncReport {
+        var deleted = 0
+        var failedDeletes = 0
+        PlaylistManager.pendingDeletes().forEach { remoteId ->
+            if (MusicBackend.deleteUserPlaylist(remoteId)) {
+                PlaylistManager.confirmRemoteDelete(remoteId)
+                deleted++
+            } else failedDeletes++
+        }
+        val pendingDeletes = PlaylistManager.pendingDeletes()
         val remotePlaylists = MusicBackend.getUserPlaylists(limit = 1000).items
-            .filter { !it.id.isNullOrBlank() }
+            .filter { playlist ->
+                playlist.id?.let { it.isNotBlank() && it !in pendingDeletes } == true
+            }
         val remoteById = remotePlaylists.associateBy { it.id.orEmpty() }
         var pushed = 0
         var pulled = 0
         var unchanged = 0
         var unsupported = 0
-        var failed = 0
+        var failed = failedDeletes
 
         // Сначала разрешаем уже связанные пары.
         PlaylistManager.playlists.value.filter { it.remoteId != null }.forEach { local ->
@@ -132,7 +158,14 @@ object PlaylistSyncManager {
             if (pull(remote)) pulled++ else failed++
         }
 
-        return SyncReport(pushed, pulled, unchanged, unsupported, failed)
+        return SyncReport(
+            pushed = pushed,
+            pulled = pulled,
+            unchanged = unchanged,
+            unsupportedTracks = unsupported,
+            failed = failed,
+            deleted = deleted,
+        )
     }
 
     private suspend fun push(local: PlaylistManager.Playlist): Boolean {

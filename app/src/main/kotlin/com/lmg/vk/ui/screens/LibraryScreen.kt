@@ -90,6 +90,7 @@ import com.lmg.vk.ui.glass.GlassDialog
 import com.lmg.vk.ui.glass.GlassDialogButton
 import com.lmg.vk.ui.glass.GlassKit
 import com.lmg.vk.ui.glass.liquidClickable
+import com.lmg.vk.ui.components.PlaylistNameDialog
 import com.lmg.vk.ui.theme.LiquidMotion
 import com.lmg.vk.ui.theme.LiquidTheme
 import com.lmg.vk.ui.viewmodel.LibraryViewModel
@@ -160,6 +161,7 @@ fun LibraryScreen(
     var importedPlaylists by remember { mutableStateOf<List<com.lmg.vk.engine.backend.UserPlaylist>>(emptyList()) }
     var isPlaylistsLoading by remember { mutableStateOf(false) }
     var showImportDialog by remember { mutableStateOf(false) }
+    var showCreatePlaylistDialog by remember { mutableStateOf(false) }
     val localPlaylists by com.lmg.vk.engine.PlaylistManager.playlists.collectAsState()
     val playlistSyncState by PlaylistSyncManager.state.collectAsState()
 
@@ -466,7 +468,7 @@ fun LibraryScreen(
                                     Icon(Icons.Filled.Refresh, "Sync playlists", tint = lc.iconMuted)
                                 }
                             }
-                            IconButton(onClick = { showImportDialog = true }) {
+                            IconButton(onClick = { showCreatePlaylistDialog = true }) {
                                 Icon(Icons.Rounded.Add, "Add playlist", tint = lc.accent)
                             }
                         }
@@ -478,6 +480,7 @@ fun LibraryScreen(
                             buildString {
                                 append("Synced · ${it.pushed} uploaded · ${it.pulled} downloaded")
                                 if (it.failed > 0) append(" · ${it.failed} failed")
+                                if (it.deleted > 0) append(" · ${it.deleted} deleted")
                                 if (it.unsupportedTracks > 0) append(" · ${it.unsupportedTracks} local-only tracks")
                             }
                         }
@@ -548,7 +551,7 @@ fun LibraryScreen(
                             onClick = {
                                 if (cell.isImported) {
                                     scope.launch {
-                                        MusicBackend.deleteUserPlaylist(cell.id)
+                                        PlaylistSyncManager.deleteRemote(cell.id)
                                         loadImportedPlaylists()
                                     }
                                 } else {
@@ -1015,7 +1018,7 @@ fun LibraryScreen(
                             text = "Delete",
                             onClick = {
                                 scope.launch {
-                                    MusicBackend.deleteUserPlaylist(playlist.id ?: "")
+                                    PlaylistSyncManager.deleteRemote(playlist.id ?: "")
                                     loadImportedPlaylists()
                                 }
                                 importedPlaylistToDelete = null
@@ -1042,6 +1045,18 @@ fun LibraryScreen(
                     showImportDialog = false
                     loadImportedPlaylists()
                 }
+            )
+        }
+
+        if (showCreatePlaylistDialog) {
+            PlaylistNameDialog(
+                title = "New playlist",
+                confirmLabel = "Create",
+                onConfirm = { name ->
+                    com.lmg.vk.engine.PlaylistManager.create(name)
+                    showCreatePlaylistDialog = false
+                },
+                onDismiss = { showCreatePlaylistDialog = false },
             )
         }
 

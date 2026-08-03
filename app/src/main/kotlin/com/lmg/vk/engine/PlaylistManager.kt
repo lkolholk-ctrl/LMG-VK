@@ -18,6 +18,7 @@ object PlaylistManager {
 
     private lateinit var prefs: SharedPreferences
     private const val PREFS_NAME = "playlists"
+    private val pendingRemoteDeletes = linkedSetOf<String>()
 
     private fun safePrefs(): SharedPreferences? {
         return if (::prefs.isInitialized) prefs else null
@@ -143,7 +144,7 @@ object PlaylistManager {
     /**
      * Добавить трек в плейлист.
      */
-    fun addTrack(playlistId: String, track: PlaylistTrack) {
+    fun addTrack(playlistId: String, track: PlaylistTrack): Boolean {
         val list = _playlists.value.toMutableList()
         val idx = list.indexOfFirst { it.id == playlistId }
         if (idx >= 0) {
@@ -158,9 +159,22 @@ object PlaylistManager {
                 _playlists.value = list
                 saveToPrefs()
                 _changes.tryEmit(Unit)
+                return true
             }
         }
+        return false
     }
+
+    fun addTrack(playlistId: String, track: Track): Boolean = addTrack(
+        playlistId = playlistId,
+        track = PlaylistTrack(
+            id = track.id,
+            title = track.title,
+            artist = track.artist,
+            coverUrl = track.coverUrl,
+            durationMs = track.durationMs,
+        ),
+    )
 
     /**
      * Убрать трек из плейлиста.
@@ -211,6 +225,18 @@ object PlaylistManager {
 
     fun getByRemoteId(remoteId: String): Playlist? =
         _playlists.value.find { it.remoteId == remoteId }
+
+    fun pendingDeletes(): Set<String> = pendingRemoteDeletes.toSet()
+
+    fun queueRemoteDelete(remoteId: String) {
+        pendingRemoteDeletes += remoteId
+        savePendingDeletes()
+        _changes.tryEmit(Unit)
+    }
+
+    fun confirmRemoteDelete(remoteId: String) {
+        if (pendingRemoteDeletes.remove(remoteId)) savePendingDeletes()
+    }
 
     /** Связать созданный в VK плейлист с его локальным оригиналом. */
     fun markSynced(
@@ -315,8 +341,25 @@ object PlaylistManager {
         p.edit().putString("data", arr.toString()).apply()
     }
 
+    private fun savePendingDeletes() {
+        val p = safePrefs() ?: return
+        p.edit().putString(
+            "pending_remote_deletes",
+            JSONArray(pendingRemoteDeletes.toList()).toString(),
+        ).apply()
+    }
+
     private fun loadFromPrefs() {
         val p = safePrefs() ?: return
+        pendingRemoteDeletes.clear()
+        runCatching {
+            val pending = JSONArray(p.getString("pending_remote_deletes", "[]").orEmpty())
+            for (i in 0 until pending.length()) {
+                pending.optString(i).takeIf { it.isNotBlank() }?.let {
+                    pendingRemoteDeletes.add(it)
+                }
+            }
+        }
         try {
             val str = p.getString("data", null) ?: return
             val arr = JSONArray(str)

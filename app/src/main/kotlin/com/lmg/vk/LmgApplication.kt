@@ -193,6 +193,11 @@ class LmgApplication : Application(), ImageLoaderFactory {
             }
         }
         appScope.launch {
+            MusicAuth.isLoggedIn.collectLatest { loggedIn ->
+                if (loggedIn) runCatching { PlaylistSyncManager.sync() }
+            }
+        }
+        appScope.launch {
             // C9616e: api.vk.com/ping.txt -> api.vk.ru/ping.txt.
             vkApiClient.probeAndSelectApiDomain()
             // Дослать сигналы волны, не доставленные в прошлой сессии.
@@ -200,7 +205,6 @@ class LmgApplication : Application(), ImageLoaderFactory {
             // Подтянуть серверные лайки в локальное избранное.
             if (MusicAuth.isLoggedIn.value) {
                 runCatching { LibraryRepository.getInstance(this@LmgApplication).syncWithCloud() }
-                runCatching { PlaylistSyncManager.sync() }
             }
         }
 
