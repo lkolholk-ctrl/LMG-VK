@@ -82,7 +82,8 @@ fun DetailHeader(
     coverUrl: String?,
     isDark: Boolean,
     onPlay: () -> Unit,
-    onShuffle: () -> Unit
+    onShuffle: () -> Unit,
+    canPlay: Boolean = true,
 ) {
     val screenHeight = LocalConfiguration.current.screenHeightDp.dp
     val headerHeight = (screenHeight * 0.52f).coerceIn(360.dp, 560.dp)
@@ -162,6 +163,7 @@ fun DetailHeader(
                         filled = true,
                         isDark = isDark,
                         onPhoto = true,
+                        enabled = canPlay,
                         onClick = onPlay
                     )
                     DetailActionButton(
@@ -170,6 +172,7 @@ fun DetailHeader(
                         filled = false,
                         isDark = isDark,
                         onPhoto = true,
+                        enabled = canPlay,
                         onClick = onShuffle
                     )
                 }
@@ -207,6 +210,7 @@ fun RowScope.DetailActionButton(
     filled: Boolean,
     isDark: Boolean,
     onPhoto: Boolean = false,
+    enabled: Boolean = true,
     onClick: () -> Unit
 ) {
     // Поверх обложки главная кнопка всегда белая: под ней может быть любой кадр,
@@ -229,6 +233,7 @@ fun RowScope.DetailActionButton(
         modifier = Modifier
             .weight(1f)
             .height(LiquidMetrics.ActionButtonHeight)
+            .alpha(if (enabled) 1f else 0.42f)
             .shadow(
                 elevation = if (filled) LiquidMetrics.ButtonElevation else 2.dp,
                 shape = CircleShape,
@@ -237,7 +242,11 @@ fun RowScope.DetailActionButton(
             )
             .clip(CircleShape)
             .background(background)
-            .liquidClickable(pressedScale = LiquidMotion.PressButton, onClick = onClick),
+            .liquidClickable(
+                enabled = enabled,
+                pressedScale = LiquidMotion.PressButton,
+                onClick = onClick,
+            ),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.Center
     ) {

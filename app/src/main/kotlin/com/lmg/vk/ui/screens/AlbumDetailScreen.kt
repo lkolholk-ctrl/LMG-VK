@@ -1,15 +1,19 @@
 package com.lmg.vk.ui.screens
 
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -17,9 +21,12 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.ArrowForward
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Download
+import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.QueueMusic
+import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -34,6 +41,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -80,10 +88,12 @@ fun AlbumDetailScreen(
     var error by remember { mutableStateOf<String?>(null) }
     var isFollowing by remember(albumId) { mutableStateOf(false) }
     var followBusy by remember(albumId) { mutableStateOf(false) }
+    var reloadKey by remember(albumId) { mutableStateOf(0) }
 
-    LaunchedEffect(albumId) {
+    LaunchedEffect(albumId, reloadKey) {
         isLoading = true
         error = null
+        album = null
         try {
             album = MusicBackend.getAlbum(albumId)
             isFollowing = album?.album?.isFollowing == true
@@ -114,11 +124,41 @@ fun AlbumDetailScreen(
             }
 
             error != null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text(
-                    text = error.orEmpty(),
-                    color = LiquidSurfaces.textSecondary(isDark),
-                    fontSize = 14.sp
-                )
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.padding(horizontal = 32.dp),
+                ) {
+                    Text(
+                        text = error.orEmpty(),
+                        color = LiquidSurfaces.textSecondary(isDark),
+                        fontSize = 14.sp
+                    )
+                    Spacer(Modifier.height(14.dp))
+                    Row(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(LiquidSurfaces.card(isDark))
+                            .liquidClickable(
+                                pressedScale = LiquidMotion.PressButton,
+                                onClick = { reloadKey++ },
+                            )
+                            .padding(horizontal = 18.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(
+                            Icons.Rounded.Refresh,
+                            contentDescription = null,
+                            tint = LiquidSurfaces.textPrimary(isDark),
+                            modifier = Modifier.size(18.dp),
+                        )
+                        Spacer(Modifier.width(7.dp))
+                        Text(
+                            "Retry",
+                            color = LiquidSurfaces.textPrimary(isDark),
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                    }
+                }
             }
 
             else -> {
@@ -142,8 +182,10 @@ fun AlbumDetailScreen(
                                 info?.genre?.takeIf { it.isNotBlank() }?.let(::add)
                                 info?.year?.takeIf { it.isNotBlank() }?.let(::add)
                                 if (albumTracks.isNotEmpty()) add("${albumTracks.size} songs")
+                                val unavailable = albumTracks.count { !it.isAvailable }
+                                if (unavailable > 0) add("$unavailable unavailable")
                                 // Общее время каталог не отдаёт — считаем по трекам.
-                                val total = albumTracks.sumOf { it.durationMs }
+                                val total = playableTracks.sumOf { it.durationMs }
                                 if (total > 0) add(formatTotalDuration(total))
                             },
                             coverUrl = info?.cover.toDetailThumb(),
@@ -157,7 +199,8 @@ fun AlbumDetailScreen(
                                 if (playableTracks.isNotEmpty()) {
                                     PlayerController.play(context, playableTracks.shuffled(), 0)
                                 }
-                            }
+                            },
+                            canPlay = playableTracks.isNotEmpty(),
                         )
                     }
 
@@ -165,39 +208,77 @@ fun AlbumDetailScreen(
                         AlbumActionsRow(
                             isDark = isDark,
                             isFollowing = isFollowing,
+                            isAdding = followBusy,
                             canFollow = info?.canFollow == true && !followBusy,
                             canDownload = playableTracks.isNotEmpty(),
                             onAdd = {
                                 if (!isFollowing && info?.canFollow == true) {
                                     scope.launch {
                                         followBusy = true
-                                        if (MusicBackend.followAlbum(albumId)) isFollowing = true
+                                        if (MusicBackend.followAlbum(albumId)) {
+                                            isFollowing = true
+                                            Toast.makeText(context, "Album added", Toast.LENGTH_SHORT).show()
+                                        } else {
+                                            Toast.makeText(context, "Couldn't add album", Toast.LENGTH_SHORT).show()
+                                        }
                                         followBusy = false
                                     }
                                 }
                             },
                             onDownload = {
                                 playableTracks.forEach { AudioDownloadManager.downloadTrack(context, it) }
+                                Toast.makeText(
+                                    context,
+                                    "Caching ${playableTracks.size} tracks",
+                                    Toast.LENGTH_SHORT,
+                                ).show()
                             },
-                            onQueue = { playableTracks.forEach(PlayerController::addToQueue) },
+                            onQueue = {
+                                playableTracks.forEach(PlayerController::addToQueue)
+                                Toast.makeText(
+                                    context,
+                                    "Added ${playableTracks.size} tracks to queue",
+                                    Toast.LENGTH_SHORT,
+                                ).show()
+                            },
                         )
                     }
 
                     info?.artistId?.takeIf { it.isNotBlank() }?.let { artistId ->
                         item {
-                            Text(
-                                text = "Open artist: ${info?.artist.orEmpty()}",
-                                color = colors.accent,
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.SemiBold,
+                            Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
+                                    .padding(horizontal = 20.dp, vertical = 8.dp)
+                                    .clip(RoundedCornerShape(18.dp))
+                                    .background(LiquidSurfaces.card(isDark))
                                     .liquidClickable(
                                         pressedScale = LiquidMotion.PressButton,
                                         onClick = { onNavigateToArtist(artistId) },
                                     )
-                                    .padding(horizontal = 20.dp, vertical = 10.dp),
-                            )
+                                    .padding(horizontal = 14.dp, vertical = 13.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Icon(
+                                    Icons.Rounded.Person,
+                                    contentDescription = null,
+                                    tint = colors.accent,
+                                    modifier = Modifier.size(24.dp),
+                                )
+                                Text(
+                                    text = info?.artist.orEmpty(),
+                                    color = LiquidSurfaces.textPrimary(isDark),
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    modifier = Modifier.padding(start = 12.dp).weight(1f),
+                                )
+                                Icon(
+                                    Icons.Rounded.ArrowForward,
+                                    contentDescription = "Open artist",
+                                    tint = LiquidSurfaces.textSecondary(isDark),
+                                    modifier = Modifier.size(19.dp),
+                                )
+                            }
                         }
                     }
 
@@ -260,6 +341,7 @@ fun AlbumDetailScreen(
 private fun AlbumActionsRow(
     isDark: Boolean,
     isFollowing: Boolean,
+    isAdding: Boolean,
     canFollow: Boolean,
     canDownload: Boolean,
     onAdd: () -> Unit,
@@ -271,9 +353,13 @@ private fun AlbumActionsRow(
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         AlbumActionButton(
-            if (isFollowing) "Added" else "Add",
+            when {
+                isFollowing -> "Added"
+                isAdding -> "Adding…"
+                else -> "Add"
+            },
             if (isFollowing) Icons.Rounded.Check else Icons.Rounded.Add,
-            isFollowing || canFollow,
+            (isFollowing || canFollow) && !isAdding,
             isDark,
             onAdd,
         )
@@ -293,6 +379,7 @@ private fun androidx.compose.foundation.layout.RowScope.AlbumActionButton(
     Row(
         modifier = Modifier
             .weight(1f)
+            .alpha(if (enabled) 1f else 0.42f)
             .clip(RoundedCornerShape(16.dp))
             .background(LiquidSurfaces.card(isDark))
             .liquidClickable(enabled = enabled, pressedScale = LiquidMotion.PressButton, onClick = onClick)
