@@ -70,9 +70,15 @@ class VkAuthApi(
         return when (val result = client.execute(method)) {
             is VkResult.Success -> {
                 val token = result.data.firstOrNull() ?: return false
+                val nowSeconds = System.currentTimeMillis() / 1000
                 sessionStore.session = session.copy(
                     accessToken = token.accessToken,
-                    expiresAt = (System.currentTimeMillis() / 1000) + token.expiresInSeconds,
+                    // Как и OAuth /token, refresh может вернуть expires_in=0.
+                    // Храним 0 как "срок не указан", а не как "истёк сейчас".
+                    expiresAt = token.expiresInSeconds
+                        .takeIf { it > 0L }
+                        ?.let { nowSeconds + it }
+                        ?: 0L,
                 )
                 true
             }

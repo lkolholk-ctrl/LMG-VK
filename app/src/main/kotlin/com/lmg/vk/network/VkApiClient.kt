@@ -236,13 +236,16 @@ class VkApiClient(
     /** Возвращает валидный access_token; при истечении — обновляет под mutex. */
     suspend fun getValidToken(): String {
         val current = sessionStore.session
-        if (current.expiresAt != 0L && !current.isExpired) {
+        // VK может вернуть expires_in=0: это означает, что явный срок жизни
+        // токена не задан. Такой токен остаётся рабочим до ошибки 1117 и не
+        // должен принудительно обновляться перед каждым API-вызовом.
+        if (current.accessToken.isNotBlank() && !current.isExpired) {
             return current.accessToken
         }
         return tokenMutex.withLock {
             // double-check после захвата mutex
             val rechecked = sessionStore.session
-            if (rechecked.expiresAt != 0L && !rechecked.isExpired) {
+            if (rechecked.accessToken.isNotBlank() && !rechecked.isExpired) {
                 return@withLock rechecked.accessToken
             }
             performTokenRefresh()
