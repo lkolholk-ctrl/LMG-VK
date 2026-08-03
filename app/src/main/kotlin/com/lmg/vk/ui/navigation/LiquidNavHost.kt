@@ -203,7 +203,8 @@ private fun NavGraphBuilder.musicDetailDestinations(
         val id = entry.arguments?.getString(NavRoutes.ARG_ID).orEmpty()
         AlbumDetailScreen(
             albumId = id,
-            onBack = { navController.popBackStack() }
+            onBack = { navController.popBackStack() },
+            onNavigateToArtist = { navController.navigate(NavRoutes.artist(tab, it)) },
         )
     }
     composable(
@@ -215,7 +216,8 @@ private fun NavGraphBuilder.musicDetailDestinations(
             artistId = id,
             onBack = { navController.popBackStack() },
             onNavigateToAlbum = { navController.navigate(NavRoutes.album(tab, it)) },
-            onNavigateToArtist = { navController.navigate(NavRoutes.artist(tab, it)) }
+            onNavigateToArtist = { navController.navigate(NavRoutes.artist(tab, it)) },
+            onNavigateToPlaylist = { navController.navigate(NavRoutes.playlist(tab, it)) },
         )
     }
     composable(

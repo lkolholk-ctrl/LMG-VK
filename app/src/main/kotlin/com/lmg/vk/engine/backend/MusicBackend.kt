@@ -23,6 +23,8 @@ import com.lmg.vk.network.dto.music.AudioStreamMix
 import com.lmg.vk.network.dto.music.AudioTrack
 import com.lmg.vk.network.dto.music.MainArtist
 import com.lmg.vk.network.dto.music.VkArtistDto
+import com.lmg.vk.network.dto.music.VkCatalogBlock
+import com.lmg.vk.network.dto.music.VkCatalogResponse
 import com.lmg.vk.network.methods.VkAudioApi
 import com.lmg.vk.network.methods.VkCatalogApi
 import com.lmg.vk.network.methods.VkMethodsRegistry
@@ -307,15 +309,34 @@ object MusicBackend {
         AlbumResponse(playlist.toAlbum(), tracks.map { it.toAlbumTrack() })
     }.getOrNull()
 
+    suspend fun followAlbum(albumId: String): Boolean = runCatching {
+        requireInitialized()
+        val (ownerId, id) = parsePlaylistId(albumId)
+        val playlist = audioApi.getPlaylistById(ownerId, id).requireData()
+        audioApi.followPlaylist(id, ownerId, playlist.access_key).requireData()
+        true
+    }.getOrDefault(false)
+
     suspend fun getArtist(artistId: String): ArtistResponse? = runCatching {
         requireInitialized()
         val normalizedId = artistId.removePrefix("vk_")
         val catalog = catalogApi.getAudioArtist(normalizedId).requireData()
-        val tracks = catalog.audios.orEmpty().ifEmpty {
+        val sectionCatalogs = coroutineScope {
+            catalog.catalog?.sections.orEmpty()
+                .map { it.id }
+                .filter(String::isNotBlank)
+                .distinct()
+                .take(20)
+                .map { sectionId -> async { catalogApi.getSection(sectionId).getOrNull() } }
+                .mapNotNull { it.await() }
+        }
+        val catalogPages = listOf(catalog) + sectionCatalogs
+        val tracks = catalogPages.flatMap { it.audios.orEmpty() }.distinctBy(AudioTrack::fullId).ifEmpty {
             audioApi.getAudiosByArtist(normalizedId).requireData()
         }.also(::cacheTracks)
-        val artist = catalog.artists.orEmpty().firstOrNull { it.id == normalizedId }
-            ?: catalog.artists.orEmpty().firstOrNull()
+        val catalogArtists = catalogPages.flatMap { it.artists.orEmpty() }
+        val artist = catalogArtists.firstOrNull { it.id == normalizedId }
+            ?: catalogArtists.firstOrNull()
             ?: VkArtistDto(
                 id = normalizedId,
                 name = tracks.firstOrNull()?.main_artists?.firstOrNull()?.name
@@ -347,8 +368,20 @@ object MusicBackend {
                 foundPlaylists,
             )
         }
-        val albums = buildList {
-            addAll(catalog.playlists.orEmpty()
+        val catalogBlocks = catalogPages.flatMap { it.allBlocks() }
+        val appearsOnIds = catalogBlocks
+            .filter { it.matchesSection("appears", "particip", "участ") }
+            .flatMap { it.playlists_ids.orEmpty() }
+            .map(::normalizeTrackId)
+            .toSet()
+        val artistPlaylistIds = catalogBlocks
+            .filter { it.matchesSection("playlist", "плейлист") }
+            .flatMap { it.playlists_ids.orEmpty() }
+            .map(::normalizeTrackId)
+            .toSet()
+
+        val albumCandidates = buildList {
+            addAll(catalogPages.flatMap { it.playlists.orEmpty() }
                 .filter { it.isAlbumRelease() }
                 .map { it.toArtistAlbum() })
             addAll(searchedAlbums
@@ -358,6 +391,50 @@ object MusicBackend {
                 .filter { it.isAlbumRelease() && it.belongsToArtist(normalizedId, artist.name) }
                 .map { it.toArtistAlbum() })
         }.distinctBy(ArtistAlbum::id)
+        val appearsOn = albumCandidates.filter { normalizeTrackId(it.id) in appearsOnIds }
+        val albums = albumCandidates.filterNot { normalizeTrackId(it.id) in appearsOnIds }
+
+        val artistPlaylists = catalogPages.flatMap { it.playlists.orEmpty() }
+            .filterNot { it.isAlbumRelease() }
+            .filter { artistPlaylistIds.isEmpty() || normalizeTrackId(it.fullId) in artistPlaylistIds }
+            .distinctBy(AudioPlaylist::fullId)
+
+        val officialPages = catalogPages.flatMap { it.profiles.orEmpty() + it.groups.orEmpty() }
+            .filter { it.id != 0L && it.displayName.isNotBlank() }
+            .distinctBy { it.id }
+            .map {
+                ArtistOfficialPage(
+                    id = it.id,
+                    name = it.displayName,
+                    cover = it.photo_base,
+                    subtitle = if (it.id < 0) "Community" else "Official page",
+                    isFollowed = it.is_followed == true,
+                )
+            }
+        val links = catalogPages.flatMap { it.links.orEmpty() }
+            .filter { it.id.isNotBlank() && it.url.isNotBlank() }
+            .distinctBy { it.id }
+            .map {
+                ArtistLink(
+                    id = it.id,
+                    title = it.title,
+                    subtitle = it.subtitle.takeIf(String::isNotBlank),
+                    url = it.url,
+                    cover = it.coverUrl(),
+                )
+            }
+        val videos = catalogPages.flatMap { it.artist_videos.orEmpty() + it.videos.orEmpty() }
+            .filter { it.id != 0 }
+            .distinctBy { it.fullId }
+            .map {
+                ArtistVideo(
+                    id = it.fullId,
+                    title = it.title,
+                    cover = it.coverUrl(),
+                    duration = it.duration.toLong(),
+                    url = it.direct_url,
+                )
+            }
         ArtistResponse(
             id = artist.id,
             name = artist.name,
@@ -366,16 +443,63 @@ object MusicBackend {
             image = artist.coverUrl(),
             cover = artist.coverUrl(),
             bio = artist.bio,
+            isFollowed = artist.is_followed == true,
+            canFollow = artist.can_follow == true,
+            mixId = catalogPages.firstNotNullOfOrNull {
+                it.audio_stream_mixes.orEmpty().firstOrNull()?.id
+            },
             topSongs = tracks.map { it.toArtistSong() },
-            latestRelease = albums.maxByOrNull { it.year.orEmpty() },
+            latestRelease = albums.maxWithOrNull(
+                compareBy<ArtistAlbum> { it.timestamp ?: 0L }.thenBy { it.year.orEmpty() },
+            ),
             albums = albums.filterNot { it.isSingleOrEp() },
             singles = albums.filter { it.isSingleOrEp() },
+            featuring = appearsOn,
             similarArtists = related.map {
                 SimilarArtist(id = it.id, name = it.name, url = it.domain, cover = it.coverUrl())
             },
+            playlists = artistPlaylists.map {
+                ArtistPlaylist(
+                    id = it.fullId,
+                    title = it.title,
+                    cover = it.photo?.bestUrl ?: it.photo?.src
+                        ?: it.thumbs?.firstOrNull()?.bestUrl,
+                )
+            },
+            appearsOn = appearsOn,
+            officialPages = officialPages,
+            links = links,
+            videos = videos,
             source = "vk",
         )
     }.getOrNull()
+
+    suspend fun setArtistFollowed(artistId: String, followed: Boolean): Boolean = runCatching {
+        val normalizedId = artistId.removePrefix("vk_")
+        val userId = currentUserId()
+        val result = if (followed) {
+            audioApi.followArtist(userId, normalizedId)
+        } else {
+            audioApi.unfollowArtist(userId, normalizedId)
+        }
+        result.requireData()
+        true
+    }.getOrDefault(false)
+
+    suspend fun getArtistMix(artistId: String, mixId: String?): List<Track> = runCatching {
+        val normalizedId = artistId.removePrefix("vk_")
+        val resolvedMixId = mixId ?: catalogApi.getAudioArtist(normalizedId)
+            .requireData()
+            .audio_stream_mixes.orEmpty()
+            .firstOrNull()
+            ?.id
+            ?: return@runCatching emptyList()
+        audioApi.getStreamMixAudios(
+            mixId = resolvedMixId,
+            entityId = normalizedId,
+            append = false,
+        ).requireData().also(::cacheTracks).map { it.toEngineTrack() }
+    }.getOrDefault(emptyList())
 
     suspend fun getArtistTopTracks(artistId: String): List<Track> =
         audioApi.getAudiosByArtist(artistId.removePrefix("vk_")).requireData()
@@ -1052,8 +1176,14 @@ object MusicBackend {
         cover = photo?.bestUrl ?: photo?.src ?: thumbs?.firstOrNull()?.bestUrl ?: thumbs?.firstOrNull()?.src.orEmpty(),
         year = year.takeIf { it > 0 }?.toString() ?: create_time.takeIf { it > 0 }?.let { (it / 31536000 + 1970).toString() },
         type = type,
+        genre = genres.orEmpty().joinToString(", ") { it.name }.takeIf(String::isNotBlank),
         description = description,
         trackCount = count,
+        plays = plays,
+        createdAt = create_time.takeIf { it > 0 },
+        updatedAt = update_time?.takeIf { it > 0 },
+        isFollowing = is_following == true,
+        canFollow = permissions?.follow == true,
     )
 
     private fun AudioPlaylist.toArtistAlbum() = ArtistAlbum(
@@ -1065,6 +1195,7 @@ object MusicBackend {
         cover = photo?.bestUrl ?: photo?.src ?: thumbs?.firstOrNull()?.bestUrl ?: thumbs?.firstOrNull()?.src.orEmpty(),
         type = type,
         isAlbum = true,
+        timestamp = update_time?.takeIf { it > 0 } ?: create_time.takeIf { it > 0 },
     )
 
     private fun AudioPlaylistDto.toArtistAlbum() = ArtistAlbum(
@@ -1077,6 +1208,8 @@ object MusicBackend {
         cover = coverUrl().orEmpty(),
         type = album_type ?: type,
         isAlbum = true,
+        timestamp = update_time.takeIf { it > 0 }?.toLong()
+            ?: create_time.takeIf { it > 0 }?.toLong(),
     )
 
     private fun AudioPlaylistDto.belongsToArtist(artistId: String, artistName: String): Boolean {
@@ -1096,6 +1229,19 @@ object MusicBackend {
         return releaseType.contains("single", ignoreCase = true) ||
             releaseType.equals("ep", ignoreCase = true) ||
             releaseType.contains("extended_play", ignoreCase = true)
+    }
+
+    private fun VkCatalogResponse.allBlocks(): List<VkCatalogBlock> = buildList {
+        block?.let(::add)
+        section?.blocks.orEmpty().let(::addAll)
+        catalog?.sections.orEmpty().flatMap { it.blocks.orEmpty() }.let(::addAll)
+    }.distinctBy { it.id }
+
+    private fun VkCatalogBlock.matchesSection(vararg markers: String): Boolean {
+        val haystack = listOf(id, data_type, layout?.name, layout?.title, layout?.subtitle)
+            .joinToString(" ")
+            .lowercase()
+        return markers.any { marker -> marker.lowercase() in haystack }
     }
 
     private const val STREAM_CACHE_TTL_MS = 8L * 60L * 1000L

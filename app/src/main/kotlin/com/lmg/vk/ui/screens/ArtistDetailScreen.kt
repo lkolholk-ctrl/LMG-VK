@@ -1,5 +1,8 @@
 package com.lmg.vk.ui.screens
 
+import android.content.Intent
+import android.net.Uri
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -29,6 +32,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.Favorite
+import androidx.compose.material.icons.rounded.FavoriteBorder
+import androidx.compose.material.icons.rounded.Radio
+import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.Shuffle
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -40,6 +47,7 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -64,6 +72,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import com.lmg.vk.engine.backend.ArtistAlbum
+import com.lmg.vk.engine.backend.ArtistLink
 import com.lmg.vk.engine.backend.ArtistResponse
 import com.lmg.vk.engine.backend.MusicBackend
 import com.lmg.vk.engine.backend.toTrack
@@ -75,6 +84,7 @@ import com.lmg.vk.ui.theme.LiquidMetrics
 import com.lmg.vk.ui.theme.LiquidMotion
 import com.lmg.vk.ui.theme.LiquidSurfaces
 import com.lmg.vk.ui.theme.LiquidTheme
+import kotlinx.coroutines.launch
 
 
 /** Обложки каталога приходят огромными; для карточек это лишний трафик и память. */
@@ -96,14 +106,18 @@ fun ArtistDetailScreen(
     artistId: String,
     onBack: () -> Unit,
     onNavigateToAlbum: (String) -> Unit = {},
-    onNavigateToArtist: (String) -> Unit = {}
+    onNavigateToArtist: (String) -> Unit = {},
+    onNavigateToPlaylist: (String) -> Unit = {},
 ) {
     val context = LocalContext.current
     val colors = LiquidTheme.colors
+    val scope = rememberCoroutineScope()
 
     var artist by remember { mutableStateOf<ArtistResponse?>(null) }
     var isLoading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
+    var isFollowed by remember(artistId) { mutableStateOf(false) }
+    var isFollowBusy by remember(artistId) { mutableStateOf(false) }
 
     LaunchedEffect(artistId) {
         isLoading = true
@@ -114,6 +128,7 @@ fun ArtistDetailScreen(
                 error = MusicBackend.lastError.value ?: "Artist not found"
             } else {
                 artist = result
+                isFollowed = result.isFollowed
             }
         } catch (e: Exception) {
             error = e.message
@@ -223,6 +238,43 @@ fun ArtistDetailScreen(
                                 }
                             }
                         )
+                    }
+
+                    art?.let { artistInfo ->
+                        item {
+                            ArtistActionsStrip(
+                                isDark = colors.isDark,
+                                isFollowed = isFollowed,
+                                followEnabled = (artistInfo.canFollow || isFollowed) && !isFollowBusy,
+                                onMix = {
+                                    scope.launch {
+                                        val mix = MusicBackend.getArtistMix(
+                                            artistInfo.id,
+                                            artistInfo.mixId,
+                                        ).filter { it.isAvailable }
+                                        if (mix.isNotEmpty()) PlayerController.play(context, mix, 0)
+                                    }
+                                },
+                                onFollow = {
+                                    val target = !isFollowed
+                                    scope.launch {
+                                        isFollowBusy = true
+                                        if (MusicBackend.setArtistFollowed(artistInfo.id, target)) {
+                                            isFollowed = target
+                                        }
+                                        isFollowBusy = false
+                                    }
+                                },
+                                onShare = {
+                                    val url = "https://vk.com/artist/${artistInfo.id.removePrefix("vk_")}"
+                                    val intent = Intent(Intent.ACTION_SEND).apply {
+                                        type = "text/plain"
+                                        putExtra(Intent.EXTRA_TEXT, url)
+                                    }
+                                    context.startActivity(Intent.createChooser(intent, artistInfo.name))
+                                },
+                            )
+                        }
                     }
 
                     if (playCount > 0) {
@@ -386,7 +438,7 @@ fun ArtistDetailScreen(
                                                 .clip(LiquidMetrics.CardShape)
                                                 .liquidClickable(
                                                     pressedScale = LiquidMotion.PressButton,
-                                                    onClick = { onNavigateToAlbum(playlist.id) }
+                                                    onClick = { onNavigateToPlaylist(playlist.id) }
                                                 ),
                                             contentScale = ContentScale.Crop
                                         )
@@ -444,9 +496,81 @@ fun ArtistDetailScreen(
                     }
 
                     if (appearsOn.isNotEmpty()) {
-                        item { SectionHeaderThemed(colors.isDark, "Appears on") }
+                        item { SectionHeaderThemed(colors.isDark, "Participates in releases") }
                         item {
                             AlbumRow(appearsOn, LiquidSurfaces.textPrimary(colors.isDark), LiquidSurfaces.textSecondary(colors.isDark), colors.isDark, onNavigateToAlbum)
+                        }
+                    }
+
+                    art?.bio?.takeIf { it.isNotBlank() }?.let { bio ->
+                        item { SectionHeaderThemed(colors.isDark, "About ${art.name}") }
+                        item {
+                            Text(
+                                text = bio,
+                                color = colors.textSecondary,
+                                fontSize = 14.sp,
+                                lineHeight = 21.sp,
+                                modifier = Modifier.padding(horizontal = LiquidMetrics.ScreenPadding),
+                            )
+                        }
+                    }
+
+                    art?.links.orEmpty().let { links ->
+                        val concerts = links.filter { it.matches("concert", "ticket", "концерт", "билет") }
+                        val merch = links.filter { it.matches("merch", "shop", "store", "мерч", "магазин") }
+                        val other = links.filterNot { it in concerts || it in merch }
+                        if (concerts.isNotEmpty()) {
+                            item { SectionHeaderThemed(colors.isDark, "Concerts") }
+                            items(concerts, key = { "concert-${it.id}" }) { link ->
+                                ArtistLinkRow(link.title, link.subtitle, link.cover, colors.isDark) {
+                                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(link.url)))
+                                }
+                            }
+                        }
+                        if (merch.isNotEmpty()) {
+                            item { SectionHeaderThemed(colors.isDark, "Merch") }
+                            items(merch, key = { "merch-${it.id}" }) { link ->
+                                ArtistLinkRow(link.title, link.subtitle, link.cover, colors.isDark) {
+                                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(link.url)))
+                                }
+                            }
+                        }
+                        if (other.isNotEmpty()) {
+                            item { SectionHeaderThemed(colors.isDark, "Links") }
+                            items(other, key = { "link-${it.id}" }) { link ->
+                                ArtistLinkRow(link.title, link.subtitle, link.cover, colors.isDark) {
+                                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(link.url)))
+                                }
+                            }
+                        }
+                    }
+
+                    if (art?.officialPages.orEmpty().isNotEmpty()) {
+                        item { SectionHeaderThemed(colors.isDark, "Official pages") }
+                        items(art?.officialPages.orEmpty(), key = { "page-${it.id}" }) { page ->
+                            ArtistLinkRow(page.name, page.subtitle, page.cover, colors.isDark) {
+                                val prefix = if (page.id < 0L) "club" else "id"
+                                context.startActivity(
+                                    Intent(Intent.ACTION_VIEW, Uri.parse("https://vk.com/$prefix${kotlin.math.abs(page.id)}")),
+                                )
+                            }
+                        }
+                    }
+
+                    if (art?.videos.orEmpty().isNotEmpty()) {
+                        item { SectionHeaderThemed(colors.isDark, "Music videos") }
+                        item {
+                            LazyRow(
+                                contentPadding = PaddingValues(horizontal = LiquidMetrics.ScreenPadding),
+                                horizontalArrangement = Arrangement.spacedBy(14.dp),
+                            ) {
+                                items(art?.videos.orEmpty(), key = { it.id }) { video ->
+                                    ArtistVideoCard(video.title, video.cover, video.duration, colors.isDark) {
+                                        val url = video.url ?: "https://vk.com/video${video.id}"
+                                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -819,6 +943,164 @@ private fun SectionHeaderThemed(isDark: Boolean, title: String) {
             bottom = 12.dp
         )
     )
+}
+
+@Composable
+private fun ArtistActionsStrip(
+    isDark: Boolean,
+    isFollowed: Boolean,
+    followEnabled: Boolean,
+    onMix: () -> Unit,
+    onFollow: () -> Unit,
+    onShare: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = LiquidMetrics.ScreenPadding, vertical = 12.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        ArtistActionButton("Artist mix", Icons.Rounded.Radio, true, isDark, onMix)
+        ArtistActionButton(
+            if (isFollowed) "Following" else "Follow",
+            if (isFollowed) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+            followEnabled,
+            isDark,
+            onFollow,
+        )
+        ArtistActionButton("Share", Icons.Rounded.Share, true, isDark, onShare)
+    }
+}
+
+@Composable
+private fun RowScope.ArtistActionButton(
+    label: String,
+    icon: ImageVector,
+    enabled: Boolean,
+    isDark: Boolean,
+    onClick: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .weight(1f)
+            .alpha(if (enabled) 1f else 0.42f)
+            .clip(RoundedCornerShape(18.dp))
+            .background(LiquidSurfaces.card(isDark))
+            .liquidClickable(enabled = enabled, pressedScale = LiquidMotion.PressButton, onClick = onClick)
+            .padding(horizontal = 8.dp, vertical = 12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Icon(icon, null, tint = LiquidSurfaces.textPrimary(isDark), modifier = Modifier.size(21.dp))
+        Spacer(Modifier.height(5.dp))
+        Text(
+            text = label,
+            color = LiquidSurfaces.textPrimary(isDark),
+            fontSize = 11.sp,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+@Composable
+private fun ArtistLinkRow(
+    title: String,
+    subtitle: String?,
+    cover: String?,
+    isDark: Boolean,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = LiquidMetrics.ScreenPadding, vertical = 4.dp)
+            .clip(RoundedCornerShape(18.dp))
+            .liquidClickable(pressedScale = LiquidMotion.PressButton, onClick = onClick)
+            .padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        AlbumArtImage(
+            uri = null,
+            coverUrl = cover.toThumb(),
+            contentDescription = title,
+            modifier = Modifier.size(52.dp).clip(CircleShape),
+            contentScale = ContentScale.Crop,
+        )
+        Spacer(Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                title,
+                color = LiquidSurfaces.textPrimary(isDark),
+                fontSize = 15.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            if (!subtitle.isNullOrBlank()) {
+                Text(
+                    subtitle,
+                    color = LiquidSurfaces.textSecondary(isDark),
+                    fontSize = 12.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ArtistVideoCard(
+    title: String,
+    cover: String?,
+    duration: Long,
+    isDark: Boolean,
+    onClick: () -> Unit,
+) {
+    Column(modifier = Modifier.width(238.dp)) {
+        Box(
+            modifier = Modifier
+                .size(width = 238.dp, height = 134.dp)
+                .clip(RoundedCornerShape(16.dp))
+                .liquidClickable(pressedScale = LiquidMotion.PressButton, onClick = onClick),
+        ) {
+            AlbumArtImage(
+                uri = null,
+                coverUrl = cover.toThumb(),
+                contentDescription = title,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop,
+            )
+            if (duration > 0L) {
+                Text(
+                    text = "%d:%02d".format(duration / 60, duration % 60),
+                    color = Color.White,
+                    fontSize = 11.sp,
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(6.dp)
+                        .clip(RoundedCornerShape(5.dp))
+                        .background(Color.Black.copy(alpha = 0.68f))
+                        .padding(horizontal = 5.dp, vertical = 2.dp),
+                )
+            }
+        }
+        Text(
+            text = title,
+            color = LiquidSurfaces.textPrimary(isDark),
+            fontSize = 13.sp,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(top = 8.dp),
+        )
+    }
+}
+
+private fun ArtistLink.matches(vararg markers: String): Boolean {
+    val haystack = "$title ${subtitle.orEmpty()} $url".lowercase()
+    return markers.any { it.lowercase() in haystack }
 }
 
 @Composable

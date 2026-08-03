@@ -2,14 +2,26 @@ package com.lmg.vk.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.Download
+import androidx.compose.material.icons.rounded.QueueMusic
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -17,12 +29,16 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.lmg.vk.engine.AudioDownloadManager
 import com.lmg.vk.engine.backend.AlbumResponse
 import com.lmg.vk.engine.backend.MusicBackend
 import com.lmg.vk.engine.backend.toTrack
@@ -33,7 +49,13 @@ import com.lmg.vk.ui.components.DetailTrackRow
 import com.lmg.vk.ui.components.formatTotalDuration
 import com.lmg.vk.ui.components.toDetailThumb
 import com.lmg.vk.ui.theme.LiquidSurfaces
+import com.lmg.vk.ui.glass.liquidClickable
+import com.lmg.vk.ui.theme.LiquidMotion
 import com.lmg.vk.ui.theme.LiquidTheme
+import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 /**
  * Экран альбома.
@@ -45,21 +67,26 @@ import com.lmg.vk.ui.theme.LiquidTheme
 @Composable
 fun AlbumDetailScreen(
     albumId: String,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onNavigateToArtist: (String) -> Unit = {},
 ) {
     val context = LocalContext.current
     val colors = LiquidTheme.colors
     val isDark = colors.isDark
+    val scope = rememberCoroutineScope()
 
     var album by remember { mutableStateOf<AlbumResponse?>(null) }
     var isLoading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
+    var isFollowing by remember(albumId) { mutableStateOf(false) }
+    var followBusy by remember(albumId) { mutableStateOf(false) }
 
     LaunchedEffect(albumId) {
         isLoading = true
         error = null
         try {
             album = MusicBackend.getAlbum(albumId)
+            isFollowing = album?.album?.isFollowing == true
             if (album == null) error = MusicBackend.lastError.value ?: "Album not found"
         } catch (e: Exception) {
             error = e.message
@@ -112,6 +139,7 @@ fun AlbumDetailScreen(
                             title = info?.title.orEmpty(),
                             subtitle = info?.artist.orEmpty(),
                             facts = buildList {
+                                info?.genre?.takeIf { it.isNotBlank() }?.let(::add)
                                 info?.year?.takeIf { it.isNotBlank() }?.let(::add)
                                 if (albumTracks.isNotEmpty()) add("${albumTracks.size} songs")
                                 // Общее время каталог не отдаёт — считаем по трекам.
@@ -133,6 +161,46 @@ fun AlbumDetailScreen(
                         )
                     }
 
+                    item {
+                        AlbumActionsRow(
+                            isDark = isDark,
+                            isFollowing = isFollowing,
+                            canFollow = info?.canFollow == true && !followBusy,
+                            canDownload = playableTracks.isNotEmpty(),
+                            onAdd = {
+                                if (!isFollowing && info?.canFollow == true) {
+                                    scope.launch {
+                                        followBusy = true
+                                        if (MusicBackend.followAlbum(albumId)) isFollowing = true
+                                        followBusy = false
+                                    }
+                                }
+                            },
+                            onDownload = {
+                                playableTracks.forEach { AudioDownloadManager.downloadTrack(context, it) }
+                            },
+                            onQueue = { playableTracks.forEach(PlayerController::addToQueue) },
+                        )
+                    }
+
+                    info?.artistId?.takeIf { it.isNotBlank() }?.let { artistId ->
+                        item {
+                            Text(
+                                text = "Open artist: ${info?.artist.orEmpty()}",
+                                color = colors.accent,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .liquidClickable(
+                                        pressedScale = LiquidMotion.PressButton,
+                                        onClick = { onNavigateToArtist(artistId) },
+                                    )
+                                    .padding(horizontal = 20.dp, vertical = 10.dp),
+                            )
+                        }
+                    }
+
                     itemsIndexed(albumTracks, key = { _, track -> track.id }) { index, track ->
                         DetailTrackRow(
                             position = index + 1,
@@ -152,6 +220,29 @@ fun AlbumDetailScreen(
                             }
                         )
                     }
+
+                    item {
+                        val metadata = buildList {
+                            info?.plays?.takeIf { it > 0 }?.let { add("${formatCount(it)} plays") }
+                            info?.createdAt?.takeIf { it > 0L }?.let { add("Created ${formatCatalogDate(it)}") }
+                            info?.updatedAt?.takeIf { it > 0L }?.let { add("Updated ${formatCatalogDate(it)}") }
+                        }
+                        if (metadata.isNotEmpty() || !info?.description.isNullOrBlank()) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 20.dp, vertical = 20.dp),
+                                verticalArrangement = Arrangement.spacedBy(5.dp),
+                            ) {
+                                info?.description?.takeIf { it.isNotBlank() }?.let {
+                                    Text(it, color = LiquidSurfaces.textPrimary(isDark), fontSize = 14.sp)
+                                }
+                                metadata.forEach {
+                                    Text(it, color = LiquidSurfaces.textSecondary(isDark), fontSize = 12.sp)
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -163,4 +254,68 @@ fun AlbumDetailScreen(
             onBack = onBack
         )
     }
+}
+
+@Composable
+private fun AlbumActionsRow(
+    isDark: Boolean,
+    isFollowing: Boolean,
+    canFollow: Boolean,
+    canDownload: Boolean,
+    onAdd: () -> Unit,
+    onDownload: () -> Unit,
+    onQueue: () -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 10.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        AlbumActionButton(
+            if (isFollowing) "Added" else "Add",
+            if (isFollowing) Icons.Rounded.Check else Icons.Rounded.Add,
+            isFollowing || canFollow,
+            isDark,
+            onAdd,
+        )
+        AlbumActionButton("Cache", Icons.Rounded.Download, canDownload, isDark, onDownload)
+        AlbumActionButton("Queue", Icons.Rounded.QueueMusic, canDownload, isDark, onQueue)
+    }
+}
+
+@Composable
+private fun androidx.compose.foundation.layout.RowScope.AlbumActionButton(
+    title: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    enabled: Boolean,
+    isDark: Boolean,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .weight(1f)
+            .clip(RoundedCornerShape(16.dp))
+            .background(LiquidSurfaces.card(isDark))
+            .liquidClickable(enabled = enabled, pressedScale = LiquidMotion.PressButton, onClick = onClick)
+            .padding(horizontal = 8.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center,
+    ) {
+        Icon(icon, null, tint = LiquidSurfaces.textPrimary(isDark), modifier = Modifier.size(18.dp))
+        Text(
+            title,
+            color = LiquidSurfaces.textPrimary(isDark),
+            fontSize = 12.sp,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(start = 6.dp),
+        )
+    }
+}
+
+private fun formatCatalogDate(seconds: Long): String =
+    SimpleDateFormat("d MMM yyyy", Locale.getDefault()).format(Date(seconds * 1000L))
+
+private fun formatCount(value: Int): String = when {
+    value >= 1_000_000 -> "%.1fM".format(Locale.US, value / 1_000_000f)
+    value >= 1_000 -> "%.1fK".format(Locale.US, value / 1_000f)
+    else -> value.toString()
 }

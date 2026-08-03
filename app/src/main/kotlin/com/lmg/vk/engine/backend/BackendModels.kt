@@ -219,8 +219,14 @@ data class Album(
     @SerialName("releaseDate") val releaseDate: String? = null,
     val year: String? = null,
     val type: String? = null,
+    val genre: String? = null,
     val description: String? = null,
-    @SerialName("trackCount") val trackCount: Int? = null
+    @SerialName("trackCount") val trackCount: Int? = null,
+    val plays: Int? = null,
+    @SerialName("createdAt") val createdAt: Long? = null,
+    @SerialName("updatedAt") val updatedAt: Long? = null,
+    @SerialName("isFollowing") val isFollowing: Boolean = false,
+    @SerialName("canFollow") val canFollow: Boolean = false,
 )
 
 @Serializable
@@ -256,6 +262,9 @@ data class ArtistResponse(
     val cover: String? = null,
     val bio: String? = null,
     val followers: Long? = null,
+    @SerialName("isFollowed") val isFollowed: Boolean = false,
+    @SerialName("canFollow") val canFollow: Boolean = false,
+    @SerialName("mixId") val mixId: String? = null,
     @SerialName("editorialVideoUrl") val editorialVideoUrl: String? = null,
     @SerialName("topSongs")
     @Serializable(with = TolerantListSerializer::class)
@@ -268,6 +277,9 @@ data class ArtistResponse(
     @SerialName("similarArtists") val similarArtists: List<SimilarArtist> = emptyList(),
     val playlists: List<ArtistPlaylist> = emptyList(),
     @SerialName("appearsOn") val appearsOn: List<ArtistAlbum> = emptyList(),
+    @SerialName("officialPages") val officialPages: List<ArtistOfficialPage> = emptyList(),
+    val links: List<ArtistLink> = emptyList(),
+    val videos: List<ArtistVideo> = emptyList(),
     @SerialName("source") val source: String? = null
 ) {
     val isVk: Boolean
@@ -321,7 +333,8 @@ data class ArtistAlbum(
     val date: String? = null,
     val cover: String = "",
     val type: String? = null,
-    @SerialName("isAlbum") val isAlbum: Boolean = false
+    @SerialName("isAlbum") val isAlbum: Boolean = false,
+    val timestamp: Long? = null,
 )
 
 @Serializable
@@ -340,6 +353,33 @@ data class ArtistPlaylist(
     val id: String,
     val title: String,
     val cover: String? = null
+)
+
+@Serializable
+data class ArtistOfficialPage(
+    val id: Long,
+    val name: String,
+    val cover: String? = null,
+    val subtitle: String? = null,
+    @SerialName("isFollowed") val isFollowed: Boolean = false,
+)
+
+@Serializable
+data class ArtistLink(
+    val id: String,
+    val title: String,
+    val subtitle: String? = null,
+    val url: String,
+    val cover: String? = null,
+)
+
+@Serializable
+data class ArtistVideo(
+    val id: String,
+    val title: String,
+    val cover: String? = null,
+    val duration: Long = 0L,
+    val url: String? = null,
 )
 
 // ─── Chart ───

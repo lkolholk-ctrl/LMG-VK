@@ -40,6 +40,10 @@ import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.LibraryMusic
 import androidx.compose.material.icons.rounded.MusicNote
+import androidx.compose.material.icons.rounded.Album
+import androidx.compose.material.icons.rounded.History
+import androidx.compose.material.icons.rounded.Person
+import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -76,6 +80,7 @@ import com.lmg.vk.engine.backend.MusicBackend
 import com.lmg.vk.data.local.db.FavoriteTrackDatabase
 import com.lmg.vk.data.local.db.FavoriteTrackEntity
 import com.lmg.vk.data.local.db.LibraryRepository
+import com.lmg.vk.data.local.db.AppDatabase
 import com.lmg.vk.engine.AudioDownloadManager
 import com.lmg.vk.engine.PlaybackContext
 import com.lmg.vk.engine.PlayerController
@@ -94,7 +99,9 @@ import kotlinx.coroutines.CancellationException
 
 private val AppleRed = Color(0xFFFC3C44)
 
-private enum class LibraryView { MAIN, FAVORITES, DOWNLOADS, LOCAL_PLAYLISTS, IMPORTED, LOCAL_AUDIO }
+private enum class LibraryView { MAIN, RECENT, FAVORITES, DOWNLOADS, LOCAL_PLAYLISTS, IMPORTED, LOCAL_AUDIO }
+
+private enum class FavoriteSort { DEFAULT, TITLE, ARTIST }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -119,6 +126,9 @@ fun LibraryScreen(
     )
 
     var currentView by remember { mutableStateOf(LibraryView.MAIN) }
+    var libraryQuery by remember { mutableStateOf("") }
+    var favoriteSort by remember { mutableStateOf(FavoriteSort.DEFAULT) }
+    var recentTracks by remember { mutableStateOf<List<Track>>(emptyList()) }
 
     // Адаптив: в широком окне (телефон-альбом / планшет) сетка плейлистов
     // получает больше колонок, а вертикальные списки-строки центрируем узкой
@@ -169,6 +179,30 @@ fun LibraryScreen(
         loadImportedPlaylists()
     }
 
+    LaunchedEffect(currentView) {
+        if (currentView == LibraryView.RECENT) {
+            recentTracks = runCatching {
+                val ids = AppDatabase.getInstance(context).playbackHistoryDao()
+                    .getRecentTrackIds(100)
+                    .distinct()
+                MusicBackend.getBatchTrackMeta(ids).getOrThrow().items
+                    .filter { it.isSuccess }
+                    .map {
+                        Track(
+                            id = it.trackId ?: it.id,
+                            title = it.title.orEmpty(),
+                            artist = it.artist.orEmpty(),
+                            albumName = "",
+                            uri = Uri.parse("https://byicloud.online/track/${it.trackId ?: it.id}"),
+                            durationMs = it.durationMs,
+                            albumId = it.collectionId?.hashCode()?.toLong() ?: -1L,
+                            coverUrl = it.cover,
+                        )
+                    }
+            }.getOrDefault(emptyList())
+        }
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -200,8 +234,8 @@ fun LibraryScreen(
                 }
 
                 // Объединённая сетка плейлистов: свои + импортированные.
-                val playlistCells = remember(localPlaylists, importedPlaylists) {
-                    localPlaylists.map { p ->
+                val playlistCells = remember(localPlaylists, importedPlaylists, libraryQuery) {
+                    (localPlaylists.map { p ->
                         PlaylistCellData(
                             key = "local_${p.id}",
                             id = p.id,
@@ -226,9 +260,19 @@ fun LibraryScreen(
                             },
                             isImported = true
                         )
+                    }).filter {
+                        libraryQuery.isBlank() || it.name.contains(libraryQuery, ignoreCase = true)
                     }
                 }
+                val favoritePreview = remember(favorites, libraryQuery) {
+                    favorites.filter {
+                        libraryQuery.isBlank() ||
+                            it.title.contains(libraryQuery, ignoreCase = true) ||
+                            it.artistName.orEmpty().contains(libraryQuery, ignoreCase = true)
+                    }.take(5)
+                }
                 var playlistToDelete by remember { mutableStateOf<PlaylistCellData?>(null) }
+                val libraryGridState = androidx.compose.foundation.lazy.grid.rememberLazyGridState()
 
                 androidx.compose.foundation.lazy.grid.LazyVerticalGrid(
                     // В альбоме/на планшете больше колонок под плейлисты (было 2);
@@ -236,6 +280,7 @@ fun LibraryScreen(
                     columns = if (win.useSideBySide)
                         androidx.compose.foundation.lazy.grid.GridCells.Adaptive(minSize = 160.dp)
                     else androidx.compose.foundation.lazy.grid.GridCells.Fixed(2),
+                    state = libraryGridState,
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 178.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -245,13 +290,29 @@ fun LibraryScreen(
                         Column {
                             Spacer(Modifier.windowInsetsTopHeight(WindowInsets.statusBars))
                             Text(
-                                text = "Playlists",
+                                text = "Library",
                                 fontSize = if (win.useSideBySide) 26.sp else 34.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = lc.textPrimary,
                                 modifier = Modifier.padding(top = 12.dp, bottom = 8.dp)
                             )
                         }
+                    }
+
+                    item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) {
+                        LibraryTabs(
+                            isDark = lc.isDark,
+                            downloaded = false,
+                            onLibrary = {},
+                            onDownloaded = { currentView = LibraryView.DOWNLOADS },
+                        )
+                    }
+
+                    item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) {
+                        LibrarySearchField(
+                            value = libraryQuery,
+                            onValueChange = { libraryQuery = it },
+                        )
                     }
 
                     // ── Системные разделы: одна карточка, строки с живым контентом ──
@@ -262,20 +323,23 @@ fun LibraryScreen(
                                 .clip(RoundedCornerShape(28.dp))
                                 .background(lc.cardSurface)
                         ) {
-                            MenuCard(
-                                title = "Мои аудиозаписи",
-                                subtitle = "${favorites.size} треков",
-                                icon = Icons.Rounded.MusicNote,
-                                tint = lc.accent,
-                                compact = win.useSideBySide,
-                                onClick = { currentView = LibraryView.FAVORITES },
-                                trailing = {
-                                    CoverStack(favorites.take(3).mapNotNull { it.imageUrl })
-                                }
-                            )
+                            MenuCard("Recent", "Recently played", Icons.Rounded.History, lc.accent, { currentView = LibraryView.RECENT }, win.useSideBySide)
                             SystemRowDivider(compact = win.useSideBySide)
                             MenuCard(
-                                title = "Downloads",
+                                "Playlists",
+                                "${playlistCells.size} playlists",
+                                Icons.AutoMirrored.Rounded.PlaylistPlay,
+                                lc.accent,
+                                { scope.launch { libraryGridState.animateScrollToItem(4) } },
+                                win.useSideBySide,
+                            )
+                            SystemRowDivider(compact = win.useSideBySide)
+                            MenuCard("Albums", "Saved and local albums", Icons.Rounded.Album, lc.accent, onOpenLocalLibrary, win.useSideBySide)
+                            SystemRowDivider(compact = win.useSideBySide)
+                            MenuCard("Artists & curators", "Artists in your library", Icons.Rounded.Person, lc.accent, onOpenLocalLibrary, win.useSideBySide)
+                            SystemRowDivider(compact = win.useSideBySide)
+                            MenuCard(
+                                title = "Downloaded music",
                                 subtitle = downloadsSize
                                     ?.let { "${downloadedTracks.size} tracks · $it" }
                                     ?: "${downloadedTracks.size} tracks",
@@ -286,13 +350,66 @@ fun LibraryScreen(
                             )
                             SystemRowDivider(compact = win.useSideBySide)
                             MenuCard(
-                                title = "On this device",
-                                subtitle = "Artists · Albums · Tracks · Search",
+                                title = "Transfer from other services",
+                                subtitle = "Yandex Music · Apple Music",
                                 icon = Icons.Rounded.LibraryMusic,
                                 tint = Color(0xFFFF9F0A),
                                 compact = win.useSideBySide,
-                                onClick = onOpenLocalLibrary
+                                onClick = { showImportDialog = true }
                             )
+                            SystemRowDivider(compact = win.useSideBySide)
+                            MenuCard(
+                                title = "VK Music subscription",
+                                subtitle = if (isPremium) "Active" else "Required for offline caching",
+                                icon = Icons.Rounded.MusicNote,
+                                tint = Color(0xFF30D158),
+                                compact = win.useSideBySide,
+                                onClick = {},
+                                trailing = {
+                                    if (isPremium) Icon(Icons.Rounded.Check, null, tint = Color(0xFF30D158))
+                                },
+                            )
+                        }
+                    }
+
+                    item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                text = "My tracks · ${favorites.size}",
+                                color = lc.textPrimary,
+                                fontSize = if (win.useSideBySide) 17.sp else 20.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.weight(1f),
+                            )
+                            Text(
+                                "Default",
+                                color = lc.accent,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .liquidClickable { currentView = LibraryView.FAVORITES }
+                                    .padding(horizontal = 10.dp, vertical = 6.dp),
+                            )
+                            IconButton(
+                                enabled = favorites.isNotEmpty(),
+                                onClick = { viewModel.shuffleAndPlay(context) },
+                            ) {
+                                Icon(Icons.Default.Shuffle, "Shuffle my tracks", tint = lc.accent)
+                            }
+                        }
+                    }
+
+                    items(
+                        count = favoritePreview.size,
+                        key = { "favorite-preview-${favoritePreview[it].trackId}" },
+                        span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) },
+                    ) { index ->
+                        LibraryTrackPreview(favoritePreview[index]) {
+                            viewModel.playTrack(context, favoritePreview[index].trackId)
                         }
                     }
 
@@ -396,10 +513,38 @@ fun LibraryScreen(
                 )
             }
 
+            LibraryView.RECENT -> {
+                Column(modifier = Modifier.fillMaxSize()) {
+                    SubHeader("Recent", onBack = { currentView = LibraryView.MAIN })
+                    if (recentTracks.isEmpty()) {
+                        EmptyState("No listening history yet", Icons.Rounded.History)
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier.weight(1f),
+                            contentPadding = PaddingValues(bottom = 178.dp),
+                        ) {
+                            items(recentTracks, key = { it.id }) { track ->
+                                RecentTrackItem(track = track) {
+                                    val index = recentTracks.indexOfFirst { it.id == track.id }
+                                    if (index >= 0) PlayerController.play(context, recentTracks, index)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             LibraryView.FAVORITES -> {
+                val displayedFavorites = remember(favorites, favoriteSort) {
+                    when (favoriteSort) {
+                        FavoriteSort.DEFAULT -> favorites
+                        FavoriteSort.TITLE -> favorites.sortedBy { it.title.lowercase() }
+                        FavoriteSort.ARTIST -> favorites.sortedBy { it.artistName.orEmpty().lowercase() }
+                    }
+                }
                 Column(modifier = Modifier.fillMaxSize()) {
                     // Header
-                    SubHeader("Мои аудиозаписи", onBack = { currentView = LibraryView.MAIN }) {
+                    SubHeader("My tracks · ${favorites.size}", onBack = { currentView = LibraryView.MAIN }) {
                         if (isSyncing) {
                             CircularProgressIndicator(
                                 modifier = Modifier.size(20.dp),
@@ -411,6 +556,32 @@ fun LibraryScreen(
                                 Icon(Icons.Filled.Refresh, null, tint = lc.iconMuted, modifier = Modifier.size(20.dp))
                             }
                         }
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 4.dp),
+                        horizontalArrangement = Arrangement.End,
+                    ) {
+                        Text(
+                            text = when (favoriteSort) {
+                                FavoriteSort.DEFAULT -> "Default"
+                                FavoriteSort.TITLE -> "By title"
+                                FavoriteSort.ARTIST -> "By artist"
+                            },
+                            color = lc.accent,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(12.dp))
+                                .liquidClickable {
+                                    favoriteSort = when (favoriteSort) {
+                                        FavoriteSort.DEFAULT -> FavoriteSort.TITLE
+                                        FavoriteSort.TITLE -> FavoriteSort.ARTIST
+                                        FavoriteSort.ARTIST -> FavoriteSort.DEFAULT
+                                    }
+                                }
+                                .padding(horizontal = 10.dp, vertical = 6.dp),
+                        )
                     }
 
                     // Play/Shuffle
@@ -436,7 +607,7 @@ fun LibraryScreen(
                                 PaddingValues(start = wideSidePad, end = wideSidePad, bottom = 178.dp)
                             else PaddingValues(bottom = 178.dp)
                         ) {
-                            items(favorites, key = { it.trackId }) { track ->
+                            items(displayedFavorites, key = { it.trackId }) { track ->
                                 FavoriteTrackItem(
                                     track = track,
                                     isLiked = track.trackId in favoriteIds,
@@ -492,6 +663,14 @@ fun LibraryScreen(
                                 }
                             }
                         }
+                    )
+
+                    LibraryTabs(
+                        isDark = lc.isDark,
+                        downloaded = true,
+                        onLibrary = { currentView = LibraryView.MAIN },
+                        onDownloaded = {},
+                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp),
                     )
 
                     // Ненавязчивый прогресс одноразовой миграции скачанного в
@@ -810,6 +989,65 @@ fun LibraryScreen(
 // ═════════════════════════════════════════════════════════════════
 //  Components
 // ═════════════════════════════════════════════════════════════════
+
+@Composable
+private fun LibraryTabs(
+    isDark: Boolean,
+    downloaded: Boolean,
+    onLibrary: () -> Unit,
+    onDownloaded: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val lc = LiquidTheme.colors
+    Row(modifier = modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
+        listOf("Library" to false, "Downloaded" to true).forEach { (title, tab) ->
+            val selected = downloaded == tab
+            Text(
+                text = title,
+                color = if (selected) lc.accent else lc.textPrimary,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(24.dp))
+                    .background(
+                        if (selected) lc.accent.copy(alpha = if (isDark) 0.18f else 0.12f)
+                        else Color.Transparent,
+                    )
+                    .liquidClickable(onClick = if (tab) onDownloaded else onLibrary)
+                    .padding(horizontal = 22.dp, vertical = 12.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun LibrarySearchField(value: String, onValueChange: (String) -> Unit) {
+    val lc = LiquidTheme.colors
+    BasicTextField(
+        value = value,
+        onValueChange = onValueChange,
+        textStyle = TextStyle(color = lc.textPrimary, fontSize = 15.sp),
+        cursorBrush = SolidColor(lc.accent),
+        singleLine = true,
+        decorationBox = { inner ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(22.dp))
+                    .background(lc.cardSurface)
+                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(Icons.Rounded.Search, null, tint = lc.iconMuted, modifier = Modifier.size(21.dp))
+                Spacer(Modifier.width(10.dp))
+                Box(modifier = Modifier.weight(1f)) {
+                    if (value.isBlank()) Text("Search library", color = lc.textTertiary, fontSize = 15.sp)
+                    inner()
+                }
+            }
+        },
+    )
+}
 
 @Composable
 private fun MenuCard(
@@ -2114,6 +2352,90 @@ private fun ActionButton(
                 fontSize = 14.sp,
                 fontWeight = FontWeight.SemiBold
             )
+        }
+    }
+}
+
+@Composable
+private fun LibraryTrackPreview(track: FavoriteTrackEntity, onClick: () -> Unit) {
+    val lc = LiquidTheme.colors
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .alpha(if (track.isAvailable) 1f else 0.42f)
+            .clip(RoundedCornerShape(14.dp))
+            .clickable(enabled = track.isAvailable, onClick = onClick)
+            .padding(vertical = 5.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        AsyncImage(
+            model = track.imageUrl,
+            contentDescription = null,
+            modifier = Modifier.size(50.dp).clip(RoundedCornerShape(8.dp)),
+            contentScale = ContentScale.Crop,
+        )
+        Spacer(Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                track.title,
+                color = lc.textPrimary,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                if (track.isAvailable) track.artistName.orEmpty()
+                else "Unavailable · ${track.artistName.orEmpty()}",
+                color = lc.textSecondary,
+                fontSize = 12.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        if (track.durationMs > 0L) {
+            Text(formatDuration(track.durationMs), color = lc.textSecondary, fontSize = 12.sp)
+        }
+    }
+}
+
+@Composable
+private fun RecentTrackItem(track: Track, onClick: () -> Unit) {
+    val lc = LiquidTheme.colors
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .alpha(if (track.isAvailable) 1f else 0.42f)
+            .clickable(enabled = track.isAvailable, onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        AsyncImage(
+            model = track.coverUrl,
+            contentDescription = null,
+            modifier = Modifier.size(54.dp).clip(RoundedCornerShape(8.dp)),
+            contentScale = ContentScale.Crop,
+        )
+        Spacer(Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                track.title,
+                color = lc.textPrimary,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Medium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                if (track.isAvailable) track.artist else "Unavailable · ${track.artist}",
+                color = lc.textSecondary,
+                fontSize = 13.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        if (track.durationMs > 0L) {
+            Text(formatDuration(track.durationMs), color = lc.textSecondary, fontSize = 12.sp)
         }
     }
 }
