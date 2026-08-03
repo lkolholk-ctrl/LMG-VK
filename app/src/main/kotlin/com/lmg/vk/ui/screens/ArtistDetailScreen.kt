@@ -1,6 +1,7 @@
 package com.lmg.vk.ui.screens
 
 import android.content.Intent
+import android.widget.Toast
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -34,6 +35,7 @@ import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material.icons.rounded.Radio
+import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.Shuffle
 import androidx.compose.material3.CircularProgressIndicator
@@ -117,10 +119,13 @@ fun ArtistDetailScreen(
     var error by remember { mutableStateOf<String?>(null) }
     var isFollowed by remember(artistId) { mutableStateOf(false) }
     var isFollowBusy by remember(artistId) { mutableStateOf(false) }
+    var isMixBusy by remember(artistId) { mutableStateOf(false) }
+    var reloadKey by remember(artistId) { mutableStateOf(0) }
 
-    LaunchedEffect(artistId) {
+    LaunchedEffect(artistId, reloadKey) {
         isLoading = true
         error = null
+        artist = null
         try {
             val result = MusicBackend.getArtist(artistId)
             if (result == null) {
@@ -154,6 +159,8 @@ fun ArtistDetailScreen(
     var favouriteTrackTitle by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(artistTracks) {
+        playCount = 0
+        favouriteTrackTitle = null
         if (artistTracks.isEmpty()) return@LaunchedEffect
         try {
             val stats = AppDatabase.getInstance(context).playbackHistoryDao().getAllTrackStats(500)
@@ -213,7 +220,34 @@ fun ArtistDetailScreen(
             }
 
             error != null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text(text = error.orEmpty(), color = colors.textSecondary, fontSize = 14.sp)
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(text = error.orEmpty(), color = colors.textSecondary, fontSize = 14.sp)
+                    Spacer(Modifier.height(14.dp))
+                    Row(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(LiquidSurfaces.card(colors.isDark))
+                            .liquidClickable(
+                                pressedScale = LiquidMotion.PressButton,
+                                onClick = { reloadKey++ },
+                            )
+                            .padding(horizontal = 18.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(
+                            Icons.Rounded.Refresh,
+                            contentDescription = null,
+                            tint = LiquidSurfaces.textPrimary(colors.isDark),
+                            modifier = Modifier.size(18.dp),
+                        )
+                        Spacer(Modifier.width(7.dp))
+                        Text(
+                            "Retry",
+                            color = LiquidSurfaces.textPrimary(colors.isDark),
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                    }
+                }
             }
 
             else -> {
@@ -248,14 +282,21 @@ fun ArtistDetailScreen(
                             ArtistActionsStrip(
                                 isDark = colors.isDark,
                                 isFollowed = isFollowed,
+                                isMixBusy = isMixBusy,
                                 followEnabled = (artistInfo.canFollow || isFollowed) && !isFollowBusy,
                                 onMix = {
                                     scope.launch {
+                                        isMixBusy = true
                                         val mix = MusicBackend.getArtistMix(
                                             artistInfo.id,
                                             artistInfo.mixId,
                                         ).filter { it.isAvailable }
-                                        if (mix.isNotEmpty()) PlayerController.play(context, mix, 0)
+                                        if (mix.isNotEmpty()) {
+                                            PlayerController.play(context, mix, 0)
+                                        } else {
+                                            Toast.makeText(context, "Artist mix is unavailable", Toast.LENGTH_SHORT).show()
+                                        }
+                                        isMixBusy = false
                                     }
                                 },
                                 onFollow = {
@@ -264,6 +305,13 @@ fun ArtistDetailScreen(
                                         isFollowBusy = true
                                         if (MusicBackend.setArtistFollowed(artistInfo.id, target)) {
                                             isFollowed = target
+                                            Toast.makeText(
+                                                context,
+                                                if (target) "Artist followed" else "Artist unfollowed",
+                                                Toast.LENGTH_SHORT,
+                                            ).show()
+                                        } else {
+                                            Toast.makeText(context, "Couldn't update follow", Toast.LENGTH_SHORT).show()
                                         }
                                         isFollowBusy = false
                                     }
@@ -277,6 +325,22 @@ fun ArtistDetailScreen(
                                     context.startActivity(Intent.createChooser(intent, artistInfo.name))
                                 },
                             )
+                        }
+                    }
+
+                    art?.let { artistInfo ->
+                        val releaseCount = allAlbums.size + singles.size
+                        val videoCount = artistInfo.videos.size
+                        if (topSongs.isNotEmpty() || releaseCount > 0 || playlists.isNotEmpty() || videoCount > 0) {
+                            item {
+                                ArtistCatalogSummary(
+                                    songs = topSongs.size,
+                                    releases = releaseCount,
+                                    playlists = playlists.size,
+                                    videos = videoCount,
+                                    isDark = colors.isDark,
+                                )
+                            }
                         }
                     }
 
@@ -549,8 +613,11 @@ fun ArtistDetailScreen(
                         }
                         if (other.isNotEmpty()) {
                             item { SectionHeaderThemed(colors.isDark, "Information") }
-                            items(other, key = { "link-${it.id}" }) { link ->
-                                ArtistLinkRow(link.title, link.subtitle, link.cover, colors.isDark)
+                            item {
+                                CompactInformationGrid(
+                                    links = other,
+                                    isDark = colors.isDark,
+                                )
                             }
                         }
                     }
@@ -966,6 +1033,7 @@ private fun SectionHeaderThemed(isDark: Boolean, title: String) {
 private fun ArtistActionsStrip(
     isDark: Boolean,
     isFollowed: Boolean,
+    isMixBusy: Boolean,
     followEnabled: Boolean,
     onMix: () -> Unit,
     onFollow: () -> Unit,
@@ -977,7 +1045,13 @@ private fun ArtistActionsStrip(
             .padding(horizontal = LiquidMetrics.ScreenPadding, vertical = 12.dp),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        ArtistActionButton("Artist mix", Icons.Rounded.Radio, true, isDark, onMix)
+        ArtistActionButton(
+            if (isMixBusy) "Loading…" else "Artist mix",
+            Icons.Rounded.Radio,
+            !isMixBusy,
+            isDark,
+            onMix,
+        )
         ArtistActionButton(
             if (isFollowed) "Following" else "Follow",
             if (isFollowed) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
@@ -986,6 +1060,122 @@ private fun ArtistActionsStrip(
             onFollow,
         )
         ArtistActionButton("Share", Icons.Rounded.Share, true, isDark, onShare)
+    }
+}
+
+@Composable
+private fun ArtistCatalogSummary(
+    songs: Int,
+    releases: Int,
+    playlists: Int,
+    videos: Int,
+    isDark: Boolean,
+) {
+    val stats = listOf(
+        songs to "Songs",
+        releases to "Releases",
+        playlists to "Playlists",
+        videos to "Videos",
+    ).filter { it.first > 0 }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = LiquidMetrics.ScreenPadding, vertical = 6.dp)
+            .clip(RoundedCornerShape(18.dp))
+            .background(LiquidSurfaces.card(isDark))
+            .padding(horizontal = 8.dp, vertical = 12.dp),
+        horizontalArrangement = Arrangement.SpaceEvenly,
+    ) {
+        stats.forEach { (value, label) ->
+            Column(
+                modifier = Modifier.weight(1f),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Text(
+                    value.toString(),
+                    color = LiquidSurfaces.textPrimary(isDark),
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                )
+                Text(
+                    label,
+                    color = LiquidSurfaces.textSecondary(isDark),
+                    fontSize = 10.sp,
+                    maxLines = 1,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun CompactInformationGrid(
+    links: List<ArtistLink>,
+    isDark: Boolean,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = LiquidMetrics.ScreenPadding)
+            .clip(RoundedCornerShape(18.dp))
+            .background(LiquidSurfaces.card(isDark))
+            .padding(8.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        links.chunked(2).forEach { rowLinks ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                rowLinks.forEach { link ->
+                    CompactInformationItem(link = link, isDark = isDark)
+                }
+                if (rowLinks.size == 1) Spacer(Modifier.weight(1f))
+            }
+        }
+    }
+}
+
+@Composable
+private fun RowScope.CompactInformationItem(
+    link: ArtistLink,
+    isDark: Boolean,
+) {
+    Row(
+        modifier = Modifier
+            .weight(1f)
+            .clip(RoundedCornerShape(13.dp))
+            .background(LiquidSurfaces.sheet(isDark).copy(alpha = 0.55f))
+            .padding(horizontal = 8.dp, vertical = 7.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        AlbumArtImage(
+            uri = null,
+            coverUrl = link.cover.toThumb(),
+            contentDescription = null,
+            modifier = Modifier.size(30.dp).clip(RoundedCornerShape(9.dp)),
+            contentScale = ContentScale.Crop,
+        )
+        Column(modifier = Modifier.padding(start = 8.dp).weight(1f)) {
+            Text(
+                link.title,
+                color = LiquidSurfaces.textPrimary(isDark),
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            link.subtitle?.takeIf { it.isNotBlank() }?.let { subtitle ->
+                Text(
+                    subtitle,
+                    color = LiquidSurfaces.textSecondary(isDark),
+                    fontSize = 10.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
     }
 }
 

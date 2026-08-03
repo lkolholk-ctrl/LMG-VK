@@ -1,5 +1,6 @@
 package com.lmg.vk.ui.screens
 
+import android.content.Intent
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -27,11 +28,13 @@ import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.QueueMusic
 import androidx.compose.material.icons.rounded.Refresh
+import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -47,13 +50,19 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.lmg.vk.engine.AudioDownloadManager
+import com.lmg.vk.engine.Track
 import com.lmg.vk.engine.backend.AlbumResponse
 import com.lmg.vk.engine.backend.MusicBackend
+import com.lmg.vk.engine.backend.MusicAuth
 import com.lmg.vk.engine.backend.toTrack
 import com.lmg.vk.engine.PlayerController
+import com.lmg.vk.data.local.db.AppDatabase
+import com.lmg.vk.data.local.db.FavoriteTrackDatabase
+import com.lmg.vk.data.local.db.LibraryRepository
 import com.lmg.vk.ui.components.DetailHeader
 import com.lmg.vk.ui.components.DetailTopBar
 import com.lmg.vk.ui.components.DetailTrackRow
+import com.lmg.vk.ui.components.TrackActionsSheet
 import com.lmg.vk.ui.components.formatTotalDuration
 import com.lmg.vk.ui.components.toDetailThumb
 import com.lmg.vk.ui.theme.LiquidSurfaces
@@ -89,6 +98,14 @@ fun AlbumDetailScreen(
     var isFollowing by remember(albumId) { mutableStateOf(false) }
     var followBusy by remember(albumId) { mutableStateOf(false) }
     var reloadKey by remember(albumId) { mutableStateOf(0) }
+    var actionsTrack by remember(albumId) { mutableStateOf<Track?>(null) }
+
+    val libraryRepository = remember(context) { LibraryRepository.getInstance(context) }
+    val favoriteIds by libraryRepository.favoriteIdsFlow.collectAsState(initial = emptySet())
+    val downloadDb = remember(context) { FavoriteTrackDatabase.getInstance(context) }
+    val downloadedTracks by downloadDb.downloadsFlow.collectAsState(initial = emptyList())
+    val downloadProgress by AudioDownloadManager.downloadProgress.collectAsState()
+    val isPremium by MusicAuth.isPremium.collectAsState()
 
     LaunchedEffect(albumId, reloadKey) {
         isLoading = true
@@ -109,6 +126,43 @@ fun AlbumDetailScreen(
         album?.tracks?.map { it.toTrack() }?.distinctBy { it.id } ?: emptyList()
     }
     val playableTracks = remember(albumTracks) { albumTracks.filter { it.isAvailable } }
+    val downloadedIds = remember(downloadedTracks) { downloadedTracks.map { it.trackId }.toSet() }
+    val cachedCount = remember(playableTracks, downloadedIds) {
+        playableTracks.count { it.id in downloadedIds }
+    }
+    val activeDownloadProgress = remember(playableTracks, downloadProgress) {
+        playableTracks.mapNotNull { downloadProgress[it.id] }
+    }
+    val cacheProgress = remember(playableTracks, cachedCount, activeDownloadProgress) {
+        when {
+            playableTracks.isEmpty() -> 0f
+            activeDownloadProgress.isNotEmpty() ->
+                ((cachedCount + activeDownloadProgress.sum()) / playableTracks.size).coerceIn(0f, 1f)
+            else -> cachedCount.toFloat() / playableTracks.size
+        }
+    }
+    val cacheLabel = when {
+        playableTracks.isNotEmpty() && cachedCount == playableTracks.size -> "Cached"
+        activeDownloadProgress.isNotEmpty() -> "${(cacheProgress * 100).toInt()}%"
+        else -> "Cache"
+    }
+
+    var albumPlayCount by remember(albumId) { mutableStateOf(0) }
+    var favouriteAlbumTrack by remember(albumId) { mutableStateOf<String?>(null) }
+    LaunchedEffect(albumTracks) {
+        albumPlayCount = 0
+        favouriteAlbumTrack = null
+        if (albumTracks.isEmpty()) return@LaunchedEffect
+        runCatching {
+            val stats = AppDatabase.getInstance(context).playbackHistoryDao().getAllTrackStats(500)
+            val byId = albumTracks.associateBy { it.id }
+            val albumStats = stats.filter { it.trackId in byId }
+            albumPlayCount = albumStats.sumOf { it.playCount }
+            favouriteAlbumTrack = albumStats.maxByOrNull { it.playCount }
+                ?.takeIf { it.playCount > 0 }
+                ?.let { byId[it.trackId]?.title }
+        }
+    }
 
     val listState = rememberLazyListState()
     val showTopBarTitle by remember {
@@ -210,7 +264,9 @@ fun AlbumDetailScreen(
                             isFollowing = isFollowing,
                             isAdding = followBusy,
                             canFollow = info?.canFollow == true && !followBusy,
-                            canDownload = playableTracks.isNotEmpty(),
+                            cacheLabel = cacheLabel,
+                            canDownload = isPremium && playableTracks.isNotEmpty() && cachedCount < playableTracks.size,
+                            canQueue = playableTracks.isNotEmpty(),
                             onAdd = {
                                 if (!isFollowing && info?.canFollow == true) {
                                     scope.launch {
@@ -240,6 +296,19 @@ fun AlbumDetailScreen(
                                     "Added ${playableTracks.size} tracks to queue",
                                     Toast.LENGTH_SHORT,
                                 ).show()
+                            },
+                            onShare = {
+                                val shareId = info?.id?.takeIf { it.isNotBlank() } ?: albumId
+                                val text = buildString {
+                                    append(info?.title.orEmpty())
+                                    info?.artist?.takeIf { it.isNotBlank() }?.let { append(" — ").append(it) }
+                                    append("\nhttps://vk.com/music/album/").append(shareId.removePrefix("vk_"))
+                                }
+                                val intent = Intent(Intent.ACTION_SEND).apply {
+                                    type = "text/plain"
+                                    putExtra(Intent.EXTRA_TEXT, text)
+                                }
+                                context.startActivity(Intent.createChooser(intent, info?.title.orEmpty()))
                             },
                         )
                     }
@@ -282,6 +351,16 @@ fun AlbumDetailScreen(
                         }
                     }
 
+                    if (albumPlayCount > 0) {
+                        item {
+                            AlbumPersonalStrip(
+                                playCount = albumPlayCount,
+                                favouriteTrack = favouriteAlbumTrack,
+                                isDark = isDark,
+                            )
+                        }
+                    }
+
                     itemsIndexed(albumTracks, key = { _, track -> track.id }) { index, track ->
                         DetailTrackRow(
                             position = index + 1,
@@ -293,6 +372,9 @@ fun AlbumDetailScreen(
                             isDark = isDark,
                             showDivider = index < albumTracks.lastIndex,
                             enabled = track.isAvailable,
+                            onMore = if (track.isAvailable) {
+                                { actionsTrack = track }
+                            } else null,
                             onClick = {
                                 val playableIndex = playableTracks.indexOfFirst { it.id == track.id }
                                 if (playableIndex >= 0) {
@@ -304,7 +386,9 @@ fun AlbumDetailScreen(
 
                     item {
                         val metadata = buildList {
+                            info?.releaseDate?.takeIf { it.isNotBlank() }?.let { add("Released $it") }
                             info?.plays?.takeIf { it > 0 }?.let { add("${formatCount(it)} plays") }
+                            info?.followers?.takeIf { it > 0 }?.let { add("${formatCount(it)} followers") }
                             info?.createdAt?.takeIf { it > 0L }?.let { add("Created ${formatCatalogDate(it)}") }
                             info?.updatedAt?.takeIf { it > 0L }?.let { add("Updated ${formatCatalogDate(it)}") }
                         }
@@ -334,6 +418,20 @@ fun AlbumDetailScreen(
             isDark = isDark,
             onBack = onBack
         )
+
+        actionsTrack?.let { selected ->
+            TrackActionsSheet(
+                track = selected,
+                isFavorite = selected.id in favoriteIds,
+                onToggleFavorite = {
+                    scope.launch { libraryRepository.toggleFavorite(selected) }
+                },
+                onCache = if (isPremium && selected.id !in downloadedIds) {
+                    { AudioDownloadManager.downloadTrack(context, selected) }
+                } else null,
+                onDismiss = { actionsTrack = null },
+            )
+        }
     }
 }
 
@@ -343,10 +441,13 @@ private fun AlbumActionsRow(
     isFollowing: Boolean,
     isAdding: Boolean,
     canFollow: Boolean,
+    cacheLabel: String,
     canDownload: Boolean,
+    canQueue: Boolean,
     onAdd: () -> Unit,
     onDownload: () -> Unit,
     onQueue: () -> Unit,
+    onShare: () -> Unit,
 ) {
     Row(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 10.dp),
@@ -363,8 +464,40 @@ private fun AlbumActionsRow(
             isDark,
             onAdd,
         )
-        AlbumActionButton("Cache", Icons.Rounded.Download, canDownload, isDark, onDownload)
-        AlbumActionButton("Queue", Icons.Rounded.QueueMusic, canDownload, isDark, onQueue)
+        AlbumActionButton(cacheLabel, Icons.Rounded.Download, canDownload, isDark, onDownload)
+        AlbumActionButton("Queue", Icons.Rounded.QueueMusic, canQueue, isDark, onQueue)
+        AlbumActionButton("Share", Icons.Rounded.Share, true, isDark, onShare)
+    }
+}
+
+@Composable
+private fun AlbumPersonalStrip(
+    playCount: Int,
+    favouriteTrack: String?,
+    isDark: Boolean,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp, vertical = 8.dp)
+            .clip(RoundedCornerShape(18.dp))
+            .background(LiquidSurfaces.card(isDark))
+            .padding(horizontal = 16.dp, vertical = 13.dp),
+    ) {
+        Text(
+            "You played this album $playCount times",
+            color = LiquidSurfaces.textPrimary(isDark),
+            fontSize = 14.sp,
+            fontWeight = FontWeight.SemiBold,
+        )
+        favouriteTrack?.takeIf { it.isNotBlank() }?.let {
+            Text(
+                "Most played: $it",
+                color = LiquidSurfaces.textSecondary(isDark),
+                fontSize = 12.sp,
+                modifier = Modifier.padding(top = 3.dp),
+            )
+        }
     }
 }
 
