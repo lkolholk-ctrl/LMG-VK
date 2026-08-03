@@ -1,7 +1,6 @@
 package com.lmg.vk.ui.screens
 
 import android.content.Intent
-import android.net.Uri
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -108,6 +107,7 @@ fun ArtistDetailScreen(
     onNavigateToAlbum: (String) -> Unit = {},
     onNavigateToArtist: (String) -> Unit = {},
     onNavigateToPlaylist: (String) -> Unit = {},
+    onOpenInternalUrl: (String) -> Unit = {},
 ) {
     val context = LocalContext.current
     val colors = LiquidTheme.colors
@@ -523,7 +523,7 @@ fun ArtistDetailScreen(
                             item { SectionHeaderThemed(colors.isDark, "Concerts") }
                             items(concerts, key = { "concert-${it.id}" }) { link ->
                                 ArtistLinkRow(link.title, link.subtitle, link.cover, colors.isDark) {
-                                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(link.url)))
+                                    onOpenInternalUrl(link.url)
                                 }
                             }
                         }
@@ -531,7 +531,7 @@ fun ArtistDetailScreen(
                             item { SectionHeaderThemed(colors.isDark, "Merch") }
                             items(merch, key = { "merch-${it.id}" }) { link ->
                                 ArtistLinkRow(link.title, link.subtitle, link.cover, colors.isDark) {
-                                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(link.url)))
+                                    onOpenInternalUrl(link.url)
                                 }
                             }
                         }
@@ -539,7 +539,7 @@ fun ArtistDetailScreen(
                             item { SectionHeaderThemed(colors.isDark, "Links") }
                             items(other, key = { "link-${it.id}" }) { link ->
                                 ArtistLinkRow(link.title, link.subtitle, link.cover, colors.isDark) {
-                                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(link.url)))
+                                    onOpenInternalUrl(link.url)
                                 }
                             }
                         }
@@ -550,9 +550,7 @@ fun ArtistDetailScreen(
                         items(art?.officialPages.orEmpty(), key = { "page-${it.id}" }) { page ->
                             ArtistLinkRow(page.name, page.subtitle, page.cover, colors.isDark) {
                                 val prefix = if (page.id < 0L) "club" else "id"
-                                context.startActivity(
-                                    Intent(Intent.ACTION_VIEW, Uri.parse("https://vk.com/$prefix${kotlin.math.abs(page.id)}")),
-                                )
+                                onOpenInternalUrl("https://vk.com/$prefix${kotlin.math.abs(page.id)}")
                             }
                         }
                     }
@@ -567,7 +565,7 @@ fun ArtistDetailScreen(
                                 items(art?.videos.orEmpty(), key = { it.id }) { video ->
                                     ArtistVideoCard(video.title, video.cover, video.duration, colors.isDark) {
                                         val url = video.url ?: "https://vk.com/video${video.id}"
-                                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                                        onOpenInternalUrl(url)
                                     }
                                 }
                             }

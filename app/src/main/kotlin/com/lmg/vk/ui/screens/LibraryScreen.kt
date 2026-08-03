@@ -99,9 +99,11 @@ import kotlinx.coroutines.CancellationException
 
 private val AppleRed = Color(0xFFFC3C44)
 
-private enum class LibraryView { MAIN, RECENT, FAVORITES, DOWNLOADS, LOCAL_PLAYLISTS, IMPORTED, LOCAL_AUDIO }
+private enum class LibraryView { MAIN, PLAYLISTS, RECENT, FAVORITES, DOWNLOADS, LOCAL_PLAYLISTS, IMPORTED, LOCAL_AUDIO }
 
 private enum class FavoriteSort { DEFAULT, TITLE, ARTIST }
+private enum class PlaylistSource { ALL, LOCAL, CLOUD }
+private enum class PlaylistSort { DEFAULT, NAME, TRACK_COUNT }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -110,6 +112,7 @@ fun LibraryScreen(
     onNavigateToArtist: (String) -> Unit = {},
     onOpenPlaylist: (String) -> Unit = {},
     onOpenLocalLibrary: () -> Unit = {},
+    onOpenInternalUrl: (String) -> Unit = {},
 
     backdrop: LayerBackdrop? = null
 ) {
@@ -129,6 +132,9 @@ fun LibraryScreen(
     var libraryQuery by remember { mutableStateOf("") }
     var favoriteSort by remember { mutableStateOf(FavoriteSort.DEFAULT) }
     var recentTracks by remember { mutableStateOf<List<Track>>(emptyList()) }
+    var playlistQuery by remember { mutableStateOf("") }
+    var playlistSource by remember { mutableStateOf(PlaylistSource.ALL) }
+    var playlistSort by remember { mutableStateOf(PlaylistSort.DEFAULT) }
 
     // Адаптив: в широком окне (телефон-альбом / планшет) сетка плейлистов
     // получает больше колонок, а вертикальные списки-строки центрируем узкой
@@ -154,6 +160,36 @@ fun LibraryScreen(
     var importedPlaylists by remember { mutableStateOf<List<com.lmg.vk.engine.backend.UserPlaylist>>(emptyList()) }
     var isPlaylistsLoading by remember { mutableStateOf(false) }
     var showImportDialog by remember { mutableStateOf(false) }
+    val localPlaylists by com.lmg.vk.engine.PlaylistManager.playlists.collectAsState()
+
+    val allPlaylistCells = remember(localPlaylists, importedPlaylists) {
+        localPlaylists.map { p ->
+            PlaylistCellData(
+                key = "local_${p.id}",
+                id = p.id,
+                name = p.name,
+                trackCount = p.tracks.size,
+                covers = p.tracks.mapNotNull { it.coverUrl }.distinct().take(4),
+                badge = "Local",
+                isImported = false,
+            )
+        } + importedPlaylists.map { p ->
+            PlaylistCellData(
+                key = "cloud_${p.id}",
+                id = p.id ?: "",
+                name = p.name.orEmpty(),
+                trackCount = p.trackCount ?: 0,
+                covers = listOfNotNull(p.cover?.replace("1000x1000", "400x400")),
+                badge = when {
+                    p.source?.contains("yandex", true) == true -> "Yandex"
+                    p.source?.contains("apple", true) == true -> "Apple"
+                    p.source?.contains("spotify", true) == true -> "Spotify"
+                    else -> "Cloud"
+                },
+                isImported = true,
+            )
+        }
+    }
 
     // Load cloud playlists when entering the Imported view or when logged in
     fun loadImportedPlaylists() {
@@ -215,8 +251,6 @@ fun LibraryScreen(
                 // мозаикой обложек. My Playlists и Imported слиты в одну сетку
                 // (импортные — с бейджем источника), Local Audio + Медиатека —
                 // один раздел «On this device». ──
-                val localPlaylists by com.lmg.vk.engine.PlaylistManager.playlists.collectAsState()
-
                 // Размер загрузок на диске — фоном, чтобы не трогать main.
                 var downloadsSize by remember { mutableStateOf<String?>(null) }
                 LaunchedEffect(downloadedTracks) {
@@ -233,37 +267,6 @@ fun LibraryScreen(
                     }
                 }
 
-                // Объединённая сетка плейлистов: свои + импортированные.
-                val playlistCells = remember(localPlaylists, importedPlaylists, libraryQuery) {
-                    (localPlaylists.map { p ->
-                        PlaylistCellData(
-                            key = "local_${p.id}",
-                            id = p.id,
-                            name = p.name,
-                            trackCount = p.tracks.size,
-                            covers = p.tracks.mapNotNull { it.coverUrl }.distinct().take(4),
-                            badge = null,
-                            isImported = false
-                        )
-                    } + importedPlaylists.map { p ->
-                        PlaylistCellData(
-                            key = "lmg_${p.id}",
-                            id = p.id ?: "",
-                            name = p.name.orEmpty(),
-                            trackCount = p.trackCount ?: 0,
-                            covers = listOfNotNull(p.cover?.replace("1000x1000", "400x400")),
-                            badge = when {
-                                p.source?.contains("yandex", true) == true -> "Yandex"
-                                p.source?.contains("apple", true) == true -> "Apple"
-                                p.source?.contains("spotify", true) == true -> "Spotify"
-                                else -> "Cloud"
-                            },
-                            isImported = true
-                        )
-                    }).filter {
-                        libraryQuery.isBlank() || it.name.contains(libraryQuery, ignoreCase = true)
-                    }
-                }
                 val favoritePreview = remember(favorites, libraryQuery) {
                     favorites.filter {
                         libraryQuery.isBlank() ||
@@ -271,8 +274,6 @@ fun LibraryScreen(
                             it.artistName.orEmpty().contains(libraryQuery, ignoreCase = true)
                     }.take(5)
                 }
-                var playlistToDelete by remember { mutableStateOf<PlaylistCellData?>(null) }
-                val libraryGridState = androidx.compose.foundation.lazy.grid.rememberLazyGridState()
 
                 androidx.compose.foundation.lazy.grid.LazyVerticalGrid(
                     // В альбоме/на планшете больше колонок под плейлисты (было 2);
@@ -280,7 +281,6 @@ fun LibraryScreen(
                     columns = if (win.useSideBySide)
                         androidx.compose.foundation.lazy.grid.GridCells.Adaptive(minSize = 160.dp)
                     else androidx.compose.foundation.lazy.grid.GridCells.Fixed(2),
-                    state = libraryGridState,
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 178.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -327,10 +327,10 @@ fun LibraryScreen(
                             SystemRowDivider(compact = win.useSideBySide)
                             MenuCard(
                                 "Playlists",
-                                "${playlistCells.size} playlists",
+                                "${allPlaylistCells.size} playlists",
                                 Icons.AutoMirrored.Rounded.PlaylistPlay,
                                 lc.accent,
-                                { scope.launch { libraryGridState.animateScrollToItem(4) } },
+                                { currentView = LibraryView.PLAYLISTS },
                                 win.useSideBySide,
                             )
                             SystemRowDivider(compact = win.useSideBySide)
@@ -364,7 +364,7 @@ fun LibraryScreen(
                                 icon = Icons.Rounded.MusicNote,
                                 tint = Color(0xFF30D158),
                                 compact = win.useSideBySide,
-                                onClick = {},
+                                onClick = { onOpenInternalUrl("https://t.me/byicmbot") },
                                 trailing = {
                                     if (isPremium) Icon(Icons.Rounded.Check, null, tint = Color(0xFF30D158))
                                 },
@@ -413,65 +413,86 @@ fun LibraryScreen(
                         }
                     }
 
-                    // ── Секция плейлистов: заголовок + импорт ──
-                    item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text(
-                                text = "My Playlists",
-                                fontSize = if (win.useSideBySide) 17.sp else 20.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = lc.textPrimary
-                            )
-                            Box(
-                                modifier = Modifier
-                                    .size(36.dp)
-                                    .background(Color(0xFF30D158).copy(alpha = 0.14f), CircleShape)
-                                    .clip(CircleShape)
-                                    .liquidClickable(pressedScale = LiquidMotion.PressIcon) {
-                                        showImportDialog = true
-                                    },
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(Icons.Rounded.Add, null, tint = Color(0xFF30D158), modifier = Modifier.size(20.dp))
+                }
+            }
+
+            LibraryView.PLAYLISTS -> {
+                val visiblePlaylists = remember(
+                    allPlaylistCells,
+                    playlistQuery,
+                    playlistSource,
+                    playlistSort,
+                ) {
+                    allPlaylistCells
+                        .filter {
+                            playlistQuery.isBlank() ||
+                                it.name.contains(playlistQuery, ignoreCase = true)
+                        }
+                        .filter {
+                            when (playlistSource) {
+                                PlaylistSource.ALL -> true
+                                PlaylistSource.LOCAL -> !it.isImported
+                                PlaylistSource.CLOUD -> it.isImported
                             }
+                        }
+                        .let { cells ->
+                            when (playlistSort) {
+                                PlaylistSort.DEFAULT -> cells
+                                PlaylistSort.NAME -> cells.sortedBy { it.name.lowercase() }
+                                PlaylistSort.TRACK_COUNT -> cells.sortedByDescending { it.trackCount }
+                            }
+                        }
+                }
+                var playlistToDelete by remember { mutableStateOf<PlaylistCellData?>(null) }
+
+                Column(modifier = Modifier.fillMaxSize()) {
+                    SubHeader("Playlists", onBack = { currentView = LibraryView.MAIN }) {
+                        IconButton(onClick = { showImportDialog = true }) {
+                            Icon(Icons.Rounded.Add, "Add playlist", tint = lc.accent)
                         }
                     }
+                    LibrarySearchField(
+                        value = playlistQuery,
+                        onValueChange = { playlistQuery = it },
+                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
+                    )
+                    PlaylistControls(
+                        source = playlistSource,
+                        sort = playlistSort,
+                        onSourceChange = { playlistSource = it },
+                        onSortChange = {
+                            playlistSort = when (playlistSort) {
+                                PlaylistSort.DEFAULT -> PlaylistSort.NAME
+                                PlaylistSort.NAME -> PlaylistSort.TRACK_COUNT
+                                PlaylistSort.TRACK_COUNT -> PlaylistSort.DEFAULT
+                            }
+                        },
+                    )
 
-                    if (playlistCells.isEmpty()) {
-                        item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) {
-                            Column(
-                                modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
-                                Icon(
-                                    Icons.AutoMirrored.Rounded.PlaylistPlay, null,
-                                    tint = lc.iconMuted, modifier = Modifier.size(48.dp)
-                                )
-                                Spacer(Modifier.height(10.dp))
-                                Text(
-                                    if (isLoggedIn) "No playlists yet. Tap + to import one!"
-                                    else "Sign in to sync playlists, or tap + to import",
-                                    color = lc.textSecondary,
-                                    fontSize = 14.sp
+                    if (visiblePlaylists.isEmpty()) {
+                        EmptyState("No playlists found", Icons.AutoMirrored.Rounded.PlaylistPlay)
+                    } else {
+                        androidx.compose.foundation.lazy.grid.LazyVerticalGrid(
+                            columns = if (win.useSideBySide)
+                                androidx.compose.foundation.lazy.grid.GridCells.Adaptive(160.dp)
+                            else androidx.compose.foundation.lazy.grid.GridCells.Fixed(2),
+                            modifier = Modifier.weight(1f),
+                            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 178.dp),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(16.dp),
+                        ) {
+                            items(visiblePlaylists.size, key = { visiblePlaylists[it].key }) { index ->
+                                val cell = visiblePlaylists[index]
+                                PlaylistCell(
+                                    data = cell,
+                                    onClick = { onOpenPlaylist(cell.id) },
+                                    onLongPress = { playlistToDelete = cell },
                                 )
                             }
-                        }
-                    } else {
-                        items(playlistCells.size, key = { playlistCells[it].key }) { i ->
-                            PlaylistCell(
-                                data = playlistCells[i],
-                                onClick = { onOpenPlaylist(playlistCells[i].id) },
-                                onLongPress = { playlistToDelete = playlistCells[i] }
-                            )
                         }
                     }
                 }
 
-                // ── Долгий тап по плейлисту → удаление ──
                 playlistToDelete?.let { cell ->
                     GlassDialog(
                         visible = true,
@@ -494,14 +515,14 @@ fun LibraryScreen(
                                 playlistToDelete = null
                             },
                             backgroundColor = Color(0xFFFF5252),
-                            textColor = Color.White
+                            textColor = Color.White,
                         ),
                         secondaryButton = GlassDialogButton(
                             text = "Cancel",
                             onClick = { playlistToDelete = null },
                             backgroundColor = lc.textPrimary.copy(alpha = 0.08f),
-                            textColor = lc.textSecondary
-                        )
+                            textColor = lc.textSecondary,
+                        ),
                     )
                 }
             }
@@ -691,7 +712,7 @@ fun LibraryScreen(
                     }
 
                     if (!isPremium && downloadedTracks.isEmpty()) {
-                        PremiumDownloadsPromo(backdrop = backdrop)
+                        PremiumDownloadsPromo(onOpenInternalUrl = onOpenInternalUrl, backdrop = backdrop)
                     } else if (downloadedTracks.isEmpty()) {
                         EmptyState("No downloaded tracks yet", Icons.Default.Download)
                     } else {
@@ -1021,7 +1042,11 @@ private fun LibraryTabs(
 }
 
 @Composable
-private fun LibrarySearchField(value: String, onValueChange: (String) -> Unit) {
+private fun LibrarySearchField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val lc = LiquidTheme.colors
     BasicTextField(
         value = value,
@@ -1031,7 +1056,7 @@ private fun LibrarySearchField(value: String, onValueChange: (String) -> Unit) {
         singleLine = true,
         decorationBox = { inner ->
             Row(
-                modifier = Modifier
+                modifier = modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(22.dp))
                     .background(lc.cardSurface)
@@ -1047,6 +1072,55 @@ private fun LibrarySearchField(value: String, onValueChange: (String) -> Unit) {
             }
         },
     )
+}
+
+@Composable
+private fun PlaylistControls(
+    source: PlaylistSource,
+    sort: PlaylistSort,
+    onSourceChange: (PlaylistSource) -> Unit,
+    onSortChange: () -> Unit,
+) {
+    val lc = LiquidTheme.colors
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        PlaylistSource.entries.forEach { option ->
+            val selected = source == option
+            Text(
+                text = when (option) {
+                    PlaylistSource.ALL -> "All"
+                    PlaylistSource.LOCAL -> "Local"
+                    PlaylistSource.CLOUD -> "Cloud"
+                },
+                color = if (selected) lc.accent else lc.textSecondary,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(if (selected) lc.accent.copy(alpha = 0.14f) else lc.cardSurface)
+                    .liquidClickable { onSourceChange(option) }
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+            )
+        }
+        Spacer(Modifier.weight(1f))
+        Text(
+            text = when (sort) {
+                PlaylistSort.DEFAULT -> "Default"
+                PlaylistSort.NAME -> "A–Z"
+                PlaylistSort.TRACK_COUNT -> "By tracks"
+            },
+            color = lc.accent,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier
+                .clip(RoundedCornerShape(14.dp))
+                .liquidClickable(onClick = onSortChange)
+                .padding(horizontal = 10.dp, vertical = 8.dp),
+        )
+    }
 }
 
 @Composable
@@ -2616,9 +2690,11 @@ private fun EmptyState(message: String, icon: androidx.compose.ui.graphics.vecto
 }
 
 @Composable
-private fun PremiumDownloadsPromo(backdrop: LayerBackdrop? = null) {
+private fun PremiumDownloadsPromo(
+    onOpenInternalUrl: (String) -> Unit,
+    backdrop: LayerBackdrop? = null,
+) {
     val lc = LiquidTheme.colors
-    val context = LocalContext.current
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -2661,13 +2737,7 @@ private fun PremiumDownloadsPromo(backdrop: LayerBackdrop? = null) {
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(14.dp))
                     .background(AppleRed)
-                    .clickable {
-                        val intent = android.content.Intent(
-                            android.content.Intent.ACTION_VIEW,
-                            Uri.parse("https://t.me/byicmbot")
-                        )
-                        context.startActivity(intent)
-                    }
+                    .clickable { onOpenInternalUrl("https://t.me/byicmbot") }
                     .padding(vertical = 14.dp),
                 contentAlignment = Alignment.Center
             ) {
