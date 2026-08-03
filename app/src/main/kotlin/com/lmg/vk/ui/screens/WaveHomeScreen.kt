@@ -48,7 +48,7 @@ fun WaveHomeScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(colors.surfaceBackground)
+            .background(colors.settingsBackground)
             .statusBarsPadding()
             .navigationBarsPadding(),
         contentAlignment = Alignment.Center

@@ -201,7 +201,7 @@ fun NewScreen(
                                     when {
                                         homeItem.isArtist -> onNavigateToArtist(homeItem.artistId ?: homeItem.id)
                                         homeItem.isAlbum -> onNavigateToAlbum(homeItem.collectionId ?: homeItem.id)
-                                        else -> PlayerController.playFromList(context, listOf(homeItem.toWaveTrack()))
+                                        else -> PlayerController.playFromList(context, listOf(homeItem.toTrack()))
                                     }
                                 }
                             )
@@ -498,3 +498,21 @@ private fun NewChartCard(
         )
     }
 }
+
+/** Maps a VK home item to the common player model without a third-party resolver URI. */
+private fun com.lmg.vk.engine.backend.HomeItem.toTrack(): Track = Track(
+    id = id,
+    title = title,
+    artist = displayArtist,
+    albumName = album.orEmpty(),
+    uri = com.lmg.vk.engine.VkAudioIdentity.playbackUri(),
+    durationMs = durationMs,
+    albumId = collectionId?.hashCode()?.toLong() ?: id.hashCode().toLong(),
+    coverUrl = cover,
+    artists = artistId?.let {
+        listOf(com.lmg.vk.engine.backend.MiniArtist(id = it, name = displayArtist))
+    }.orEmpty(),
+    isExplicit = isExplicit,
+    source = source,
+    genre = genre
+)
