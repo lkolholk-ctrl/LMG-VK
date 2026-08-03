@@ -90,6 +90,7 @@ import com.lmg.vk.ui.viewmodel.LibraryViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
 
 private val AppleRed = Color(0xFFFC3C44)
 
@@ -149,11 +150,17 @@ fun LibraryScreen(
         if (isLoggedIn) {
             scope.launch {
                 isPlaylistsLoading = true
-                val response = MusicBackend.getUserPlaylists(limit = 100)
-                if (response != null) {
+                try {
+                    val response = MusicBackend.getUserPlaylists(limit = 100)
                     importedPlaylists = response.items
+                } catch (error: CancellationException) {
+                    throw error
+                } catch (_: Exception) {
+                    // Ошибка VK-сессии или сети не должна завершать UI-процесс.
+                    // Сохраняем уже показанные плейлисты; повтор доступен кнопкой.
+                } finally {
+                    isPlaylistsLoading = false
                 }
-                isPlaylistsLoading = false
             }
         }
     }

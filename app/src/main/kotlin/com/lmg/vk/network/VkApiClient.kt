@@ -178,7 +178,9 @@ class VkApiClient(
             null
         } else when {
             explicit != null -> explicit
-            name == "auth.refreshTokens" -> sessionStore.session.accessToken.takeIf { it.isNotBlank() }
+            // C8221e отправляет auth.refreshTokens без Authorization: протухший
+            // access token не должен мешать обмену сохранённого exchange token.
+            name == "auth.refreshTokens" -> null
             else -> getValidToken().takeIf { it.isNotBlank() }
         }
 
