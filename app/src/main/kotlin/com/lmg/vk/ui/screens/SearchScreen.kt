@@ -58,6 +58,7 @@ import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.lmg.vk.ui.glass.GlassKit
@@ -84,10 +85,11 @@ private val SearchAccent = Color(0xFFFC3C44)
 
 @Composable
 fun SearchScreen(
+    onBack: () -> Unit,
     onNavigateToAlbum: (String) -> Unit = {},
     onNavigateToArtist: (String) -> Unit = {},
     onOpenPlayer: () -> Unit = {},
-    onBack: (() -> Unit)? = null,
+    bottomContentPadding: Dp = 32.dp,
 ) {
     val context = LocalContext.current
     val focusManager = LocalFocusManager.current
@@ -165,6 +167,7 @@ fun SearchScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(vertical = 16.dp)
+                .navigationBarsPadding()
         ) {
             Spacer(modifier = Modifier.windowInsetsTopHeight(WindowInsets.statusBars))
 
@@ -172,24 +175,22 @@ fun SearchScreen(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                if (onBack != null) {
-                    Box(
-                        modifier = Modifier
-                            .size(if (compact) 34.dp else 40.dp)
-                            .clip(CircleShape)
-                            .background(LiquidTheme.colors.glassTint)
-                            .liquidClickable(pressedScale = LiquidMotion.PressIcon) { onBack() },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            Icons.AutoMirrored.Rounded.ArrowBack,
-                            contentDescription = "Back",
-                            tint = LiquidTheme.colors.textPrimary,
-                            modifier = Modifier.size(if (compact) 18.dp else 22.dp)
-                        )
-                    }
-                    Spacer(Modifier.width(12.dp))
+                Box(
+                    modifier = Modifier
+                        .size(if (compact) 34.dp else 40.dp)
+                        .clip(CircleShape)
+                        .background(LiquidTheme.colors.glassTint)
+                        .liquidClickable(pressedScale = LiquidMotion.PressIcon, onClick = onBack),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.AutoMirrored.Rounded.ArrowBack,
+                        contentDescription = "Back",
+                        tint = LiquidTheme.colors.textPrimary,
+                        modifier = Modifier.size(if (compact) 18.dp else 22.dp)
+                    )
                 }
+                Spacer(Modifier.width(12.dp))
                 Text(
                     text = "Search",
                     fontWeight = FontWeight.Bold,
@@ -198,9 +199,7 @@ fun SearchScreen(
                 )
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
-
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
             // Search field — пилюля с подсветкой при фокусе + Cancel рядом.
             val isDark = LiquidTheme.colors.isDark
@@ -324,7 +323,7 @@ fun SearchScreen(
                 ) {
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(start = resultsSidePad, end = resultsSidePad, bottom = 178.dp)
+                        contentPadding = PaddingValues(start = resultsSidePad, end = resultsSidePad, bottom = bottomContentPadding)
                     ) {
                         if (history.isNotEmpty()) {
                             item {
@@ -372,6 +371,10 @@ fun SearchScreen(
                                         )
                                     }
                                 }
+                            }
+                        } else {
+                            item(key = "search_welcome") {
+                                SearchWelcomeState(compact = compact)
                             }
                         }
                     }
@@ -437,12 +440,12 @@ fun SearchScreen(
                                 LazyColumn(
                                     modifier = Modifier.fillMaxSize(),
                                     verticalArrangement = Arrangement.spacedBy(2.dp),
-                                    contentPadding = PaddingValues(start = resultsSidePad, end = resultsSidePad, bottom = 178.dp)
+                                    contentPadding = PaddingValues(start = resultsSidePad, end = resultsSidePad, bottom = bottomContentPadding)
                                 ) {
                                     // Artists section
                                     if (artists.isNotEmpty()) {
                                         item(key = "artists_label") {
-                                            SearchSectionLabel("Artists", compact)
+                                            SearchSectionLabel("Artists", artists.size, compact)
                                         }
                                         item(key = "artists_row") {
                                             LazyRow(
@@ -470,7 +473,7 @@ fun SearchScreen(
                                     // Albums section
                                     if (albums.isNotEmpty()) {
                                         item(key = "albums_label") {
-                                            SearchSectionLabel("Albums", compact)
+                                            SearchSectionLabel("Albums", albums.size, compact)
                                         }
                                         item(key = "albums_row") {
                                             LazyRow(
@@ -498,7 +501,7 @@ fun SearchScreen(
                                     // Tracks section
                                     if (tracks.isNotEmpty()) {
                                         item(key = "tracks_label") {
-                                            SearchSectionLabel("Songs", compact)
+                                            SearchSectionLabel("Songs", tracks.size, compact)
                                         }
                                         val playableTracks = tracks.filter { it.isAvailable }.map { it.toTrack() }
                                         itemsIndexed(
@@ -570,8 +573,6 @@ fun SearchScreen(
                                             }
                                         }
                                     }
-
-                                    item { Spacer(modifier = Modifier.height(200.dp)) }
                                 }
                             }
                         }
@@ -738,6 +739,46 @@ private fun HistoryChip(
     }
 }
 
+/** Спокойное стартовое состояние, когда истории поиска ещё нет. */
+@Composable
+private fun SearchWelcomeState(compact: Boolean) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 28.dp, vertical = if (compact) 28.dp else 48.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(if (compact) 58.dp else 72.dp)
+                .clip(CircleShape)
+                .background(SearchAccent.copy(alpha = if (LiquidTheme.colors.isDark) 0.18f else 0.12f)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.Search,
+                contentDescription = null,
+                tint = SearchAccent,
+                modifier = Modifier.size(if (compact) 25.dp else 31.dp),
+            )
+        }
+        Spacer(Modifier.height(if (compact) 14.dp else 18.dp))
+        Text(
+            text = "Search VK Music",
+            color = LiquidTheme.colors.textPrimary,
+            fontSize = if (compact) 17.sp else 20.sp,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Spacer(Modifier.height(6.dp))
+        Text(
+            text = "Find songs, artists and albums",
+            color = LiquidTheme.colors.textTertiary,
+            fontSize = if (compact) 12.sp else 14.sp,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+        )
+    }
+}
+
 /** Шиммер-скелетоны результатов: пульсирующие пилюли на месте будущих строк. */
 @Composable
 private fun SearchSkeleton() {
@@ -880,12 +921,32 @@ private fun SearchResultRow(
 }
 
 @Composable
-private fun SearchSectionLabel(text: String, compact: Boolean = false) {
-    Text(
-        text = text,
-        fontWeight = FontWeight.Bold,
-        fontSize = if (compact) 15.sp else 20.sp,
-        color = LiquidTheme.colors.textPrimary,
-        modifier = Modifier.padding(horizontal = 20.dp, vertical = if (compact) 8.dp else 12.dp)
-    )
+private fun SearchSectionLabel(text: String, count: Int, compact: Boolean = false) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp, vertical = if (compact) 8.dp else 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = text,
+            fontWeight = FontWeight.Bold,
+            fontSize = if (compact) 15.sp else 20.sp,
+            color = LiquidTheme.colors.textPrimary,
+            modifier = Modifier.weight(1f),
+        )
+        Text(
+            text = count.toString(),
+            color = LiquidTheme.colors.textSecondary,
+            fontSize = if (compact) 11.sp else 12.sp,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier
+                .clip(CircleShape)
+                .background(
+                    if (LiquidTheme.colors.isDark) Color.White.copy(alpha = 0.08f)
+                    else Color.Black.copy(alpha = 0.06f)
+                )
+                .padding(horizontal = 9.dp, vertical = 4.dp),
+        )
+    }
 }

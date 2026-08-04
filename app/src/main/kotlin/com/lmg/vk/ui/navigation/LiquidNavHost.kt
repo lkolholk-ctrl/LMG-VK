@@ -8,6 +8,7 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModelProvider
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavHostController
@@ -102,9 +103,11 @@ fun LiquidNavHost(
             }
             composable(NavRoutes.WAVE_SEARCH) {
                 SearchScreen(
+                    onBack = { navController.popBackStack() },
                     onNavigateToAlbum = { navController.navigate(NavRoutes.album(NavRoutes.TAB_WAVE, it)) },
                     onNavigateToArtist = { navController.navigate(NavRoutes.artist(NavRoutes.TAB_WAVE, it)) },
-                    onOpenPlayer = onOpenPlayer
+                    onOpenPlayer = onOpenPlayer,
+                    bottomContentPadding = 178.dp,
                 )
             }
             musicDetailDestinations(NavRoutes.TAB_WAVE, navController)
