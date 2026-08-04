@@ -184,14 +184,7 @@ data class VkCatalogBlock(
 /** `Catalog2Button` — the recovered root catalog navigation item. */
 @JsonClass(generateAdapter = true)
 data class VkCatalogButton(
-    val action: String? = null,
     val section_id: String? = null,
-    val owner_id: String? = null,
-    val block_id: String? = null,
-    val mix_id: String? = null,
-    val entity_id: String? = null,
-    val title: String? = null,
-    val description: String? = null,
 )
 
 /** `Catalog2Banner` from the recovered CatalogKit response adapter. */
