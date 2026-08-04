@@ -5,8 +5,12 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.lmg.vk.data.local.db.FavoriteTrackEntity
 import com.lmg.vk.data.local.db.LibraryRepository
+import com.lmg.vk.engine.backend.ProfileLibrarySearch
+import com.lmg.vk.engine.backend.MusicBackend
 import com.lmg.vk.engine.PlayerController
 import com.lmg.vk.engine.Track
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -39,6 +43,17 @@ class LibraryViewModel(context: Context) : ViewModel() {
 
     private val _favoriteIds = MutableStateFlow<Set<String>>(emptySet())
     val favoriteIds: StateFlow<Set<String>> = _favoriteIds.asStateFlow()
+
+    private val _profileSearch = MutableStateFlow<ProfileLibrarySearch?>(null)
+    val profileSearch: StateFlow<ProfileLibrarySearch?> = _profileSearch.asStateFlow()
+
+    private val _isProfileSearchLoading = MutableStateFlow(false)
+    val isProfileSearchLoading: StateFlow<Boolean> = _isProfileSearchLoading.asStateFlow()
+
+    private val _profileSearchError = MutableStateFlow<String?>(null)
+    val profileSearchError: StateFlow<String?> = _profileSearchError.asStateFlow()
+
+    private var profileSearchJob: Job? = null
 
     init {
         // Collect favorites from Room reactively
@@ -74,6 +89,34 @@ class LibraryViewModel(context: Context) : ViewModel() {
                 _errorMessage.value = e.message ?: "Sync failed"
             } finally {
                 _isSyncing.value = false
+            }
+        }
+    }
+
+    /** Debounced, cancellable search of the current VK profile's library. */
+    fun searchCurrentProfile(query: String) {
+        val normalizedQuery = query.trim()
+        profileSearchJob?.cancel()
+        if (normalizedQuery.length < 2) {
+            _profileSearch.value = null
+            _profileSearchError.value = null
+            _isProfileSearchLoading.value = false
+            return
+        }
+        profileSearchJob = viewModelScope.launch(Dispatchers.IO) {
+            _isProfileSearchLoading.value = true
+            _profileSearchError.value = null
+            try {
+                delay(300)
+                val result = MusicBackend.searchCurrentProfileLibrary(normalizedQuery)
+                _profileSearch.value = result
+            } catch (error: kotlinx.coroutines.CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                _profileSearch.value = null
+                _profileSearchError.value = error.message ?: "VK library search failed"
+            } finally {
+                _isProfileSearchLoading.value = false
             }
         }
     }

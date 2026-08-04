@@ -84,6 +84,7 @@ object MusicBackend {
 
     private lateinit var audioApi: VkAudioApi
     private lateinit var catalogApi: VkCatalogApi
+    private lateinit var methodsRegistry: VkMethodsRegistry
     private lateinit var sessionStore: VkSessionStore
     private val trackCache = ConcurrentHashMap<String, AudioTrack>()
     private data class CachedStream(val info: StreamInfo, val cachedAtMs: Long)
@@ -98,6 +99,7 @@ object MusicBackend {
     fun init(client: VkApiClient, sessions: VkSessionStore) {
         audioApi = VkAudioApi(client)
         catalogApi = VkCatalogApi(client)
+        methodsRegistry = VkMethodsRegistry(client)
         sessionStore = sessions
         isInitialized = true
         MusicAuth.init(client, sessions)
@@ -173,6 +175,33 @@ object MusicBackend {
             offset = 0,
             count = limit,
         ).requireData().also(::cacheTracks).map { it.toSearchItem() }
+
+    /**
+     * Поиск строго внутри аудиотеки текущего аккаунта — один execute-вызов VK X
+     * для треков и собственных плейлистов, а не общий поиск каталога.
+     */
+    suspend fun searchCurrentProfileLibrary(query: String): ProfileLibrarySearch {
+        requireInitialized()
+        val normalizedQuery = query.trim()
+        require(normalizedQuery.isNotEmpty()) { "Search query must not be blank" }
+        val response = methodsRegistry
+            .searchInProfile(ownerId = currentUserId(), query = normalizedQuery)
+            .requireData()
+        cacheTracks(response.audios)
+        return ProfileLibrarySearch(
+            query = normalizedQuery,
+            tracks = response.audios.map { it.toEngineTrack() },
+            playlists = response.playlists.items.map { playlist ->
+                ProfileLibraryPlaylist(
+                    id = playlist.fullId,
+                    title = playlist.title,
+                    trackCount = playlist.count,
+                    cover = playlist.photo?.bestUrl
+                        ?: playlist.thumbs?.maxByOrNull { it.width * it.height }?.bestUrl,
+                )
+            },
+        )
+    }
 
     suspend fun searchAll(query: String, region: String? = null, source: String = SearchSource.ALL, limit: Int = 30): SearchResponse? =
         runCatching {

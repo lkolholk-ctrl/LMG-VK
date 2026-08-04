@@ -174,6 +174,20 @@ data class SearchItem(
         get() = id.startsWith("vk_") || source == "vk"
 }
 
+/** Реальные результаты `execute.SearchInProfile` для третьей вкладки. */
+data class ProfileLibrarySearch(
+    val query: String,
+    val tracks: List<com.lmg.vk.engine.Track> = emptyList(),
+    val playlists: List<ProfileLibraryPlaylist> = emptyList(),
+)
+
+data class ProfileLibraryPlaylist(
+    val id: String,
+    val title: String,
+    val trackCount: Int,
+    val cover: String? = null,
+)
+
 // ─── Track (Playback URL) ───
 
 @OptIn(ExperimentalSerializationApi::class)

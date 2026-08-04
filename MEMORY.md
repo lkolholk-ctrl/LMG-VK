@@ -268,6 +268,24 @@ UI, ресурсы и исходную логику необходимо **в п
 - Проверка: `git diff --check`, поиск Premium/subscription блоков и статический осмотр связей `audio.*`. Локальная Gradle-сборка и GitHub Actions не запускались.
 - Следующая проверка владельцем: открыть Library → Refresh; проверить «My tracks» и поиск; открыть Downloads с пустой базой; затем открыть Playlists и убедиться, что sync/error статус виден.
 
+## 14. Библиотека: поиск внутри текущего VK-профиля
+
+**Коммит:** смотреть `git log -1 --oneline`; `MEMORY.md` входит в тот же коммит.
+
+Сверка с `/storage/emulated/0/Download/VKLMG_Recovery/vkx-deobf.jar` подтвердила оригинальный `execute.SearchInProfile`: execute-код вызывает `audio.searchPlaylists` с `filters: "owned"` и `audio.search` с `search_own: 1`; Moshi-адаптер исходника разбирает ключи `playlists.items`, `playlists.profiles`, `playlists.groups` и `audios` как `AudioPlaylist`/`AudioTrack`.
+
+Пять связанных изменений:
+
+1. Добавлен типизированный DTO минимально нужной части ответа (`playlists.items`, `audios`); неиспользуемые `profiles/groups` Moshi пропускает.
+2. `VkMethodsRegistry.searchInProfile()` перестал возвращать `Any` и использует этот DTO.
+3. `MusicBackend.searchCurrentProfileLibrary()` выполняет подтверждённый execute-вызов, кеширует полученные VK-треки и отдаёт UI нормализованные треки/плейлисты.
+4. `LibraryViewModel` получил отменяемый debounce-поиск, loading/error/result состояния; короткий или очищенный запрос не выполняет сеть.
+5. Главный экран Library показывает реальные результаты собственного профиля при запросе от двух символов: плейлисты открываются внутри приложения, треки запускаются в очереди найденных VK-треков.
+
+- Основные файлы: `ProfileLibrarySearchResponse.kt`, `VkMethodsRegistry.kt`, `MusicBackend.kt`, `BackendModels.kt`, `LibraryViewModel.kt`, `LibraryScreen.kt`, `MEMORY.md`.
+- Проверка: `git diff --check`, статический осмотр signature/JSON-ключей и единственного вызова нового registry-метода. Локальная Gradle-сборка и GitHub Actions не запускались по правилу владельца.
+- Следующая проверка владельцем: Library → ввести часть названия существующего личного трека и плейлиста; проверить оба раздела, открытие плейлиста и запуск трека. При ошибке передать конкретный compile/runtime лог.
+
 # Что уже работало до этого этапа
 
 Из исходного статуса владельца и его ручных сообщений известно:

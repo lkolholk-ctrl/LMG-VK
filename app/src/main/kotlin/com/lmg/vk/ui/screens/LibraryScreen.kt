@@ -76,6 +76,7 @@ import com.kyant.backdrop.backdrops.LayerBackdrop
 import com.lmg.vk.R
 import com.lmg.vk.engine.backend.MusicAuth
 import com.lmg.vk.engine.backend.MusicBackend
+import com.lmg.vk.engine.backend.ProfileLibrarySearch
 import com.lmg.vk.data.local.db.FavoriteTrackDatabase
 import com.lmg.vk.data.local.db.FavoriteTrackEntity
 import com.lmg.vk.data.local.db.LibraryRepository
@@ -149,6 +150,9 @@ fun LibraryScreen(
     val favoriteIds by viewModel.favoriteIds.collectAsState()
     val isSyncing by viewModel.isSyncing.collectAsState()
     val errorMessage by viewModel.errorMessage.collectAsState()
+    val profileSearch by viewModel.profileSearch.collectAsState()
+    val isProfileSearchLoading by viewModel.isProfileSearchLoading.collectAsState()
+    val profileSearchError by viewModel.profileSearchError.collectAsState()
 
     // Downloads state
     val db = remember { FavoriteTrackDatabase.getInstance(context) }
@@ -220,6 +224,10 @@ fun LibraryScreen(
 
     LaunchedEffect(isLoggedIn) {
         loadImportedPlaylists()
+    }
+
+    LaunchedEffect(libraryQuery, isLoggedIn) {
+        viewModel.searchCurrentProfile(if (isLoggedIn) libraryQuery else "")
     }
 
     LaunchedEffect(currentView) {
@@ -334,6 +342,23 @@ fun LibraryScreen(
                             value = libraryQuery,
                             onValueChange = { libraryQuery = it },
                         )
+                    }
+
+                    if (isLoggedIn && libraryQuery.trim().length >= 2) {
+                        item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) {
+                            ProfileLibrarySearchResults(
+                                result = profileSearch,
+                                isLoading = isProfileSearchLoading,
+                                error = profileSearchError,
+                                onTrackClick = { track ->
+                                    val index = profileSearch?.tracks?.indexOfFirst { it.id == track.id } ?: -1
+                                    if (index >= 0) {
+                                        PlayerController.play(context, profileSearch!!.tracks, index)
+                                    }
+                                },
+                                onPlaylistClick = onOpenPlaylist,
+                            )
+                        }
                     }
 
                     // ── Системные разделы: одна карточка, строки с живым контентом ──
@@ -1139,6 +1164,111 @@ private fun LibrarySearchField(
             }
         },
     )
+}
+
+@Composable
+private fun ProfileLibrarySearchResults(
+    result: ProfileLibrarySearch?,
+    isLoading: Boolean,
+    error: String?,
+    onTrackClick: (Track) -> Unit,
+    onPlaylistClick: (String) -> Unit,
+) {
+    val lc = LiquidTheme.colors
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(24.dp))
+            .background(lc.cardSurface)
+            .padding(vertical = 8.dp),
+    ) {
+        Text(
+            text = "VK library",
+            color = lc.textPrimary,
+            fontSize = 17.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+        )
+        when {
+            isLoading -> Row(
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(18.dp),
+                    color = lc.accent,
+                    strokeWidth = 2.dp,
+                )
+                Spacer(Modifier.width(10.dp))
+                Text("Searching your VK library…", color = lc.textSecondary, fontSize = 14.sp)
+            }
+
+            error != null -> Text(
+                text = "Couldn't search VK library: $error",
+                color = AppleRed,
+                fontSize = 13.sp,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+            )
+
+            result != null && result.tracks.isEmpty() && result.playlists.isEmpty() -> Text(
+                text = "Nothing found in your VK library",
+                color = lc.textSecondary,
+                fontSize = 14.sp,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+            )
+
+            result != null -> {
+                result.playlists.forEach { playlist ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onPlaylistClick(playlist.id) }
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        AsyncImage(
+                            model = playlist.cover,
+                            contentDescription = null,
+                            modifier = Modifier
+                                .size(46.dp)
+                                .clip(RoundedCornerShape(9.dp)),
+                            contentScale = ContentScale.Crop,
+                        )
+                        Spacer(Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                playlist.title,
+                                color = lc.textPrimary,
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Medium,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            Text(
+                                "Playlist · ${playlist.trackCount} tracks",
+                                color = lc.textSecondary,
+                                fontSize = 13.sp,
+                            )
+                        }
+                        Icon(
+                            Icons.Rounded.ChevronRight,
+                            contentDescription = "Open playlist",
+                            tint = lc.iconMuted,
+                        )
+                    }
+                }
+                if (result.playlists.isNotEmpty() && result.tracks.isNotEmpty()) {
+                    HorizontalDivider(
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                        color = lc.textPrimary.copy(alpha = 0.08f),
+                    )
+                }
+                result.tracks.forEach { track ->
+                    RecentTrackItem(track = track) { onTrackClick(track) }
+                }
+            }
+        }
+    }
 }
 
 @Composable

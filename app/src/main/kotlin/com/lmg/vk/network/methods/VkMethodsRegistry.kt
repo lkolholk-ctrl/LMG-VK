@@ -28,6 +28,7 @@ import com.lmg.vk.network.dto.RequestTokenResponse
 import com.lmg.vk.network.dto.VkAccountProfile
 import com.lmg.vk.network.dto.gen.auth.ValidatePhoneResponse
 import com.lmg.vk.network.dto.music.AudioAudioDto
+import com.lmg.vk.network.dto.music.ProfileLibrarySearchResponse
 import com.squareup.moshi.Json
 import com.squareup.moshi.JsonClass
 import com.squareup.moshi.Types
@@ -324,12 +325,18 @@ class VkMethodsRegistry(private val client: VkApiClient) {
         param("code", AUDIO_PRIVACY_EXECUTE_CODE)
     }
 
-    suspend fun searchInProfile(ownerId: Long, query: String) = execute<Any>("execute") {
-        param("owner_id", ownerId)
-        param("query", query)
-        param("p_count", 10)
-        param("a_count", 30)
-        param("code", SEARCH_IN_PROFILE_EXECUTE_CODE)
+    suspend fun searchInProfile(ownerId: Long, query: String): VkResult<ProfileLibrarySearchResponse> {
+        val method = VkMethod(
+            "execute",
+            MoshiEnvelopeParser<ProfileLibrarySearchResponse>(ProfileLibrarySearchResponse::class.java),
+        ).apply {
+            param("owner_id", ownerId)
+            param("query", query)
+            param("p_count", 10)
+            param("a_count", 30)
+            param("code", SEARCH_IN_PROFILE_EXECUTE_CODE)
+        }
+        return client.execute(method)
     }
 
     // ======================= AUTH FLOW =======================
