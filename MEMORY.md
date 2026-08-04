@@ -570,11 +570,12 @@ UI, ресурсы и исходную логику необходимо **в п
 
 **Текущий логический этап:** 13 вариантов launcher-иконки из пользовательского `icons.zip`. SHA данного коммита смотреть через `git log -1 --oneline` после применения.
 
-- В `res/drawable-nodpi/` добавлены оригинальные PNG из архива владельца: `launcher_icon_{sunset,emerald,lagoon,amethyst,prism,neon,fuchsia,amber,ruby,graphite,rose,cobalt,pearl}.png`.
+- В `res/drawable-nodpi/` добавлены варианты из архива владельца: `launcher_icon_{sunset,emerald,lagoon,amethyst,prism,neon,fuchsia,amber,ruby,graphite,rose,cobalt,pearl}.webp`.
 - Названия вариантов: «Закат», «Изумруд», «Лагуна», «Аметист», «Призма», «Неон», «Фуксия», «Янтарь», «Рубин», «Графит», «Роза», «Кобальт», «Жемчуг». По умолчанию — «Закат».
 - `AndroidManifest.xml` использует 13 `activity-alias`, из которых в fresh install включён только `LauncherIconSunset`; основной `MainActivity` больше не объявляет свой собственный LAUNCHER intent-filter, поэтому дубликата ярлыка нет.
 - `ui/LauncherIconManager.kt` включает новый alias раньше отключения старого, сохраняет выбор в SharedPreferences и использует `DONT_KILL_APP` — смена не перезапускает activity.
 - В Settings добавлена сетка превью со всеми 13 вариантами, выбранным состоянием и уведомлением. Некоторые системные лаунчеры могут обновить картинку на домашнем экране с короткой задержкой собственного кэша.
 - `application.icon` и `roundIcon` указывают на «Закат», поэтому старая красная иконка с белой нотой удалена также из Android «Информация о приложении». Android не позволяет менять этот application-level icon на лету через activity-alias: только ярлык лаунчера следует выбранному пользователем варианту.
+- Все 23 предоставленных cover/icon ресурса конвертированы из 1254×1254 PNG в WebP quality 92, сохранив имена Android resource и разрешение. `drawable-nodpi` уменьшился с 51 МБ до 7 МБ; ссылки Kotlin/manifest не менялись.
 - После присланного владельцем compile-лога исправлен `AlbumArtImage`: у overload `Image(painter = …)` нет параметра `filterQuality`; параметр оставлен только у локального `ImageBitmap` overload.
 - Локальная Gradle-сборка и GitHub Actions не запускались по правилу владельца; перед коммитом допустимы только статические проверки manifest/resources/diff.
