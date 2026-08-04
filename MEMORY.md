@@ -591,6 +591,7 @@ UI, ресурсы и исходную логику необходимо **в п
 - Кеш New сохраняет типы CatalogKit (`isAlbum`, `isArtist`, `isCustom` и доступность), чтобы при мгновенном показе кеша редакционная карточка не превращалась в трек до прихода сети.
 - Если `catalog.getAudioAuto` возвращает стартовую секцию напрямую в `section` (альтернативная подтверждённая форма `Catalog2Response`), её ID также загружается через `catalog.getSection`. Возвращены `audio_content_cards` и curator groups из адаптера VK X.
 - Если сервер прислал сущности, но не связал их ID с block (встречается в частичном CatalogKit-ответе), New показывает эти же серверные сущности отдельными рядами вместо перехода к искусственному `popular` fallback.
+- Корректный вход в витрины New подтверждён bytecode `C14914e.loadAd()` + `C18378e.ad()` VK X: `catalog.getAudioAuto` → header `Catalog2Block.actions[].section_id` → `catalog.getSection(section_id)`. `actions`/`Catalog2Button.section_id` возвращены в DTO и добавлены в обход.
 - Если CatalogKit ответил без пригодных item IDs, используются только подтверждённые прямые VK `audio.getRecommendations` и `audio.getPopular`; локальные mood/recent/history карточки в New не возвращаются.
 - New больше не отменяет незавершённую загрузку из-за смены таба и показывает кнопку повтора VK-запроса вместо пустого экрана при пустом ответе.
 - Локальная Gradle-сборка и GitHub Actions не запускались по правилу владельца; перед коммитом выполнять только `git diff --check` и статическую проверку вызовов.

@@ -295,6 +295,13 @@ object MusicBackend {
             catalog.catalog?.default_section?.takeIf(String::isNotBlank)?.let(::add)
             catalog.section?.id?.takeIf(String::isNotBlank)?.let(::add)
             catalog.catalog?.sections.orEmpty().map { it.id }.filter(String::isNotBlank).forEach(::add)
+            // В VK X C14914e.loadAd() берёт section_id из actions header-блоков
+            // ответа getAudioAuto, а C18378e затем вызывает getSection для
+            // каждого выбранного пункта. Это и есть вход в полные витрины New.
+            catalog.allBlocks()
+                .flatMap { it.actions.orEmpty() }
+                .mapNotNull { it.section_id?.takeIf(String::isNotBlank) }
+                .forEach(::add)
         }.distinct()
         val sectionPages = coroutineScope {
             sectionIds

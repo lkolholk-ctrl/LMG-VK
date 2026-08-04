@@ -163,6 +163,8 @@ data class VkCatalogBlock(
     val id: String = "",
     val data_type: String = "",
     val layout: VkCatalogLayout? = null,
+    /** Catalog2Block.actions: VK X extracts section_id from header actions. */
+    val actions: List<VkCatalogButton>? = null,
     val next_from: String? = null,
     val audios_ids: List<String>? = null,
     val playlists_ids: List<String>? = null,
@@ -177,6 +179,19 @@ data class VkCatalogBlock(
     val music_owners_ids: List<String>? = null,
     val radio_stations_ids: List<String>? = null,
     val audio_stream_mixes_ids: List<String>? = null,
+)
+
+/** `Catalog2Button` — the recovered root catalog navigation item. */
+@JsonClass(generateAdapter = true)
+data class VkCatalogButton(
+    val action: String? = null,
+    val section_id: String? = null,
+    val owner_id: String? = null,
+    val block_id: String? = null,
+    val mix_id: String? = null,
+    val entity_id: String? = null,
+    val title: String? = null,
+    val description: String? = null,
 )
 
 /** `Catalog2Banner` from the recovered CatalogKit response adapter. */
