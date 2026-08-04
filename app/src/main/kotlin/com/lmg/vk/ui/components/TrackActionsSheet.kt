@@ -30,9 +30,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage
 import com.lmg.vk.engine.PlayerController
 import com.lmg.vk.engine.Track
+import com.lmg.vk.ui.glass.AlbumArtImage
 import com.lmg.vk.ui.glass.liquidClickable
 import com.lmg.vk.ui.theme.LiquidMotion
 import com.lmg.vk.ui.theme.LiquidTheme
@@ -67,9 +67,11 @@ fun TrackActionsSheet(
         Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 18.dp)) {
             // ── Шапка: обложка + название + артист ──
             Row(verticalAlignment = Alignment.CenterVertically) {
-                AsyncImage(
-                    model = track.coverUrl ?: track.albumArtUri,
+                AlbumArtImage(
+                    uri = track.albumArtUri,
                     contentDescription = null,
+                    coverUrl = track.coverUrl,
+                    placeholderKey = "${track.id}\u0000${track.title}\u0000${track.artist}",
                     contentScale = ContentScale.Crop,
                     modifier = Modifier
                         .size(52.dp)

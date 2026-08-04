@@ -488,6 +488,7 @@ fun FullPlayer(
                         coverUrl = art.coverUrl,
                         audioFileUri = art.audioFileUri,
                         albumId = art.albumId,
+                        placeholderKey = "$trackTitle\u0000$artistName",
                         contentDescription = null,
                         contentScale = ContentScale.Crop,
                         modifier = Modifier.fillMaxSize()

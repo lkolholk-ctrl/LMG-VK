@@ -137,6 +137,7 @@ fun MiniPlayer(
             AlbumArtImage(
                 uri = albumArtUri,
                 coverUrl = coverUrl,
+                placeholderKey = "$trackTitle\u0000$artistName",
                 modifier = Modifier.size(48.dp),
                 contentScale = ContentScale.Crop
             )

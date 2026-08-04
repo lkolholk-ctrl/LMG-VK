@@ -554,3 +554,14 @@ UI, ресурсы и исходную логику необходимо **в п
 5. Broker-only continuity/rooms/shared playlists/credits сейчас не должны выполнять сетевые запросы; отдельный UI-cleanup этих пунктов можно сделать следующим маленьким батчем.
 
 Локальная Gradle-сборка не запускалась согласно правилам проекта. Выполнены только статический поиск ссылок, осмотр цепочки resolve/share и `git diff --check`.
+
+# VK audio cover fallback: цветные VK-варианты
+
+**Текущий логический этап:** единая обложка для VK-треков без изображения или с недоступной CDN-обложкой. SHA данного коммита смотреть через `git log -1 --oneline` после применения.
+
+- Владелец передал 9 скриншотов `Дефолт.zip`, подтвердивших актуальный мобильный вид: большая матовая нота с цветной фактурой; оттенок различается между треками. Маленький `https://vk.com/images/audio_row_placeholder.png` — legacy web placeholder и не является нужным полным вариантом.
+- Владелец передал 10 готовых цветных PNG в `Default_covers.zip`; они добавлены как локальные `res/drawable-nodpi/default_track_cover_01..10.png` без UI-обрезки и сетевой зависимости.
+- Удалён неиспользуемый синтетический `VkDefaultAudioCover` с выдуманными градиентами. `AlbumArtImage` распознаёт legacy URL как отсутствие cover и выбирает один из 10 новых ресурсов стабильным хешем ключа трека; плохой URL CDN проходит в тот же fallback.
+- В ключ выбора передаются ID/название/исполнитель в плеере, очереди, контекстном меню, New, избранном, скачанном, recent и preview Library. Поэтому у одного трека оттенок сохраняется между этими экранами, а набор не сводится к одному варианту.
+- Изменены: `ui/glass/AlbumArtImage.kt`, `ui/screens/NewScreen.kt`, `ui/screens/LibraryScreen.kt`, `ui/components/TrackActionsSheet.kt`, `ui/player/{FullPlayer,MiniPlayer,QueueSheet}.kt`, десять `default_track_cover_*.png`, `MEMORY.md`.
+- Локальная Gradle-сборка и GitHub Actions не запускаются по прямому правилу владельца. Перед коммитом выполнить только `git diff --check`, статическую сверку R-ресурсов и поиск оставшегося `VkDefaultAudioCover`.

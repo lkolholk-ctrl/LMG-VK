@@ -244,6 +244,7 @@ fun QueueSheet(
                                     coverUrl = currentTrack.coverUrl,
                                     audioFileUri = currentTrack.uri,
                                     albumId = currentTrack.albumId,
+                                    placeholderKey = "${currentTrack.id}\u0000${currentTrack.title}\u0000${currentTrack.artist}",
                                     modifier = Modifier.fillMaxSize(),
                                     contentScale = ContentScale.Crop
                                 )
@@ -697,6 +698,7 @@ private fun DraggableQueueRow(
                 coverUrl = track.coverUrl,
                 audioFileUri = track.uri,
                 albumId = track.albumId,
+                placeholderKey = "${track.id}\u0000${track.title}\u0000${track.artist}",
                 modifier = Modifier.fillMaxSize(),
                 contentScale = ContentScale.Crop
             )
@@ -779,4 +781,3 @@ private fun DraggableQueueRow(
     }
     } // Box (строка + подложка удаления)
 }
-

@@ -42,10 +42,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage
-import coil.request.ImageRequest
 import com.lmg.vk.engine.PlayerController
 import com.lmg.vk.engine.Track
+import com.lmg.vk.ui.glass.AlbumArtImage
 import com.lmg.vk.ui.theme.AppFontFamily
 import com.lmg.vk.ui.theme.LiquidTheme
 import com.lmg.vk.ui.viewmodel.HomeViewModel
@@ -243,11 +242,13 @@ private fun NewTrackCard(
             .clickable(enabled = enabled, onClick = onClick)
             .alpha(if (enabled) 1f else 0.42f),
     ) {
-        AsyncImage(
-            model = ImageRequest.Builder(LocalContext.current).data(coverUrl).crossfade(true).build(),
+        AlbumArtImage(
+            uri = null,
             contentDescription = title,
+            coverUrl = coverUrl,
+            placeholderKey = "$title\u0000$subtitle",
             contentScale = ContentScale.Crop,
-            modifier = Modifier.size(cardSize).clip(RoundedCornerShape(12.dp))
+            modifier = Modifier.size(cardSize).clip(RoundedCornerShape(12.dp)),
         )
         Spacer(Modifier.height(if (compact) 6.dp else 8.dp))
         Text(

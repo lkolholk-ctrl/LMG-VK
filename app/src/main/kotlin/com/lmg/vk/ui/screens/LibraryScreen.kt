@@ -89,6 +89,7 @@ import com.lmg.vk.engine.Track
 import com.lmg.vk.ui.glass.GlassDialog
 import com.lmg.vk.ui.glass.GlassDialogButton
 import com.lmg.vk.ui.glass.GlassKit
+import com.lmg.vk.ui.glass.AlbumArtImage
 import com.lmg.vk.ui.glass.liquidClickable
 import com.lmg.vk.ui.components.PlaylistNameDialog
 import com.lmg.vk.ui.theme.LiquidMotion
@@ -1942,9 +1943,11 @@ private fun LibraryTrackPreview(track: FavoriteTrackEntity, onClick: () -> Unit)
             .padding(vertical = 5.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        AsyncImage(
-            model = track.imageUrl,
+        AlbumArtImage(
+            uri = null,
             contentDescription = null,
+            coverUrl = track.imageUrl,
+            placeholderKey = "${track.title}\u0000${track.artistName.orEmpty()}",
             modifier = Modifier.size(50.dp).clip(RoundedCornerShape(8.dp)),
             contentScale = ContentScale.Crop,
         )
@@ -1984,9 +1987,11 @@ private fun RecentTrackItem(track: Track, onClick: () -> Unit) {
             .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        AsyncImage(
-            model = track.coverUrl,
+        AlbumArtImage(
+            uri = null,
             contentDescription = null,
+            coverUrl = track.coverUrl,
+            placeholderKey = "${track.title}\u0000${track.artist}",
             modifier = Modifier.size(54.dp).clip(RoundedCornerShape(8.dp)),
             contentScale = ContentScale.Crop,
         )
@@ -2035,14 +2040,15 @@ private fun FavoriteTrackItem(
         val itemArtSize = if (compact) 44.dp else 56.dp
         val coverToDisplay = track.imageUrl?.takeIf { it.isNotBlank() }
             ?.replace("1000x1000", "300x300")
-            ?: "https://vk.com/images/audio_row_placeholder.png"
-        AsyncImage(
-            model = coverToDisplay,
+        AlbumArtImage(
+            uri = null,
             contentDescription = null,
+            coverUrl = coverToDisplay,
+            placeholderKey = "${track.title}\u0000${track.artistName.orEmpty()}",
             modifier = Modifier
                 .size(itemArtSize)
                 .clip(RoundedCornerShape(6.dp)),
-            contentScale = ContentScale.Crop
+            contentScale = ContentScale.Crop,
         )
 
         Spacer(modifier = Modifier.width(12.dp))
@@ -2114,14 +2120,15 @@ private fun DownloadedTrackItem(
         val itemArtSize = if (compact) 44.dp else 56.dp
         val coverToLoad = track.localCoverPath?.takeIf { it.isNotBlank() }
             ?: track.imageUrl?.takeIf { it.isNotBlank() }
-            ?: "https://vk.com/images/audio_row_placeholder.png"
-        AsyncImage(
-            model = coverToLoad,
+        AlbumArtImage(
+            uri = null,
             contentDescription = null,
+            coverUrl = coverToLoad,
+            placeholderKey = "${track.title}\u0000${track.artistName.orEmpty()}",
             modifier = Modifier
                 .size(itemArtSize)
                 .clip(RoundedCornerShape(6.dp)),
-            contentScale = ContentScale.Crop
+            contentScale = ContentScale.Crop,
         )
 
         Spacer(modifier = Modifier.width(12.dp))
