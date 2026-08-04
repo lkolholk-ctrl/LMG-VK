@@ -1,38 +1,37 @@
 package com.lmg.vk.ui.screens
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsTopHeight
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ExitToApp
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.BarChart
-import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Person
-import androidx.compose.material.icons.rounded.Star
+import androidx.compose.material.icons.rounded.Refresh
+import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
-import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -46,528 +45,338 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
-import com.lmg.vk.engine.backend.MusicAuth
 import com.lmg.vk.data.local.LocalAuthManager
+import com.lmg.vk.engine.backend.MusicAuth
 import com.lmg.vk.ui.glass.liquidClickable
 import com.lmg.vk.ui.theme.AppFontFamily
 import com.lmg.vk.ui.theme.LiquidTheme
 import kotlinx.coroutines.launch
 
-private val AppleRed = Color(0xFFFC3C44)
-private val PremiumPurple = Color(0xFF8B5CF6)
-private val SurfaceDark = Color(0xFF1C1C1E)
-private val SurfaceElevated = Color(0xFF2C2C2E)
+private val DestructiveRed = Color(0xFFFC3C44)
+private val ProfileSurfaceDark = Color(0xFF1C1C1E)
+private val ProfileSurfaceLight = Color(0xFFF2F2F7)
 
-@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+/**
+ * VK account screen. Profile identity is populated only from the recovered
+ * `users.get` contract; no LMG/third-party subscription or region facade is used.
+ */
 @Composable
 fun ProfileScreen(
     onOpenSettings: () -> Unit = {},
     onLogout: () -> Unit = {},
     onOpenAuth: () -> Unit = {},
-    onOpenStats: () -> Unit = {}
+    onOpenStats: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val lc = LiquidTheme.colors
-
+    val colors = LiquidTheme.colors
     val isLoggedIn by MusicAuth.isLoggedIn.collectAsState()
-    val isPremium by MusicAuth.isPremium.collectAsState()
-    val userEmail by MusicAuth.userEmail.collectAsState()
-    val telegramId by MusicAuth.telegramId.collectAsState()
     val profileName by MusicAuth.profileName.collectAsState()
     val avatarUrl by MusicAuth.avatarUrl.collectAsState()
-
+    val profileId by MusicAuth.profileId.collectAsState()
+    val profileDomain by MusicAuth.profileDomain.collectAsState()
+    val isRefreshing by MusicAuth.isProfileRefreshing.collectAsState()
+    var showSignOutConfirmation by remember { mutableStateOf(false) }
 
     LaunchedEffect(isLoggedIn) {
         if (isLoggedIn) MusicAuth.fetchUserData()
     }
 
-    // ── Подписки на артистов + регион (всё про подписку живёт в профиле) ──
-    var followedArtists by remember {
-        mutableStateOf<List<com.lmg.vk.engine.backend.LibraryArtist>>(emptyList())
+    val displayName = profileName?.takeIf(String::isNotBlank)
+        ?: if (isLoggedIn) "VK account" else "Guest"
+    val accountSubtitle = when {
+        !profileDomain.isNullOrBlank() -> "vk.com/$profileDomain"
+        profileId != null -> "VK ID $profileId"
+        isLoggedIn -> "VK account"
+        else -> "Sign in to restore your VK library"
     }
-    var regionInfo by remember {
-        mutableStateOf<com.lmg.vk.engine.backend.RegionResponse?>(null)
-    }
-    var regionExpanded by remember { mutableStateOf(false) }
-    var regionBusy by remember { mutableStateOf(false) }
-    LaunchedEffect(isLoggedIn) {
-        if (isLoggedIn) {
-            followedArtists = runCatching {
-                com.lmg.vk.engine.backend.MusicBackend
-                    .getLibrarySubscriptions(limit = 50)?.items
-            }.getOrNull() ?: emptyList()
-            regionInfo = runCatching {
-                com.lmg.vk.engine.backend.MusicBackend.getUserRegion()
-            }.getOrNull()
-        } else {
-            followedArtists = emptyList()
-            regionInfo = null
-        }
-    }
+    val window = com.lmg.vk.ui.rememberWindowInfo()
+    val compact = window.useSideBySide
+    val surface = if (colors.isDark) ProfileSurfaceDark else ProfileSurfaceLight
 
-    val displayName = when {
-        !profileName.isNullOrBlank() -> profileName!!
-        userEmail != null -> userEmail!!.substringBefore("@").replaceFirstChar { it.uppercase() }
-        telegramId != null -> "Telegram user"
-        else -> "Guest"
+    if (showSignOutConfirmation) {
+        AlertDialog(
+            onDismissRequest = { showSignOutConfirmation = false },
+            title = { Text("Sign out of VK?") },
+            text = { Text("Your encrypted local VK session will be removed from this device.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showSignOutConfirmation = false
+                        LocalAuthManager.logout()
+                        MusicAuth.logout()
+                        onLogout()
+                    },
+                ) { Text("Sign out", color = DestructiveRed) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showSignOutConfirmation = false }) { Text("Cancel") }
+            },
+        )
     }
-
-    // Широкое окно (телефон-альбом ИЛИ планшет). В портрете layout не меняется.
-    val win = com.lmg.vk.ui.rememberWindowInfo()
-    // Альбом/планшет: делаем всё компактнее (аватар/шрифты/строки ~20-30%),
-    // как в LandscapeHome/SideBar. В портрете compact=false → всё как было.
-    val compact = win.useSideBySide
 
     Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(LiquidTheme.colors.settingsBackground)
+        modifier = Modifier.fillMaxSize().background(colors.settingsBackground),
     ) {
         LazyColumn(
-            // В альбоме/на планшете шапку профиля и карточки не растягиваем на всю
-            // ширину — ограничиваем 640dp и центрируем. Портрет остаётся как был.
-            // ModalBottomSheet (PasswordSheet) — оверлей, его это не трогает.
-            modifier = if (win.useSideBySide)
+            modifier = if (window.useSideBySide) {
                 Modifier.fillMaxHeight().widthIn(max = 640.dp).align(Alignment.TopCenter)
-            else Modifier.fillMaxSize(),
-            horizontalAlignment = Alignment.CenterHorizontally
+            } else {
+                Modifier.fillMaxSize()
+            },
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            // ── Status bar spacing ──
-            item { Spacer(modifier = Modifier.windowInsetsTopHeight(WindowInsets.statusBars)) }
-            item { Spacer(modifier = Modifier.height(if (compact) 12.dp else 24.dp)) }
+            item { Spacer(Modifier.windowInsetsTopHeight(WindowInsets.statusBars)) }
+            item { Spacer(Modifier.height(if (compact) 12.dp else 24.dp)) }
 
-            // ═══════════════════════════════════════════════════════════
-            //  1. PROFILE HEADER & IDENTITY BLOCK
-            // ═══════════════════════════════════════════════════════════
             item {
                 Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 20.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    // Avatar — БОЛЬШАЯ круглая (полевой фидбек: «вид аккаунта
-                    // с большой аватаркой»).
                     Box(
                         modifier = Modifier
                             .size(if (compact) 92.dp else 132.dp)
-                            .clip(androidx.compose.foundation.shape.CircleShape)
-                            .background(if (lc.isDark) SurfaceDark else Color(0xFFF2F2F7)),
-                        contentAlignment = Alignment.Center
+                            .clip(CircleShape)
+                            .background(surface),
+                        contentAlignment = Alignment.Center,
                     ) {
                         if (!avatarUrl.isNullOrBlank()) {
                             AsyncImage(
                                 model = avatarUrl,
                                 contentDescription = null,
-                                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-                                modifier = Modifier.fillMaxSize()
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize(),
                             )
                         } else {
                             Icon(
-                                Icons.Rounded.Person,
-                                null,
-                                tint = lc.iconMuted,
-                                modifier = Modifier.size(if (compact) 44.dp else 64.dp)
+                                imageVector = Icons.Rounded.Person,
+                                contentDescription = null,
+                                tint = colors.iconMuted,
+                                modifier = Modifier.size(if (compact) 44.dp else 64.dp),
                             )
                         }
                     }
-
-                    Spacer(modifier = Modifier.height(if (compact) 12.dp else 18.dp))
-
-                    // Username + Premium Star inline
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center
-                    ) {
-                        Text(
-                            text = displayName,
-                            fontFamily = AppFontFamily,
-                            color = lc.textPrimary,
-                            fontSize = if (compact) 20.sp else 26.sp,
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = (-0.02).sp
-                        )
-                        if (isPremium) {
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Icon(
-                                imageVector = Icons.Rounded.Star,
-                                contentDescription = "Premium",
-                                tint = AppleRed,
-                                modifier = Modifier.size(if (compact) 15.dp else 18.dp)
-                            )
-                        }
-                    }
-
-                }
-            }
-
-            item { Spacer(modifier = Modifier.height(if (compact) 14.dp else 24.dp)) }
-
-            // ═══════════════════════════════════════════════════════════
-            //  2. ARTISTS YOU FOLLOW — подписки backend (/library/subscriptions)
-            // ═══════════════════════════════════════════════════════════
-            if (isLoggedIn && followedArtists.isNotEmpty()) {
-                item {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 20.dp)
-                            .clip(RoundedCornerShape(28.dp))
-                            .background(if (lc.isDark) SurfaceDark else Color(0xFFF2F2F7))
-                            .padding(vertical = 16.dp)
-                    ) {
-                        Text(
-                            text = "ARTISTS YOU FOLLOW",
-                            fontFamily = AppFontFamily,
-                            color = lc.textSecondary,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = 1.5.sp,
-                            modifier = Modifier.padding(horizontal = 16.dp)
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
-                        androidx.compose.foundation.lazy.LazyRow(
-                            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp),
-                            horizontalArrangement = Arrangement.spacedBy(14.dp)
-                        ) {
-                            items(followedArtists.size) { i ->
-                                val artist = followedArtists[i]
-                                Column(
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    modifier = Modifier
-                                        .width(if (compact) 64.dp else 76.dp)
-                                        .liquidClickable {
-                                            // Тап = радио по артисту (мгновенный старт).
-                                            com.lmg.vk.engine.PlayerController
-                                                .startArtistWave(context, artist.id, artist.displayName)
-                                        }
-                                ) {
-                                    val img = artist.image ?: artist.cover
-                                    Box(
-                                        modifier = Modifier
-                                            .size(if (compact) 52.dp else 64.dp)
-                                            .clip(androidx.compose.foundation.shape.CircleShape)
-                                            .background(if (lc.isDark) SurfaceElevated else Color.White),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        if (!img.isNullOrBlank()) {
-                                            AsyncImage(
-                                                model = img,
-                                                contentDescription = null,
-                                                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-                                                modifier = Modifier.fillMaxSize()
-                                            )
-                                        } else {
-                                            Icon(
-                                                Icons.Rounded.Person, null,
-                                                tint = lc.iconMuted,
-                                                modifier = Modifier.size(if (compact) 24.dp else 28.dp)
-                                            )
-                                        }
-                                    }
-                                    Spacer(modifier = Modifier.height(6.dp))
-                                    Text(
-                                        text = artist.displayName,
-                                        fontFamily = AppFontFamily,
-                                        color = lc.textPrimary,
-                                        fontSize = 11.sp,
-                                        maxLines = 1,
-                                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-                item { Spacer(modifier = Modifier.height(16.dp)) }
-            }
-
-            // ═══════════════════════════════════════════════════════════
-            //  3. REGION — текущий + выбор из доступных (/me/region)
-            // ═══════════════════════════════════════════════════════════
-            if (isLoggedIn && regionInfo != null) {
-                item {
-                    val ri = regionInfo!!
-                    // NZ у backend — аварийное зеркало US (включают при проблемах с
-                    // US-аккаунтом; менеджер: «показывайте us free, разницы нет»).
-                    // Юзеру не показываем кухню фейловера — рисуем как United States.
-                    fun regionDisplay(code: String, name: String): String =
-                        if (code.equals("nz", true)) "United States" else name
-                    // Селектор — только то, что доступно партнёрскому ключу
-                    // (allowed_by_partner). Пустой список = старый сервер → показываем всё.
-                    val selectableRegions = if (ri.allowedByPartner.isEmpty()) ri.available
-                        else ri.available.filter { it.code in ri.allowedByPartner }
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 20.dp)
-                            .clip(RoundedCornerShape(28.dp))
-                            .background(if (lc.isDark) SurfaceDark else Color(0xFFF2F2F7))
-                            .padding(vertical = 4.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(if (compact) 48.dp else 56.dp)
-                                .liquidClickable { regionExpanded = !regionExpanded }
-                                .padding(horizontal = 20.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = "Region",
-                                    fontFamily = AppFontFamily,
-                                    color = lc.textPrimary,
-                                    fontSize = if (compact) 13.5.sp else 15.sp,
-                                    fontWeight = FontWeight.Medium
-                                )
-                                Text(
-                                    text = ri.available.firstOrNull { it.code == ri.current }
-                                        ?.let { regionDisplay(it.code, it.name) }
-                                        ?: regionDisplay(ri.current, ri.current.uppercase()),
-                                    fontFamily = AppFontFamily,
-                                    color = lc.textSecondary,
-                                    fontSize = 12.sp
-                                )
-                            }
-                            if (regionBusy) {
-                                Text("…", color = lc.textSecondary, fontSize = 15.sp)
-                            } else {
-                                Icon(
-                                    Icons.AutoMirrored.Rounded.KeyboardArrowRight, null,
-                                    tint = lc.iconMuted,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            }
-                        }
-                        if (regionExpanded) {
-                            for (r in selectableRegions) {
-                                val selected = r.code == ri.current
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(if (compact) 40.dp else 44.dp)
-                                        .liquidClickable(enabled = !regionBusy && !selected) {
-                                            regionBusy = true
-                                            scope.launch {
-                                                val ok = runCatching {
-                                                    com.lmg.vk.engine.backend.MusicBackend
-                                                        .updateUserRegion(r.code)
-                                                }.getOrNull() != null
-                                                if (ok) {
-                                                    regionInfo = runCatching {
-                                                        com.lmg.vk.engine.backend.MusicBackend.getUserRegion()
-                                                    }.getOrNull() ?: regionInfo
-                                                    MusicAuth.fetchUserData()
-                                                    // Явный выбор юзера приоритетнее серверного
-                                                    // дефолта: region уже обновлён выше через updateUserRegion.
-                                                } else {
-                                                    android.widget.Toast.makeText(
-                                                        context, "Couldn't switch region",
-                                                        android.widget.Toast.LENGTH_SHORT
-                                                    ).show()
-                                                }
-                                                regionBusy = false
-                                                regionExpanded = false
-                                            }
-                                        }
-                                        .padding(horizontal = 20.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    // Пометка честно из ДВУХ полей сервера:
-                                    // requires_subscription главнее флага free
-                                    // (флаг у backend может значить «доступен твоему
-                                    // партнёрскому ключу», а не «бесплатен всем»).
-                                    val needsSub = r.code in ri.requiresSubscription
-                                    Text(
-                                        text = regionDisplay(r.code, r.name) + when {
-                                            needsSub -> " • premium"
-                                            r.free -> " • free"
-                                            else -> ""
-                                        },
-                                        fontFamily = AppFontFamily,
-                                        color = if (selected) AppleRed else lc.textPrimary,
-                                        fontSize = if (compact) 13.sp else 14.sp,
-                                        fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-                                        modifier = Modifier.weight(1f)
-                                    )
-                                    if (selected) {
-                                        Icon(
-                                            Icons.Rounded.Star, null,
-                                            tint = AppleRed,
-                                            modifier = Modifier.size(14.dp)
-                                        )
-                                    }
-                                }
-                            }
-                            Spacer(modifier = Modifier.height(8.dp))
-                        }
-                    }
-                }
-                item { Spacer(modifier = Modifier.height(16.dp)) }
-            }
-
-            // ── Listening Stats ──
-            item {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 20.dp)
-                        .clip(RoundedCornerShape(28.dp))
-                        .background(if (lc.isDark) SurfaceDark else Color(0xFFF2F2F7))
-                ) {
-                    SettingRowNavigable(
-                        icon = Icons.Rounded.BarChart,
-                        label = "Listening Stats",
-                        value = "Your top songs & artists",
-                        compact = compact,
-                        onClick = onOpenStats
+                    Spacer(Modifier.height(if (compact) 12.dp else 18.dp))
+                    Text(
+                        text = displayName,
+                        fontFamily = AppFontFamily,
+                        color = colors.textPrimary,
+                        fontSize = if (compact) 20.sp else 26.sp,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = accountSubtitle,
+                        fontFamily = AppFontFamily,
+                        color = colors.textSecondary,
+                        fontSize = 13.sp,
                     )
                 }
-                Spacer(modifier = Modifier.height(16.dp))
             }
 
-            // ── ACCOUNT ──
-            item {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 20.dp)
-                        .clip(RoundedCornerShape(28.dp))
-                        .background(if (lc.isDark) SurfaceDark else Color(0xFFF2F2F7))
-                ) {
-                    if (isLoggedIn) {
-                        Column {
-                            SettingRowAction(
-                                icon = Icons.AutoMirrored.Rounded.ExitToApp,
-                                label = "Sign Out",
-                                tint = AppleRed,
+            item { Spacer(Modifier.height(if (compact) 16.dp else 24.dp)) }
+
+            if (isLoggedIn) {
+                item {
+                    ProfileCard(surface = surface) {
+                        ProfileInfoRow(
+                            icon = Icons.Rounded.Person,
+                            label = "VK ID",
+                            value = profileId?.toString() ?: "Loading account…",
+                            compact = compact,
+                        )
+                        if (!profileDomain.isNullOrBlank()) {
+                            ProfileDivider()
+                            ProfileInfoRow(
+                                icon = Icons.Rounded.Person,
+                                label = "Profile address",
+                                value = "vk.com/$profileDomain",
                                 compact = compact,
-                                onClick = {
-                                    LocalAuthManager.logout()
-                                    MusicAuth.logout()
-                                    onLogout()
-                                }
                             )
                         }
+                    }
+                }
+                item { Spacer(Modifier.height(16.dp)) }
+            }
+
+            item {
+                ProfileCard(surface = surface) {
+                    if (isLoggedIn) {
+                        ProfileNavigationRow(
+                            icon = Icons.Rounded.Refresh,
+                            label = if (isRefreshing) "Refreshing profile" else "Refresh profile",
+                            value = "Fetch current details from VK",
+                            compact = compact,
+                            enabled = !isRefreshing,
+                            loading = isRefreshing,
+                            onClick = {
+                                scope.launch {
+                                    if (!MusicAuth.fetchUserData()) {
+                                        android.widget.Toast.makeText(
+                                            context,
+                                            "Couldn't refresh VK profile",
+                                            android.widget.Toast.LENGTH_SHORT,
+                                        ).show()
+                                    }
+                                }
+                            },
+                        )
+                        ProfileDivider()
+                        ProfileNavigationRow(
+                            icon = Icons.Rounded.BarChart,
+                            label = "Listening Stats",
+                            value = "Your top songs & artists",
+                            compact = compact,
+                            onClick = onOpenStats,
+                        )
+                        ProfileDivider()
+                        ProfileNavigationRow(
+                            icon = Icons.Rounded.Settings,
+                            label = "Settings",
+                            value = "Playback, appearance & data",
+                            compact = compact,
+                            onClick = onOpenSettings,
+                        )
+                        ProfileDivider()
+                        ProfileActionRow(
+                            icon = Icons.AutoMirrored.Rounded.ExitToApp,
+                            label = "Sign Out",
+                            compact = compact,
+                            onClick = { showSignOutConfirmation = true },
+                        )
                     } else {
-                        SettingRowNavigable(
+                        ProfileNavigationRow(
                             icon = Icons.Rounded.Person,
                             label = "Sign In",
-                            value = "Connect your account",
+                            value = "Connect your VK account",
                             compact = compact,
-                            onClick = onOpenAuth
+                            onClick = onOpenAuth,
+                        )
+                        ProfileDivider()
+                        ProfileNavigationRow(
+                            icon = Icons.Rounded.Settings,
+                            label = "Settings",
+                            value = "Playback, appearance & data",
+                            compact = compact,
+                            onClick = onOpenSettings,
                         )
                     }
                 }
             }
 
-            item { Spacer(modifier = Modifier.height(if (compact) 20.dp else 32.dp)) }
-
-            // ── Footer ──
+            item { Spacer(Modifier.height(if (compact) 20.dp else 32.dp)) }
             item {
                 Text(
                     text = "LMG VK • ${com.lmg.vk.BuildConfig.VERSION_NAME}",
                     fontFamily = AppFontFamily,
-                    color = lc.textTertiary,
+                    color = colors.textTertiary,
                     fontSize = 10.sp,
                     textAlign = TextAlign.Center,
                     letterSpacing = 1.sp,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
                 )
             }
-
-            item { Spacer(modifier = Modifier.height(24.dp)) }
+            item { Spacer(Modifier.height(24.dp)) }
         }
     }
 }
 
 @Composable
-private fun SettingRowNavigable(
+private fun ProfileCard(surface: Color, content: @Composable Column.() -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp)
+            .clip(RoundedCornerShape(28.dp))
+            .background(surface),
+        content = content,
+    )
+}
+
+@Composable
+private fun ProfileInfoRow(icon: ImageVector, label: String, value: String, compact: Boolean) {
+    val colors = LiquidTheme.colors
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = if (compact) 12.dp else 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(icon, null, tint = colors.textSecondary, modifier = Modifier.size(20.dp))
+        Spacer(Modifier.width(14.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(label, fontFamily = AppFontFamily, color = colors.textPrimary, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+            Text(value, fontFamily = AppFontFamily, color = colors.textSecondary, fontSize = 12.sp)
+        }
+    }
+}
+
+@Composable
+private fun ProfileNavigationRow(
     icon: ImageVector,
     label: String,
     value: String,
     compact: Boolean,
-    onClick: () -> Unit
+    enabled: Boolean = true,
+    loading: Boolean = false,
+    onClick: () -> Unit,
 ) {
-    val lc = LiquidTheme.colors
+    val colors = LiquidTheme.colors
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .liquidClickable(enabled = enabled, onClick = onClick)
+            .padding(horizontal = 18.dp, vertical = if (compact) 12.dp else 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        Icon(icon, null, tint = colors.textSecondary, modifier = Modifier.size(20.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(label, fontFamily = AppFontFamily, color = colors.textPrimary, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+            Text(value, fontFamily = AppFontFamily, color = colors.textSecondary, fontSize = 12.sp)
+        }
+        if (loading) {
+            CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = colors.iconMuted)
+        } else {
+            Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, null, tint = colors.textTertiary, modifier = Modifier.size(18.dp))
+        }
+    }
+}
+
+@Composable
+private fun ProfileActionRow(icon: ImageVector, label: String, compact: Boolean, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .liquidClickable(onClick = onClick)
             .padding(horizontal = 18.dp, vertical = if (compact) 12.dp else 14.dp),
-        verticalAlignment = Alignment.CenterVertically
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = lc.textSecondary,
-            modifier = Modifier.size(20.dp)
-        )
-        Spacer(modifier = Modifier.width(14.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = label,
-                fontFamily = AppFontFamily,
-                color = lc.textPrimary,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Medium
-            )
-            Text(
-                text = value,
-                fontFamily = AppFontFamily,
-                color = lc.textSecondary,
-                fontSize = 12.sp,
-                modifier = Modifier.padding(top = 2.dp)
-            )
-        }
-        Icon(
-            imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
-            contentDescription = null,
-            tint = lc.textTertiary,
-            modifier = Modifier.size(18.dp)
+        Icon(icon, null, tint = DestructiveRed, modifier = Modifier.size(20.dp))
+        Spacer(Modifier.width(14.dp))
+        Text(
+            text = label,
+            fontFamily = AppFontFamily,
+            color = DestructiveRed,
+            fontSize = 15.sp,
+            fontWeight = FontWeight.Medium,
         )
     }
 }
 
 @Composable
-private fun SettingRowAction(
-    icon: ImageVector,
-    label: String,
-    tint: Color,
-    compact: Boolean,
-    onClick: () -> Unit
-) {
-    val lc = LiquidTheme.colors
-    Row(
+private fun ProfileDivider() {
+    Box(
         modifier = Modifier
             .fillMaxWidth()
-            .liquidClickable(onClick = onClick)
-            .padding(horizontal = 18.dp, vertical = if (compact) 12.dp else 14.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = tint,
-            modifier = Modifier.size(20.dp)
-        )
-        Spacer(modifier = Modifier.width(14.dp))
-        Text(
-            text = label,
-            fontFamily = AppFontFamily,
-            color = tint,
-            fontSize = 15.sp,
-            fontWeight = FontWeight.Medium,
-            modifier = Modifier.weight(1f)
-        )
-    }
+            .height(1.dp)
+            .padding(start = 52.dp)
+            .background(LiquidTheme.colors.textTertiary.copy(alpha = 0.12f)),
+    )
 }

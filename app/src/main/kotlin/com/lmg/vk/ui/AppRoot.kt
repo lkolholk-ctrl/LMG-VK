@@ -606,7 +606,7 @@ fun AppRoot() {
             ) + fadeOut(tween(150))
         ) {
             ProfileScreen(
-                onOpenSettings = { profileOpen = false; switchTab(3) },
+                onOpenSettings = { profileOpen = false; settingsOpen = true },
                 onLogout = { profileOpen = false },
                 onOpenAuth = { authOpen = true },
                 onOpenStats = { statsOpen = true }

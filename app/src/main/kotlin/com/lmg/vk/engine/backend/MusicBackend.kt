@@ -1516,6 +1516,12 @@ object MusicAuth {
     val profileName: StateFlow<String?> = _profileName
     private val _avatarUrl = MutableStateFlow<String?>(null)
     val avatarUrl: StateFlow<String?> = _avatarUrl
+    private val _profileId = MutableStateFlow<Long?>(null)
+    val profileId: StateFlow<Long?> = _profileId
+    private val _profileDomain = MutableStateFlow<String?>(null)
+    val profileDomain: StateFlow<String?> = _profileDomain
+    private val _isProfileRefreshing = MutableStateFlow(false)
+    val isProfileRefreshing: StateFlow<Boolean> = _isProfileRefreshing
     private val _userEmail = MutableStateFlow<String?>(null)
     val userEmail: StateFlow<String?> = _userEmail
     private val _premiumExpiresAt = MutableStateFlow<Long?>(null)
@@ -1856,26 +1862,35 @@ object MusicAuth {
             .ifBlank { session.username }
         _profileName.value = displayName.takeIf(String::isNotBlank)
         _avatarUrl.value = session.avatar.takeIf(String::isNotBlank)
+        _profileId.value = session.userId.takeIf { it != 0L }
+        _profileDomain.value = session.username.takeIf(String::isNotBlank)
     }
 
-    suspend fun fetchUserData() {
-        val store = sessionStore ?: return
-        if (store.session.accessToken.isBlank()) return
-        val registry = methods ?: return
-        val profile = when (val result = registry.usersGetCurrent()) {
-            is VkResult.Success -> result.data.firstOrNull()
-            is VkResult.Error -> null
-        } ?: return
+    /** Refreshes only the public VK account data returned by the recovered users.get call. */
+    suspend fun fetchUserData(): Boolean {
+        val store = sessionStore ?: return false
+        if (store.session.accessToken.isBlank()) return false
+        val registry = methods ?: return false
+        _isProfileRefreshing.value = true
+        return try {
+            val profile = when (val result = registry.usersGetCurrent()) {
+                is VkResult.Success -> result.data.firstOrNull()
+                is VkResult.Error -> null
+            } ?: return false
 
-        val updated = store.session.copy(
-            userId = profile.id.takeIf { it != 0L } ?: store.session.userId,
-            username = profile.domain,
-            firstName = profile.firstName,
-            lastName = profile.lastName,
-            avatar = profile.bestPhotoUrl,
-        )
-        store.session = updated
-        applySession(updated)
+            val updated = store.session.copy(
+                userId = profile.id.takeIf { it != 0L } ?: store.session.userId,
+                username = profile.domain.ifBlank { store.session.username },
+                firstName = profile.firstName.ifBlank { profile.displayName },
+                lastName = profile.lastName,
+                avatar = profile.bestPhotoUrl,
+            )
+            store.session = updated
+            applySession(updated)
+            true
+        } finally {
+            _isProfileRefreshing.value = false
+        }
     }
     fun getEffectiveQuality(requested: String, premium: Boolean): String = if (premium) requested else "128K"
     suspend fun reissueSessionToken() {
@@ -1891,6 +1906,9 @@ object MusicAuth {
         _isLoggedIn.value = false
         _profileName.value = null
         _avatarUrl.value = null
+        _profileId.value = null
+        _profileDomain.value = null
+        _isProfileRefreshing.value = false
         _userEmail.value = null
         anonymousToken = ""
         anonymousTokenExpiresAt = 0L
