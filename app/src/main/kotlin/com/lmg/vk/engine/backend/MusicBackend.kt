@@ -26,6 +26,7 @@ import com.lmg.vk.network.dto.music.RadioStation
 import com.lmg.vk.network.dto.music.VkArtistDto
 import com.lmg.vk.network.dto.music.VkCatalogBlock
 import com.lmg.vk.network.dto.music.VkCatalogBanner
+import com.lmg.vk.network.dto.music.VkAudioContentCard
 import com.lmg.vk.network.dto.music.VkCatalogLink
 import com.lmg.vk.network.dto.music.VkCatalogProfile
 import com.lmg.vk.network.dto.music.VkCatalogResponse
@@ -292,6 +293,7 @@ object MusicBackend {
         // видит layout блоков, но не их реальные треки/альбомы/артистов.
         val sectionIds = buildList {
             catalog.catalog?.default_section?.takeIf(String::isNotBlank)?.let(::add)
+            catalog.section?.id?.takeIf(String::isNotBlank)?.let(::add)
             catalog.catalog?.sections.orEmpty().map { it.id }.filter(String::isNotBlank).forEach(::add)
         }.distinct()
         val sectionPages = coroutineScope {
@@ -1387,6 +1389,17 @@ object MusicBackend {
         isCustom = true,
     )
 
+    private fun VkAudioContentCard.toHomeItem() = HomeItem(
+        id = "content_card_$fullId",
+        title = editor_annotation?.takeIf(String::isNotBlank)
+            ?: editor_tag?.takeIf(String::isNotBlank)
+            ?: entity_type.takeIf(String::isNotBlank)
+            ?: "VK Музыка",
+        cover = coverUrl(),
+        source = "vk",
+        isCustom = true,
+    )
+
     private fun RadioStation.toHomeItem() = HomeItem(
         id = "radio_$id",
         title = name,
@@ -1590,7 +1603,14 @@ object MusicBackend {
         val linksById = links.orEmpty().associateBy { it.id }
         val bannersById = catalog_banners.orEmpty().associateBy { it.id.toString() }
         val curatorsById = curators.orEmpty().associateBy { it.id.toString() }
+        val groupsById = groups.orEmpty().associateBy { it.id.toString() }
         val ownersById = music_owners.orEmpty().associateBy { it.id.toString() }
+        val contentCardsById = buildMap {
+            audio_content_cards.orEmpty().forEach { card ->
+                put(card.fullId, card)
+                card.entity_id.takeIf(String::isNotBlank)?.let { put(it, card) }
+            }
+        }
         val stationsById = radio_stations.orEmpty().associateBy { it.id.toString() }
         val streamMixesById = audio_stream_mixes.orEmpty().associateBy { it.id }
 
@@ -1611,7 +1631,11 @@ object MusicBackend {
                     .forEach { add(it.toHomeItem()) }
                 block.curators_ids.orEmpty().mapNotNull(curatorsById::byCatalogId)
                     .forEach { add(it.toHomeItem()) }
+                block.group_ids.orEmpty().mapNotNull(groupsById::byCatalogId)
+                    .forEach { add(it.toHomeItem()) }
                 block.music_owners_ids.orEmpty().mapNotNull(ownersById::byCatalogId)
+                    .forEach { add(it.toHomeItem()) }
+                block.audio_content_card_ids.orEmpty().mapNotNull(contentCardsById::byCatalogId)
                     .forEach { add(it.toHomeItem()) }
                 block.radio_stations_ids.orEmpty().mapNotNull(stationsById::byCatalogId)
                     .forEach { add(it.toHomeItem()) }
@@ -1630,15 +1654,40 @@ object MusicBackend {
 
         // Некоторые аккаунты/версии API не присылают ссылки blocks, но оставляют
         // сущности в корне. Это тот же ответ VK, не локальная подмена контента.
+        val fallbackPrefix = section?.id?.takeIf(String::isNotBlank)
+            ?: catalog?.default_section?.takeIf(String::isNotBlank)
+            ?: "root"
+        val fallbackTitle = section?.title?.takeIf(String::isNotBlank) ?: "VK Музыка"
         return buildList {
+            catalog_banners.orEmpty().map { it.toHomeItem() }.takeIf { it.isNotEmpty() }?.let {
+                add(HomeBlock("${fallbackPrefix}_banners", fallbackTitle, "catalog_banners", it))
+            }
             playlists.orEmpty().map { it.toHomeItem() }.takeIf { it.isNotEmpty() }?.let {
-                add(HomeBlock("catalog_playlists", "Playlists", "playlists", it))
+                add(HomeBlock("${fallbackPrefix}_playlists", fallbackTitle, "playlists", it))
             }
             audios.orEmpty().map { it.toHomeItem() }.takeIf { it.isNotEmpty() }?.let {
-                add(HomeBlock("catalog_audios", "Tracks", "audios", it))
+                add(HomeBlock("${fallbackPrefix}_audios", fallbackTitle, "audios", it))
             }
             artists.orEmpty().map { it.toHomeItem() }.takeIf { it.isNotEmpty() }?.let {
-                add(HomeBlock("catalog_artists", "Artists", "artists", it))
+                add(HomeBlock("${fallbackPrefix}_artists", fallbackTitle, "artists", it))
+            }
+            curators.orEmpty().map { it.toHomeItem() }.takeIf { it.isNotEmpty() }?.let {
+                add(HomeBlock("${fallbackPrefix}_curators", "Собрано редакцией", "curators", it))
+            }
+            groups.orEmpty().map { it.toHomeItem() }.takeIf { it.isNotEmpty() }?.let {
+                add(HomeBlock("${fallbackPrefix}_groups", fallbackTitle, "groups", it))
+            }
+            links.orEmpty().map { it.toHomeItem() }.takeIf { it.isNotEmpty() }?.let {
+                add(HomeBlock("${fallbackPrefix}_links", "Разделы VK Музыки", "links", it))
+            }
+            audio_content_cards.orEmpty().map { it.toHomeItem() }.takeIf { it.isNotEmpty() }?.let {
+                add(HomeBlock("${fallbackPrefix}_content_cards", "Выбор редакции", "content_cards", it))
+            }
+            radio_stations.orEmpty().map { it.toHomeItem() }.takeIf { it.isNotEmpty() }?.let {
+                add(HomeBlock("${fallbackPrefix}_radio", "Радиостанции", "radio", it))
+            }
+            audio_stream_mixes.orEmpty().map { it.toHomeItem() }.takeIf { it.isNotEmpty() }?.let {
+                add(HomeBlock("${fallbackPrefix}_mixes", "Миксы VK", "stream_mixes", it))
             }
         }
     }

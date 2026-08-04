@@ -133,6 +133,7 @@ data class VkCatalogResponse(
     // selections), not application-owned recommendations.
     val catalog_banners: List<VkCatalogBanner>? = null,
     val curators: List<VkCatalogProfile>? = null,
+    val audio_content_cards: List<VkAudioContentCard>? = null,
     val music_owners: List<VkCatalogProfile>? = null,
     val audios: List<AudioTrack>? = null,
     val playlists: List<AudioPlaylist>? = null,
@@ -171,6 +172,8 @@ data class VkCatalogBlock(
     val links_ids: List<String>? = null,
     val catalog_banner_ids: List<String>? = null,
     val curators_ids: List<String>? = null,
+    val group_ids: List<String>? = null,
+    val audio_content_card_ids: List<String>? = null,
     val music_owners_ids: List<String>? = null,
     val radio_stations_ids: List<String>? = null,
     val audio_stream_mixes_ids: List<String>? = null,
@@ -187,6 +190,25 @@ data class VkCatalogBanner(
     val image_mode: String? = null,
 ) {
     fun coverUrl(): String? = images.orEmpty()
+        .filter { it.url.isNotBlank() }
+        .maxByOrNull { it.width * it.height }
+        ?.url
+}
+
+/** `AudioContentCard` from the recovered VK X Catalog2Response adapter. */
+@JsonClass(generateAdapter = true)
+data class VkAudioContentCard(
+    val editor_annotation: String? = null,
+    val editor_background_image: List<VkArtistPhoto>? = null,
+    val editor_gradient_image: List<VkArtistPhoto>? = null,
+    val editor_tag: String? = null,
+    val entity_id: String = "",
+    val entity_owner_id: String = "",
+    val entity_type: String = "",
+) {
+    val fullId: String get() = "${entity_owner_id}_${entity_id}"
+
+    fun coverUrl(): String? = (editor_background_image.orEmpty() + editor_gradient_image.orEmpty())
         .filter { it.url.isNotBlank() }
         .maxByOrNull { it.width * it.height }
         ?.url
