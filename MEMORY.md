@@ -575,4 +575,5 @@ UI, ресурсы и исходную логику необходимо **в п
 - `AndroidManifest.xml` использует 13 `activity-alias`, из которых в fresh install включён только `LauncherIconSunset`; основной `MainActivity` больше не объявляет свой собственный LAUNCHER intent-filter, поэтому дубликата ярлыка нет.
 - `ui/LauncherIconManager.kt` включает новый alias раньше отключения старого, сохраняет выбор в SharedPreferences и использует `DONT_KILL_APP` — смена не перезапускает activity.
 - В Settings добавлена сетка превью со всеми 13 вариантами, выбранным состоянием и уведомлением. Некоторые системные лаунчеры могут обновить картинку на домашнем экране с короткой задержкой собственного кэша.
+- После присланного владельцем compile-лога исправлен `AlbumArtImage`: у overload `Image(painter = …)` нет параметра `filterQuality`; параметр оставлен только у локального `ImageBitmap` overload.
 - Локальная Gradle-сборка и GitHub Actions не запускались по правилу владельца; перед коммитом допустимы только статические проверки manifest/resources/diff.

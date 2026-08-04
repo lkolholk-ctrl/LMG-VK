@@ -231,6 +231,5 @@ private fun PlaceholderArt(
         contentDescription = contentDescription,
         modifier = modifier,
         contentScale = ContentScale.Crop,
-        filterQuality = FilterQuality.High,
     )
 }
