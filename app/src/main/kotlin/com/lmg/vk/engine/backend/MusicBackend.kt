@@ -638,29 +638,49 @@ object MusicBackend {
      * превью, а этот метод постранично собирает полный список для See all и
      * реального счётчика.
      */
-    suspend fun getArtistAllTracks(artistId: String): List<Track> = runCatching {
+    suspend fun getArtistAllTracks(artistId: String): List<Track> {
         requireInitialized()
         val normalizedId = artistId.removePrefix("vk_")
         val tracks = mutableListOf<AudioTrack>()
-        val seen = HashSet<String>()
-        var offset = 0
+        val seenTracks = HashSet<String>()
         val pageSize = 100
 
-        while (offset < 6_000) {
-            val page = audioApi.getAudiosByArtist(
-                artistId = normalizedId,
-                type = null,
-                offset = offset,
-                count = pageSize,
-            ).requireData()
-            val fresh = page.filter { seen.add(it.fullId) }
-            tracks.addAll(fresh)
-            if (page.size < pageSize || fresh.isEmpty()) break
-            offset += page.size
+        // В оригинальном клиенте каталог артиста разделён на три типа:
+        // main, featured и top. Один запрос без type возвращает только часть
+        // каталога (на практике часто ровно 200 аудио), поэтому собираем все
+        // подтверждённые группы и дедуплицируем их по полному VK id.
+        suspend fun loadType(type: String?) {
+            var offset = 0
+            var previousPageIds: List<String>? = null
+
+            while (offset < 6_000) {
+                val page = audioApi.getAudiosByArtist(
+                    artistId = normalizedId,
+                    type = type,
+                    offset = offset,
+                    count = pageSize,
+                ).getOrNull() ?: break
+
+                val pageIds = page.map { it.fullId }
+                // Защита от API, которое проигнорировало offset и вернуло ту же
+                // страницу повторно. Между разными type повторы допустимы.
+                if (pageIds == previousPageIds) break
+                previousPageIds = pageIds
+
+                tracks += page.filter { seenTracks.add(it.fullId) }
+                if (page.size < pageSize) break
+                offset += pageSize
+            }
         }
 
-        tracks.also(::cacheTracks).map { it.toEngineTrack() }
-    }.getOrDefault(emptyList())
+        for (type in listOf("main", "featured", "top")) {
+            loadType(type)
+        }
+        // Совместимость на случай, если конкретный сервер не понимает type.
+        if (tracks.isEmpty()) loadType(null)
+
+        return tracks.also(::cacheTracks).map { it.toEngineTrack() }
+    }
 
     /** Полная дискография исполнителя, а не только релизы из первых catalog-блоков. */
     suspend fun getArtistReleases(artistId: String): List<ArtistAlbum> = runCatching {

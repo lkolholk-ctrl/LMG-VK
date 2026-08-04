@@ -774,14 +774,20 @@ private fun ArtistTracksDialog(
             decorFitsSystemWindows = false,
         ),
     ) {
-        Box(
+        Column(
             modifier = Modifier
                 .fillMaxSize()
                 .background(LiquidSurfaces.sheet(isDark)),
         ) {
+            ArtistListDialogTopBar(
+                title = artistName,
+                subtitle = "${tracks.size}${if (tracks.size >= ARTIST_TRACK_COUNT_PLUS_THRESHOLD) "+" else ""} songs",
+                isDark = isDark,
+                onBack = onDismiss,
+            )
             LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(top = 100.dp, bottom = 32.dp),
+                modifier = Modifier.weight(1f).fillMaxWidth(),
+                contentPadding = PaddingValues(top = 12.dp, bottom = 32.dp),
             ) {
                 if (isLoading) {
                     item {
@@ -818,12 +824,6 @@ private fun ArtistTracksDialog(
                     }
                 }
             }
-            ArtistListDialogTopBar(
-                title = artistName,
-                subtitle = "${tracks.size}${if (tracks.size >= ARTIST_TRACK_COUNT_PLUS_THRESHOLD) "+" else ""} songs",
-                isDark = isDark,
-                onBack = onDismiss,
-            )
         }
     }
 }
@@ -842,17 +842,23 @@ private fun ArtistVideosDialog(
             decorFitsSystemWindows = false,
         ),
     ) {
-        Box(
+        Column(
             modifier = Modifier
                 .fillMaxSize()
                 .background(LiquidSurfaces.sheet(isDark)),
         ) {
+            ArtistListDialogTopBar(
+                title = artistName,
+                subtitle = "${videos.size} videos",
+                isDark = isDark,
+                onBack = onDismiss,
+            )
             LazyVerticalGrid(
                 columns = GridCells.Fixed(2),
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier.weight(1f).fillMaxWidth(),
                 contentPadding = PaddingValues(
                     start = LiquidMetrics.ScreenPadding,
-                    top = 100.dp,
+                    top = 12.dp,
                     end = LiquidMetrics.ScreenPadding,
                     bottom = 32.dp,
                 ),
@@ -869,12 +875,6 @@ private fun ArtistVideosDialog(
                     )
                 }
             }
-            ArtistListDialogTopBar(
-                title = artistName,
-                subtitle = "${videos.size} videos",
-                isDark = isDark,
-                onBack = onDismiss,
-            )
         }
     }
 }
