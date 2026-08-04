@@ -21,6 +21,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.ArrowForward
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.QueueMusic
@@ -50,6 +51,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.lmg.vk.engine.AudioDownloadManager
 import com.lmg.vk.engine.backend.Album
+import com.lmg.vk.engine.backend.MiniArtist
 import com.lmg.vk.engine.backend.MusicBackend
 import com.lmg.vk.engine.backend.MusicAuth
 import com.lmg.vk.engine.PlayerController
@@ -84,7 +86,8 @@ import java.util.Locale
 @Composable
 fun PlaylistDetailScreen(
     playlistId: String,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onNavigateToArtist: (String) -> Unit = {},
 ) {
     val context = LocalContext.current
     val colors = LiquidTheme.colors
@@ -103,6 +106,7 @@ fun PlaylistDetailScreen(
     var cacheRequested by remember { mutableStateOf(false) }
     var actionsTrack by remember { mutableStateOf<Track?>(null) }
     var playlistPickerTrack by remember { mutableStateOf<Track?>(null) }
+    var artistChooser by remember(playlistId) { mutableStateOf<List<MiniArtist>?>(null) }
     var showRenameDialog by remember { mutableStateOf(false) }
 
     val libraryRepository = remember(context) { LibraryRepository.getInstance(context) }
@@ -227,6 +231,18 @@ fun PlaylistDetailScreen(
         }
     }
     val playableTracks = remember(tracks) { tracks.filter { it.isAvailable } }
+    val playlistArtists = remember(playlistInfo) {
+        val info = playlistInfo
+        info?.artists.orEmpty()
+            .filter { !it.id.isNullOrBlank() }
+            .distinctBy { it.id }
+            .ifEmpty {
+                info?.artistId
+                    ?.takeIf(String::isNotBlank)
+                    ?.let { listOf(MiniArtist(id = it, name = info.artist)) }
+                    .orEmpty()
+            }
+    }
     val downloadedIds = remember(downloadedTracks) { downloadedTracks.map { it.trackId }.toSet() }
     val cachedCount = remember(playableTracks, downloadedIds) {
         playableTracks.count { it.id in downloadedIds }
@@ -337,6 +353,52 @@ fun PlaylistDetailScreen(
                             onQueue = { playableTracks.forEach(PlayerController::addToQueue) },
                             onRename = { showRenameDialog = true },
                         )
+                    }
+
+                    if (!isLocalPlaylist && playlistArtists.isNotEmpty()) {
+                        item {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 20.dp, vertical = 8.dp)
+                                    .clip(RoundedCornerShape(18.dp))
+                                    .background(LiquidSurfaces.card(isDark))
+                                    .liquidClickable(
+                                        pressedScale = LiquidMotion.PressButton,
+                                        onClick = {
+                                            if (playlistArtists.size == 1) {
+                                                onNavigateToArtist(playlistArtists.first().id.orEmpty())
+                                            } else {
+                                                artistChooser = playlistArtists
+                                            }
+                                        },
+                                    )
+                                    .padding(horizontal = 14.dp, vertical = 13.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Icon(
+                                    Icons.Rounded.Person,
+                                    contentDescription = null,
+                                    tint = colors.accent,
+                                    modifier = Modifier.size(24.dp),
+                                )
+                                Text(
+                                    text = playlistInfo?.artist.orEmpty().ifBlank {
+                                        playlistArtists.joinToString(", ") { it.displayName }
+                                    },
+                                    color = LiquidSurfaces.textPrimary(isDark),
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    modifier = Modifier.padding(start = 12.dp).weight(1f),
+                                )
+                                Icon(
+                                    Icons.Rounded.ArrowForward,
+                                    contentDescription = "Open artist",
+                                    tint = LiquidSurfaces.textSecondary(isDark),
+                                    modifier = Modifier.size(19.dp),
+                                )
+                            }
+                        }
                     }
 
                     if (cacheRequested || cachedCount > 0) {
@@ -477,6 +539,17 @@ fun PlaylistDetailScreen(
                     showRenameDialog = false
                 },
                 onDismiss = { showRenameDialog = false },
+            )
+        }
+
+        artistChooser?.let { choices ->
+            com.lmg.vk.ui.components.ArtistChooserDialog(
+                artists = choices,
+                onSelect = { selected ->
+                    artistChooser = null
+                    selected.id?.takeIf(String::isNotBlank)?.let(onNavigateToArtist)
+                },
+                onDismiss = { artistChooser = null },
             )
         }
     }

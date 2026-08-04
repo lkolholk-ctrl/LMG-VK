@@ -56,10 +56,26 @@ class VkCatalogApi(
     }
 
     /** Дозагрузка секции: `catalog.getSection`, C4600e id=12. */
-    suspend fun getSection(sectionId: String): VkResult<VkCatalogResponse> {
+    suspend fun getSection(
+        sectionId: String,
+        startFrom: String? = null,
+    ): VkResult<VkCatalogResponse> {
         val method = method("catalog.getSection").apply {
             param("need_blocks", 1)
             param("section_id", sectionId)
+            startFrom?.let { param("start_from", it) }
+        }
+        return client.execute(method)
+    }
+
+    /** Дозагрузка горизонтального блока по `next_from`. */
+    suspend fun getBlockItems(
+        blockId: String,
+        startFrom: String? = null,
+    ): VkResult<VkCatalogResponse> {
+        val method = method("catalog.getBlockItems").apply {
+            param("block_id", blockId)
+            startFrom?.let { param("start_from", it) }
         }
         return client.execute(method)
     }

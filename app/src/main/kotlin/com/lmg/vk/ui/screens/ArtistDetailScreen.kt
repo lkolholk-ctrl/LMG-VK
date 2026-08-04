@@ -141,16 +141,38 @@ fun ArtistDetailScreen(
         }
     }
 
-    // Треки артиста уже приходят отдельным audio.getAudiosByArtist. Не обходим
-    // здесь каждый релиз: после полной дискографии это создавало десятки
-    // одновременных getAlbum-запросов ещё до тапа пользователя по альбому.
-    var artistTracks by remember {
+    // Быстро показываем topSongs, а полный список и полную дискографию догружаем
+    // отдельными VK-запросами. Поэтому главный экран артиста не ждёт сотни треков,
+    // но See all и счётчики используют уже настоящий каталог.
+    var artistTracks by remember(artistId) {
         mutableStateOf<List<com.lmg.vk.engine.Track>>(emptyList())
     }
+    var artistTracksLoading by remember(artistId) { mutableStateOf(false) }
+    var artistReleases by remember(artistId) {
+        mutableStateOf<List<ArtistAlbum>>(emptyList())
+    }
 
-    LaunchedEffect(artist) {
-        val art = artist ?: return@LaunchedEffect
+    LaunchedEffect(artist?.id) {
+        val art = artist
+        if (art == null) {
+            artistTracks = emptyList()
+            artistTracksLoading = false
+            return@LaunchedEffect
+        }
         artistTracks = art.topSongs.map { it.toTrack() }.distinctBy { it.id }
+        artistTracksLoading = true
+        val allTracks = MusicBackend.getArtistAllTracks(art.id).distinctBy { it.id }
+        if (allTracks.isNotEmpty()) artistTracks = allTracks
+        artistTracksLoading = false
+    }
+
+    LaunchedEffect(artist?.id) {
+        val art = artist
+        if (art == null) {
+            artistReleases = emptyList()
+            return@LaunchedEffect
+        }
+        artistReleases = MusicBackend.getArtistReleases(art.id).distinctBy { it.id }
     }
 
     // Личный блок: сколько раз слушали именно этого артиста и что чаще всего.
@@ -180,21 +202,29 @@ fun ArtistDetailScreen(
 
     // Дискографию делим по типу релиза: сборники и концертные записи слушают
     // иначе, чем студийные альбомы, и в общей куче они только мешают искать.
-    val allAlbums = remember(artist) { artist?.albums.orEmpty().distinctBy { it.id } }
-    val compilations = remember(allAlbums) {
-        allAlbums.filter { it.type?.contains("compilation", ignoreCase = true) == true }
+    val allReleases = remember(artist, artistReleases) {
+        (
+            artistReleases +
+                artist?.albums.orEmpty() +
+                artist?.singles.orEmpty()
+            ).distinctBy { it.id }
     }
-    val liveAlbums = remember(allAlbums) {
-        allAlbums.filter {
+    val compilations = remember(allReleases) {
+        allReleases.filter { it.type?.contains("compilation", ignoreCase = true) == true }
+    }
+    val liveAlbums = remember(allReleases) {
+        allReleases.filter {
             it.type?.contains("live", ignoreCase = true) == true ||
                 it.title.contains("(Live", ignoreCase = true)
         }
     }
-    val albums = remember(allAlbums, compilations, liveAlbums) {
-        val excluded = (compilations + liveAlbums).map { it.id }.toSet()
-        allAlbums.filterNot { it.id in excluded }
+    val singles = remember(allReleases) {
+        allReleases.filter { it.isSingleOrEpUi() }
     }
-    val singles = remember(artist) { artist?.singles.orEmpty().distinctBy { it.id } }
+    val albums = remember(allReleases, compilations, liveAlbums, singles) {
+        val excluded = (compilations + liveAlbums + singles).map { it.id }.toSet()
+        allReleases.filterNot { it.id in excluded }
+    }
     val appearsOn = remember(artist) { artist?.appearsOn.orEmpty().distinctBy { it.id } }
     val playlists = remember(artist) { artist?.playlists.orEmpty().distinctBy { it.id } }
     val linkedArtists = remember(artist) { artist?.linkedArtists.orEmpty().distinctBy { it.id } }
@@ -204,6 +234,7 @@ fun ArtistDetailScreen(
     }
 
     var showAllSongs by remember { mutableStateOf(false) }
+    var showAllVideos by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
     // Имя в панели показываем только когда шапка ушла: пока артист виден крупно,
     // дублировать его незачем.
@@ -329,12 +360,13 @@ fun ArtistDetailScreen(
                     }
 
                     art?.let { artistInfo ->
-                        val releaseCount = allAlbums.size + singles.size
+                        val songCount = maxOf(artistTracks.size, topSongs.size)
+                        val releaseCount = allReleases.size
                         val videoCount = artistInfo.videos.size
-                        if (topSongs.isNotEmpty() || releaseCount > 0 || playlists.isNotEmpty() || videoCount > 0) {
+                        if (songCount > 0 || releaseCount > 0 || playlists.isNotEmpty() || videoCount > 0) {
                             item {
                                 ArtistCatalogSummary(
-                                    songs = topSongs.size,
+                                    songs = songCount,
                                     releases = releaseCount,
                                     playlists = playlists.size,
                                     videos = videoCount,
@@ -374,78 +406,47 @@ fun ArtistDetailScreen(
                             SectionHeaderWithLink(
                                 isDark = colors.isDark,
                                 title = "Top songs",
-                                // Пять строк — это лишь начало списка, и без ссылки
-                                // выглядит так, будто у артиста всего пять песен.
-                                linkLabel = if (showAllSongs) "Show less" else "See all",
-                                onLinkClick = { showAllSongs = !showAllSongs }
+                                // Полный каталог открывается отдельным окном и не
+                                // превращает основную страницу в список из сотен строк.
+                                linkLabel = "See all",
+                                onLinkClick = { showAllSongs = true }
                             )
                         }
 
-                        if (showAllSongs) {
-                            itemsIndexed(
-                                artistTracks.ifEmpty { topSongs.map { it.toTrack() } },
-                                key = { _, track -> "all-" + track.id }
-                            ) { index, track ->
-                                Column(
-                                    modifier = Modifier.padding(
-                                        horizontal = LiquidMetrics.ScreenPadding
-                                    )
-                                ) {
-                                    TopSongRow(
-                                        position = index + 1,
-                                        title = track.title,
-                                        subtitle = track.artist.ifBlank { track.albumName },
-                                        coverUrl = track.coverUrl,
-                                        isExplicit = track.isExplicit,
-                                        durationMs = track.durationMs,
-                                        enabled = track.isAvailable,
-                                        textPrimary = LiquidSurfaces.textPrimary(colors.isDark),
-                                        textSecondary = LiquidSurfaces.textSecondary(colors.isDark),
-                                        onClick = {
-                                            val playableIndex = playableArtistTracks.indexOfFirst { it.id == track.id }
-                                            if (playableIndex >= 0) {
-                                                PlayerController.play(context, playableArtistTracks, playableIndex)
-                                            }
-                                        }
-                                    )
-                                }
-                            }
-                        } else {
-                            item {
-                                // Колонки по пять с горизонтальной прокруткой: так за
-                                // экран влезает вдвое больше песен, чем простым списком,
-                                // и видно, что список продолжается.
-                                val songs = artistTracks.ifEmpty { topSongs.map { it.toTrack() } }
-                                LazyRow(
-                                    contentPadding = PaddingValues(
-                                        horizontal = LiquidMetrics.ScreenPadding
-                                    ),
-                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                                ) {
-                                    val pages = songs.take(25).chunked(5)
-                                    items(pages.size) { pageIndex ->
-                                        Column(modifier = Modifier.fillParentMaxWidth(0.88f)) {
-                                            pages[pageIndex].forEachIndexed { rowIndex, track ->
-                                                val position = pageIndex * 5 + rowIndex
-                                                TopSongRow(
-                                                    position = position + 1,
-                                                    title = track.title,
-                                                    subtitle = track.artist.ifBlank { track.albumName },
-                                                    coverUrl = track.coverUrl,
-                                                    isExplicit = track.isExplicit,
-                                                    durationMs = track.durationMs,
-                                                    enabled = track.isAvailable,
-                                                    textPrimary = LiquidSurfaces.textPrimary(colors.isDark),
-                                                    textSecondary = LiquidSurfaces.textSecondary(colors.isDark),
-                                                    onClick = {
-                                                        val playableSongs = songs.filter { it.isAvailable }
-                                                        val playableIndex = playableSongs.indexOfFirst { it.id == track.id }
-                                                        if (playableIndex >= 0) {
-                                                            PlayerController.play(context, playableSongs, playableIndex)
-                                                        }
+                        item {
+                            // Колонки по пять с горизонтальной прокруткой: так за
+                            // экран влезает вдвое больше песен, чем простым списком,
+                            // и видно, что список продолжается.
+                            val songs = artistTracks.ifEmpty { topSongs.map { it.toTrack() } }
+                            LazyRow(
+                                contentPadding = PaddingValues(
+                                    horizontal = LiquidMetrics.ScreenPadding
+                                ),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                val pages = songs.take(25).chunked(5)
+                                items(pages.size) { pageIndex ->
+                                    Column(modifier = Modifier.fillParentMaxWidth(0.88f)) {
+                                        pages[pageIndex].forEachIndexed { rowIndex, track ->
+                                            val position = pageIndex * 5 + rowIndex
+                                            TopSongRow(
+                                                position = position + 1,
+                                                title = track.title,
+                                                subtitle = track.artist.ifBlank { track.albumName },
+                                                coverUrl = track.coverUrl,
+                                                isExplicit = track.isExplicit,
+                                                durationMs = track.durationMs,
+                                                enabled = track.isAvailable,
+                                                textPrimary = LiquidSurfaces.textPrimary(colors.isDark),
+                                                textSecondary = LiquidSurfaces.textSecondary(colors.isDark),
+                                                onClick = {
+                                                    val playableSongs = songs.filter { it.isAvailable }
+                                                    val playableIndex = playableSongs.indexOfFirst { it.id == track.id }
+                                                    if (playableIndex >= 0) {
+                                                        PlayerController.play(context, playableSongs, playableIndex)
                                                     }
-                                                )
-                                            }
+                                                }
+                                            )
                                         }
                                     }
                                 }
@@ -645,7 +646,14 @@ fun ArtistDetailScreen(
                     }
 
                     if (art?.videos.orEmpty().isNotEmpty()) {
-                        item { SectionHeaderThemed(colors.isDark, "Music videos") }
+                        item {
+                            SectionHeaderWithLink(
+                                isDark = colors.isDark,
+                                title = "Music videos",
+                                linkLabel = "See all",
+                                onLinkClick = { showAllVideos = true },
+                            )
+                        }
                         item {
                             LazyRow(
                                 contentPadding = PaddingValues(horizontal = LiquidMetrics.ScreenPadding),
@@ -713,7 +721,209 @@ fun ArtistDetailScreen(
                 modifier = Modifier.alpha(if (showTopBarTitle) 1f else 0f)
             )
         }
+
+        if (showAllSongs) {
+            ArtistTracksDialog(
+                artistName = artist?.name.orEmpty(),
+                tracks = artistTracks,
+                isLoading = artistTracksLoading,
+                isDark = colors.isDark,
+                onPlay = { index ->
+                    val playable = artistTracks.filter { it.isAvailable }
+                    val selected = artistTracks.getOrNull(index)
+                    val playableIndex = playable.indexOfFirst { it.id == selected?.id }
+                    if (playableIndex >= 0) PlayerController.play(context, playable, playableIndex)
+                },
+                onDismiss = { showAllSongs = false },
+            )
+        }
+
+        if (showAllVideos) {
+            ArtistVideosDialog(
+                artistName = artist?.name.orEmpty(),
+                videos = artist?.videos.orEmpty(),
+                isDark = colors.isDark,
+                onDismiss = { showAllVideos = false },
+            )
+        }
     }
+}
+
+@Composable
+private fun ArtistTracksDialog(
+    artistName: String,
+    tracks: List<Track>,
+    isLoading: Boolean,
+    isDark: Boolean,
+    onPlay: (Int) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false,
+            decorFitsSystemWindows = false,
+        ),
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(LiquidSurfaces.sheet(isDark)),
+        ) {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(top = 88.dp, bottom = 32.dp),
+            ) {
+                if (isLoading) {
+                    item {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 18.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            CircularProgressIndicator(
+                                color = LiquidTheme.colors.accent,
+                                modifier = Modifier.size(28.dp),
+                            )
+                        }
+                    }
+                }
+                itemsIndexed(
+                    tracks,
+                    key = { index, track -> "artist-all-${track.id}-$index" },
+                ) { index, track ->
+                    Column(modifier = Modifier.padding(horizontal = LiquidMetrics.ScreenPadding)) {
+                        TopSongRow(
+                            position = index + 1,
+                            title = track.title,
+                            subtitle = track.artist.ifBlank { track.albumName },
+                            coverUrl = track.coverUrl,
+                            isExplicit = track.isExplicit,
+                            durationMs = track.durationMs,
+                            enabled = track.isAvailable,
+                            textPrimary = LiquidSurfaces.textPrimary(isDark),
+                            textSecondary = LiquidSurfaces.textSecondary(isDark),
+                            onClick = { onPlay(index) },
+                        )
+                    }
+                }
+            }
+            ArtistListDialogTopBar(
+                title = artistName,
+                subtitle = "${tracks.size} songs",
+                isDark = isDark,
+                onBack = onDismiss,
+            )
+        }
+    }
+}
+
+@Composable
+private fun ArtistVideosDialog(
+    artistName: String,
+    videos: List<ArtistVideo>,
+    isDark: Boolean,
+    onDismiss: () -> Unit,
+) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false,
+            decorFitsSystemWindows = false,
+        ),
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(LiquidSurfaces.sheet(isDark)),
+        ) {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(top = 88.dp, bottom = 32.dp),
+                verticalArrangement = Arrangement.spacedBy(18.dp),
+            ) {
+                items(videos, key = { it.id }) { video ->
+                    Box(
+                        modifier = Modifier.fillMaxWidth(),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        ArtistVideoCard(
+                            title = video.title,
+                            cover = video.cover,
+                            duration = video.duration,
+                            isDark = isDark,
+                        )
+                    }
+                }
+            }
+            ArtistListDialogTopBar(
+                title = artistName,
+                subtitle = "${videos.size} videos",
+                isDark = isDark,
+                onBack = onDismiss,
+            )
+        }
+    }
+}
+
+@Composable
+private fun ArtistListDialogTopBar(
+    title: String,
+    subtitle: String,
+    isDark: Boolean,
+    onBack: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(LiquidSurfaces.sheet(isDark))
+            .windowInsetsPadding(WindowInsets.statusBars)
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(40.dp)
+                .clip(CircleShape)
+                .background(LiquidSurfaces.card(isDark))
+                .liquidClickable(
+                    pressedScale = LiquidMotion.PressButton,
+                    onClick = onBack,
+                ),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                contentDescription = "Back",
+                tint = LiquidSurfaces.textPrimary(isDark),
+                modifier = Modifier.size(22.dp),
+            )
+        }
+        Spacer(Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                color = LiquidSurfaces.textPrimary(isDark),
+                fontSize = 17.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = subtitle,
+                color = LiquidSurfaces.textSecondary(isDark),
+                fontSize = 11.sp,
+            )
+        }
+    }
+}
+
+private fun ArtistAlbum.isSingleOrEpUi(): Boolean {
+    val releaseType = type.orEmpty()
+    return releaseType.contains("single", ignoreCase = true) ||
+        releaseType.equals("ep", ignoreCase = true) ||
+        releaseType.contains("extended_play", ignoreCase = true)
 }
 
 /**

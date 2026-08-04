@@ -52,6 +52,7 @@ import androidx.compose.ui.unit.sp
 import com.lmg.vk.engine.AudioDownloadManager
 import com.lmg.vk.engine.Track
 import com.lmg.vk.engine.backend.AlbumResponse
+import com.lmg.vk.engine.backend.MiniArtist
 import com.lmg.vk.engine.backend.MusicBackend
 import com.lmg.vk.engine.backend.MusicAuth
 import com.lmg.vk.engine.backend.toTrack
@@ -102,6 +103,7 @@ fun AlbumDetailScreen(
     var reloadKey by remember(albumId) { mutableStateOf(0) }
     var actionsTrack by remember(albumId) { mutableStateOf<Track?>(null) }
     var playlistPickerTrack by remember(albumId) { mutableStateOf<Track?>(null) }
+    var artistChooser by remember(albumId) { mutableStateOf<List<MiniArtist>?>(null) }
     val editablePlaylists by PlaylistManager.playlists.collectAsState()
 
     val libraryRepository = remember(context) { LibraryRepository.getInstance(context) }
@@ -130,6 +132,18 @@ fun AlbumDetailScreen(
         album?.tracks?.map { it.toTrack() }?.distinctBy { it.id } ?: emptyList()
     }
     val playableTracks = remember(albumTracks) { albumTracks.filter { it.isAvailable } }
+    val albumArtists = remember(album) {
+        val info = album?.album
+        info?.artists.orEmpty()
+            .filter { !it.id.isNullOrBlank() }
+            .distinctBy { it.id }
+            .ifEmpty {
+                info?.artistId
+                    ?.takeIf(String::isNotBlank)
+                    ?.let { listOf(MiniArtist(id = it, name = info.artist)) }
+                    .orEmpty()
+            }
+    }
     val downloadedIds = remember(downloadedTracks) { downloadedTracks.map { it.trackId }.toSet() }
     val cachedCount = remember(playableTracks, downloadedIds) {
         playableTracks.count { it.id in downloadedIds }
@@ -317,7 +331,7 @@ fun AlbumDetailScreen(
                         )
                     }
 
-                    info?.artistId?.takeIf { it.isNotBlank() }?.let { artistId ->
+                    if (albumArtists.isNotEmpty()) {
                         item {
                             Row(
                                 modifier = Modifier
@@ -327,7 +341,13 @@ fun AlbumDetailScreen(
                                     .background(LiquidSurfaces.card(isDark))
                                     .liquidClickable(
                                         pressedScale = LiquidMotion.PressButton,
-                                        onClick = { onNavigateToArtist(artistId) },
+                                        onClick = {
+                                            if (albumArtists.size == 1) {
+                                                onNavigateToArtist(albumArtists.first().id.orEmpty())
+                                            } else {
+                                                artistChooser = albumArtists
+                                            }
+                                        },
                                     )
                                     .padding(horizontal = 14.dp, vertical = 13.dp),
                                 verticalAlignment = Alignment.CenterVertically,
@@ -339,7 +359,9 @@ fun AlbumDetailScreen(
                                     modifier = Modifier.size(24.dp),
                                 )
                                 Text(
-                                    text = info?.artist.orEmpty(),
+                                    text = info?.artist.orEmpty().ifBlank {
+                                        albumArtists.joinToString(", ") { it.displayName }
+                                    },
                                     color = LiquidSurfaces.textPrimary(isDark),
                                     fontSize = 15.sp,
                                     fontWeight = FontWeight.SemiBold,
@@ -451,6 +473,17 @@ fun AlbumDetailScreen(
                     playlistPickerTrack = null
                 },
                 onDismiss = { playlistPickerTrack = null },
+            )
+        }
+
+        artistChooser?.let { choices ->
+            com.lmg.vk.ui.components.ArtistChooserDialog(
+                artists = choices,
+                onSelect = { selected ->
+                    artistChooser = null
+                    selected.id?.takeIf(String::isNotBlank)?.let(onNavigateToArtist)
+                },
+                onDismiss = { artistChooser = null },
             )
         }
     }

@@ -227,7 +227,8 @@ private fun NavGraphBuilder.musicDetailDestinations(
         val id = entry.arguments?.getString(NavRoutes.ARG_ID).orEmpty()
         PlaylistDetailScreen(
             playlistId = id,
-            onBack = { navController.popBackStack() }
+            onBack = { navController.popBackStack() },
+            onNavigateToArtist = { navController.navigate(NavRoutes.artist(tab, it)) },
         )
     }
 }

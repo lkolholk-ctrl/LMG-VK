@@ -229,6 +229,7 @@ data class Album(
     @SerialName("isFollowing") val isFollowing: Boolean = false,
     @SerialName("canFollow") val canFollow: Boolean = false,
     @SerialName("isOwned") val isOwned: Boolean = false,
+    val artists: List<MiniArtist> = emptyList(),
 )
 
 @Serializable

@@ -322,16 +322,55 @@ object MusicBackend {
         requireInitialized()
         val normalizedId = artistId.removePrefix("vk_")
         val catalog = catalogApi.getAudioArtist(normalizedId).requireData()
+        suspend fun loadSectionPages(sectionId: String): List<VkCatalogResponse> {
+            val pages = mutableListOf<VkCatalogResponse>()
+            val seenOffsets = HashSet<String>()
+            var startFrom: String? = null
+            while (pages.size < 50) {
+                val page = catalogApi.getSection(sectionId, startFrom).getOrNull() ?: break
+                pages += page
+                val next = page.section?.next_from?.takeIf(String::isNotBlank) ?: break
+                if (!seenOffsets.add(next)) break
+                startFrom = next
+            }
+            return pages
+        }
+
         val sectionCatalogs = coroutineScope {
             catalog.catalog?.sections.orEmpty()
                 .map { it.id }
                 .filter(String::isNotBlank)
                 .distinct()
-                .take(20)
-                .map { sectionId -> async { catalogApi.getSection(sectionId).getOrNull() } }
-                .mapNotNull { it.await() }
+                .map { sectionId -> async { loadSectionPages(sectionId) } }
+                .flatMap { it.await() }
         }
-        val catalogPages = listOf(catalog) + sectionCatalogs
+
+        suspend fun loadBlockPages(block: VkCatalogBlock): List<VkCatalogResponse> {
+            val pages = mutableListOf<VkCatalogResponse>()
+            val seenOffsets = HashSet<String>()
+            var startFrom = block.next_from?.takeIf(String::isNotBlank)
+            while (startFrom != null && pages.size < 50) {
+                if (!seenOffsets.add(startFrom)) break
+                val page = catalogApi.getBlockItems(block.id, startFrom).getOrNull() ?: break
+                pages += page
+                startFrom = (
+                    page.block?.next_from
+                        ?: page.allBlocks().firstOrNull { it.id == block.id }?.next_from
+                    )?.takeIf(String::isNotBlank)
+            }
+            return pages
+        }
+
+        val sectionPages = listOf(catalog) + sectionCatalogs
+        val blockCatalogs = coroutineScope {
+            sectionPages
+                .flatMap { it.allBlocks() }
+                .filter { it.id.isNotBlank() && !it.next_from.isNullOrBlank() }
+                .distinctBy { it.id }
+                .map { block -> async { loadBlockPages(block) } }
+                .flatMap { it.await() }
+        }
+        val catalogPages = sectionPages + blockCatalogs
         val tracks = catalogPages.flatMap { it.audios.orEmpty() }.distinctBy(AudioTrack::fullId).ifEmpty {
             audioApi.getAudiosByArtist(normalizedId).requireData()
         }.also(::cacheTracks)
@@ -344,7 +383,9 @@ object MusicBackend {
                     ?: tracks.firstOrNull()?.artist.orEmpty(),
             )
         val (related, searchedAlbums, legacyAlbums) = coroutineScope {
-            val relatedRequest = async { audioApi.getRelatedArtistsById(normalizedId) }
+            val relatedRequest = async {
+                audioApi.getRelatedArtistsById(normalizedId, count = 100)
+            }
             val mainRequest = async { audioApi.searchMain(artist.name, count = 300) }
             val playlistRequest = async {
                 audioApi.searchPlaylists(
@@ -464,16 +505,48 @@ object MusicBackend {
         val linkedArtists = (ownerArtistMatches.map { it.second } + blockLinkedArtists)
             .filter { it.id != normalizedId }
             .distinctBy { it.id }
+        // Часть link-блоков VK приходит без собственной картинки, хотя тот же
+        // исполнитель уже есть среди artist/music_owner сущностей страницы.
+        // Подставляем только подтверждённую обложку совпавшего id/domain/name.
+        fun artistKey(value: String?): String =
+            value.orEmpty().trim().lowercase()
+
+        val artistCovers = mutableMapOf<String, String>()
+        fun rememberArtistCover(key: String?, cover: String?) {
+            val normalized = artistKey(key)
+            val validCover = cover?.takeIf(String::isNotBlank)
+            if (normalized.isNotEmpty() && validCover != null && normalized !in artistCovers) {
+                artistCovers[normalized] = validCover
+            }
+        }
+        knownArtists.forEach { candidate ->
+            val cover = candidate.coverUrl()
+            rememberArtistCover(candidate.id, cover)
+            rememberArtistCover(candidate.domain, cover)
+            rememberArtistCover(candidate.name, cover)
+        }
+        musicOwners.forEach { owner ->
+            rememberArtistCover(owner.id.toString(), owner.photo_base)
+            rememberArtistCover(owner.displayName, owner.photo_base)
+        }
+
         val links = catalogPages.flatMap { it.links.orEmpty() }
             .filter { it.id.isNotBlank() && it.url.isNotBlank() }
             .distinctBy { it.id }
             .map {
+                val urlKey = it.url
+                    .substringAfterLast('/')
+                    .substringBefore('?')
+                    .substringBefore('#')
                 ArtistLink(
                     id = it.id,
                     title = it.title,
                     subtitle = it.subtitle.takeIf(String::isNotBlank),
                     url = it.url,
-                    cover = it.coverUrl(),
+                    cover = it.coverUrl()?.takeIf(String::isNotBlank)
+                        ?: artistCovers[artistKey(it.id)]
+                        ?: artistCovers[artistKey(urlKey)]
+                        ?: artistCovers[artistKey(it.title)],
                 )
             }
         val videos = catalogPages.flatMap { it.artist_videos.orEmpty() + it.videos.orEmpty() }
@@ -559,6 +632,59 @@ object MusicBackend {
         audioApi.getAudiosByArtist(artistId.removePrefix("vk_")).requireData()
             .also(::cacheTracks)
             .map { it.toEngineTrack() }
+
+    /**
+     * Все аудио исполнителя. `topSongs` на странице артиста остаётся быстрым
+     * превью, а этот метод постранично собирает полный список для See all и
+     * реального счётчика.
+     */
+    suspend fun getArtistAllTracks(artistId: String): List<Track> = runCatching {
+        requireInitialized()
+        val normalizedId = artistId.removePrefix("vk_")
+        val tracks = mutableListOf<AudioTrack>()
+        val seen = HashSet<String>()
+        var offset = 0
+        val pageSize = 100
+
+        while (offset < 6_000) {
+            val page = audioApi.getAudiosByArtist(
+                artistId = normalizedId,
+                type = null,
+                offset = offset,
+                count = pageSize,
+            ).requireData()
+            val fresh = page.filter { seen.add(it.fullId) }
+            tracks.addAll(fresh)
+            if (page.size < pageSize || fresh.isEmpty()) break
+            offset += page.size
+        }
+
+        tracks.also(::cacheTracks).map { it.toEngineTrack() }
+    }.getOrDefault(emptyList())
+
+    /** Полная дискография исполнителя, а не только релизы из первых catalog-блоков. */
+    suspend fun getArtistReleases(artistId: String): List<ArtistAlbum> = runCatching {
+        requireInitialized()
+        val normalizedId = artistId.removePrefix("vk_")
+        val releases = mutableListOf<AudioPlaylist>()
+        val seen = HashSet<String>()
+        var offset = 0
+        val pageSize = 100
+
+        while (offset < 2_000) {
+            val page = audioApi.getAlbumsByArtist(
+                artistId = normalizedId,
+                offset = offset,
+                count = pageSize,
+            ).requireData()
+            val fresh = page.filter { seen.add(it.fullId) }
+            releases.addAll(fresh)
+            if (page.size < pageSize || fresh.isEmpty()) break
+            offset += page.size
+        }
+
+        releases.map { it.toArtistAlbum() }
+    }.getOrDefault(emptyList())
 
     // ---------- лайки / библиотека ----------
     suspend fun getLibraryLikes(source: String = "all", limit: Int = 500, offset: Int = 0): LibraryLikesResponse? =
@@ -1257,6 +1383,7 @@ object MusicBackend {
         artist = main_artists?.joinToString(", ") { it.name }
             ?.takeIf(String::isNotBlank) ?: subtitle.orEmpty(),
         artistId = main_artists?.firstOrNull()?.id,
+        artists = main_artists.orEmpty().map { MiniArtist(id = it.id, name = it.name) },
         cover = photo?.bestUrl ?: photo?.src ?: thumbs?.firstOrNull()?.bestUrl ?: thumbs?.firstOrNull()?.src.orEmpty(),
         year = year.takeIf { it > 0 }?.toString() ?: create_time.takeIf { it > 0 }?.let { (it / 31536000 + 1970).toString() },
         type = type,

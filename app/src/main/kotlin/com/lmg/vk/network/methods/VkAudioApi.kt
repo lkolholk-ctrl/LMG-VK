@@ -55,7 +55,7 @@ class VkAudioApi(
     /** `audio.getAudiosByArtist` (C13029e, id=10). */
     suspend fun getAudiosByArtist(
         artistId: String,
-        type: String = "top",
+        type: String? = "top",
         offset: Int = 0,
         count: Int = 100,
     ): VkResult<List<AudioTrack>> {
@@ -65,9 +65,30 @@ class VkAudioApi(
             MoshiEnvelopeParser<List<AudioTrack>>(listType),
         ).apply {
             param("artist_id", artistId)
-            param("type", type)
+            type?.let { param("type", it) }
             param("count", count.coerceIn(1, 100))
             param("offset", offset.coerceAtLeast(0))
+        }
+        return client.execute(method)
+    }
+
+    /**
+     * `audio.getAlbumsByArtist`: полная дискография исполнителя с пагинацией.
+     * UI не считает релизы по урезанному catalog-блоку.
+     */
+    suspend fun getAlbumsByArtist(
+        artistId: String,
+        offset: Int = 0,
+        count: Int = 100,
+    ): VkResult<List<AudioPlaylist>> {
+        val listType = Types.newParameterizedType(List::class.java, AudioPlaylist::class.java)
+        val method = VkMethod(
+            "audio.getAlbumsByArtist",
+            MoshiEnvelopeParser<List<AudioPlaylist>>(listType),
+        ).apply {
+            param("artist_id", artistId)
+            param("offset", offset.coerceAtLeast(0))
+            param("count", count.coerceIn(1, 100))
         }
         return client.execute(method)
     }
