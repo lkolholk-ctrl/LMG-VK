@@ -25,7 +25,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ExitToApp
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.BarChart
+import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.Person
+import androidx.compose.material.icons.rounded.QueueMusic
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.AlertDialog
@@ -74,6 +76,8 @@ private data class ProfileLibrarySummary(
     val localTracks: Int = 0,
     val plays: Int = 0,
     val listenedMs: Long = 0L,
+    val lastPlaybackAt: Long? = null,
+    val lastPlaybackSource: String? = null,
 )
 
 /**
@@ -86,6 +90,7 @@ fun ProfileScreen(
     onLogout: () -> Unit = {},
     onOpenAuth: () -> Unit = {},
     onOpenStats: () -> Unit = {},
+    onOpenLibrary: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -101,23 +106,28 @@ fun ProfileScreen(
     var showSignOutConfirmation by remember { mutableStateOf(false) }
     var librarySummary by remember { mutableStateOf(ProfileLibrarySummary()) }
 
+    suspend fun loadLibrarySummary(): ProfileLibrarySummary = withContext(Dispatchers.IO) {
+        val appDatabase = AppDatabase.getInstance(context)
+        val favoritesDatabase = FavoriteTrackDatabase.getInstance(context)
+        favoritesDatabase.loadAsync()
+        val history = appDatabase.playbackHistoryDao()
+        val lastPlayback = history.getRecentHistory(limit = 1).firstOrNull()
+        ProfileLibrarySummary(
+            favorites = favoritesDatabase.getAllFavorites().size,
+            downloads = favoritesDatabase.getDownloadedTracks().size,
+            localTracks = appDatabase.localTracksDao().count(),
+            plays = history.getTotalPlayEvents(),
+            listenedMs = history.getTotalListenedMs(),
+            lastPlaybackAt = lastPlayback?.timestamp,
+            lastPlaybackSource = lastPlayback?.source,
+        )
+    }
+
     LaunchedEffect(isLoggedIn) {
         if (isLoggedIn) MusicAuth.fetchUserData()
     }
     LaunchedEffect(context) {
-        librarySummary = withContext(Dispatchers.IO) {
-            val appDatabase = AppDatabase.getInstance(context)
-            val favoritesDatabase = FavoriteTrackDatabase.getInstance(context)
-            favoritesDatabase.loadAsync()
-            val history = appDatabase.playbackHistoryDao()
-            ProfileLibrarySummary(
-                favorites = favoritesDatabase.getAllFavorites().size,
-                downloads = favoritesDatabase.getDownloadedTracks().size,
-                localTracks = appDatabase.localTracksDao().count(),
-                plays = history.getTotalPlayEvents(),
-                listenedMs = history.getTotalListenedMs(),
-            )
-        }
+        librarySummary = loadLibrarySummary()
     }
 
     val displayName = profileName?.takeIf(String::isNotBlank)
@@ -239,6 +249,16 @@ fun ProfileScreen(
                             value = formatSessionStatus(sessionExpiresAt),
                             compact = compact,
                         )
+                        ProfileDivider()
+                        ProfileInfoRow(
+                            icon = Icons.Rounded.History,
+                            label = "Last activity",
+                            value = formatLastPlayback(
+                                librarySummary.lastPlaybackAt,
+                                librarySummary.lastPlaybackSource,
+                            ),
+                            compact = compact,
+                        )
                     }
                 }
                 item { Spacer(Modifier.height(16.dp)) }
@@ -288,7 +308,9 @@ fun ProfileScreen(
                             loading = isRefreshing,
                             onClick = {
                                 scope.launch {
-                                    if (!MusicAuth.fetchUserData()) {
+                                    val refreshed = MusicAuth.fetchUserData()
+                                    librarySummary = loadLibrarySummary()
+                                    if (!refreshed) {
                                         android.widget.Toast.makeText(
                                             context,
                                             "Couldn't refresh VK profile",
@@ -297,6 +319,38 @@ fun ProfileScreen(
                                     }
                                 }
                             },
+                        )
+                        ProfileDivider()
+                        if (!profileDomain.isNullOrBlank()) {
+                            ProfileNavigationRow(
+                                icon = Icons.Rounded.Person,
+                                label = "Copy VK profile link",
+                                value = "vk.com/$profileDomain",
+                                compact = compact,
+                                onClick = {
+                                    val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE)
+                                        as android.content.ClipboardManager
+                                    clipboard.setPrimaryClip(
+                                        android.content.ClipData.newPlainText(
+                                            "vk_profile_link",
+                                            "https://vk.com/$profileDomain",
+                                        ),
+                                    )
+                                    android.widget.Toast.makeText(
+                                        context,
+                                        "VK profile link copied",
+                                        android.widget.Toast.LENGTH_SHORT,
+                                    ).show()
+                                },
+                            )
+                            ProfileDivider()
+                        }
+                        ProfileNavigationRow(
+                            icon = Icons.Rounded.QueueMusic,
+                            label = "My Library",
+                            value = "Favorites, playlists & downloads",
+                            compact = compact,
+                            onClick = onOpenLibrary,
                         )
                         ProfileDivider()
                         ProfileNavigationRow(
@@ -506,4 +560,17 @@ private fun formatSessionStatus(expiresAtSeconds: Long?): String {
         minutesLeft < 3_600L -> "Active • expires in ${minutesLeft / 60}m"
         else -> "Active • expires in ${minutesLeft / 3_600}h"
     }
+}
+
+private fun formatLastPlayback(timestampMs: Long?, source: String?): String {
+    if (timestampMs == null || timestampMs <= 0L) return "No listening events yet"
+    val secondsAgo = ((System.currentTimeMillis() - timestampMs).coerceAtLeast(0L)) / 1_000L
+    val relative = when {
+        secondsAgo < 60L -> "just now"
+        secondsAgo < 3_600L -> "${secondsAgo / 60}m ago"
+        secondsAgo < 86_400L -> "${secondsAgo / 3_600}h ago"
+        else -> "${secondsAgo / 86_400}d ago"
+    }
+    val sourceLabel = source?.replaceFirstChar { it.uppercase() }?.takeIf(String::isNotBlank)
+    return listOfNotNull(sourceLabel, relative).joinToString(" • ")
 }

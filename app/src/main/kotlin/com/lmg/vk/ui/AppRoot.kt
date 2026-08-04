@@ -609,7 +609,8 @@ fun AppRoot() {
                 onOpenSettings = { profileOpen = false; settingsOpen = true },
                 onLogout = { profileOpen = false },
                 onOpenAuth = { authOpen = true },
-                onOpenStats = { statsOpen = true }
+                onOpenStats = { statsOpen = true },
+                onOpenLibrary = { profileOpen = false; switchTab(2) },
             )
         }
 
