@@ -57,6 +57,11 @@ object HomeCacheManager {
                                     put("collectionId", item.collectionId ?: JSONObject.NULL)
                                     put("album", item.album ?: JSONObject.NULL)
                                     put("genre", item.genre ?: JSONObject.NULL)
+                                    put("isAlbum", item.isAlbum)
+                                    put("isArtist", item.isArtist)
+                                    put("isClip", item.isClip)
+                                    put("isCustom", item.isCustom)
+                                    put("isAvailable", item.isAvailable)
                                 })
                             }
                         })
@@ -106,7 +111,12 @@ object HomeCacheManager {
                         source = itemObj.optString("source", null)?.takeIf { it != "null" },
                         collectionId = itemObj.optString("collectionId", null)?.takeIf { it != "null" },
                         album = itemObj.optString("album", null)?.takeIf { it != "null" },
-                        genre = itemObj.optString("genre", null)?.takeIf { it != "null" }
+                        genre = itemObj.optString("genre", null)?.takeIf { it != "null" },
+                        isAlbum = itemObj.optBoolean("isAlbum", false),
+                        isArtist = itemObj.optBoolean("isArtist", false),
+                        isClip = itemObj.optBoolean("isClip", false),
+                        isCustom = itemObj.optBoolean("isCustom", false),
+                        isAvailable = itemObj.optBoolean("isAvailable", true),
                     ))
                 }
                 

@@ -22,8 +22,12 @@ import com.lmg.vk.network.dto.music.AudioSearchMainResponse
 import com.lmg.vk.network.dto.music.AudioStreamMix
 import com.lmg.vk.network.dto.music.AudioTrack
 import com.lmg.vk.network.dto.music.MainArtist
+import com.lmg.vk.network.dto.music.RadioStation
 import com.lmg.vk.network.dto.music.VkArtistDto
 import com.lmg.vk.network.dto.music.VkCatalogBlock
+import com.lmg.vk.network.dto.music.VkCatalogBanner
+import com.lmg.vk.network.dto.music.VkCatalogLink
+import com.lmg.vk.network.dto.music.VkCatalogProfile
 import com.lmg.vk.network.dto.music.VkCatalogResponse
 import com.lmg.vk.network.methods.VkAudioApi
 import com.lmg.vk.network.methods.VkCatalogApi
@@ -283,10 +287,56 @@ object MusicBackend {
     suspend fun loadHomeContent(region: String? = null): HomeResponse {
         requireInitialized()
         val catalog = catalogApi.getAudioAuto().requireData()
-        catalog.audios.orEmpty().also(::cacheTracks)
+        // `getAudioAuto` нередко содержит только список section id. VK X после
+        // него запрашивает сами секции через catalog.getSection; без этого New
+        // видит layout блоков, но не их реальные треки/альбомы/артистов.
+        val sectionIds = buildList {
+            catalog.catalog?.default_section?.takeIf(String::isNotBlank)?.let(::add)
+            catalog.catalog?.sections.orEmpty().map { it.id }.filter(String::isNotBlank).forEach(::add)
+        }.distinct()
+        val sectionPages = coroutineScope {
+            sectionIds
+                .map { sectionId -> async { catalogApi.getSection(sectionId).getOrNull() } }
+                .mapNotNull { it.await() }
+        }
+        val catalogPages = listOf(catalog) + sectionPages
+        val catalogBlocks = catalogPages
+            .flatMap { it.toHomeBlocks() }
+            .distinctBy(HomeBlock::id)
+        val blocks = catalogBlocks.ifEmpty { loadHomeFallbackBlocks() }
+        catalogPages.flatMap { it.audios.orEmpty() }
+            .distinctBy(AudioTrack::fullId)
+            .also(::cacheTracks)
         return HomeResponse(
-            blocks = catalog.toHomeBlocks(),
+            blocks = blocks,
             updatedAt = System.currentTimeMillis(),
+        )
+    }
+
+    /**
+     * Подтверждённый VK fallback для редких ответов без CatalogKit item IDs.
+     * Это не локальные карточки: оба списка приходят из audio.* текущей сессии.
+     */
+    private suspend fun loadHomeFallbackBlocks(): List<HomeBlock> = coroutineScope {
+        val recommendations = async { audioApi.getRecommendations(count = 50).getOrNull().orEmpty() }
+        val popular = async { audioApi.getPopular(count = 50).getOrNull().orEmpty() }
+        listOfNotNull(
+            recommendations.await().takeIf { it.isNotEmpty() }?.let { tracks ->
+                HomeBlock(
+                    id = "vk_recommendations",
+                    title = "Рекомендации VK",
+                    type = "recommendations",
+                    items = tracks.map { it.toHomeItem() },
+                )
+            },
+            popular.await().takeIf { it.isNotEmpty() }?.let { tracks ->
+                HomeBlock(
+                    id = "vk_popular",
+                    title = "Популярное в VK",
+                    type = "popular",
+                    items = tracks.map { it.toHomeItem() },
+                )
+            },
         )
     }
 
@@ -1307,6 +1357,52 @@ object MusicBackend {
         isArtist = true,
     )
 
+    private fun VkCatalogBanner.toHomeItem() = HomeItem(
+        id = "catalog_banner_$id",
+        title = title?.takeIf(String::isNotBlank)
+            ?: text?.takeIf(String::isNotBlank)
+            ?: "VK Музыка",
+        artist = subtext?.takeIf(String::isNotBlank),
+        cover = coverUrl(),
+        source = "vk",
+        // Баннер — реальная сущность CatalogKit, но не аудиозапись. Не
+        // пытаемся передать его в плеер до восстановления click_action.
+        isCustom = true,
+    )
+
+    private fun VkCatalogProfile.toHomeItem() = HomeItem(
+        id = "curator_$id",
+        title = displayName.ifBlank { "VK Музыка" },
+        cover = photo_base?.takeIf(String::isNotBlank),
+        source = "vk",
+        isCustom = true,
+    )
+
+    private fun VkCatalogLink.toHomeItem() = HomeItem(
+        id = "catalog_link_$id",
+        title = title.ifBlank { "VK Музыка" },
+        artist = subtitle.takeIf(String::isNotBlank),
+        cover = coverUrl(),
+        source = "vk",
+        isCustom = true,
+    )
+
+    private fun RadioStation.toHomeItem() = HomeItem(
+        id = "radio_$id",
+        title = name,
+        cover = logo_png_url?.takeIf(String::isNotBlank) ?: logo_url,
+        source = "vk",
+        isCustom = true,
+    )
+
+    private fun AudioStreamMix.toHomeItem() = HomeItem(
+        id = "stream_mix_$id",
+        title = title,
+        artist = description.takeIf(String::isNotBlank),
+        source = "vk",
+        isCustom = true,
+    )
+
     private fun AudioTrack.toTrackMeta() = TrackMeta(
         id = fullId,
         collectionId = album?.id?.toString(),
@@ -1491,6 +1587,12 @@ object MusicBackend {
         val audiosById = audios.orEmpty().associateBy { it.fullId }
         val playlistsById = playlists.orEmpty().associateBy { it.fullId }
         val artistsById = artists.orEmpty().associateBy { it.id }
+        val linksById = links.orEmpty().associateBy { it.id }
+        val bannersById = catalog_banners.orEmpty().associateBy { it.id.toString() }
+        val curatorsById = curators.orEmpty().associateBy { it.id.toString() }
+        val ownersById = music_owners.orEmpty().associateBy { it.id.toString() }
+        val stationsById = radio_stations.orEmpty().associateBy { it.id.toString() }
+        val streamMixesById = audio_stream_mixes.orEmpty().associateBy { it.id }
 
         fun <T> Map<String, T>.byCatalogId(value: String): T? =
             this[value] ?: this[value.removePrefix("vk_")]
@@ -1502,6 +1604,18 @@ object MusicBackend {
                 block.playlists_ids.orEmpty().mapNotNull(playlistsById::byCatalogId)
                     .forEach { add(it.toHomeItem()) }
                 block.artists_ids.orEmpty().mapNotNull(artistsById::byCatalogId)
+                    .forEach { add(it.toHomeItem()) }
+                block.links_ids.orEmpty().mapNotNull(linksById::byCatalogId)
+                    .forEach { add(it.toHomeItem()) }
+                block.catalog_banner_ids.orEmpty().mapNotNull(bannersById::byCatalogId)
+                    .forEach { add(it.toHomeItem()) }
+                block.curators_ids.orEmpty().mapNotNull(curatorsById::byCatalogId)
+                    .forEach { add(it.toHomeItem()) }
+                block.music_owners_ids.orEmpty().mapNotNull(ownersById::byCatalogId)
+                    .forEach { add(it.toHomeItem()) }
+                block.radio_stations_ids.orEmpty().mapNotNull(stationsById::byCatalogId)
+                    .forEach { add(it.toHomeItem()) }
+                block.audio_stream_mixes_ids.orEmpty().mapNotNull(streamMixesById::byCatalogId)
                     .forEach { add(it.toHomeItem()) }
             }.distinctBy(HomeItem::id)
 

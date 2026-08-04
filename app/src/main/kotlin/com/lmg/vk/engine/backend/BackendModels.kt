@@ -1075,11 +1075,13 @@ data class HomeItem(
     @SerialName("isAlbum") val isAlbum: Boolean = false,
     @SerialName("isArtist") val isArtist: Boolean = false,
     @SerialName("isClip") val isClip: Boolean = false,
+    /** Server CatalogKit promotional/editorial card without an audio stream. */
+    @SerialName("isCustom") val isCustom: Boolean = false,
     @SerialName("isAvailable") val isAvailable: Boolean = true
 ) {
     /** Трек = не альбом, не артист и не видеоклип (клип не стримится). */
     val isTrack: Boolean
-        get() = !isAlbum && !isArtist && !isClip
+        get() = !isAlbum && !isArtist && !isClip && !isCustom
 
     val displayArtist: String
         get() = artist?.takeIf { it.isNotBlank() && it != "Исполнитель" }

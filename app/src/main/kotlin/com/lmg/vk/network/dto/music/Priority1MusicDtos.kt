@@ -128,6 +128,11 @@ data class VkCatalogResponse(
     val artist_videos: List<VkCatalogVideo>? = null,
     val videos: List<VkCatalogVideo>? = null,
     val links: List<VkCatalogLink>? = null,
+    // Catalog2ResponseJsonAdapter VK X: banner and curator blocks are part of
+    // the main music catalog (for example, "Сегодня в плеере" and editorial
+    // selections), not application-owned recommendations.
+    val catalog_banners: List<VkCatalogBanner>? = null,
+    val curators: List<VkCatalogProfile>? = null,
     val music_owners: List<VkCatalogProfile>? = null,
     val audios: List<AudioTrack>? = null,
     val playlists: List<AudioPlaylist>? = null,
@@ -164,8 +169,28 @@ data class VkCatalogBlock(
     val artist_videos_ids: List<String>? = null,
     val videos_ids: List<String>? = null,
     val links_ids: List<String>? = null,
+    val catalog_banner_ids: List<String>? = null,
+    val curators_ids: List<String>? = null,
     val music_owners_ids: List<String>? = null,
+    val radio_stations_ids: List<String>? = null,
+    val audio_stream_mixes_ids: List<String>? = null,
 )
+
+/** `Catalog2Banner` from the recovered CatalogKit response adapter. */
+@JsonClass(generateAdapter = true)
+data class VkCatalogBanner(
+    val id: Int = 0,
+    val images: List<VkArtistPhoto>? = null,
+    val text: String? = null,
+    val title: String? = null,
+    val subtext: String? = null,
+    val image_mode: String? = null,
+) {
+    fun coverUrl(): String? = images.orEmpty()
+        .filter { it.url.isNotBlank() }
+        .maxByOrNull { it.width * it.height }
+        ?.url
+}
 
 @JsonClass(generateAdapter = true)
 data class VkCatalogLayout(

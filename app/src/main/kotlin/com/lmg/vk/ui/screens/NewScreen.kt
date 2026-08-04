@@ -26,7 +26,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -60,11 +59,6 @@ fun NewScreen(
     onNavigateToArtist: (String) -> Unit = {},
 ) {
     val context = LocalContext.current
-    DisposableEffect(viewModel) {
-        onDispose {
-            viewModel.cancelHomeLoad()
-        }
-    }
     LaunchedEffect(viewModel) { viewModel.loadHomeContent() }
 
     val homeContent by viewModel.homeContent.collectAsState()
@@ -126,6 +120,29 @@ fun NewScreen(
                 }
             }
 
+            // Экран не остаётся пустым даже если VK временно вернул пустой
+            // каталог: пользователь может повторить именно VK-запрос.
+            if (homeBlocks.isEmpty() && !isLoading && loadError == null) {
+                item {
+                    Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp)) {
+                        Text(
+                            text = "В каталоге VK пока нет блоков",
+                            color = lc.textSecondary,
+                            fontSize = 14.sp,
+                        )
+                        Text(
+                            text = "Повторить загрузку",
+                            color = lc.textPrimary,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier
+                                .padding(top = 8.dp)
+                                .clickable { viewModel.loadHomeContent(force = true) },
+                        )
+                    }
+                }
+            }
+
             // ── Home-блоки (popular / new_releases / recommendations …) ──
             homeBlocks.forEach { block ->
                 item(key = "block_${block.id}") {
@@ -143,6 +160,7 @@ fun NewScreen(
                                 enabled = !homeItem.isTrack || homeItem.isAvailable,
                                 onClick = {
                                     when {
+                                        homeItem.isCustom -> Unit
                                         homeItem.isArtist -> onNavigateToArtist(homeItem.artistId ?: homeItem.id)
                                         homeItem.isAlbum -> onNavigateToAlbum(homeItem.collectionId ?: homeItem.id)
                                         else -> PlayerController.playFromList(context, listOf(homeItem.toTrack()))
