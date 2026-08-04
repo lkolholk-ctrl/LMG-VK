@@ -151,7 +151,6 @@ fun LibraryScreen(
     val errorMessage by viewModel.errorMessage.collectAsState()
 
     // Downloads state
-    val isPremium by MusicAuth.isPremium.collectAsState()
     val db = remember { FavoriteTrackDatabase.getInstance(context) }
     val downloadedTracks by db.downloadsFlow.collectAsState(initial = emptyList())
 
@@ -162,6 +161,7 @@ fun LibraryScreen(
     var showCreatePlaylistDialog by remember { mutableStateOf(false) }
     val localPlaylists by com.lmg.vk.engine.PlaylistManager.playlists.collectAsState()
     val playlistSyncState by PlaylistSyncManager.state.collectAsState()
+    val snackbarHostState = remember { SnackbarHostState() }
 
     val allPlaylistCells = remember(localPlaylists, importedPlaylists) {
         val linkedRemoteIds = localPlaylists.mapNotNull { it.remoteId }.toSet()
@@ -211,6 +211,11 @@ fun LibraryScreen(
                 }
             }
         }
+    }
+
+    fun refreshLibrary() {
+        viewModel.syncWithCloud()
+        loadImportedPlaylists()
     }
 
     LaunchedEffect(isLoggedIn) {
@@ -269,13 +274,14 @@ fun LibraryScreen(
                     }
                 }
 
-                val favoritePreview = remember(favorites, libraryQuery) {
+                val matchingFavorites = remember(favorites, libraryQuery) {
                     favorites.filter {
                         libraryQuery.isBlank() ||
                             it.title.contains(libraryQuery, ignoreCase = true) ||
                             it.artistName.orEmpty().contains(libraryQuery, ignoreCase = true)
-                    }.take(5)
+                    }
                 }
+                val favoritePreview = remember(matchingFavorites) { matchingFavorites.take(5) }
 
                 androidx.compose.foundation.lazy.grid.LazyVerticalGrid(
                     // В альбоме/на планшете больше колонок под плейлисты (было 2);
@@ -291,13 +297,26 @@ fun LibraryScreen(
                     item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) {
                         Column {
                             Spacer(Modifier.windowInsetsTopHeight(WindowInsets.statusBars))
-                            Text(
-                                text = "Library",
-                                fontSize = if (win.useSideBySide) 26.sp else 34.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = lc.textPrimary,
-                                modifier = Modifier.padding(top = 12.dp, bottom = 8.dp)
-                            )
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = "Library",
+                                    fontSize = if (win.useSideBySide) 26.sp else 34.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = lc.textPrimary,
+                                    modifier = Modifier.padding(top = 12.dp, bottom = 8.dp).weight(1f)
+                                )
+                                if (isSyncing || playlistSyncState.isSyncing) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(20.dp),
+                                        color = lc.accent,
+                                        strokeWidth = 2.dp,
+                                    )
+                                } else if (isLoggedIn) {
+                                    IconButton(onClick = ::refreshLibrary) {
+                                        Icon(Icons.Filled.Refresh, "Refresh library", tint = lc.iconMuted)
+                                    }
+                                }
+                            }
                         }
                     }
 
@@ -350,18 +369,6 @@ fun LibraryScreen(
                                 compact = win.useSideBySide,
                                 onClick = { currentView = LibraryView.DOWNLOADS }
                             )
-                            SystemRowDivider(compact = win.useSideBySide)
-                            MenuCard(
-                                title = "VK Music subscription",
-                                subtitle = if (isPremium) "Active" else "Required for offline caching",
-                                icon = Icons.Rounded.MusicNote,
-                                tint = Color(0xFF30D158),
-                                compact = win.useSideBySide,
-                                onClick = {},
-                                trailing = {
-                                    if (isPremium) Icon(Icons.Rounded.Check, null, tint = Color(0xFF30D158))
-                                },
-                            )
                         }
                     }
 
@@ -371,14 +378,18 @@ fun LibraryScreen(
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Text(
-                                text = "My tracks · ${favorites.size}",
+                                text = if (libraryQuery.isBlank()) {
+                                    "My tracks · ${favorites.size}"
+                                } else {
+                                    "Search results · ${matchingFavorites.size}"
+                                },
                                 color = lc.textPrimary,
                                 fontSize = if (win.useSideBySide) 17.sp else 20.sp,
                                 fontWeight = FontWeight.Bold,
                                 modifier = Modifier.weight(1f),
                             )
                             Text(
-                                "Default",
+                                if (libraryQuery.isBlank()) "See all" else "Show all",
                                 color = lc.accent,
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.SemiBold,
@@ -588,16 +599,27 @@ fun LibraryScreen(
             }
 
             LibraryView.FAVORITES -> {
-                val displayedFavorites = remember(favorites, favoriteSort) {
+                val matchingFavorites = remember(favorites, libraryQuery) {
+                    favorites.filter {
+                        libraryQuery.isBlank() ||
+                            it.title.contains(libraryQuery, ignoreCase = true) ||
+                            it.artistName.orEmpty().contains(libraryQuery, ignoreCase = true)
+                    }
+                }
+                val displayedFavorites = remember(matchingFavorites, favoriteSort) {
                     when (favoriteSort) {
-                        FavoriteSort.DEFAULT -> favorites
-                        FavoriteSort.TITLE -> favorites.sortedBy { it.title.lowercase() }
-                        FavoriteSort.ARTIST -> favorites.sortedBy { it.artistName.orEmpty().lowercase() }
+                        FavoriteSort.DEFAULT -> matchingFavorites
+                        FavoriteSort.TITLE -> matchingFavorites.sortedBy { it.title.lowercase() }
+                        FavoriteSort.ARTIST -> matchingFavorites.sortedBy { it.artistName.orEmpty().lowercase() }
                     }
                 }
                 Column(modifier = Modifier.fillMaxSize()) {
                     // Header
-                    SubHeader("My tracks · ${favorites.size}", onBack = { currentView = LibraryView.MAIN }) {
+                    SubHeader(
+                        if (libraryQuery.isBlank()) "My tracks · ${favorites.size}"
+                        else "Search results · ${matchingFavorites.size}",
+                        onBack = { currentView = LibraryView.MAIN },
+                    ) {
                         if (isSyncing) {
                             CircularProgressIndicator(
                                 modifier = Modifier.size(20.dp),
@@ -610,6 +632,12 @@ fun LibraryScreen(
                             }
                         }
                     }
+
+                    LibrarySearchField(
+                        value = libraryQuery,
+                        onValueChange = { libraryQuery = it },
+                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
+                    )
 
                     Row(
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 4.dp),
@@ -651,8 +679,11 @@ fun LibraryScreen(
                     }
 
                     // Content
-                    if (favorites.isEmpty() && !isSyncing) {
-                        EmptyState("No favorites yet", Icons.Default.Favorite)
+                    if (displayedFavorites.isEmpty() && !isSyncing) {
+                        EmptyState(
+                            if (libraryQuery.isBlank()) "No favorites yet" else "No tracks match your search",
+                            Icons.Default.Favorite,
+                        )
                     } else {
                         LazyColumn(
                             modifier = Modifier.weight(1f),
@@ -743,9 +774,7 @@ fun LibraryScreen(
                         }
                     }
 
-                    if (!isPremium && downloadedTracks.isEmpty()) {
-                        PremiumDownloadsPromo(backdrop = backdrop)
-                    } else if (downloadedTracks.isEmpty()) {
+                    if (downloadedTracks.isEmpty()) {
                         EmptyState("No downloaded tracks yet", Icons.Default.Download)
                     } else {
                         LazyColumn(
@@ -1030,13 +1059,18 @@ fun LibraryScreen(
             )
         }
 
-        // Error Snackbar
-        if (errorMessage != null) {
-            LaunchedEffect(errorMessage) {
-                delay(3000)
+        errorMessage?.let { message ->
+            LaunchedEffect(message) {
+                snackbarHostState.showSnackbar(message)
                 viewModel.clearError()
             }
         }
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(horizontal = 20.dp, vertical = 96.dp),
+        )
     }
 }
 
@@ -2021,65 +2055,6 @@ private fun EmptyState(message: String, icon: androidx.compose.ui.graphics.vecto
                 fontSize = 16.sp,
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center
             )
-        }
-    }
-}
-
-@Composable
-private fun PremiumDownloadsPromo(backdrop: LayerBackdrop? = null) {
-    val lc = LiquidTheme.colors
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(24.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(24.dp))
-                .background(lc.glassTint)
-                .padding(32.dp)
-        ) {
-            Icon(
-                imageVector = Icons.Default.Download,
-                contentDescription = null,
-                tint = AppleRed,
-                modifier = Modifier.size(64.dp)
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-            Text(
-                text = "Premium Exclusive",
-                color = lc.textPrimary,
-                fontSize = 22.sp,
-                fontWeight = FontWeight.Bold
-            )
-            Spacer(modifier = Modifier.height(12.dp))
-            Text(
-                text = "Offline downloads are strictly a Premium feature under Aggregator requirements. Listen to music without connection.",
-                color = lc.textSecondary,
-                fontSize = 14.sp,
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                lineHeight = 20.sp
-            )
-            Spacer(modifier = Modifier.height(28.dp))
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(AppleRed)
-                    .padding(vertical = 14.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "Premium required",
-                    color = Color.White,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Bold
-                )
-            }
         }
     }
 }

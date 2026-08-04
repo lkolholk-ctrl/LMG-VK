@@ -46,7 +46,7 @@ import com.lmg.vk.ui.theme.LiquidTheme
  * навигации, разделитель и профиль внизу. Стиль — НАШ: палитра из
  * [LiquidTheme.colors], поэтому корректно работает и в светлой, и в тёмной
  * теме. Индексы вкладок совпадают с BottomBar/AppRoot:
- *   Wave = 0, Search = 1, Playlist = 2, Settings = 3, New = 4.
+ *   Wave = 0, Search = 1, Library = 2, Settings = 3, New = 4.
  */
 val SideBarWidth = 176.dp
 
@@ -67,7 +67,7 @@ fun SideBar(
             SideNavItem(LiquidGlyphs.Home, "Home", 0),
             SideNavItem(LiquidGlyphs.Search, "Search", 1),
             SideNavItem(LiquidGlyphs.Star, "New", 4),
-            SideNavItem(LiquidGlyphs.Playlist, "Playlist", 2),
+            SideNavItem(LiquidGlyphs.Playlist, "Library", 2),
             SideNavItem(LiquidGlyphs.Settings, "Settings", 3),
         )
     }

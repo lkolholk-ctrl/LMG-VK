@@ -67,7 +67,9 @@ class LibraryViewModel(context: Context) : ViewModel() {
             _isSyncing.value = true
             _errorMessage.value = null
             try {
-                repository.syncWithCloud()
+                repository.syncWithCloud().exceptionOrNull()?.let { error ->
+                    _errorMessage.value = error.message ?: "VK library sync failed"
+                }
             } catch (e: Exception) {
                 _errorMessage.value = e.message ?: "Sync failed"
             } finally {

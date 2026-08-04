@@ -32,7 +32,7 @@ import com.lmg.vk.ui.theme.LiquidTheme
  * эффекты убраны ради производительности).
  *
  * 4 вкладки сопоставлены с глобальными индексами экранов в [AppRoot]:
- * Wave = 0, New = 4, Playlist = 2, Settings = 3. Индекс 1 (Поиск) не в баре —
+ * Wave = 0, New = 4, Library = 2, Settings = 3. Индекс 1 (Поиск) не в баре —
  * поиск открывается с экрана Wave. Профиль вынесен в иконку слева вверху Wave.
  */
 private data class BottomNavItem(
@@ -54,7 +54,7 @@ fun BottomBar(
         listOf(
             BottomNavItem(LiquidGlyphs.Equalizer, "Wave", 0),
             BottomNavItem(LiquidGlyphs.Star, "New", 4),
-            BottomNavItem(LiquidGlyphs.Playlist, "Playlist", 2),
+            BottomNavItem(LiquidGlyphs.Playlist, "Library", 2),
             BottomNavItem(LiquidGlyphs.Settings, "Settings", 3)
         )
     }
