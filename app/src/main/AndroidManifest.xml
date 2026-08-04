@@ -51,12 +51,106 @@
             android:exported="true"
             android:launchMode="singleTask"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize|density|uiMode"
-            android:windowSoftInputMode="adjustResize">
+            android:windowSoftInputMode="adjustResize" />
+
+        <!-- Один alias включён всегда: Settings переключает их для смены иконки. -->
+        <activity-alias
+            android:name=".LauncherIconSunset"
+            android:targetActivity=".MainActivity"
+            android:enabled="true"
+            android:exported="true"
+            android:icon="@drawable/launcher_icon_sunset"
+            android:label="@string/app_name">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-        </activity>
+        </activity-alias>
+
+        <activity-alias
+            android:name=".LauncherIconEmerald"
+            android:targetActivity=".MainActivity"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@drawable/launcher_icon_emerald"
+            android:label="@string/app_name"><intent-filter><action android:name="android.intent.action.MAIN" /><category android:name="android.intent.category.LAUNCHER" /></intent-filter></activity-alias>
+        <activity-alias
+            android:name=".LauncherIconLagoon"
+            android:targetActivity=".MainActivity"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@drawable/launcher_icon_lagoon"
+            android:label="@string/app_name"><intent-filter><action android:name="android.intent.action.MAIN" /><category android:name="android.intent.category.LAUNCHER" /></intent-filter></activity-alias>
+        <activity-alias
+            android:name=".LauncherIconAmethyst"
+            android:targetActivity=".MainActivity"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@drawable/launcher_icon_amethyst"
+            android:label="@string/app_name"><intent-filter><action android:name="android.intent.action.MAIN" /><category android:name="android.intent.category.LAUNCHER" /></intent-filter></activity-alias>
+        <activity-alias
+            android:name=".LauncherIconPrism"
+            android:targetActivity=".MainActivity"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@drawable/launcher_icon_prism"
+            android:label="@string/app_name"><intent-filter><action android:name="android.intent.action.MAIN" /><category android:name="android.intent.category.LAUNCHER" /></intent-filter></activity-alias>
+        <activity-alias
+            android:name=".LauncherIconNeon"
+            android:targetActivity=".MainActivity"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@drawable/launcher_icon_neon"
+            android:label="@string/app_name"><intent-filter><action android:name="android.intent.action.MAIN" /><category android:name="android.intent.category.LAUNCHER" /></intent-filter></activity-alias>
+        <activity-alias
+            android:name=".LauncherIconFuchsia"
+            android:targetActivity=".MainActivity"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@drawable/launcher_icon_fuchsia"
+            android:label="@string/app_name"><intent-filter><action android:name="android.intent.action.MAIN" /><category android:name="android.intent.category.LAUNCHER" /></intent-filter></activity-alias>
+        <activity-alias
+            android:name=".LauncherIconAmber"
+            android:targetActivity=".MainActivity"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@drawable/launcher_icon_amber"
+            android:label="@string/app_name"><intent-filter><action android:name="android.intent.action.MAIN" /><category android:name="android.intent.category.LAUNCHER" /></intent-filter></activity-alias>
+        <activity-alias
+            android:name=".LauncherIconRuby"
+            android:targetActivity=".MainActivity"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@drawable/launcher_icon_ruby"
+            android:label="@string/app_name"><intent-filter><action android:name="android.intent.action.MAIN" /><category android:name="android.intent.category.LAUNCHER" /></intent-filter></activity-alias>
+        <activity-alias
+            android:name=".LauncherIconGraphite"
+            android:targetActivity=".MainActivity"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@drawable/launcher_icon_graphite"
+            android:label="@string/app_name"><intent-filter><action android:name="android.intent.action.MAIN" /><category android:name="android.intent.category.LAUNCHER" /></intent-filter></activity-alias>
+        <activity-alias
+            android:name=".LauncherIconRose"
+            android:targetActivity=".MainActivity"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@drawable/launcher_icon_rose"
+            android:label="@string/app_name"><intent-filter><action android:name="android.intent.action.MAIN" /><category android:name="android.intent.category.LAUNCHER" /></intent-filter></activity-alias>
+        <activity-alias
+            android:name=".LauncherIconCobalt"
+            android:targetActivity=".MainActivity"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@drawable/launcher_icon_cobalt"
+            android:label="@string/app_name"><intent-filter><action android:name="android.intent.action.MAIN" /><category android:name="android.intent.category.LAUNCHER" /></intent-filter></activity-alias>
+        <activity-alias
+            android:name=".LauncherIconPearl"
+            android:targetActivity=".MainActivity"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@drawable/launcher_icon_pearl"
+            android:label="@string/app_name"><intent-filter><action android:name="android.intent.action.MAIN" /><category android:name="android.intent.category.LAUNCHER" /></intent-filter></activity-alias>
 
         <!-- Экран краша: java_crash-логи + native/ANR-дампы Fishnet -->
         <activity

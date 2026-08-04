@@ -565,3 +565,14 @@ UI, ресурсы и исходную логику необходимо **в п
 - В ключ выбора передаются ID/название/исполнитель в плеере, очереди, контекстном меню, New, избранном, скачанном, recent и preview Library. Поэтому у одного трека оттенок сохраняется между этими экранами, а набор не сводится к одному варианту.
 - Изменены: `ui/glass/AlbumArtImage.kt`, `ui/screens/NewScreen.kt`, `ui/screens/LibraryScreen.kt`, `ui/components/TrackActionsSheet.kt`, `ui/player/{FullPlayer,MiniPlayer,QueueSheet}.kt`, десять `default_track_cover_*.png`, `MEMORY.md`.
 - Локальная Gradle-сборка и GitHub Actions не запускаются по прямому правилу владельца. Перед коммитом выполнить только `git diff --check`, статическую сверку R-ресурсов и поиск оставшегося `VkDefaultAudioCover`.
+
+# Переключаемые иконки приложения
+
+**Текущий логический этап:** 13 вариантов launcher-иконки из пользовательского `icons.zip`. SHA данного коммита смотреть через `git log -1 --oneline` после применения.
+
+- В `res/drawable-nodpi/` добавлены оригинальные PNG из архива владельца: `launcher_icon_{sunset,emerald,lagoon,amethyst,prism,neon,fuchsia,amber,ruby,graphite,rose,cobalt,pearl}.png`.
+- Названия вариантов: «Закат», «Изумруд», «Лагуна», «Аметист», «Призма», «Неон», «Фуксия», «Янтарь», «Рубин», «Графит», «Роза», «Кобальт», «Жемчуг». По умолчанию — «Закат».
+- `AndroidManifest.xml` использует 13 `activity-alias`, из которых в fresh install включён только `LauncherIconSunset`; основной `MainActivity` больше не объявляет свой собственный LAUNCHER intent-filter, поэтому дубликата ярлыка нет.
+- `ui/LauncherIconManager.kt` включает новый alias раньше отключения старого, сохраняет выбор в SharedPreferences и использует `DONT_KILL_APP` — смена не перезапускает activity.
+- В Settings добавлена сетка превью со всеми 13 вариантами, выбранным состоянием и уведомлением. Некоторые системные лаунчеры могут обновить картинку на домашнем экране с короткой задержкой собственного кэша.
+- Локальная Gradle-сборка и GitHub Actions не запускались по правилу владельца; перед коммитом допустимы только статические проверки manifest/resources/diff.

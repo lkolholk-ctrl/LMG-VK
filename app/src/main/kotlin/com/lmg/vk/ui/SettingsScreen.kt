@@ -3,6 +3,7 @@ package com.lmg.vk.ui.screens
 import android.content.Context
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -17,6 +18,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.ChevronRight
+import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Equalizer
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.ui.graphics.SolidColor
@@ -37,6 +39,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -50,6 +53,8 @@ import com.lmg.vk.engine.PlayerSettings
 import com.lmg.vk.engine.backend.MusicBackend
 import com.lmg.vk.ui.glass.liquidClickable
 import com.lmg.vk.ui.liquid.LiquidToggle
+import com.lmg.vk.ui.LauncherIcon
+import com.lmg.vk.ui.LauncherIconManager
 import com.lmg.vk.ui.theme.LiquidMotion
 import com.lmg.vk.ui.theme.LiquidTheme
 import kotlinx.coroutines.launch
@@ -219,6 +224,27 @@ fun SettingsScreen(
                         )
                     }
                 }
+            }
+
+            Spacer(modifier = Modifier.height(sectionGap))
+
+            // APP ICON — launcher-алиасы переключаются без перезапуска activity.
+            SectionLabel("APP ICON")
+            var launcherIcon by remember { mutableStateOf(LauncherIconManager.current(context)) }
+            PlainCard {
+                LauncherIconSelector(
+                    selected = launcherIcon,
+                    onSelect = { icon ->
+                        if (LauncherIconManager.select(context, icon)) {
+                            launcherIcon = icon
+                            android.widget.Toast.makeText(
+                                context,
+                                "Иконка «${icon.title}» выбрана",
+                                android.widget.Toast.LENGTH_SHORT,
+                            ).show()
+                        }
+                    },
+                )
             }
 
             Spacer(modifier = Modifier.height(sectionGap))
@@ -1352,6 +1378,96 @@ private fun SettingsActionItem(
             tint = LiquidTheme.colors.iconDefault,
             modifier = Modifier.size(20.dp)
         )
+    }
+}
+
+/** Сетка доступных ярлыков: названия — оттенки из предоставленного набора. */
+@Composable
+private fun LauncherIconSelector(
+    selected: LauncherIcon,
+    onSelect: (LauncherIcon) -> Unit,
+) {
+    val colors = LiquidTheme.colors
+    Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 14.dp)) {
+        Text(
+            text = "Иконка приложения",
+            color = colors.textPrimary,
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Medium,
+            modifier = Modifier.padding(horizontal = 4.dp),
+        )
+        Text(
+            text = "Сейчас: ${selected.title}",
+            color = colors.textSecondary,
+            fontSize = 12.sp,
+            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+        )
+        Spacer(Modifier.height(10.dp))
+        LauncherIcon.values().toList().chunked(4).forEach { rowIcons ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                rowIcons.forEach { icon ->
+                    val isSelected = icon == selected
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(12.dp))
+                            .liquidClickable(pressedScale = LiquidMotion.PressIcon) {
+                                onSelect(icon)
+                            },
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .aspectRatio(1f)
+                                .clip(RoundedCornerShape(12.dp))
+                                .border(
+                                    width = if (isSelected) 2.dp else 1.dp,
+                                    color = if (isSelected) Accent else colors.glassBorder,
+                                    shape = RoundedCornerShape(12.dp),
+                                ),
+                        ) {
+                            Image(
+                                painter = painterResource(icon.drawableRes),
+                                contentDescription = icon.title,
+                                modifier = Modifier.fillMaxSize(),
+                            )
+                            if (isSelected) {
+                                Box(
+                                    modifier = Modifier
+                                        .align(Alignment.TopEnd)
+                                        .padding(5.dp)
+                                        .size(20.dp)
+                                        .background(Accent, CircleShape),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Check,
+                                        contentDescription = null,
+                                        tint = Color.White,
+                                        modifier = Modifier.size(14.dp),
+                                    )
+                                }
+                            }
+                        }
+                        Text(
+                            text = icon.title,
+                            color = if (isSelected) colors.textPrimary else colors.textSecondary,
+                            fontSize = 10.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.padding(top = 4.dp, bottom = 8.dp),
+                        )
+                    }
+                }
+                repeat(4 - rowIcons.size) {
+                    Spacer(modifier = Modifier.weight(1f))
+                }
+            }
+        }
     }
 }
 
