@@ -1074,7 +1074,8 @@ data class HomeItem(
     // collectionId (id своего альбома), поэтому тап по треку открывал альбом.
     @SerialName("isAlbum") val isAlbum: Boolean = false,
     @SerialName("isArtist") val isArtist: Boolean = false,
-    @SerialName("isClip") val isClip: Boolean = false
+    @SerialName("isClip") val isClip: Boolean = false,
+    @SerialName("isAvailable") val isAvailable: Boolean = true
 ) {
     /** Трек = не альбом, не артист и не видеоклип (клип не стримится). */
     val isTrack: Boolean

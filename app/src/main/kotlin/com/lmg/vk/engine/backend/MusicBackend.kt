@@ -283,29 +283,11 @@ object MusicBackend {
     suspend fun loadHomeContent(region: String? = null): HomeResponse {
         requireInitialized()
         val catalog = catalogApi.getAudioAuto().requireData()
-        val catalogTracks = catalog.audios.orEmpty().also(::cacheTracks)
-        val popularTracks = when (val result = audioApi.getPopular(count = 50)) {
-            is VkResult.Success -> result.data.also(::cacheTracks)
-            is VkResult.Error -> emptyList()
-        }
-
-        val blocks = buildList {
-            val releases = catalog.playlists.orEmpty().map { it.toHomeItem() }
-            if (releases.isNotEmpty()) {
-                add(HomeBlock("vk_new_releases", "Новые релизы", "new_releases", releases))
-            }
-            if (popularTracks.isNotEmpty()) {
-                add(HomeBlock("vk_charts", "Популярное", "charts", popularTracks.map { it.toHomeItem() }))
-            }
-            if (catalogTracks.isNotEmpty()) {
-                add(HomeBlock("vk_recommendations", "Рекомендации", "recommendations", catalogTracks.map { it.toHomeItem() }))
-            }
-            val artists = catalog.artists.orEmpty().map { it.toHomeItem() }
-            if (artists.isNotEmpty()) {
-                add(HomeBlock("vk_artists", "Исполнители", "artists", artists))
-            }
-        }
-        return HomeResponse(blocks = blocks, updatedAt = System.currentTimeMillis())
+        catalog.audios.orEmpty().also(::cacheTracks)
+        return HomeResponse(
+            blocks = catalog.toHomeBlocks(),
+            updatedAt = System.currentTimeMillis(),
+        )
     }
 
     suspend fun loadCharts(region: String? = null): List<Chart> {
@@ -1298,6 +1280,7 @@ object MusicBackend {
         duration = duration.toLong(),
         source = "vk",
         trackId = fullId,
+        isAvailable = isAvailable,
     )
 
     private fun AudioPlaylist.toHomeItem() = HomeItem(
@@ -1498,6 +1481,53 @@ object MusicBackend {
         section?.blocks.orEmpty().let(::addAll)
         catalog?.sections.orEmpty().flatMap { it.blocks.orEmpty() }.let(::addAll)
     }.distinctBy { it.id }
+
+    /**
+     * VK X CatalogKit renders the ordered `catalog.sections[].blocks` response,
+     * resolving each block's entity IDs against the response payload. Keep that
+     * server order and titles instead of synthesising a few local categories.
+     */
+    private fun VkCatalogResponse.toHomeBlocks(): List<HomeBlock> {
+        val audiosById = audios.orEmpty().associateBy { it.fullId }
+        val playlistsById = playlists.orEmpty().associateBy { it.fullId }
+        val artistsById = artists.orEmpty().associateBy { it.id }
+
+        fun <T> Map<String, T>.byCatalogId(value: String): T? =
+            this[value] ?: this[value.removePrefix("vk_")]
+
+        val catalogBlocks = allBlocks().mapNotNull { block ->
+            val items = buildList {
+                block.audios_ids.orEmpty().mapNotNull(audiosById::byCatalogId)
+                    .forEach { add(it.toHomeItem()) }
+                block.playlists_ids.orEmpty().mapNotNull(playlistsById::byCatalogId)
+                    .forEach { add(it.toHomeItem()) }
+                block.artists_ids.orEmpty().mapNotNull(artistsById::byCatalogId)
+                    .forEach { add(it.toHomeItem()) }
+            }.distinctBy(HomeItem::id)
+
+            val title = block.layout?.title?.takeIf(String::isNotBlank)
+                ?: block.layout?.name?.takeIf(String::isNotBlank)
+                ?: block.data_type.takeIf(String::isNotBlank)
+                ?: block.id
+            items.takeIf { it.isNotEmpty() && block.id.isNotBlank() }
+                ?.let { HomeBlock(id = block.id, title = title, type = block.data_type, items = it) }
+        }
+        if (catalogBlocks.isNotEmpty()) return catalogBlocks
+
+        // Некоторые аккаунты/версии API не присылают ссылки blocks, но оставляют
+        // сущности в корне. Это тот же ответ VK, не локальная подмена контента.
+        return buildList {
+            playlists.orEmpty().map { it.toHomeItem() }.takeIf { it.isNotEmpty() }?.let {
+                add(HomeBlock("catalog_playlists", "Playlists", "playlists", it))
+            }
+            audios.orEmpty().map { it.toHomeItem() }.takeIf { it.isNotEmpty() }?.let {
+                add(HomeBlock("catalog_audios", "Tracks", "audios", it))
+            }
+            artists.orEmpty().map { it.toHomeItem() }.takeIf { it.isNotEmpty() }?.let {
+                add(HomeBlock("catalog_artists", "Artists", "artists", it))
+            }
+        }
+    }
 
     private fun VkCatalogBlock.matchesSection(vararg markers: String): Boolean {
         val haystack = listOf(id, data_type, layout?.name, layout?.title, layout?.subtitle)
