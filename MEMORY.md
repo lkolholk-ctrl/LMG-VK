@@ -234,6 +234,7 @@ UI, ресурсы и исходную логику необходимо **в п
 - UI остаётся собственным Compose UI LMG VK; из VK X перенесён только подтверждённый контракт `users.get` и уже восстановленная модель VK-сессии. Premium/subscription UI и логика VK X не используются.
 - Основные файлы: `MusicBackend.kt` (`MusicAuth`), `ProfileScreen.kt`, `MEMORY.md`.
 - Проверка: `git diff --check`, статический поиск запрещённых profile region/subscription API. Локальная Gradle-сборка и GitHub Actions не запускались.
+- Исправление по compile-логу владельца: в `ProfileCard` slot-type заменён с функции `Column` на `ColumnScope`; это устраняет `Unresolved reference 'Column'` на строках карточек профиля.
 
 # Что уже работало до этого этапа
 
