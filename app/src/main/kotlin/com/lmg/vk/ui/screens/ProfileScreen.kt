@@ -52,16 +52,28 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
-import com.lmg.vk.data.local.LocalAuthManager
+import com.lmg.vk.data.local.db.AppDatabase
+import com.lmg.vk.data.local.db.FavoriteTrackDatabase
 import com.lmg.vk.engine.backend.MusicAuth
+import com.lmg.vk.engine.PlaylistManager
 import com.lmg.vk.ui.glass.liquidClickable
 import com.lmg.vk.ui.theme.AppFontFamily
 import com.lmg.vk.ui.theme.LiquidTheme
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 private val DestructiveRed = Color(0xFFFC3C44)
 private val ProfileSurfaceDark = Color(0xFF1C1C1E)
 private val ProfileSurfaceLight = Color(0xFFF2F2F7)
+
+private data class ProfileLibrarySummary(
+    val favorites: Int = 0,
+    val downloads: Int = 0,
+    val localTracks: Int = 0,
+    val plays: Int = 0,
+    val listenedMs: Long = 0L,
+)
 
 /**
  * VK account screen. Profile identity is populated only from the recovered
@@ -83,10 +95,28 @@ fun ProfileScreen(
     val profileId by MusicAuth.profileId.collectAsState()
     val profileDomain by MusicAuth.profileDomain.collectAsState()
     val isRefreshing by MusicAuth.isProfileRefreshing.collectAsState()
+    val sessionExpiresAt by MusicAuth.profileSessionExpiresAt.collectAsState()
+    val playlists by PlaylistManager.playlists.collectAsState()
     var showSignOutConfirmation by remember { mutableStateOf(false) }
+    var librarySummary by remember { mutableStateOf(ProfileLibrarySummary()) }
 
     LaunchedEffect(isLoggedIn) {
         if (isLoggedIn) MusicAuth.fetchUserData()
+    }
+    LaunchedEffect(context) {
+        librarySummary = withContext(Dispatchers.IO) {
+            val appDatabase = AppDatabase.getInstance(context)
+            val favoritesDatabase = FavoriteTrackDatabase.getInstance(context)
+            favoritesDatabase.loadAsync()
+            val history = appDatabase.playbackHistoryDao()
+            ProfileLibrarySummary(
+                favorites = favoritesDatabase.getAllFavorites().size,
+                downloads = favoritesDatabase.getDownloadedTracks().size,
+                localTracks = appDatabase.localTracksDao().count(),
+                plays = history.getTotalPlayEvents(),
+                listenedMs = history.getTotalListenedMs(),
+            )
+        }
     }
 
     val displayName = profileName?.takeIf(String::isNotBlank)
@@ -110,7 +140,6 @@ fun ProfileScreen(
                 TextButton(
                     onClick = {
                         showSignOutConfirmation = false
-                        LocalAuthManager.logout()
                         MusicAuth.logout()
                         onLogout()
                     },
@@ -202,6 +231,45 @@ fun ProfileScreen(
                                 compact = compact,
                             )
                         }
+                        ProfileDivider()
+                        ProfileInfoRow(
+                            icon = Icons.Rounded.Refresh,
+                            label = "VK session",
+                            value = formatSessionStatus(sessionExpiresAt),
+                            compact = compact,
+                        )
+                    }
+                }
+                item { Spacer(Modifier.height(16.dp)) }
+            }
+
+            if (isLoggedIn) {
+                item {
+                    ProfileCard(surface = surface) {
+                        ProfileSectionLabel("YOUR LIBRARY")
+                        ProfileMetricsRow(
+                            firstValue = librarySummary.favorites.toString(),
+                            firstLabel = "Favorites",
+                            secondValue = playlists.size.toString(),
+                            secondLabel = "Playlists",
+                            compact = compact,
+                        )
+                        ProfileDivider()
+                        ProfileMetricsRow(
+                            firstValue = librarySummary.downloads.toString(),
+                            firstLabel = "Downloads",
+                            secondValue = librarySummary.localTracks.toString(),
+                            secondLabel = "On device",
+                            compact = compact,
+                        )
+                        ProfileDivider()
+                        ProfileMetricsRow(
+                            firstValue = formatProfileDuration(librarySummary.listenedMs),
+                            firstLabel = "Listened",
+                            secondValue = librarySummary.plays.toString(),
+                            secondLabel = "Plays",
+                            compact = compact,
+                        )
                     }
                 }
                 item { Spacer(Modifier.height(16.dp)) }
@@ -318,6 +386,45 @@ private fun ProfileInfoRow(icon: ImageVector, label: String, value: String, comp
 }
 
 @Composable
+private fun ProfileSectionLabel(text: String) {
+    Text(
+        text = text,
+        fontFamily = AppFontFamily,
+        color = LiquidTheme.colors.textSecondary,
+        fontSize = 11.sp,
+        fontWeight = FontWeight.Bold,
+        letterSpacing = 1.4.sp,
+        modifier = Modifier.padding(start = 18.dp, end = 18.dp, top = 16.dp, bottom = 6.dp),
+    )
+}
+
+@Composable
+private fun ProfileMetricsRow(
+    firstValue: String,
+    firstLabel: String,
+    secondValue: String,
+    secondLabel: String,
+    compact: Boolean,
+) {
+    val colors = LiquidTheme.colors
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = if (compact) 10.dp else 12.dp),
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        ProfileMetric(firstValue, firstLabel, Modifier.weight(1f), colors)
+        ProfileMetric(secondValue, secondLabel, Modifier.weight(1f), colors)
+    }
+}
+
+@Composable
+private fun ProfileMetric(value: String, label: String, modifier: Modifier, colors: com.lmg.vk.ui.theme.LiquidColors) {
+    Column(modifier = modifier) {
+        Text(value, fontFamily = AppFontFamily, color = colors.textPrimary, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+        Text(label, fontFamily = AppFontFamily, color = colors.textSecondary, fontSize = 12.sp)
+    }
+}
+
+@Composable
 private fun ProfileNavigationRow(
     icon: ImageVector,
     label: String,
@@ -379,4 +486,23 @@ private fun ProfileDivider() {
             .padding(start = 52.dp)
             .background(LiquidTheme.colors.textTertiary.copy(alpha = 0.12f)),
     )
+}
+
+private fun formatProfileDuration(durationMs: Long): String {
+    val totalMinutes = durationMs.coerceAtLeast(0L) / 60_000L
+    return when {
+        totalMinutes >= 60 -> "${totalMinutes / 60}h ${totalMinutes % 60}m"
+        totalMinutes > 0 -> "${totalMinutes}m"
+        else -> "0m"
+    }
+}
+
+private fun formatSessionStatus(expiresAtSeconds: Long?): String {
+    if (expiresAtSeconds == null) return "Active • no fixed expiry"
+    val minutesLeft = expiresAtSeconds - (System.currentTimeMillis() / 1_000L)
+    return when {
+        minutesLeft <= 0L -> "Expired • refresh on next VK request"
+        minutesLeft < 3_600L -> "Active • expires in ${minutesLeft / 60}m"
+        else -> "Active • expires in ${minutesLeft / 3_600}h"
+    }
 }

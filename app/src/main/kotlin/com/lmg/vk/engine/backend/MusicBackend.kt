@@ -1522,6 +1522,9 @@ object MusicAuth {
     val profileDomain: StateFlow<String?> = _profileDomain
     private val _isProfileRefreshing = MutableStateFlow(false)
     val isProfileRefreshing: StateFlow<Boolean> = _isProfileRefreshing
+    private val _profileSessionExpiresAt = MutableStateFlow<Long?>(null)
+    /** Expiry of the VK session in epoch seconds; never exposes token material. */
+    val profileSessionExpiresAt: StateFlow<Long?> = _profileSessionExpiresAt
     private val _userEmail = MutableStateFlow<String?>(null)
     val userEmail: StateFlow<String?> = _userEmail
     private val _premiumExpiresAt = MutableStateFlow<Long?>(null)
@@ -1864,6 +1867,7 @@ object MusicAuth {
         _avatarUrl.value = session.avatar.takeIf(String::isNotBlank)
         _profileId.value = session.userId.takeIf { it != 0L }
         _profileDomain.value = session.username.takeIf(String::isNotBlank)
+        _profileSessionExpiresAt.value = session.expiresAt.takeIf { it > 0L }
     }
 
     /** Refreshes only the public VK account data returned by the recovered users.get call. */
@@ -1909,6 +1913,7 @@ object MusicAuth {
         _profileId.value = null
         _profileDomain.value = null
         _isProfileRefreshing.value = false
+        _profileSessionExpiresAt.value = null
         _userEmail.value = null
         anonymousToken = ""
         anonymousTokenExpiresAt = 0L
