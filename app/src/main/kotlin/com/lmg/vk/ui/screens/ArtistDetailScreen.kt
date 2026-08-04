@@ -5,6 +5,7 @@ import android.widget.Toast
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -26,6 +27,9 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -371,6 +375,7 @@ fun ArtistDetailScreen(
                             item {
                                 ArtistCatalogSummary(
                                     songs = songCount,
+                                    songsAreMinimum = artistTracks.size >= ARTIST_TRACK_COUNT_PLUS_THRESHOLD,
                                     releases = releaseCount,
                                     playlists = playlists.size,
                                     videos = videoCount,
@@ -776,7 +781,7 @@ private fun ArtistTracksDialog(
         ) {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(top = 88.dp, bottom = 32.dp),
+                contentPadding = PaddingValues(top = 100.dp, bottom = 32.dp),
             ) {
                 if (isLoading) {
                     item {
@@ -815,7 +820,7 @@ private fun ArtistTracksDialog(
             }
             ArtistListDialogTopBar(
                 title = artistName,
-                subtitle = "${tracks.size} songs",
+                subtitle = "${tracks.size}${if (tracks.size >= ARTIST_TRACK_COUNT_PLUS_THRESHOLD) "+" else ""} songs",
                 isDark = isDark,
                 onBack = onDismiss,
             )
@@ -842,23 +847,26 @@ private fun ArtistVideosDialog(
                 .fillMaxSize()
                 .background(LiquidSurfaces.sheet(isDark)),
         ) {
-            LazyColumn(
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(2),
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(top = 88.dp, bottom = 32.dp),
+                contentPadding = PaddingValues(
+                    start = LiquidMetrics.ScreenPadding,
+                    top = 100.dp,
+                    end = LiquidMetrics.ScreenPadding,
+                    bottom = 32.dp,
+                ),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalArrangement = Arrangement.spacedBy(18.dp),
             ) {
-                items(videos, key = { it.id }) { video ->
-                    Box(
+                gridItems(videos, key = { it.id }) { video ->
+                    ArtistVideoCard(
+                        title = video.title,
+                        cover = video.cover,
+                        duration = video.duration,
+                        isDark = isDark,
                         modifier = Modifier.fillMaxWidth(),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        ArtistVideoCard(
-                            title = video.title,
-                            cover = video.cover,
-                            duration = video.duration,
-                            isDark = isDark,
-                        )
-                    }
+                    )
                 }
             }
             ArtistListDialogTopBar(
@@ -1280,6 +1288,7 @@ private fun ArtistActionsStrip(
 @Composable
 private fun ArtistCatalogSummary(
     songs: Int,
+    songsAreMinimum: Boolean,
     releases: Int,
     playlists: Int,
     videos: Int,
@@ -1307,7 +1316,7 @@ private fun ArtistCatalogSummary(
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Text(
-                    value.toString(),
+                    if (label == "Songs" && songsAreMinimum) "$value+" else value.toString(),
                     color = LiquidSurfaces.textPrimary(isDark),
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold,
@@ -1484,12 +1493,14 @@ private fun ArtistVideoCard(
     cover: String?,
     duration: Long,
     isDark: Boolean,
+    modifier: Modifier = Modifier.width(238.dp),
     onClick: (() -> Unit)? = null,
 ) {
-    Column(modifier = Modifier.width(238.dp)) {
+    Column(modifier = modifier) {
         Box(
             modifier = Modifier
-                .size(width = 238.dp, height = 134.dp)
+                .fillMaxWidth()
+                .aspectRatio(16f / 9f)
                 .clip(RoundedCornerShape(16.dp))
                 .then(
                     if (onClick != null) {
@@ -1532,6 +1543,8 @@ private fun ArtistVideoCard(
         )
     }
 }
+
+private const val ARTIST_TRACK_COUNT_PLUS_THRESHOLD = 200
 
 private fun ArtistLink.matches(vararg markers: String): Boolean {
     val haystack = "$title ${subtitle.orEmpty()} $url".lowercase()
