@@ -303,15 +303,52 @@ object MusicBackend {
                 .mapNotNull { it.section_id?.takeIf(String::isNotBlank) }
                 .forEach(::add)
         }.distinct()
+        suspend fun loadSectionPages(sectionId: String): List<VkCatalogResponse> {
+            val pages = mutableListOf<VkCatalogResponse>()
+            val seenOffsets = HashSet<String>()
+            var startFrom: String? = null
+            while (pages.size < 50) {
+                val page = catalogApi.getSection(sectionId, startFrom).getOrNull() ?: break
+                pages += page
+                val next = page.section?.next_from?.takeIf(String::isNotBlank)
+                    ?: page.catalog?.sections.orEmpty().firstOrNull { it.id == sectionId }?.next_from
+                    ?: break
+                if (!seenOffsets.add(next)) break
+                startFrom = next
+            }
+            return pages
+        }
+        suspend fun loadBlockPages(block: VkCatalogBlock): List<VkCatalogResponse> {
+            val pages = mutableListOf<VkCatalogResponse>()
+            val seenOffsets = HashSet<String>()
+            var startFrom = block.next_from?.takeIf(String::isNotBlank)
+            while (startFrom != null && pages.size < 50) {
+                if (!seenOffsets.add(startFrom)) break
+                val page = catalogApi.getBlockItems(block.id, startFrom).getOrNull() ?: break
+                pages += page
+                startFrom = (
+                    page.block?.next_from
+                        ?: page.allBlocks().firstOrNull { it.id == block.id }?.next_from
+                    )?.takeIf(String::isNotBlank)
+            }
+            return pages
+        }
         val sectionPages = coroutineScope {
             sectionIds
-                .map { sectionId -> async { catalogApi.getSection(sectionId).getOrNull() } }
-                .mapNotNull { it.await() }
+                .map { sectionId -> async { loadSectionPages(sectionId) } }
+                .flatMap { it.await() }
         }
-        val catalogPages = listOf(catalog) + sectionPages
-        val catalogBlocks = catalogPages
-            .flatMap { it.toHomeBlocks() }
-            .distinctBy(HomeBlock::id)
+        val basePages = listOf(catalog) + sectionPages
+        val blockPages = coroutineScope {
+            basePages
+                .flatMap { it.allBlocks() }
+                .filter { it.id.isNotBlank() && !it.next_from.isNullOrBlank() }
+                .distinctBy { it.id }
+                .map { block -> async { loadBlockPages(block) } }
+                .flatMap { it.await() }
+        }
+        val catalogPages = basePages + blockPages
+        val catalogBlocks = catalogPages.toHomeBlocks()
         val blocks = catalogBlocks.ifEmpty { loadHomeFallbackBlocks() }
         catalogPages.flatMap { it.audios.orEmpty() }
             .distinctBy(AudioTrack::fullId)
@@ -1342,18 +1379,27 @@ object MusicBackend {
         isAvailable = isAvailable,
     )
 
-    private fun AudioPlaylist.toHomeItem() = HomeItem(
-        id = fullId,
-        title = title,
-        artist = main_artists?.joinToString(", ") { it.name },
-        artistId = main_artists?.firstOrNull()?.id,
-        cover = photo?.src ?: thumbs?.firstOrNull()?.src,
-        collectionId = fullId,
-        isExplicit = is_explicit == true,
-        source = "vk",
-        subtitle = subtitle,
-        isAlbum = true,
-    )
+    private fun AudioPlaylist.toHomeItem(): HomeItem {
+        val albumRelease = isAlbumRelease()
+        val cover = photo?.bestUrl?.takeIf(String::isNotBlank)
+            ?: thumbs.orEmpty().asSequence()
+                .sortedByDescending { it.width * it.height }
+                .map { it.bestUrl }
+                .firstOrNull { it.isNotBlank() }
+        return HomeItem(
+            id = fullId,
+            title = title,
+            artist = main_artists?.joinToString(", ") { it.name },
+            artistId = main_artists?.firstOrNull()?.id,
+            cover = cover,
+            collectionId = fullId,
+            isExplicit = is_explicit == true,
+            source = "vk",
+            subtitle = subtitle,
+            isAlbum = albumRelease,
+            isPlaylist = !albumRelease,
+        )
+    }
 
     private fun VkArtistDto.toHomeItem() = HomeItem(
         id = id,
@@ -1597,13 +1643,49 @@ object MusicBackend {
         section?.blocks.orEmpty().let(::addAll)
         catalog?.sections.orEmpty().flatMap { it.blocks.orEmpty() }.let(::addAll)
     }.distinctBy { it.id }
+    private fun VkCatalogBlock.mergeWith(other: VkCatalogBlock): VkCatalogBlock {
+        fun mergeIds(left: List<String>?, right: List<String>?): List<String>? =
+            (left.orEmpty() + right.orEmpty()).distinct().takeIf { it.isNotEmpty() }
+        return copy(
+            data_type = data_type.ifBlank { other.data_type },
+            layout = layout ?: other.layout,
+            actions = (actions.orEmpty() + other.actions.orEmpty())
+                .distinctBy { it.section_id }.takeIf { it.isNotEmpty() },
+            next_from = other.next_from ?: next_from,
+            audios_ids = mergeIds(audios_ids, other.audios_ids),
+            playlists_ids = mergeIds(playlists_ids, other.playlists_ids),
+            artists_ids = mergeIds(artists_ids, other.artists_ids),
+            artist_videos_ids = mergeIds(artist_videos_ids, other.artist_videos_ids),
+            videos_ids = mergeIds(videos_ids, other.videos_ids),
+            links_ids = mergeIds(links_ids, other.links_ids),
+            catalog_banner_ids = mergeIds(catalog_banner_ids, other.catalog_banner_ids),
+            curators_ids = mergeIds(curators_ids, other.curators_ids),
+            group_ids = mergeIds(group_ids, other.group_ids),
+            audio_content_card_ids = mergeIds(audio_content_card_ids, other.audio_content_card_ids),
+            music_owners_ids = mergeIds(music_owners_ids, other.music_owners_ids),
+            radio_stations_ids = mergeIds(radio_stations_ids, other.radio_stations_ids),
+            audio_stream_mixes_ids = mergeIds(audio_stream_mixes_ids, other.audio_stream_mixes_ids),
+        )
+    }
 
     /**
      * VK X CatalogKit renders the ordered `catalog.sections[].blocks` response,
      * resolving each block's entity IDs against the response payload. Keep that
      * server order and titles instead of synthesising a few local categories.
      */
-    private fun VkCatalogResponse.toHomeBlocks(): List<HomeBlock> {
+    private fun List<VkCatalogResponse>.toHomeBlocks(): List<HomeBlock> {
+        val first = firstOrNull() ?: return emptyList()
+        val audios = flatMap { it.audios.orEmpty() }
+        val playlists = flatMap { it.playlists.orEmpty() }
+        val artists = flatMap { it.artists.orEmpty() }
+        val links = flatMap { it.links.orEmpty() }
+        val catalog_banners = flatMap { it.catalog_banners.orEmpty() }
+        val curators = flatMap { it.curators.orEmpty() }
+        val groups = flatMap { it.groups.orEmpty() }
+        val music_owners = flatMap { it.music_owners.orEmpty() }
+        val audio_content_cards = flatMap { it.audio_content_cards.orEmpty() }
+        val radio_stations = flatMap { it.radio_stations.orEmpty() }
+        val audio_stream_mixes = flatMap { it.audio_stream_mixes.orEmpty() }
         val audiosById = audios.orEmpty().associateBy { it.fullId }
         val playlistsById = playlists.orEmpty().associateBy { it.fullId }
         val artistsById = artists.orEmpty().associateBy { it.id }
@@ -1623,13 +1705,27 @@ object MusicBackend {
 
         fun <T> Map<String, T>.byCatalogId(value: String): T? =
             this[value] ?: this[value.removePrefix("vk_")]
+        val orderedBlocks = linkedMapOf<String, VkCatalogBlock>()
+        flatMap { it.allBlocks() }
+            .filter { it.id.isNotBlank() }
+            .forEach { block ->
+                orderedBlocks[block.id] = orderedBlocks[block.id]?.mergeWith(block) ?: block
+            }
+        val seenItemKeys = HashSet<String>()
+        fun HomeItem.catalogDedupeKey(): String = when {
+            isArtist -> "artist:$id"
+            isAlbum -> "album:${collectionId ?: id}"
+            isPlaylist -> "playlist:${collectionId ?: id}"
+            isTrack -> "audio:${trackId ?: id}"
+            else -> "card:$id"
+        }
 
         // В CatalogKit заголовок — самостоятельный `header`-блок без entity
         // IDs. VK X применяет его к следующему блоку с контентом. Раньше мы
         // отбрасывали header как пустой, из-за чего в UI оставались технические
         // подписи `slider` и `triple_stacked_slider`.
         var pendingHeaderTitle: String? = null
-        val catalogBlocks = allBlocks().mapNotNull { block ->
+        val catalogBlocks = orderedBlocks.values.mapNotNull { block ->
             val layoutName = block.layout?.name.orEmpty()
             if (layoutName == "header" || layoutName == "header_compact" ||
                 layoutName == "header_large" || layoutName == "header_extended") {
@@ -1660,7 +1756,7 @@ object MusicBackend {
                     .forEach { add(it.toHomeItem()) }
                 block.audio_stream_mixes_ids.orEmpty().mapNotNull(streamMixesById::byCatalogId)
                     .forEach { add(it.toHomeItem()) }
-            }.distinctBy(HomeItem::id)
+            }.distinctBy(HomeItem::id).filter { seenItemKeys.add(it.catalogDedupeKey()) }
 
             val title = pendingHeaderTitle
                 ?: block.layout?.title?.takeIf(String::isNotBlank)
@@ -1693,10 +1789,10 @@ object MusicBackend {
 
         // Некоторые аккаунты/версии API не присылают ссылки blocks, но оставляют
         // сущности в корне. Это тот же ответ VK, не локальная подмена контента.
-        val fallbackPrefix = section?.id?.takeIf(String::isNotBlank)
-            ?: catalog?.default_section?.takeIf(String::isNotBlank)
+        val fallbackPrefix = first.section?.id?.takeIf(String::isNotBlank)
+            ?: first.catalog?.default_section?.takeIf(String::isNotBlank)
             ?: "root"
-        val fallbackTitle = section?.title?.takeIf(String::isNotBlank) ?: "VK Музыка"
+        val fallbackTitle = first.section?.title?.takeIf(String::isNotBlank) ?: "VK Музыка"
         return buildList {
             catalog_banners.orEmpty().map { it.toHomeItem() }.takeIf { it.isNotEmpty() }?.let {
                 add(HomeBlock("${fallbackPrefix}_banners", fallbackTitle, "catalog_banners", it))

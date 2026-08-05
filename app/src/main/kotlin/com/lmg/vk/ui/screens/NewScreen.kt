@@ -56,6 +56,7 @@ import com.lmg.vk.ui.viewmodel.HomeViewModel
 fun NewScreen(
     viewModel: HomeViewModel,
     onNavigateToAlbum: (String) -> Unit = {},
+    onNavigateToPlaylist: (String) -> Unit = {},
     onNavigateToArtist: (String) -> Unit = {},
 ) {
     val context = LocalContext.current
@@ -81,6 +82,7 @@ fun NewScreen(
         when {
             homeItem.isCustom -> Unit
             homeItem.isArtist -> onNavigateToArtist(homeItem.artistId ?: homeItem.id)
+            homeItem.isPlaylist -> onNavigateToPlaylist(homeItem.collectionId ?: homeItem.id)
             homeItem.isAlbum -> onNavigateToAlbum(homeItem.collectionId ?: homeItem.id)
             else -> PlayerController.playFromList(context, listOf(homeItem.toTrack()))
         }

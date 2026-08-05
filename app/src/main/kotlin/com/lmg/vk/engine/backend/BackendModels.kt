@@ -1075,6 +1075,8 @@ data class HomeItem(
     // «альбом или трек» по наличию collectionId — но трек по API ТОЖЕ несёт
     // collectionId (id своего альбома), поэтому тап по треку открывал альбом.
     @SerialName("isAlbum") val isAlbum: Boolean = false,
+    /** VK catalog playlist that is not an album/single release. */
+    @SerialName("isPlaylist") val isPlaylist: Boolean = false,
     @SerialName("isArtist") val isArtist: Boolean = false,
     @SerialName("isClip") val isClip: Boolean = false,
     /** Server CatalogKit promotional/editorial card without an audio stream. */
@@ -1083,7 +1085,7 @@ data class HomeItem(
 ) {
     /** Трек = не альбом, не артист и не видеоклип (клип не стримится). */
     val isTrack: Boolean
-        get() = !isAlbum && !isArtist && !isClip && !isCustom
+        get() = !isAlbum && !isPlaylist && !isArtist && !isClip && !isCustom
 
     val displayArtist: String
         get() = artist?.takeIf { it.isNotBlank() && it != "Исполнитель" }

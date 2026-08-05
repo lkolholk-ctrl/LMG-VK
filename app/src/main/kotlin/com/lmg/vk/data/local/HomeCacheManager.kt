@@ -25,9 +25,9 @@ object HomeCacheManager {
     private const val KEY_TIMESTAMP = "cached_at"
     private const val KEY_ETAG = "etag"
     private const val CACHE_TTL_MS = 24 * 60 * 60 * 1000L // 24 hours
-    // v2 stores the CatalogKit layout discriminator needed to render headers
-    // and stacked track rows. Old caches cannot be displayed faithfully.
-    private const val CACHE_SCHEMA_VERSION = 2
+    // v3 also stores the playlist/album discriminator. Old caches would make
+    // editorial VK playlists look like playable albums, so invalidate them.
+    private const val CACHE_SCHEMA_VERSION = 3
 
     private var prefs: SharedPreferences? = null
 
@@ -63,6 +63,7 @@ object HomeCacheManager {
                                     put("album", item.album ?: JSONObject.NULL)
                                     put("genre", item.genre ?: JSONObject.NULL)
                                     put("isAlbum", item.isAlbum)
+                                    put("isPlaylist", item.isPlaylist)
                                     put("isArtist", item.isArtist)
                                     put("isClip", item.isClip)
                                     put("isCustom", item.isCustom)
@@ -119,6 +120,7 @@ object HomeCacheManager {
                         album = itemObj.optString("album", null)?.takeIf { it != "null" },
                         genre = itemObj.optString("genre", null)?.takeIf { it != "null" },
                         isAlbum = itemObj.optBoolean("isAlbum", false),
+                        isPlaylist = itemObj.optBoolean("isPlaylist", false),
                         isArtist = itemObj.optBoolean("isArtist", false),
                         isClip = itemObj.optBoolean("isClip", false),
                         isCustom = itemObj.optBoolean("isCustom", false),

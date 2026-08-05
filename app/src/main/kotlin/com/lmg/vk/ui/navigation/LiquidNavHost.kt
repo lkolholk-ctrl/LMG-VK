@@ -169,6 +169,7 @@ fun LiquidNavHost(
                 NewScreen(
                     viewModel = homeViewModel,
                     onNavigateToAlbum = { navController.navigate(NavRoutes.album(NavRoutes.TAB_NEW, it)) },
+                    onNavigateToPlaylist = { navController.navigate(NavRoutes.playlist(NavRoutes.TAB_NEW, it)) },
                     onNavigateToArtist = { navController.navigate(NavRoutes.artist(NavRoutes.TAB_NEW, it)) }
                 )
             }
