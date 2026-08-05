@@ -24,12 +24,15 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -68,6 +71,7 @@ fun NewScreen(
     val homeBlocks = remember(homeContent) {
         homeContent?.blocks?.filter { it.items.isNotEmpty() } ?: emptyList()
     }
+    var sectionSheetBlock by remember { mutableStateOf<com.lmg.vk.engine.backend.HomeBlock?>(null) }
 
     val lc = LiquidTheme.colors
     // Широкое окно (телефон-альбом ИЛИ планшет): ограничиваем ширину списка
@@ -167,7 +171,11 @@ fun NewScreen(
                         }
 
                         block.layoutName in NEW_TRACK_LIST_LAYOUTS -> {
-                            NewSectionHeader(title, compact)
+                            NewSectionHeader(
+                                title = title,
+                                compact = compact,
+                                onClick = { sectionSheetBlock = block },
+                            )
                             NewTrackColumns(
                                 blockId = block.id,
                                 homeItems = block.items,
@@ -178,7 +186,11 @@ fun NewScreen(
                         }
 
                         else -> {
-                            NewSectionHeader(title, compact)
+                            NewSectionHeader(
+                                title = title,
+                                compact = compact,
+                                onClick = { sectionSheetBlock = block },
+                            )
                             LazyRow(
                                 contentPadding = PaddingValues(horizontal = 20.dp),
                                 horizontalArrangement = Arrangement.spacedBy(rowGap)
@@ -209,6 +221,17 @@ fun NewScreen(
                     Spacer(Modifier.height(sectionGap))
                 }
             }
+        }
+        sectionSheetBlock?.let { block ->
+            NewSectionSheet(
+                block = block,
+                compact = compact,
+                onDismiss = { sectionSheetBlock = null },
+                onItemClick = { item ->
+                    sectionSheetBlock = null
+                    onItemClick(item)
+                },
+            )
         }
     }
 }
@@ -269,7 +292,11 @@ private fun NewSectionSkeleton() {
 }
 
 @Composable
-private fun NewSectionHeader(title: String?, compact: Boolean = false) {
+private fun NewSectionHeader(
+    title: String?,
+    compact: Boolean = false,
+    onClick: () -> Unit = {},
+) {
     if (title.isNullOrBlank()) return
     Row(
         modifier = Modifier
@@ -293,13 +320,64 @@ private fun NewSectionHeader(title: String?, compact: Boolean = false) {
                 .background(if (LiquidTheme.colors.isDark) Color(0xFF252525) else Color(0xFFE8E8ED)),
             contentAlignment = Alignment.Center,
         ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clickable(onClick = onClick),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = "›",
+                    color = LiquidTheme.colors.textPrimary,
+                    fontSize = if (compact) 23.sp else 28.sp,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier.padding(bottom = 3.dp),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun NewSectionSheet(
+    block: com.lmg.vk.engine.backend.HomeBlock,
+    compact: Boolean,
+    onDismiss: () -> Unit,
+    onItemClick: (com.lmg.vk.engine.backend.HomeItem) -> Unit,
+) {
+    val lc = LiquidTheme.colors
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = lc.settingsBackground,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 20.dp),
+        ) {
             Text(
-                text = "›",
-                color = LiquidTheme.colors.textPrimary,
-                fontSize = if (compact) 23.sp else 28.sp,
-                fontWeight = FontWeight.Medium,
-                modifier = Modifier.padding(bottom = 3.dp),
+                text = block.title.ifBlank { "VK Музыка" },
+                color = lc.textPrimary,
+                fontSize = if (compact) 19.sp else 23.sp,
+                fontWeight = FontWeight.Bold,
+                fontFamily = AppFontFamily,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp),
             )
+            LazyColumn(
+                modifier = Modifier.fillMaxWidth().fillMaxHeight(0.78f),
+                contentPadding = PaddingValues(top = 4.dp, bottom = 24.dp),
+            ) {
+                items(block.items, key = { "sheet_${block.id}_${it.id}" }) { item ->
+                    NewTrackRow(
+                        item = item,
+                        rank = if (block.layoutName.startsWith("music_chart")) item.rank else null,
+                        compact = compact,
+                        onClick = { onItemClick(item) },
+                    )
+                }
+            }
         }
     }
 }
