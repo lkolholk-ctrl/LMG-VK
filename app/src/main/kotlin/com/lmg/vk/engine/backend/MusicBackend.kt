@@ -1624,7 +1624,19 @@ object MusicBackend {
         fun <T> Map<String, T>.byCatalogId(value: String): T? =
             this[value] ?: this[value.removePrefix("vk_")]
 
+        // В CatalogKit заголовок — самостоятельный `header`-блок без entity
+        // IDs. VK X применяет его к следующему блоку с контентом. Раньше мы
+        // отбрасывали header как пустой, из-за чего в UI оставались технические
+        // подписи `slider` и `triple_stacked_slider`.
+        var pendingHeaderTitle: String? = null
         val catalogBlocks = allBlocks().mapNotNull { block ->
+            val layoutName = block.layout?.name.orEmpty()
+            if (layoutName == "header" || layoutName == "header_compact" ||
+                layoutName == "header_large" || layoutName == "header_extended") {
+                pendingHeaderTitle = block.layout?.title?.takeIf(String::isNotBlank)
+                    ?: pendingHeaderTitle
+                return@mapNotNull null
+            }
             val items = buildList {
                 block.audios_ids.orEmpty().mapNotNull(audiosById::byCatalogId)
                     .forEach { add(it.toHomeItem()) }
@@ -1650,12 +1662,32 @@ object MusicBackend {
                     .forEach { add(it.toHomeItem()) }
             }.distinctBy(HomeItem::id)
 
-            val title = block.layout?.title?.takeIf(String::isNotBlank)
-                ?: block.layout?.name?.takeIf(String::isNotBlank)
+            val title = pendingHeaderTitle
+                ?: block.layout?.title?.takeIf(String::isNotBlank)
                 ?: block.data_type.takeIf(String::isNotBlank)
-                ?: block.id
+                ?: "VK Музыка"
+            val contentType = block.data_type.takeIf(String::isNotBlank) ?: when {
+                block.curators_ids.orEmpty().isNotEmpty() -> "curators"
+                block.catalog_banner_ids.orEmpty().isNotEmpty() -> "catalog_banners"
+                block.radio_stations_ids.orEmpty().isNotEmpty() -> "radio"
+                block.audio_stream_mixes_ids.orEmpty().isNotEmpty() -> "stream_mixes"
+                block.audio_content_card_ids.orEmpty().isNotEmpty() -> "content_cards"
+                block.artists_ids.orEmpty().isNotEmpty() -> "artists"
+                block.playlists_ids.orEmpty().isNotEmpty() -> "playlists"
+                block.audios_ids.orEmpty().isNotEmpty() -> "audios"
+                else -> ""
+            }
+            pendingHeaderTitle = null
             items.takeIf { it.isNotEmpty() && block.id.isNotBlank() }
-                ?.let { HomeBlock(id = block.id, title = title, type = block.data_type, items = it) }
+                ?.let {
+                    HomeBlock(
+                        id = block.id,
+                        title = title,
+                        type = contentType,
+                        items = it,
+                        layoutName = layoutName,
+                    )
+                }
         }
         if (catalogBlocks.isNotEmpty()) return catalogBlocks
 

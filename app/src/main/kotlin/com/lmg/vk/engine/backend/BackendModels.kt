@@ -1044,7 +1044,9 @@ data class HomeBlock(
     val title: String,
     val type: String, // "banner", "new_releases", "charts", "recommendations"
     @Serializable(with = TolerantListSerializer::class)
-    val items: List<HomeItem> = emptyList()
+    val items: List<HomeItem> = emptyList(),
+    /** CatalogKit layout discriminator (`slider`, `triple_stacked_slider`, …). */
+    @SerialName("layoutName") val layoutName: String = ""
 )
 
 /**

@@ -596,3 +596,14 @@ UI, ресурсы и исходную логику необходимо **в п
 - Если CatalogKit ответил без пригодных item IDs, используются только подтверждённые прямые VK `audio.getRecommendations` и `audio.getPopular`; локальные mood/recent/history карточки в New не возвращаются.
 - New больше не отменяет незавершённую загрузку из-за смены таба и показывает кнопку повтора VK-запроса вместо пустого экрана при пустом ответе.
 - Локальная Gradle-сборка и GitHub Actions не запускались по правилу владельца; перед коммитом выполнять только `git diff --check` и статическую проверку вызовов.
+
+# New: восстановление структуры витрин CatalogKit
+
+**Текущий логический этап:** сопоставление присланных владельцем экранов LMG VK и VK X из `/storage/emulated/0/Download/Обзор (New)`. SHA данного коммита смотреть через `git log -1 --oneline` после применения.
+
+- Причина технических подписей `slider` и `triple_stacked_slider` установлена по `VKLMG_Recovery`: каждый заголовок CatalogKit — отдельный layout `header`/`header_compact`/`header_large`/`header_extended` с полем `title`, без entity IDs. Он относится к следующему блоку с контентом. `MusicBackend.toHomeBlocks()` теперь сохраняет этот заголовок, связывает его со следующим блоком и передаёт name раскладки как `HomeBlock.layoutName`.
+- `NewScreen` использует layout из реального ответа VK: promo/banner выводится как широкая витрина, `triple_stacked_slider` и list-варианты — как горизонтальные колонки из трёх строк с обложкой, артистом и длительностью, остальные витрины остаются горизонтальными карточками. Для curator-блоков используется круглая карточка, для music chart — номер позиции.
+- UI остаётся Compose UI LMG VK: не перенесены верхние вкладки, нижняя навигация, цвета или VK X subscription UI. Из VK X восстановлены только порядок, заголовки и типы витрин CatalogKit.
+- Кеш New обновлён до schema v2 и сохраняет `layoutName`. Кеш старого формата разово отвергается, чтобы после обновления не продолжать показывать устаревшие технические названия.
+- Изменены: `MusicBackend.kt`, `BackendModels.kt`, `HomeCacheManager.kt`, `NewScreen.kt`, `MEMORY.md`.
+- Проверка: сопоставлены все присланные target/current скриншоты, просмотрены `Catalog2Layout` и `Catalog2Layout_HeaderJsonAdapter` в Recovery; `git diff --check` прошёл. Локальная Gradle-сборка и GitHub Actions не запускались по прямому правилу владельца.

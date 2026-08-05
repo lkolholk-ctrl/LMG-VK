@@ -25,6 +25,9 @@ object HomeCacheManager {
     private const val KEY_TIMESTAMP = "cached_at"
     private const val KEY_ETAG = "etag"
     private const val CACHE_TTL_MS = 24 * 60 * 60 * 1000L // 24 hours
+    // v2 stores the CatalogKit layout discriminator needed to render headers
+    // and stacked track rows. Old caches cannot be displayed faithfully.
+    private const val CACHE_SCHEMA_VERSION = 2
 
     private var prefs: SharedPreferences? = null
 
@@ -38,12 +41,14 @@ object HomeCacheManager {
     suspend fun save(response: HomeResponse) = withContext(Dispatchers.IO) {
         val p = prefs ?: return@withContext
         val json = JSONObject().apply {
+            put("version", CACHE_SCHEMA_VERSION)
             put("blocks", JSONArray().apply {
                 response.blocks.forEach { block ->
                     put(JSONObject().apply {
                         put("id", block.id)
                         put("title", block.title)
                         put("type", block.type)
+                        put("layoutName", block.layoutName)
                         put("items", JSONArray().apply {
                             block.items.forEach { item ->
                                 put(JSONObject().apply {
@@ -89,6 +94,7 @@ object HomeCacheManager {
             if (System.currentTimeMillis() - cachedAt > CACHE_TTL_MS) return@withContext null
 
             val json = JSONObject(jsonStr)
+            if (json.optInt("version", 0) != CACHE_SCHEMA_VERSION) return@withContext null
             val blocksArray = json.getJSONArray("blocks")
             val blocks = mutableListOf<HomeBlock>()
             
@@ -124,7 +130,8 @@ object HomeCacheManager {
                     id = blockObj.getString("id"),
                     title = blockObj.getString("title"),
                     type = blockObj.getString("type"),
-                    items = items
+                    items = items,
+                    layoutName = blockObj.optString("layoutName", "")
                 ))
             }
             
