@@ -470,6 +470,42 @@ class VkAudioApi(
         return client.execute(method)
     }
 
+    /**
+     * То же, что [getAudios], но с сохранением `count` из ответа VK.
+     * Нужно там, где показывается реальное общее количество треков владельца,
+     * а не длина выданной страницы.
+     */
+    suspend fun getAudiosPage(
+        ownerId: Long,
+        offset: Int,
+        count: Int,
+        playlistId: Int? = null,
+    ): VkResult<VkItems<AudioTrack>> {
+        val method = VkMethod("audio.get", AudioTrackPageParser).apply {
+            param("count", count)
+            param("offset", offset)
+            param("owner_id", ownerId)
+            playlistId?.let { param("playlist_id", it) }
+        }
+        return client.execute(method)
+    }
+
+    /** [getPlaylists] с сохранением `count` — реальное число плейлистов владельца. */
+    suspend fun getPlaylistsPage(
+        ownerId: Long,
+        offset: Int,
+        filters: List<String>? = null,
+        count: Int = 100,
+    ): VkResult<VkItems<AudioPlaylist>> {
+        val method = VkMethod("audio.getPlaylists", PlaylistPageParser).apply {
+            param("owner_id", ownerId)
+            filters?.let { param("filters", it.joinToString(",")) }
+            param("count", count)
+            param("offset", offset)
+        }
+        return client.execute(method)
+    }
+
     // ---------------------------------------------------------------
     // audio.search — поиск треков (AbstractC1085e.metrica)
     // count принудительно зажат в 0..300, в оригинале передаётся 120
@@ -633,6 +669,27 @@ class VkAudioApi(
         ) { it.items }
 
         override suspend fun parse(raw: RawHttpResponse): VkParsedResponse<List<AudioTrack>> {
+            return delegate.parse(raw)
+        }
+    }
+
+    /** `{count, items}` целиком — когда общее количество важно так же, как список. */
+    private object AudioTrackPageParser : VkResponseParser<VkItems<AudioTrack>> {
+        private val delegate = MoshiEnvelopeParser<VkItems<AudioTrack>>(
+            Types.newParameterizedType(VkItems::class.java, AudioTrack::class.java),
+        )
+
+        override suspend fun parse(raw: RawHttpResponse): VkParsedResponse<VkItems<AudioTrack>> {
+            return delegate.parse(raw)
+        }
+    }
+
+    private object PlaylistPageParser : VkResponseParser<VkItems<AudioPlaylist>> {
+        private val delegate = MoshiEnvelopeParser<VkItems<AudioPlaylist>>(
+            Types.newParameterizedType(VkItems::class.java, AudioPlaylist::class.java),
+        )
+
+        override suspend fun parse(raw: RawHttpResponse): VkParsedResponse<VkItems<AudioPlaylist>> {
             return delegate.parse(raw)
         }
     }

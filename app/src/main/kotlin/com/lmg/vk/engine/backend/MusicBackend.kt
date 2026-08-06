@@ -114,6 +114,7 @@ object MusicBackend {
         sessionStore = sessions
         isInitialized = true
         MusicAuth.init(client, sessions)
+        VkProfileRepository.init(client)
     }
 
     fun getInstance(): MusicBackend = this
@@ -1111,6 +1112,17 @@ object MusicBackend {
             ?: throw backendFailure(404, "Трек $id не найден")
         trackCache[track.fullId] = track
         return track
+    }
+
+    /**
+     * Треки, полученные в обход обычных экранов (аудио друга или сообщества),
+     * кладутся в кэш и переводятся в UI-модель — так они играются тем же путём,
+     * что и результаты поиска, без повторного `audio.getById`.
+     */
+    fun adoptTracks(tracks: Collection<AudioTrack>): List<SearchItem> {
+        if (tracks.isEmpty()) return emptyList()
+        cacheTracks(tracks)
+        return tracks.map { it.toSearchItem() }
     }
 
     private fun cacheTracks(tracks: Collection<AudioTrack>) {
@@ -2416,6 +2428,7 @@ object MusicAuth {
                 is VkResult.Error -> null
             } ?: return false
 
+            VkProfileRepository.seedProfile(profile)
             val updated = store.session.copy(
                 userId = profile.id.takeIf { it != 0L } ?: store.session.userId,
                 username = profile.domain.ifBlank { store.session.username },
@@ -2452,6 +2465,7 @@ object MusicAuth {
         anonymousToken = ""
         anonymousTokenExpiresAt = 0L
         activeAuthAttempt = null
+        VkProfileRepository.clear()
     }
 }
 

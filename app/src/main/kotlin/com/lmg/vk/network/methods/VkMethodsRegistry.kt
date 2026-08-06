@@ -12,6 +12,7 @@ import com.lmg.vk.network.RecoveredServiceConfig
 import com.lmg.vk.network.MoshiEnvelopeParser
 import com.lmg.vk.network.MoshiDirectParser
 import com.lmg.vk.network.MappingVkResponseParser
+import com.lmg.vk.network.VkItems
 import com.lmg.vk.network.VkJson
 import com.lmg.vk.network.VkUserAgents
 import com.lmg.vk.network.dto.SilentCredentials
@@ -26,6 +27,8 @@ import com.lmg.vk.network.dto.EcosystemGetVerificationMethodsResponse
 import com.lmg.vk.network.dto.EcosystemSendOtpResponse
 import com.lmg.vk.network.dto.RequestTokenResponse
 import com.lmg.vk.network.dto.VkAccountProfile
+import com.lmg.vk.network.dto.VkFriend
+import com.lmg.vk.network.dto.VkGroup
 import com.lmg.vk.network.dto.gen.auth.ValidatePhoneResponse
 import com.lmg.vk.network.dto.music.AudioAudioDto
 import com.lmg.vk.network.dto.music.ProfileLibrarySearchResponse
@@ -246,17 +249,32 @@ class VkMethodsRegistry(private val client: VkApiClient) {
     suspend fun usersGet(userId: Long, fields: String = "photo_base,is_followed,can_follow") =
         execute<Any>("users.get") { param("fields", fields); param("user_id", userId) }
 
-    /** Профиль владельца текущего access token после успешного OAuth-входа. */
+    /**
+     * Профиль владельца текущего access token после успешного OAuth-входа.
+     *
+     * `counters` VK возвращает только для самого себя, поэтому расширенный набор
+     * полей запрашивается именно здесь, а не в [usersGet].
+     */
     suspend fun usersGetCurrent(): VkResult<List<VkAccountProfile>> {
         val listType = Types.newParameterizedType(List::class.java, VkAccountProfile::class.java)
         val method = VkMethod(
             "users.get",
             MoshiEnvelopeParser<List<VkAccountProfile>>(listType),
         ).apply {
-            param(
-                "fields",
-                "photo_base,name,is_followed,can_follow,photo_100,photo_200,photo_200_orig,photo_400_orig,photo_max_orig,domain",
-            )
+            param("fields", CURRENT_PROFILE_FIELDS)
+        }
+        return client.execute(method)
+    }
+
+    /** Профиль другого пользователя с тем же набором полей, что и у себя. */
+    suspend fun usersGetProfile(userId: Long): VkResult<List<VkAccountProfile>> {
+        val listType = Types.newParameterizedType(List::class.java, VkAccountProfile::class.java)
+        val method = VkMethod(
+            "users.get",
+            MoshiEnvelopeParser<List<VkAccountProfile>>(listType),
+        ).apply {
+            param("fields", CURRENT_PROFILE_FIELDS)
+            param("user_ids", userId)
         }
         return client.execute(method)
     }
@@ -273,19 +291,42 @@ class VkMethodsRegistry(private val client: VkApiClient) {
         param("access_token", accessToken)
     }
 
-    suspend fun friendsGet(offset: Int, count: Int = 40) = execute<Any>("friends.get") {
-        param("extended", 1)
-        param("offset", offset)
-        param("count", count)
-        param("fields", "photo_100")
-        param("order", "name")
+    /**
+     * Друзья владельца токена. `count` из ответа сохраняется — это реальное
+     * общее число друзей, а не размер выданной страницы.
+     */
+    suspend fun friendsGet(
+        offset: Int,
+        count: Int = 40,
+        order: String = "hints",
+    ): VkResult<VkItems<VkFriend>> {
+        val itemsType = Types.newParameterizedType(VkItems::class.java, VkFriend::class.java)
+        val method = VkMethod(
+            "friends.get",
+            MoshiEnvelopeParser<VkItems<VkFriend>>(itemsType),
+        ).apply {
+            param("extended", 1)
+            param("offset", offset)
+            param("count", count)
+            param("fields", FRIEND_FIELDS)
+            param("order", order)
+        }
+        return client.execute(method)
     }
 
-    suspend fun groupsGet(offset: Int, count: Int = 40) = execute<Any>("groups.get") {
-        param("extended", 1)
-        param("offset", offset)
-        param("count", count)
-        param("fields", "photo_100")
+    /** Сообщества владельца токена; для аудио нужен `-id` (см. `VkGroup.audioOwnerId`). */
+    suspend fun groupsGet(offset: Int, count: Int = 40): VkResult<VkItems<VkGroup>> {
+        val itemsType = Types.newParameterizedType(VkItems::class.java, VkGroup::class.java)
+        val method = VkMethod(
+            "groups.get",
+            MoshiEnvelopeParser<VkItems<VkGroup>>(itemsType),
+        ).apply {
+            param("extended", 1)
+            param("offset", offset)
+            param("count", count)
+            param("fields", GROUP_FIELDS)
+        }
+        return client.execute(method)
     }
 
     suspend fun resolveScreenName(screenName: String) =
@@ -711,6 +752,20 @@ class VkMethodsRegistry(private val client: VkApiClient) {
     private companion object {
         const val VKX_STORAGE_APP_ID = 52384530
         const val PROFILE_FIELDS = "first_name,last_name,name,photo_100,photo_200"
+
+        /**
+         * Полный набор `fields` для карточки профиля. Имена сверены со строками
+         * официального клиента; `counters` VK отдаёт только владельцу токена.
+         */
+        const val CURRENT_PROFILE_FIELDS = "photo_base,name,is_followed,can_follow," +
+            "photo_100,photo_200,photo_200_orig,photo_400_orig,photo_max_orig," +
+            "domain,screen_name,status,bdate,city,country,followers_count,counters," +
+            "online,online_info,last_seen,verified,sex"
+
+        const val FRIEND_FIELDS =
+            "photo_100,photo_200,domain,screen_name,online,online_info,last_seen,verified,sex,can_see_audio"
+
+        const val GROUP_FIELDS = "photo_100,photo_200,members_count,verified,is_member"
         const val AUDIO_PRIVACY_EXECUTE_CODE = """var settings = API.account.getPrivacySettings();
 var i = 0;
 while (i != settings.settings.length) {

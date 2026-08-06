@@ -54,4 +54,19 @@ object VkErrorCodes {
 
     /** Внутренний код: one-shot метод без контента. */
     const val NO_CONTENT = 993
+
+    /** Нет прав на метод — в т.ч. закрытые аудиозаписи пользователя. */
+    const val ACCESS_DENIED = 15
+
+    /** Профиль приватный: доступ к содержимому запрещён настройками владельца. */
+    const val PRIVATE_PROFILE = 30
+
+    /** Доступ к аудио владельца запрещён его настройками приватности. */
+    const val AUDIO_ACCESS_DENIED = 201
+
+    /** Нет доступа к сообществу (закрытая или заблокированная группа). */
+    const val GROUP_ACCESS_DENIED = 203
+
+    /** Коды, которые для нас означают одно: владелец закрыл свою музыку. */
+    val CLOSED_CONTENT = setOf(ACCESS_DENIED, PRIVATE_PROFILE, AUDIO_ACCESS_DENIED, GROUP_ACCESS_DENIED)
 }

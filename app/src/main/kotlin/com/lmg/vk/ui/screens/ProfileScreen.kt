@@ -1,5 +1,6 @@
 package com.lmg.vk.ui.screens
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -25,11 +26,14 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ExitToApp
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.BarChart
-import androidx.compose.material.icons.rounded.History
+import androidx.compose.material.icons.rounded.Cake
+import androidx.compose.material.icons.rounded.Groups
 import androidx.compose.material.icons.rounded.Person
+import androidx.compose.material.icons.rounded.Place
 import androidx.compose.material.icons.rounded.QueueMusic
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material.icons.rounded.Verified
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -52,37 +56,31 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
-import com.lmg.vk.data.local.db.AppDatabase
-import com.lmg.vk.data.local.db.FavoriteTrackDatabase
 import com.lmg.vk.engine.backend.MusicAuth
-import com.lmg.vk.engine.PlaylistManager
+import com.lmg.vk.engine.backend.VkProfileRepository
+import com.lmg.vk.network.dto.VkFriend
+import com.lmg.vk.network.dto.VkGroup
 import com.lmg.vk.ui.glass.liquidClickable
 import com.lmg.vk.ui.theme.AppFontFamily
 import com.lmg.vk.ui.theme.LiquidTheme
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 private val DestructiveRed = Color(0xFFFC3C44)
+private val OnlineGreen = Color(0xFF34C759)
 private val ProfileSurfaceDark = Color(0xFF1C1C1E)
 private val ProfileSurfaceLight = Color(0xFFF2F2F7)
 
-private data class ProfileLibrarySummary(
-    val favorites: Int = 0,
-    val downloads: Int = 0,
-    val localTracks: Int = 0,
-    val plays: Int = 0,
-    val listenedMs: Long = 0L,
-    val lastPlaybackAt: Long? = null,
-    val lastPlaybackSource: String? = null,
-)
+/** Сколько друзей/сообществ показываем в свёрнутой карточке. */
+private const val PREVIEW_ROWS = 5
 
 /**
- * VK account screen. Profile identity is populated only from the recovered
- * `users.get` contract; no LMG/third-party subscription or region facade is used.
+ * VK account screen. Everything on it comes from the VK API — profile fields
+ * from `users.get`, friends from `friends.get`, communities from `groups.get`,
+ * counts from `audio.get`/`audio.getPlaylists`. No local metrics are shown here.
  */
 @Composable
 fun ProfileScreen(
@@ -96,51 +94,50 @@ fun ProfileScreen(
     val scope = rememberCoroutineScope()
     val colors = LiquidTheme.colors
     val isLoggedIn by MusicAuth.isLoggedIn.collectAsState()
-    val profileName by MusicAuth.profileName.collectAsState()
-    val avatarUrl by MusicAuth.avatarUrl.collectAsState()
     val profileId by MusicAuth.profileId.collectAsState()
-    val profileDomain by MusicAuth.profileDomain.collectAsState()
-    val isRefreshing by MusicAuth.isProfileRefreshing.collectAsState()
+    val fallbackName by MusicAuth.profileName.collectAsState()
+    val fallbackAvatar by MusicAuth.avatarUrl.collectAsState()
+    val fallbackDomain by MusicAuth.profileDomain.collectAsState()
     val sessionExpiresAt by MusicAuth.profileSessionExpiresAt.collectAsState()
-    val playlists by PlaylistManager.playlists.collectAsState()
+    val vk by VkProfileRepository.state.collectAsState()
+    val ownerAudio by VkProfileRepository.ownerAudio.collectAsState()
+
     var showSignOutConfirmation by remember { mutableStateOf(false) }
-    var librarySummary by remember { mutableStateOf(ProfileLibrarySummary()) }
+    var friendsExpanded by remember { mutableStateOf(false) }
+    var groupsExpanded by remember { mutableStateOf(false) }
 
-    suspend fun loadLibrarySummary(): ProfileLibrarySummary = withContext(Dispatchers.IO) {
-        val appDatabase = AppDatabase.getInstance(context)
-        val favoritesDatabase = FavoriteTrackDatabase.getInstance(context)
-        favoritesDatabase.loadAsync()
-        val history = appDatabase.playbackHistoryDao()
-        val lastPlayback = history.getRecentHistory(limit = 1).firstOrNull()
-        ProfileLibrarySummary(
-            favorites = favoritesDatabase.getAllFavorites().size,
-            downloads = favoritesDatabase.getDownloadedTracks().size,
-            localTracks = appDatabase.localTracksDao().count(),
-            plays = history.getTotalPlayEvents(),
-            listenedMs = history.getTotalListenedMs(),
-            lastPlaybackAt = lastPlayback?.timestamp,
-            lastPlaybackSource = lastPlayback?.source,
-        )
+    // Пока VK ID неизвестен, тянуть friends/groups/audio нечем: сначала
+    // users.get заполнит id, обновление flow перезапустит эффект.
+    LaunchedEffect(isLoggedIn, profileId) {
+        if (!isLoggedIn) return@LaunchedEffect
+        val id = profileId
+        if (id == null || id == 0L) {
+            MusicAuth.fetchUserData()
+            return@LaunchedEffect
+        }
+        VkProfileRepository.refresh(id)
     }
 
-    LaunchedEffect(isLoggedIn) {
-        if (isLoggedIn) MusicAuth.fetchUserData()
-    }
-    LaunchedEffect(context) {
-        librarySummary = loadLibrarySummary()
-    }
-
-    val displayName = profileName?.takeIf(String::isNotBlank)
+    val profile = vk.profile
+    val displayName = profile?.displayName?.takeIf(String::isNotBlank)
+        ?: fallbackName?.takeIf(String::isNotBlank)
         ?: if (isLoggedIn) "VK account" else "Guest"
+    val slug = profile?.addressSlug?.takeIf(String::isNotBlank)
+        ?: fallbackDomain?.takeIf(String::isNotBlank)
+    val avatarUrl = profile?.bestPhotoUrl?.takeIf(String::isNotBlank) ?: fallbackAvatar
     val accountSubtitle = when {
-        !profileDomain.isNullOrBlank() -> "vk.com/$profileDomain"
+        !slug.isNullOrBlank() -> "vk.com/$slug"
         profileId != null -> "VK ID $profileId"
         isLoggedIn -> "VK account"
         else -> "Sign in to restore your VK library"
     }
+
     val window = com.lmg.vk.ui.rememberWindowInfo()
     val compact = window.useSideBySide
     val surface = if (colors.isDark) ProfileSurfaceDark else ProfileSurfaceLight
+
+    // Подэкран чужих аудио перехватывает "назад" раньше, чем оверлей профиля.
+    BackHandler(enabled = ownerAudio != null) { VkProfileRepository.closeOwnerAudio() }
 
     if (showSignOutConfirmation) {
         AlertDialog(
@@ -205,13 +202,24 @@ fun ProfileScreen(
                         }
                     }
                     Spacer(Modifier.height(if (compact) 12.dp else 18.dp))
-                    Text(
-                        text = displayName,
-                        fontFamily = AppFontFamily,
-                        color = colors.textPrimary,
-                        fontSize = if (compact) 20.sp else 26.sp,
-                        fontWeight = FontWeight.Bold,
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = displayName,
+                            fontFamily = AppFontFamily,
+                            color = colors.textPrimary,
+                            fontSize = if (compact) 20.sp else 26.sp,
+                            fontWeight = FontWeight.Bold,
+                        )
+                        if (profile?.isVerified == true) {
+                            Spacer(Modifier.width(6.dp))
+                            Icon(
+                                imageVector = Icons.Rounded.Verified,
+                                contentDescription = "Verified",
+                                tint = Color(0xFF0077FF),
+                                modifier = Modifier.size(if (compact) 18.dp else 22.dp),
+                            )
+                        }
+                    }
                     Spacer(Modifier.height(4.dp))
                     Text(
                         text = accountSubtitle,
@@ -219,27 +227,76 @@ fun ProfileScreen(
                         color = colors.textSecondary,
                         fontSize = 13.sp,
                     )
+                    profile?.status?.takeIf(String::isNotBlank)?.let { status ->
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            text = status,
+                            fontFamily = AppFontFamily,
+                            color = colors.textTertiary,
+                            fontSize = 12.sp,
+                            textAlign = TextAlign.Center,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
                 }
             }
 
             item { Spacer(Modifier.height(if (compact) 16.dp else 24.dp)) }
 
             if (isLoggedIn) {
+                vk.error?.let { message ->
+                    item {
+                        ProfileCard(surface = surface) {
+                            ProfileNoticeRow(message)
+                        }
+                    }
+                    item { Spacer(Modifier.height(16.dp)) }
+                }
+
                 item {
                     ProfileCard(surface = surface) {
                         ProfileInfoRow(
                             icon = Icons.Rounded.Person,
                             label = "VK ID",
-                            value = profileId?.toString() ?: "Loading account…",
+                            value = (profile?.id ?: profileId)?.toString() ?: "Loading account…",
                             compact = compact,
                         )
-                        if (!profileDomain.isNullOrBlank()) {
+                        if (!slug.isNullOrBlank()) {
                             ProfileDivider()
                             ProfileInfoRow(
                                 icon = Icons.Rounded.Person,
                                 label = "Profile address",
-                                value = "vk.com/$profileDomain",
+                                value = "vk.com/$slug",
                                 compact = compact,
+                            )
+                        }
+                        profile?.locationLabel?.takeIf(String::isNotBlank)?.let { location ->
+                            ProfileDivider()
+                            ProfileInfoRow(
+                                icon = Icons.Rounded.Place,
+                                label = "Location",
+                                value = location,
+                                compact = compact,
+                            )
+                        }
+                        profile?.bdate?.takeIf(String::isNotBlank)?.let { bdate ->
+                            ProfileDivider()
+                            ProfileInfoRow(
+                                icon = Icons.Rounded.Cake,
+                                label = "Birthday",
+                                value = formatBirthday(bdate),
+                                compact = compact,
+                            )
+                        }
+                        profile?.let {
+                            ProfileDivider()
+                            ProfileInfoRow(
+                                icon = Icons.Rounded.Person,
+                                label = "Presence",
+                                value = if (it.isOnline) "Online now" else "Offline",
+                                compact = compact,
+                                valueTint = if (it.isOnline) OnlineGreen else null,
                             )
                         }
                         ProfileDivider()
@@ -249,48 +306,150 @@ fun ProfileScreen(
                             value = formatSessionStatus(sessionExpiresAt),
                             compact = compact,
                         )
+                    }
+                }
+                item { Spacer(Modifier.height(16.dp)) }
+
+                item {
+                    ProfileCard(surface = surface) {
+                        ProfileSectionLabel("MY MUSIC")
+                        ProfileMetricsRow(
+                            firstValue = vk.audioTotal.orDash(),
+                            firstLabel = "Tracks in VK",
+                            secondValue = (vk.playlistsTotal ?: vk.playlists.size.takeIf { it > 0 }).orDash(),
+                            secondLabel = "Playlists",
+                            compact = compact,
+                        )
+                        vk.musicError?.let {
+                            ProfileDivider()
+                            ProfileNoticeRow(it)
+                        }
                         ProfileDivider()
-                        ProfileInfoRow(
-                            icon = Icons.Rounded.History,
-                            label = "Last activity",
-                            value = formatLastPlayback(
-                                librarySummary.lastPlaybackAt,
-                                librarySummary.lastPlaybackSource,
-                            ),
+                        ProfileNavigationRow(
+                            icon = Icons.Rounded.QueueMusic,
+                            label = "My Library",
+                            value = "Favorites, playlists & downloads",
+                            compact = compact,
+                            onClick = onOpenLibrary,
+                        )
+                    }
+                }
+                item { Spacer(Modifier.height(16.dp)) }
+
+                item {
+                    ProfileCard(surface = surface) {
+                        ProfileSectionLabel("SOCIAL")
+                        ProfileMetricsRow(
+                            firstValue = (vk.friendsTotal ?: vk.profile?.counters?.friends).orDash(),
+                            firstLabel = "Friends",
+                            secondValue = (vk.groupsTotal ?: vk.profile?.counters?.groups).orDash(),
+                            secondLabel = "Communities",
+                            compact = compact,
+                        )
+                        ProfileDivider()
+                        ProfileMetricsRow(
+                            firstValue = (profile?.followersCount ?: profile?.counters?.followers).orDash(),
+                            firstLabel = "Followers",
+                            secondValue = (profile?.counters?.subscriptions).orDash(),
+                            secondLabel = "Subscriptions",
                             compact = compact,
                         )
                     }
                 }
                 item { Spacer(Modifier.height(16.dp)) }
-            }
 
-            if (isLoggedIn) {
+                // ---------------------------- Друзья ----------------------------
                 item {
                     ProfileCard(surface = surface) {
-                        ProfileSectionLabel("YOUR LIBRARY")
-                        ProfileMetricsRow(
-                            firstValue = librarySummary.favorites.toString(),
-                            firstLabel = "Favorites",
-                            secondValue = playlists.size.toString(),
-                            secondLabel = "Playlists",
-                            compact = compact,
+                        ProfileSectionLabel(
+                            if (vk.friendsTotal != null) "FRIENDS • ${vk.friendsTotal}" else "FRIENDS",
                         )
-                        ProfileDivider()
-                        ProfileMetricsRow(
-                            firstValue = librarySummary.downloads.toString(),
-                            firstLabel = "Downloads",
-                            secondValue = librarySummary.localTracks.toString(),
-                            secondLabel = "On device",
-                            compact = compact,
+                        when {
+                            vk.isLoading && vk.friends.isEmpty() -> ProfileLoadingRow()
+                            vk.friendsError != null && vk.friends.isEmpty() ->
+                                ProfileNoticeRow(vk.friendsError!!)
+                            vk.friends.isEmpty() -> ProfileNoticeRow("No friends returned by VK")
+                            else -> {
+                                val shown = if (friendsExpanded) vk.friends else vk.friends.take(PREVIEW_ROWS)
+                                shown.forEachIndexed { index, friend ->
+                                    if (index > 0) ProfileDivider()
+                                    FriendRow(
+                                        friend = friend,
+                                        compact = compact,
+                                        onClick = {
+                                            scope.launch { VkProfileRepository.openFriendAudio(friend) }
+                                        },
+                                    )
+                                }
+                                if (!friendsExpanded && vk.friends.size > PREVIEW_ROWS) {
+                                    ProfileDivider()
+                                    ProfileNavigationRow(
+                                        icon = Icons.Rounded.Person,
+                                        label = "Show all friends",
+                                        value = "${vk.friends.size} loaded",
+                                        compact = compact,
+                                        onClick = { friendsExpanded = true },
+                                    )
+                                } else if (friendsExpanded && vk.hasMoreFriends) {
+                                    ProfileDivider()
+                                    ProfileNavigationRow(
+                                        icon = Icons.Rounded.Person,
+                                        label = "Load more friends",
+                                        value = "${vk.friends.size} of ${vk.friendsTotal}",
+                                        compact = compact,
+                                        onClick = { scope.launch { VkProfileRepository.loadMoreFriends() } },
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+                item { Spacer(Modifier.height(16.dp)) }
+
+                // -------------------------- Сообщества --------------------------
+                item {
+                    ProfileCard(surface = surface) {
+                        ProfileSectionLabel(
+                            if (vk.groupsTotal != null) "COMMUNITIES • ${vk.groupsTotal}" else "COMMUNITIES",
                         )
-                        ProfileDivider()
-                        ProfileMetricsRow(
-                            firstValue = formatProfileDuration(librarySummary.listenedMs),
-                            firstLabel = "Listened",
-                            secondValue = librarySummary.plays.toString(),
-                            secondLabel = "Plays",
-                            compact = compact,
-                        )
+                        when {
+                            vk.isLoading && vk.groups.isEmpty() -> ProfileLoadingRow()
+                            vk.groupsError != null && vk.groups.isEmpty() ->
+                                ProfileNoticeRow(vk.groupsError!!)
+                            vk.groups.isEmpty() -> ProfileNoticeRow("No communities returned by VK")
+                            else -> {
+                                val shown = if (groupsExpanded) vk.groups else vk.groups.take(PREVIEW_ROWS)
+                                shown.forEachIndexed { index, group ->
+                                    if (index > 0) ProfileDivider()
+                                    GroupRow(
+                                        group = group,
+                                        compact = compact,
+                                        onClick = {
+                                            scope.launch { VkProfileRepository.openGroupAudio(group) }
+                                        },
+                                    )
+                                }
+                                if (!groupsExpanded && vk.groups.size > PREVIEW_ROWS) {
+                                    ProfileDivider()
+                                    ProfileNavigationRow(
+                                        icon = Icons.Rounded.Groups,
+                                        label = "Show all communities",
+                                        value = "${vk.groups.size} loaded",
+                                        compact = compact,
+                                        onClick = { groupsExpanded = true },
+                                    )
+                                } else if (groupsExpanded && vk.hasMoreGroups) {
+                                    ProfileDivider()
+                                    ProfileNavigationRow(
+                                        icon = Icons.Rounded.Groups,
+                                        label = "Load more communities",
+                                        value = "${vk.groups.size} of ${vk.groupsTotal}",
+                                        compact = compact,
+                                        onClick = { scope.launch { VkProfileRepository.loadMoreGroups() } },
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
                 item { Spacer(Modifier.height(16.dp)) }
@@ -301,15 +460,15 @@ fun ProfileScreen(
                     if (isLoggedIn) {
                         ProfileNavigationRow(
                             icon = Icons.Rounded.Refresh,
-                            label = if (isRefreshing) "Refreshing profile" else "Refresh profile",
+                            label = if (vk.isRefreshing) "Refreshing profile" else "Refresh profile",
                             value = "Fetch current details from VK",
                             compact = compact,
-                            enabled = !isRefreshing,
-                            loading = isRefreshing,
+                            enabled = !vk.isRefreshing && !vk.isLoading,
+                            loading = vk.isRefreshing || vk.isLoading,
                             onClick = {
                                 scope.launch {
                                     val refreshed = MusicAuth.fetchUserData()
-                                    librarySummary = loadLibrarySummary()
+                                    VkProfileRepository.refresh(MusicAuth.profileId.value ?: 0L)
                                     if (!refreshed) {
                                         android.widget.Toast.makeText(
                                             context,
@@ -321,11 +480,11 @@ fun ProfileScreen(
                             },
                         )
                         ProfileDivider()
-                        if (!profileDomain.isNullOrBlank()) {
+                        if (!slug.isNullOrBlank()) {
                             ProfileNavigationRow(
                                 icon = Icons.Rounded.Person,
                                 label = "Copy VK profile link",
-                                value = "vk.com/$profileDomain",
+                                value = "vk.com/$slug",
                                 compact = compact,
                                 onClick = {
                                     val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE)
@@ -333,7 +492,7 @@ fun ProfileScreen(
                                     clipboard.setPrimaryClip(
                                         android.content.ClipData.newPlainText(
                                             "vk_profile_link",
-                                            "https://vk.com/$profileDomain",
+                                            "https://vk.com/$slug",
                                         ),
                                     )
                                     android.widget.Toast.makeText(
@@ -345,14 +504,6 @@ fun ProfileScreen(
                             )
                             ProfileDivider()
                         }
-                        ProfileNavigationRow(
-                            icon = Icons.Rounded.QueueMusic,
-                            label = "My Library",
-                            value = "Favorites, playlists & downloads",
-                            compact = compact,
-                            onClick = onOpenLibrary,
-                        )
-                        ProfileDivider()
                         ProfileNavigationRow(
                             icon = Icons.Rounded.BarChart,
                             label = "Listening Stats",
@@ -409,8 +560,145 @@ fun ProfileScreen(
             }
             item { Spacer(Modifier.height(24.dp)) }
         }
+
+        ownerAudio?.let { audioState ->
+            OwnerAudioScreen(
+                state = audioState,
+                onBack = { VkProfileRepository.closeOwnerAudio() },
+            )
+        }
     }
 }
+
+// ------------------------------- строки списков -------------------------------
+
+@Composable
+private fun FriendRow(friend: VkFriend, compact: Boolean, onClick: () -> Unit) {
+    val colors = LiquidTheme.colors
+    val subtitle = when {
+        !friend.isActive -> if (friend.deactivated == "banned") "Banned" else "Deleted"
+        !friend.audioProbablyVisible -> "Music is closed"
+        friend.isOnline -> "Online"
+        friend.screenName.isNotBlank() -> "vk.com/${friend.screenName}"
+        friend.domain.isNotBlank() -> "vk.com/${friend.domain}"
+        else -> "Tap to open audio"
+    }
+    OwnerRow(
+        avatarUrl = friend.avatarUrl,
+        title = friend.displayName,
+        subtitle = subtitle,
+        subtitleTint = if (friend.isOnline && friend.isActive) OnlineGreen else colors.textSecondary,
+        showOnlineDot = friend.isOnline && friend.isActive,
+        enabled = friend.isActive,
+        compact = compact,
+        onClick = onClick,
+    )
+}
+
+@Composable
+private fun GroupRow(group: VkGroup, compact: Boolean, onClick: () -> Unit) {
+    val subtitle = when {
+        group.membersCount != null -> "${formatCount(group.membersCount!!)} members"
+        group.screenName.isNotBlank() -> "vk.com/${group.screenName}"
+        else -> "Tap to open audio"
+    }
+    OwnerRow(
+        avatarUrl = group.avatarUrl,
+        title = group.name,
+        subtitle = subtitle,
+        subtitleTint = LiquidTheme.colors.textSecondary,
+        showOnlineDot = false,
+        enabled = true,
+        compact = compact,
+        circleAvatar = false,
+        onClick = onClick,
+    )
+}
+
+@Composable
+private fun OwnerRow(
+    avatarUrl: String,
+    title: String,
+    subtitle: String,
+    subtitleTint: Color,
+    showOnlineDot: Boolean,
+    enabled: Boolean,
+    compact: Boolean,
+    circleAvatar: Boolean = true,
+    onClick: () -> Unit,
+) {
+    val colors = LiquidTheme.colors
+    val shape = if (circleAvatar) CircleShape else RoundedCornerShape(12.dp)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .liquidClickable(enabled = enabled, onClick = onClick)
+            .padding(horizontal = 18.dp, vertical = if (compact) 8.dp else 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        Box(contentAlignment = Alignment.BottomEnd) {
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(shape)
+                    .background(colors.textTertiary.copy(alpha = 0.16f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (avatarUrl.isNotBlank()) {
+                    AsyncImage(
+                        model = avatarUrl,
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                } else {
+                    Icon(
+                        imageVector = if (circleAvatar) Icons.Rounded.Person else Icons.Rounded.Groups,
+                        contentDescription = null,
+                        tint = colors.iconMuted,
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
+            }
+            if (showOnlineDot) {
+                Box(
+                    modifier = Modifier
+                        .size(11.dp)
+                        .clip(CircleShape)
+                        .background(OnlineGreen),
+                )
+            }
+        }
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                fontFamily = AppFontFamily,
+                color = colors.textPrimary,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Medium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = subtitle,
+                fontFamily = AppFontFamily,
+                color = subtitleTint,
+                fontSize = 12.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        Icon(
+            Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+            null,
+            tint = colors.textTertiary,
+            modifier = Modifier.size(18.dp),
+        )
+    }
+}
+
+// --------------------------------- примитивы ---------------------------------
 
 @Composable
 private fun ProfileCard(surface: Color, content: @Composable ColumnScope.() -> Unit) {
@@ -425,7 +713,13 @@ private fun ProfileCard(surface: Color, content: @Composable ColumnScope.() -> U
 }
 
 @Composable
-private fun ProfileInfoRow(icon: ImageVector, label: String, value: String, compact: Boolean) {
+private fun ProfileInfoRow(
+    icon: ImageVector,
+    label: String,
+    value: String,
+    compact: Boolean,
+    valueTint: Color? = null,
+) {
     val colors = LiquidTheme.colors
     Row(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = if (compact) 12.dp else 14.dp),
@@ -435,7 +729,7 @@ private fun ProfileInfoRow(icon: ImageVector, label: String, value: String, comp
         Spacer(Modifier.width(14.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(label, fontFamily = AppFontFamily, color = colors.textPrimary, fontSize = 15.sp, fontWeight = FontWeight.Medium)
-            Text(value, fontFamily = AppFontFamily, color = colors.textSecondary, fontSize = 12.sp)
+            Text(value, fontFamily = AppFontFamily, color = valueTint ?: colors.textSecondary, fontSize = 12.sp)
         }
     }
 }
@@ -451,6 +745,39 @@ private fun ProfileSectionLabel(text: String) {
         letterSpacing = 1.4.sp,
         modifier = Modifier.padding(start = 18.dp, end = 18.dp, top = 16.dp, bottom = 6.dp),
     )
+}
+
+/** Однострочное сообщение VK (ошибка секции, закрытая приватность, пустой список). */
+@Composable
+private fun ProfileNoticeRow(text: String) {
+    Text(
+        text = text,
+        fontFamily = AppFontFamily,
+        color = LiquidTheme.colors.textSecondary,
+        fontSize = 13.sp,
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 14.dp),
+    )
+}
+
+@Composable
+private fun ProfileLoadingRow() {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        CircularProgressIndicator(
+            modifier = Modifier.size(16.dp),
+            strokeWidth = 2.dp,
+            color = LiquidTheme.colors.iconMuted,
+        )
+        Text(
+            text = "Loading from VK…",
+            fontFamily = AppFontFamily,
+            color = LiquidTheme.colors.textSecondary,
+            fontSize = 13.sp,
+        )
+    }
 }
 
 @Composable
@@ -543,34 +870,36 @@ private fun ProfileDivider() {
     )
 }
 
-private fun formatProfileDuration(durationMs: Long): String {
-    val totalMinutes = durationMs.coerceAtLeast(0L) / 60_000L
-    return when {
-        totalMinutes >= 60 -> "${totalMinutes / 60}h ${totalMinutes % 60}m"
-        totalMinutes > 0 -> "${totalMinutes}m"
-        else -> "0m"
-    }
+// ---------------------------------- форматы ----------------------------------
+
+private fun Int?.orDash(): String = this?.let(::formatCount) ?: "—"
+
+private fun formatCount(value: Int): String = when {
+    value >= 1_000_000 -> "${value / 1_000_000},${(value % 1_000_000) / 100_000}M"
+    value >= 10_000 -> "${value / 1_000}K"
+    else -> value.toString()
 }
+
+/** VK отдаёт `D.M.YYYY` либо `D.M`, если год скрыт настройками приватности. */
+private fun formatBirthday(bdate: String): String {
+    val parts = bdate.split('.').mapNotNull { it.trim().toIntOrNull() }
+    if (parts.size < 2) return bdate
+    val month = MONTHS.getOrNull(parts[1] - 1) ?: return bdate
+    val day = parts[0]
+    return if (parts.size >= 3) "$month $day, ${parts[2]}" else "$month $day"
+}
+
+private val MONTHS = listOf(
+    "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December",
+)
 
 private fun formatSessionStatus(expiresAtSeconds: Long?): String {
     if (expiresAtSeconds == null) return "Active • no fixed expiry"
-    val minutesLeft = expiresAtSeconds - (System.currentTimeMillis() / 1_000L)
+    val secondsLeft = expiresAtSeconds - (System.currentTimeMillis() / 1_000L)
     return when {
-        minutesLeft <= 0L -> "Expired • refresh on next VK request"
-        minutesLeft < 3_600L -> "Active • expires in ${minutesLeft / 60}m"
-        else -> "Active • expires in ${minutesLeft / 3_600}h"
+        secondsLeft <= 0L -> "Expired • refresh on next VK request"
+        secondsLeft < 3_600L -> "Active • expires in ${secondsLeft / 60}m"
+        else -> "Active • expires in ${secondsLeft / 3_600}h"
     }
-}
-
-private fun formatLastPlayback(timestampMs: Long?, source: String?): String {
-    if (timestampMs == null || timestampMs <= 0L) return "No listening events yet"
-    val secondsAgo = ((System.currentTimeMillis() - timestampMs).coerceAtLeast(0L)) / 1_000L
-    val relative = when {
-        secondsAgo < 60L -> "just now"
-        secondsAgo < 3_600L -> "${secondsAgo / 60}m ago"
-        secondsAgo < 86_400L -> "${secondsAgo / 3_600}h ago"
-        else -> "${secondsAgo / 86_400}d ago"
-    }
-    val sourceLabel = source?.replaceFirstChar { it.uppercase() }?.takeIf(String::isNotBlank)
-    return listOfNotNull(sourceLabel, relative).joinToString(" • ")
 }
