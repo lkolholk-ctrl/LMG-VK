@@ -23,7 +23,14 @@ import androidx.compose.foundation.layout.windowInsetsTopHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.ChevronRight
+import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.Refresh
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -50,6 +57,9 @@ import com.lmg.vk.ui.glass.AlbumArtImage
 import com.lmg.vk.ui.theme.AppFontFamily
 import com.lmg.vk.ui.theme.LiquidTheme
 import com.lmg.vk.ui.viewmodel.HomeViewModel
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 /**
  * Таб «New» — главная выдача VK Music CatalogKit (`catalog.getAudioAuto`).
@@ -101,18 +111,37 @@ fun NewScreen(
         ) {
             item { Spacer(Modifier.windowInsetsTopHeight(WindowInsets.statusBars)) }
             item {
-                Text(
-                    text = "New",
-                    color = lc.textPrimary,
-                    fontSize = if (compact) 20.sp else 28.sp,
-                    fontWeight = FontWeight.Bold,
-                    fontFamily = AppFontFamily,
-                    modifier = Modifier.padding(
-                        start = 20.dp,
-                        top = if (compact) 8.dp else 12.dp,
-                        bottom = if (compact) 10.dp else 16.dp
-                    )
+                NewScreenHeader(
+                    compact = compact,
+                    sectionCount = homeBlocks.size,
+                    updatedAt = homeContent?.updatedAt,
+                    isLoading = isLoading,
+                    onRefresh = { viewModel.loadHomeContent(force = true) },
                 )
+            }
+
+            // При обновлении не прячем уже полученную VK-выдачу: тонкая полоса
+            // даёт понять, что запрос идёт, но экран остаётся полезным.
+            if (isLoading && homeBlocks.isNotEmpty()) {
+                item {
+                    Box(
+                        modifier = Modifier
+                            .padding(horizontal = 20.dp)
+                            .fillMaxWidth()
+                            .height(2.dp)
+                            .clip(RoundedCornerShape(50))
+                            .background(lc.accent.copy(alpha = 0.22f)),
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth(0.34f)
+                                .fillMaxHeight()
+                                .clip(RoundedCornerShape(50))
+                                .background(lc.accent),
+                        )
+                    }
+                    Spacer(Modifier.height(12.dp))
+                }
             }
 
             // Скелетоны только для подтверждённой VK catalog выдачи.
@@ -123,13 +152,22 @@ fun NewScreen(
                 }
             }
 
+            loadError?.takeIf { homeBlocks.isNotEmpty() && !isLoading }?.let { message ->
+                item {
+                    NewInlineError(
+                        message = message,
+                        compact = compact,
+                        onRetry = { viewModel.loadHomeContent(force = true) },
+                    )
+                }
+            }
+
             loadError?.takeIf { homeBlocks.isEmpty() && !isLoading }?.let { message ->
                 item {
-                    Text(
-                        text = message,
-                        color = lc.textSecondary,
-                        fontSize = 14.sp,
-                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp),
+                    NewLoadError(
+                        message = message,
+                        compact = compact,
+                        onRetry = { viewModel.loadHomeContent(force = true) },
                     )
                 }
             }
@@ -146,11 +184,12 @@ fun NewScreen(
                         )
                         Text(
                             text = "Повторить загрузку",
-                            color = lc.textPrimary,
+                            color = lc.accent,
                             fontSize = 14.sp,
                             fontWeight = FontWeight.SemiBold,
                             modifier = Modifier
                                 .padding(top = 8.dp)
+                                .clip(RoundedCornerShape(8.dp))
                                 .clickable { viewModel.loadHomeContent(force = true) },
                         )
                     }
@@ -165,6 +204,12 @@ fun NewScreen(
                     }
                     when {
                         block.layoutName in NEW_HERO_LAYOUTS -> {
+                            NewSectionHeader(
+                                title = title,
+                                compact = compact,
+                                itemCount = block.items.size,
+                                onClick = { sectionSheetBlock = block },
+                            )
                             block.items.firstOrNull()?.let { homeItem ->
                                 NewHeroBanner(homeItem, compact, onClick = { onItemClick(homeItem) })
                             }
@@ -174,6 +219,7 @@ fun NewScreen(
                             NewSectionHeader(
                                 title = title,
                                 compact = compact,
+                                itemCount = block.items.size,
                                 onClick = { sectionSheetBlock = block },
                             )
                             NewTrackColumns(
@@ -189,6 +235,7 @@ fun NewScreen(
                             NewSectionHeader(
                                 title = title,
                                 compact = compact,
+                                itemCount = block.items.size,
                                 onClick = { sectionSheetBlock = block },
                             )
                             LazyRow(
@@ -205,12 +252,16 @@ fun NewScreen(
                                     } else {
                                         NewTrackCard(
                                             title = homeItem.title,
-                                            subtitle = homeItem.subtitle ?: homeItem.displayArtist,
+                                            subtitle = homeItem.subtitle
+                                                ?: homeItem.artist
+                                                ?: if (homeItem.isCustom) "VK Музыка" else homeItem.displayArtist,
                                             coverUrl = homeItem.cover,
                                             compact = compact,
                                             showRank = block.layoutName.startsWith("music_chart"),
                                             rank = homeItem.rank,
-                                            enabled = !homeItem.isTrack || homeItem.isAvailable,
+                                            enabled = !homeItem.isCustom &&
+                                                (!homeItem.isTrack || homeItem.isAvailable),
+                                            dimWhenDisabled = !homeItem.isCustom,
                                             onClick = { onItemClick(homeItem) }
                                         )
                                     }
@@ -234,6 +285,180 @@ fun NewScreen(
             )
         }
     }
+}
+
+/** Заголовок New с обновлением и кратким состоянием реального VK-каталога. */
+@Composable
+private fun NewScreenHeader(
+    compact: Boolean,
+    sectionCount: Int,
+    updatedAt: Long?,
+    isLoading: Boolean,
+    onRefresh: () -> Unit,
+) {
+    val lc = LiquidTheme.colors
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(
+                start = 20.dp,
+                end = 12.dp,
+                top = if (compact) 8.dp else 12.dp,
+                bottom = if (compact) 10.dp else 16.dp,
+            ),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "New",
+                    color = lc.textPrimary,
+                    fontSize = if (compact) 20.sp else 28.sp,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = AppFontFamily,
+                )
+                if (sectionCount > 0 || updatedAt != null) {
+                    Text(
+                        text = buildString {
+                            if (sectionCount > 0) append("$sectionCount разделов VK")
+                            formatNewUpdatedAt(updatedAt)?.let {
+                                if (isNotEmpty()) append("  ·  ")
+                                append(it)
+                            }
+                        },
+                        color = lc.textSecondary,
+                        fontSize = if (compact) 11.sp else 12.sp,
+                        fontFamily = AppFontFamily,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(top = 3.dp),
+                    )
+                }
+            }
+            Box(
+                modifier = Modifier
+                    .size(if (compact) 42.dp else 46.dp)
+                    .clip(RoundedCornerShape(50))
+                    .background(if (lc.isDark) Color(0xFF242426) else Color(0xFFEDEDF2))
+                    .clickable(enabled = !isLoading, onClick = onRefresh),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (isLoading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(if (compact) 18.dp else 20.dp),
+                        strokeWidth = 2.dp,
+                        color = lc.accent,
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.Rounded.Refresh,
+                        contentDescription = "Обновить каталог VK",
+                        tint = lc.textPrimary,
+                        modifier = Modifier.size(if (compact) 20.dp else 22.dp),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun NewInlineError(
+    message: String,
+    compact: Boolean,
+    onRetry: () -> Unit,
+) {
+    val lc = LiquidTheme.colors
+    Row(
+        modifier = Modifier
+            .padding(horizontal = 20.dp, vertical = 4.dp)
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(if (lc.isDark) Color(0xFF221B1C) else Color(0xFFFFF1F1))
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = message,
+            color = lc.textSecondary,
+            fontSize = if (compact) 11.sp else 12.sp,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+        Text(
+            text = "Повторить",
+            color = lc.accent,
+            fontSize = if (compact) 11.sp else 12.sp,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier
+                .padding(start = 10.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .clickable(onClick = onRetry)
+                .padding(horizontal = 4.dp, vertical = 4.dp),
+        )
+    }
+}
+
+@Composable
+private fun NewLoadError(
+    message: String,
+    compact: Boolean,
+    onRetry: () -> Unit,
+) {
+    val lc = LiquidTheme.colors
+    Column(
+        modifier = Modifier
+            .padding(horizontal = 20.dp, vertical = 16.dp)
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .background(if (lc.isDark) Color(0xFF1D1D1F) else Color(0xFFF2F2F7))
+            .padding(horizontal = 18.dp, vertical = 18.dp),
+    ) {
+        Text(
+            text = "Не удалось загрузить New",
+            color = lc.textPrimary,
+            fontSize = if (compact) 15.sp else 17.sp,
+            fontWeight = FontWeight.Bold,
+            fontFamily = AppFontFamily,
+        )
+        Text(
+            text = message,
+            color = lc.textSecondary,
+            fontSize = if (compact) 12.sp else 13.sp,
+            modifier = Modifier.padding(top = 6.dp),
+        )
+        Row(
+            modifier = Modifier
+                .padding(top = 14.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(lc.accent.copy(alpha = 0.16f))
+                .clickable(onClick = onRetry)
+                .padding(horizontal = 12.dp, vertical = 9.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.Refresh,
+                contentDescription = null,
+                tint = lc.accent,
+                modifier = Modifier.size(17.dp),
+            )
+            Text(
+                text = "Повторить загрузку",
+                color = lc.accent,
+                fontSize = if (compact) 12.sp else 13.sp,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.padding(start = 7.dp),
+            )
+        }
+    }
+}
+
+private fun formatNewUpdatedAt(timestamp: Long?): String? {
+    if (timestamp == null || timestamp <= 0L) return null
+    return "обновлено ${SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(timestamp))}"
 }
 
 /** Пульсирующий плейсхолдер секции: плашка заголовка + ряд карточек 140dp. */
@@ -295,6 +520,7 @@ private fun NewSectionSkeleton() {
 private fun NewSectionHeader(
     title: String?,
     compact: Boolean = false,
+    itemCount: Int = 0,
     onClick: () -> Unit = {},
 ) {
     if (title.isNullOrBlank()) return
@@ -315,7 +541,7 @@ private fun NewSectionHeader(
         )
         Box(
             modifier = Modifier
-                .size(if (compact) 26.dp else 32.dp)
+                .size(if (compact) 42.dp else 46.dp)
                 .clip(RoundedCornerShape(50))
                 .background(if (LiquidTheme.colors.isDark) Color(0xFF252525) else Color(0xFFE8E8ED)),
             contentAlignment = Alignment.Center,
@@ -326,12 +552,11 @@ private fun NewSectionHeader(
                     .clickable(onClick = onClick),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(
-                    text = "›",
-                    color = LiquidTheme.colors.textPrimary,
-                    fontSize = if (compact) 23.sp else 28.sp,
-                    fontWeight = FontWeight.Medium,
-                    modifier = Modifier.padding(bottom = 3.dp),
+                Icon(
+                    imageVector = Icons.Rounded.ChevronRight,
+                    contentDescription = if (itemCount > 0) "Открыть раздел, $itemCount элементов" else "Открыть раздел",
+                    tint = LiquidTheme.colors.textPrimary,
+                    modifier = Modifier.size(if (compact) 20.dp else 23.dp),
                 )
             }
         }
@@ -346,6 +571,10 @@ private fun NewSectionSheet(
     onItemClick: (com.lmg.vk.engine.backend.HomeItem) -> Unit,
 ) {
     val lc = LiquidTheme.colors
+    val context = LocalContext.current
+    val playableItems = remember(block) {
+        block.items.filter { it.isTrack && it.isAvailable }
+    }
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         containerColor = lc.settingsBackground,
@@ -365,15 +594,64 @@ private fun NewSectionSheet(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp),
             )
+            Row(
+                modifier = Modifier
+                    .padding(horizontal = 20.dp, vertical = 2.dp)
+                    .fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = buildString {
+                        append("${block.items.size} элементов")
+                        if (block.layoutName.isNotBlank()) append("  ·  ${newLayoutLabel(block.layoutName)}")
+                    },
+                    color = lc.textSecondary,
+                    fontSize = if (compact) 11.sp else 12.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
+                if (playableItems.isNotEmpty()) {
+                    Row(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(lc.accent.copy(alpha = 0.16f))
+                            .clickable {
+                                PlayerController.playFromList(
+                                    context,
+                                    playableItems.map { it.toTrack() },
+                                )
+                                onDismiss()
+                            }
+                            .padding(horizontal = 10.dp, vertical = 7.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.PlayArrow,
+                            contentDescription = "Слушать все",
+                            tint = lc.accent,
+                            modifier = Modifier.size(17.dp),
+                        )
+                        Text(
+                            text = "Слушать все",
+                            color = lc.accent,
+                            fontSize = if (compact) 11.sp else 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.padding(start = 4.dp),
+                        )
+                    }
+                }
+            }
             LazyColumn(
                 modifier = Modifier.fillMaxWidth().fillMaxHeight(0.78f),
                 contentPadding = PaddingValues(top = 4.dp, bottom = 24.dp),
             ) {
-                items(block.items, key = { "sheet_${block.id}_${it.id}" }) { item ->
+                itemsIndexed(block.items, key = { _, item -> "sheet_${block.id}_${item.id}" }) { index, item ->
                     NewTrackRow(
                         item = item,
-                        rank = if (block.layoutName.startsWith("music_chart")) item.rank else null,
+                        rank = if (block.layoutName.startsWith("music_chart")) item.rank ?: (index + 1) else null,
                         compact = compact,
+                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp),
                         onClick = { onItemClick(item) },
                     )
                 }
@@ -391,15 +669,17 @@ private fun NewTrackCard(
     showRank: Boolean = false,
     rank: Int? = null,
     enabled: Boolean = true,
+    dimWhenDisabled: Boolean = true,
     onClick: () -> Unit
 ) {
     val lc = LiquidTheme.colors
     val cardSize = if (compact) 110.dp else 140.dp
+    val canClick = enabled && !title.isBlank()
     Column(
         modifier = Modifier
             .width(cardSize)
-            .clickable(enabled = enabled, onClick = onClick)
-            .alpha(if (enabled) 1f else 0.42f),
+            .clickable(enabled = canClick, onClick = onClick)
+            .alpha(if (!enabled && dimWhenDisabled) 0.42f else 1f),
     ) {
         Box {
             AlbumArtImage(
@@ -525,13 +805,18 @@ private fun NewTrackRow(
     item: com.lmg.vk.engine.backend.HomeItem,
     rank: Int?,
     compact: Boolean,
+    modifier: Modifier = Modifier,
     onClick: () -> Unit,
 ) {
     val imageSize = if (compact) 48.dp else 58.dp
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
-            .clickable(enabled = !item.isTrack || item.isAvailable, onClick = onClick),
+            .clickable(
+                enabled = !item.isCustom && (!item.isTrack || item.isAvailable),
+                onClick = onClick,
+            )
+            .alpha(if (item.isTrack && !item.isAvailable) 0.42f else 1f),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         rank?.let {
@@ -562,7 +847,9 @@ private fun NewTrackRow(
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                text = item.subtitle ?: item.displayArtist,
+                text = item.subtitle
+                    ?: item.artist
+                    ?: if (item.isCustom) "VK Музыка" else item.displayArtist,
                 color = LiquidTheme.colors.textSecondary,
                 fontSize = if (compact) 11.sp else 12.sp,
                 fontFamily = AppFontFamily,
@@ -611,6 +898,14 @@ private fun NewCuratorCard(title: String, coverUrl: String?, compact: Boolean) {
 private fun formatNewDuration(durationMs: Long): String {
     val seconds = durationMs / 1_000L
     return "%d:%02d".format(seconds / 60L, seconds % 60L)
+}
+
+private fun newLayoutLabel(layoutName: String): String = when (layoutName) {
+    "music_chart_list", "music_chart_triple_stacked_slider" -> "чарт"
+    "triple_stacked_slider" -> "треки"
+    "promo_banners_slider", "snippets_banner", "banner" -> "подборка"
+    "list", "listened_list", "small_list", "compact_list", "large_list", "double_list" -> "список"
+    else -> layoutName.replace('_', ' ')
 }
 
 private val NEW_HERO_LAYOUTS = setOf("banner", "promo_banners_slider", "snippets_banner")

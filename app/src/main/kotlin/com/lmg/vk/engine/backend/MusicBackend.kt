@@ -30,6 +30,12 @@ import com.lmg.vk.network.dto.music.VkAudioContentCard
 import com.lmg.vk.network.dto.music.VkCatalogLink
 import com.lmg.vk.network.dto.music.VkCatalogProfile
 import com.lmg.vk.network.dto.music.VkCatalogResponse
+import com.lmg.vk.network.dto.music.VkCatalogVideo
+import com.lmg.vk.network.dto.music.VkCatalogAudioBook
+import com.lmg.vk.network.dto.music.VkCatalogAudioBookPerson
+import com.lmg.vk.network.dto.music.VkCatalogFollowingsUpdateInfo
+import com.lmg.vk.network.dto.music.VkCatalogLongread
+import com.lmg.vk.network.dto.music.VkCatalogPodcastEntry
 import com.lmg.vk.network.methods.VkAudioApi
 import com.lmg.vk.network.methods.VkCatalogApi
 import com.lmg.vk.network.methods.VkMethodsRegistry
@@ -1425,6 +1431,16 @@ object MusicBackend {
         isCustom = true,
     )
 
+    private fun VkCatalogVideo.toHomeItem() = HomeItem(
+        id = "catalog_video_$fullId",
+        title = title.ifBlank { "Клип VK" },
+        artist = "VK Клипы",
+        cover = coverUrl(),
+        source = "vk",
+        isCustom = true,
+        isClip = true,
+    )
+
     private fun VkCatalogProfile.toHomeItem() = HomeItem(
         id = "curator_$id",
         title = displayName.ifBlank { "VK Музыка" },
@@ -1452,6 +1468,87 @@ object MusicBackend {
         source = "vk",
         isCustom = true,
     )
+
+    private fun VkCatalogPodcastEntry.toHomeItem() = HomeItem(
+        id = "podcast_${aliases.firstOrNull() ?: displayTitle}",
+        title = displayTitle,
+        artist = artist ?: podcastTitle,
+        subtitle = subtitle ?: description,
+        cover = bestCatalogImageUrl(thumbs),
+        duration = duration.takeIf { it > 0 }?.toLong(),
+        source = "vk",
+        isCustom = true,
+    )
+
+    private fun VkCatalogLongread.toHomeItem() = HomeItem(
+        id = "longread_$id",
+        title = title?.takeIf(String::isNotBlank) ?: "История VK Музыки",
+        artist = ownerName,
+        subtitle = subtitle,
+        cover = photo?.sizes.orEmpty()
+            .asSequence()
+            .sortedByDescending { it.width * it.height }
+            .mapNotNull { it.src?.takeIf(String::isNotBlank) }
+            .firstOrNull(),
+        source = "vk",
+        isCustom = true,
+    )
+
+    private fun VkCatalogAudioBook.toHomeItem() = HomeItem(
+        id = "audiobook_$id",
+        title = title?.takeIf(String::isNotBlank) ?: "Аудиокнига VK",
+        artist = bestCatalogText(authors).orEmpty().takeIf(String::isNotBlank),
+        subtitle = publisher?.title,
+        cover = bestCatalogImageUrl(cover),
+        duration = duration.takeIf { it > 0 }?.toLong(),
+        source = "vk",
+        isCustom = true,
+    )
+
+    private fun VkCatalogAudioBookPerson.toHomeItem() = HomeItem(
+        id = "audiobook_person_$id",
+        title = name?.takeIf(String::isNotBlank) ?: "Автор аудиокниг",
+        subtitle = description,
+        cover = bestCatalogImageUrl(photo),
+        source = "vk",
+        isCustom = true,
+    )
+
+    private fun VkCatalogFollowingsUpdateInfo.toHomeItem() = HomeItem(
+        id = "following_update_$id",
+        title = title?.takeIf(String::isNotBlank) ?: "Новые обновления",
+        cover = bestCatalogImageUrl(covers),
+        source = "vk",
+        isCustom = true,
+    )
+
+    /** Moshi's opaque catalog image lists contain maps with url/src/sizes. */
+    private fun bestCatalogImageUrl(values: List<Any?>): String? {
+        fun find(value: Any?): String? = when (value) {
+            is String -> value.takeIf { it.startsWith("http", ignoreCase = true) }
+            is Map<*, *> -> {
+                listOf("url", "src", "uri").asSequence()
+                    .mapNotNull { (value[it] as? String)?.takeIf { url -> url.startsWith("http", true) } }
+                    .firstOrNull()
+                    ?: value.values.asSequence().mapNotNull(::find).firstOrNull()
+            }
+            is Iterable<*> -> value.asSequence().mapNotNull(::find).firstOrNull()
+            else -> null
+        }
+        return values.asSequence().mapNotNull(::find).firstOrNull()
+    }
+
+    private fun bestCatalogText(values: List<Any?>): String? {
+        fun find(value: Any?): String? = when (value) {
+            is String -> value.takeIf(String::isNotBlank)
+            is Map<*, *> -> listOf("name", "title").asSequence()
+                .mapNotNull { value[it] as? String }
+                .firstOrNull { it.isNotBlank() }
+            is Iterable<*> -> value.asSequence().mapNotNull(::find).firstOrNull()
+            else -> null
+        }
+        return values.asSequence().mapNotNull(::find).firstOrNull()
+    }
 
     private fun RadioStation.toHomeItem() = HomeItem(
         id = "radio_$id",
@@ -1663,6 +1760,19 @@ object MusicBackend {
             group_ids = mergeIds(group_ids, other.group_ids),
             audio_content_card_ids = mergeIds(audio_content_card_ids, other.audio_content_card_ids),
             music_owners_ids = mergeIds(music_owners_ids, other.music_owners_ids),
+            suggestions_ids = mergeIds(suggestions_ids, other.suggestions_ids),
+            text_ids = mergeIds(text_ids, other.text_ids),
+            podcast_episodes_ids = mergeIds(podcast_episodes_ids, other.podcast_episodes_ids),
+            podcast_slider_items_ids = mergeIds(podcast_slider_items_ids, other.podcast_slider_items_ids),
+            podcast_items_ids = mergeIds(podcast_items_ids, other.podcast_items_ids),
+            longreads_ids = mergeIds(longreads_ids, other.longreads_ids),
+            audio_book_ids = mergeIds(audio_book_ids, other.audio_book_ids),
+            audio_books_person_ids = mergeIds(audio_books_person_ids, other.audio_books_person_ids),
+            audio_followings_update_info_ids = mergeIds(
+                audio_followings_update_info_ids,
+                other.audio_followings_update_info_ids,
+            ),
+            placeholder_ids = mergeIds(placeholder_ids, other.placeholder_ids),
             radio_stations_ids = mergeIds(radio_stations_ids, other.radio_stations_ids),
             audio_stream_mixes_ids = mergeIds(audio_stream_mixes_ids, other.audio_stream_mixes_ids),
         )
@@ -1678,22 +1788,49 @@ object MusicBackend {
         val audios = flatMap { it.audios.orEmpty() }
         val playlists = flatMap { it.playlists.orEmpty() }
         val artists = flatMap { it.artists.orEmpty() }
+        val artist_videos = flatMap { it.artist_videos.orEmpty() }
+        val videos = flatMap { it.videos.orEmpty() }
         val links = flatMap { it.links.orEmpty() }
         val catalog_banners = flatMap { it.catalog_banners.orEmpty() }
         val curators = flatMap { it.curators.orEmpty() }
         val groups = flatMap { it.groups.orEmpty() }
         val music_owners = flatMap { it.music_owners.orEmpty() }
+        val podcast_episodes = flatMap { it.podcast_episodes.orEmpty() }
+        val podcast_slider_items = flatMap { it.podcast_slider_items.orEmpty() }
+        val podcasts = flatMap { it.podcasts.orEmpty() }
+        val longreads = flatMap { it.longreads.orEmpty() }
+        val audio_books = flatMap { it.audio_books.orEmpty() }
+        val audio_books_persons = flatMap { it.audio_books_persons.orEmpty() }
+        val following_updates = flatMap { it.audio_followings_update_info.orEmpty() }
         val audio_content_cards = flatMap { it.audio_content_cards.orEmpty() }
         val radio_stations = flatMap { it.radio_stations.orEmpty() }
         val audio_stream_mixes = flatMap { it.audio_stream_mixes.orEmpty() }
         val audiosById = audios.orEmpty().associateBy { it.fullId }
         val playlistsById = playlists.orEmpty().associateBy { it.fullId }
         val artistsById = artists.orEmpty().associateBy { it.id }
+        val videosById = buildMap {
+            (artist_videos + videos).forEach { video ->
+                put(video.fullId, video)
+                put(video.id.toString(), video)
+            }
+        }
         val linksById = links.orEmpty().associateBy { it.id }
         val bannersById = catalog_banners.orEmpty().associateBy { it.id.toString() }
         val curatorsById = curators.orEmpty().associateBy { it.id.toString() }
         val groupsById = groups.orEmpty().associateBy { it.id.toString() }
         val ownersById = music_owners.orEmpty().associateBy { it.id.toString() }
+        fun <T> indexCatalogEntries(
+            entries: List<T>,
+            aliases: (T) -> Iterable<String>,
+        ): Map<String, T> = buildMap {
+            entries.forEach { entry -> aliases(entry).forEach { key -> if (key.isNotBlank()) put(key, entry) } }
+        }
+        val podcastEntries = podcasts + podcast_episodes + podcast_slider_items
+        val podcastsById = indexCatalogEntries(podcastEntries) { it.aliases }
+        val longreadsById = longreads.orEmpty().associateBy { it.id.toString() }
+        val audioBooksById = audio_books.orEmpty().associateBy { it.id.toString() }
+        val audioBookPersonsById = audio_books_persons.orEmpty().associateBy { it.id.toString() }
+        val followingUpdatesById = following_updates.orEmpty().associateBy { it.id.toString() }
         val contentCardsById = buildMap {
             audio_content_cards.orEmpty().forEach { card ->
                 put(card.fullId, card)
@@ -1740,6 +1877,10 @@ object MusicBackend {
                     .forEach { add(it.toHomeItem()) }
                 block.artists_ids.orEmpty().mapNotNull(artistsById::byCatalogId)
                     .forEach { add(it.toHomeItem()) }
+                block.artist_videos_ids.orEmpty().mapNotNull(videosById::byCatalogId)
+                    .forEach { add(it.toHomeItem()) }
+                block.videos_ids.orEmpty().mapNotNull(videosById::byCatalogId)
+                    .forEach { add(it.toHomeItem()) }
                 block.links_ids.orEmpty().mapNotNull(linksById::byCatalogId)
                     .forEach { add(it.toHomeItem()) }
                 block.catalog_banner_ids.orEmpty().mapNotNull(bannersById::byCatalogId)
@@ -1749,6 +1890,21 @@ object MusicBackend {
                 block.group_ids.orEmpty().mapNotNull(groupsById::byCatalogId)
                     .forEach { add(it.toHomeItem()) }
                 block.music_owners_ids.orEmpty().mapNotNull(ownersById::byCatalogId)
+                    .forEach { add(it.toHomeItem()) }
+                block.podcast_items_ids.orEmpty().mapNotNull(podcastsById::byCatalogId)
+                    .forEach { add(it.toHomeItem()) }
+                block.podcast_episodes_ids.orEmpty().mapNotNull(podcastsById::byCatalogId)
+                    .forEach { add(it.toHomeItem()) }
+                block.podcast_slider_items_ids.orEmpty().mapNotNull(podcastsById::byCatalogId)
+                    .forEach { add(it.toHomeItem()) }
+                block.longreads_ids.orEmpty().mapNotNull(longreadsById::byCatalogId)
+                    .forEach { add(it.toHomeItem()) }
+                block.audio_book_ids.orEmpty().mapNotNull(audioBooksById::byCatalogId)
+                    .forEach { add(it.toHomeItem()) }
+                block.audio_books_person_ids.orEmpty().mapNotNull(audioBookPersonsById::byCatalogId)
+                    .forEach { add(it.toHomeItem()) }
+                block.audio_followings_update_info_ids.orEmpty()
+                    .mapNotNull(followingUpdatesById::byCatalogId)
                     .forEach { add(it.toHomeItem()) }
                 block.audio_content_card_ids.orEmpty().mapNotNull(contentCardsById::byCatalogId)
                     .forEach { add(it.toHomeItem()) }
@@ -1768,6 +1924,15 @@ object MusicBackend {
                 block.radio_stations_ids.orEmpty().isNotEmpty() -> "radio"
                 block.audio_stream_mixes_ids.orEmpty().isNotEmpty() -> "stream_mixes"
                 block.audio_content_card_ids.orEmpty().isNotEmpty() -> "content_cards"
+                block.longreads_ids.orEmpty().isNotEmpty() -> "longreads"
+                block.podcast_items_ids.orEmpty().isNotEmpty() ||
+                    block.podcast_episodes_ids.orEmpty().isNotEmpty() ||
+                    block.podcast_slider_items_ids.orEmpty().isNotEmpty() -> "podcasts"
+                block.audio_book_ids.orEmpty().isNotEmpty() ||
+                    block.audio_books_person_ids.orEmpty().isNotEmpty() -> "audiobooks"
+                block.audio_followings_update_info_ids.orEmpty().isNotEmpty() -> "following_updates"
+                block.artist_videos_ids.orEmpty().isNotEmpty() ||
+                    block.videos_ids.orEmpty().isNotEmpty() -> "videos"
                 block.artists_ids.orEmpty().isNotEmpty() -> "artists"
                 block.playlists_ids.orEmpty().isNotEmpty() -> "playlists"
                 block.audios_ids.orEmpty().isNotEmpty() -> "audios"
@@ -1806,6 +1971,9 @@ object MusicBackend {
             artists.orEmpty().map { it.toHomeItem() }.takeIf { it.isNotEmpty() }?.let {
                 add(HomeBlock("${fallbackPrefix}_artists", fallbackTitle, "artists", it))
             }
+            (artist_videos + videos).map { it.toHomeItem() }.takeIf { it.isNotEmpty() }?.let {
+                add(HomeBlock("${fallbackPrefix}_videos", "Клипы VK", "videos", it))
+            }
             curators.orEmpty().map { it.toHomeItem() }.takeIf { it.isNotEmpty() }?.let {
                 add(HomeBlock("${fallbackPrefix}_curators", "Собрано редакцией", "curators", it))
             }
@@ -1823,6 +1991,15 @@ object MusicBackend {
             }
             audio_stream_mixes.orEmpty().map { it.toHomeItem() }.takeIf { it.isNotEmpty() }?.let {
                 add(HomeBlock("${fallbackPrefix}_mixes", "Миксы VK", "stream_mixes", it))
+            }
+            longreads.orEmpty().map { it.toHomeItem() }.takeIf { it.isNotEmpty() }?.let {
+                add(HomeBlock("${fallbackPrefix}_longreads", "Истории VK Музыки", "longreads", it))
+            }
+            podcasts.orEmpty().map { it.toHomeItem() }.takeIf { it.isNotEmpty() }?.let {
+                add(HomeBlock("${fallbackPrefix}_podcasts", "Подкасты", "podcasts", it))
+            }
+            audio_books.orEmpty().map { it.toHomeItem() }.takeIf { it.isNotEmpty() }?.let {
+                add(HomeBlock("${fallbackPrefix}_audiobooks", "Аудиокниги", "audiobooks", it))
             }
         }
     }

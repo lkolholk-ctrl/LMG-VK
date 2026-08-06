@@ -1,5 +1,6 @@
 package com.lmg.vk.network.dto.music
 
+import com.squareup.moshi.Json
 import com.squareup.moshi.JsonClass
 
 /**
@@ -138,6 +139,15 @@ data class VkCatalogResponse(
     val audios: List<AudioTrack>? = null,
     val playlists: List<AudioPlaylist>? = null,
     val artists: List<VkArtistDto>? = null,
+    val suggestions: List<VkCatalogSuggestion>? = null,
+    val texts: List<VkCatalogText>? = null,
+    val podcast_episodes: List<VkCatalogPodcastEntry>? = null,
+    val podcast_slider_items: List<VkCatalogPodcastEntry>? = null,
+    val longreads: List<VkCatalogLongread>? = null,
+    val podcasts: List<VkCatalogPodcastEntry>? = null,
+    val audio_books: List<VkCatalogAudioBook>? = null,
+    val audio_books_persons: List<VkCatalogAudioBookPerson>? = null,
+    val audio_followings_update_info: List<VkCatalogFollowingsUpdateInfo>? = null,
     val radio_stations: List<RadioStation>? = null,
     val audio_stream_mixes: List<AudioStreamMix>? = null,
 )
@@ -177,6 +187,16 @@ data class VkCatalogBlock(
     val group_ids: List<String>? = null,
     val audio_content_card_ids: List<String>? = null,
     val music_owners_ids: List<String>? = null,
+    val suggestions_ids: List<String>? = null,
+    val text_ids: List<String>? = null,
+    val podcast_episodes_ids: List<String>? = null,
+    val podcast_slider_items_ids: List<String>? = null,
+    val podcast_items_ids: List<String>? = null,
+    val longreads_ids: List<String>? = null,
+    val audio_book_ids: List<String>? = null,
+    val audio_books_person_ids: List<String>? = null,
+    val audio_followings_update_info_ids: List<String>? = null,
+    val placeholder_ids: List<String>? = null,
     val radio_stations_ids: List<String>? = null,
     val audio_stream_mixes_ids: List<String>? = null,
 )
@@ -275,3 +295,105 @@ data class VkCatalogVideo(
         .maxByOrNull { it.width * it.height }
         ?.url
 }
+
+/** Editorial entities that CatalogKit returns in addition to audio cards. */
+@JsonClass(generateAdapter = true)
+data class VkCatalogSuggestion(
+    val title: String? = null,
+    val subtitle: String? = null,
+    val type: String? = null,
+    val context: String? = null,
+    val id: String? = null,
+)
+
+@JsonClass(generateAdapter = true)
+data class VkCatalogText(
+    val id: String? = null,
+    val text: String? = null,
+    val collapsed_lines: Int? = null,
+)
+
+/** Safe wire subset of Podcasts/PodcastEpisode; fields are optional by design. */
+@JsonClass(generateAdapter = true)
+data class VkCatalogPodcastEntry(
+    @Json(name = "podcast_title") val podcastTitle: String? = null,
+    @Json(name = "owner_id") val ownerId: Long = 0L,
+    val id: Int = 0,
+    @Json(name = "playlist_id") val playlistId: Int = 0,
+    val title: String? = null,
+    val subtitle: String? = null,
+    val artist: String? = null,
+    val duration: Int = 0,
+    val description: String? = null,
+    val thumbs: List<Any?> = emptyList(),
+) {
+    val aliases: List<String>
+        get() = listOfNotNull(
+            id.takeIf { it != 0 }?.toString(),
+            playlistId.takeIf { it != 0 }?.toString(),
+            if (ownerId != 0L && id != 0) "${ownerId}_$id" else null,
+            if (ownerId != 0L && playlistId != 0) "${ownerId}_$playlistId" else null,
+        )
+
+    val displayTitle: String
+        get() = title?.takeIf(String::isNotBlank)
+            ?: podcastTitle?.takeIf(String::isNotBlank)
+            ?: "Подкаст VK"
+}
+
+@JsonClass(generateAdapter = true)
+data class VkCatalogLongread(
+    val id: Int = 0,
+    @Json(name = "owner_id") val ownerId: Long = 0L,
+    @Json(name = "owner_name") val ownerName: String? = null,
+    val title: String? = null,
+    val subtitle: String? = null,
+    val url: String? = null,
+    @Json(name = "view_url") val viewUrl: String? = null,
+    val views: Int = 0,
+    val shares: Int = 0,
+    val photo: VkCatalogPodcastCover? = null,
+)
+
+@JsonClass(generateAdapter = true)
+data class VkCatalogPodcastCover(
+    val sizes: List<VkCatalogPodcastCoverSize> = emptyList(),
+)
+
+@JsonClass(generateAdapter = true)
+data class VkCatalogPodcastCoverSize(
+    val width: Int = 0,
+    val height: Int = 0,
+    val src: String? = null,
+)
+
+@JsonClass(generateAdapter = true)
+data class VkCatalogAudioBook(
+    val id: Int = 0,
+    val title: String? = null,
+    val duration: Int = 0,
+    val publisher: VkCatalogBookPublisher? = null,
+    val cover: List<Any?> = emptyList(),
+    val authors: List<Any?> = emptyList(),
+    val narrators: List<Any?> = emptyList(),
+)
+
+@JsonClass(generateAdapter = true)
+data class VkCatalogBookPublisher(
+    val title: String? = null,
+)
+
+@JsonClass(generateAdapter = true)
+data class VkCatalogAudioBookPerson(
+    val id: Int = 0,
+    val name: String? = null,
+    val description: String? = null,
+    val photo: List<Any?> = emptyList(),
+)
+
+@JsonClass(generateAdapter = true)
+data class VkCatalogFollowingsUpdateInfo(
+    val id: Long = 0L,
+    val title: String? = null,
+    val covers: List<Any?> = emptyList(),
+)
