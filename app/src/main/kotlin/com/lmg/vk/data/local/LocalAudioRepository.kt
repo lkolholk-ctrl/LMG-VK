@@ -52,8 +52,10 @@ object LocalAudioRepository {
                     val id = c.getLong(idCol)
                     val uri = ContentUris.withAppendedId(collection, id)
                     val artistRaw = c.getString(artistCol)
+                    // MediaStore пишет "<unknown>" в файлы без тега исполнителя.
+                    // Пустая строка честнее заглушки: UI просто не рисует строку.
                     val artist = if (artistRaw.isNullOrBlank() || artistRaw == "<unknown>")
-                        "Unknown Artist" else artistRaw
+                        "" else artistRaw
                     out.add(
                         Track(
                             id = "local:$id",

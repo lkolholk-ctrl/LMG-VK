@@ -102,7 +102,7 @@ object LocalLibraryIndexer {
                 val id = c.getLong(idC)
                 val title = c.getString(titleC)?.takeIf { it.isNotBlank() } ?: "Unknown"
                 val artistRaw = c.getString(artistC)
-                val artist = if (artistRaw.isNullOrBlank() || artistRaw == "<unknown>") "Unknown Artist" else artistRaw
+                val artist = if (artistRaw.isNullOrBlank() || artistRaw == "<unknown>") "" else artistRaw
                 val album = c.getString(albumC) ?: ""
                 val albumId = c.getLong(albumIdC)
                 val dur = c.getLong(durC)

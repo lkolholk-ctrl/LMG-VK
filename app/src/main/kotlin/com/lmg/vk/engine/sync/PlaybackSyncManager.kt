@@ -241,7 +241,7 @@ object PlaybackSyncManager {
         return Track(
             id = meta.id,
             title = meta.title,
-            artist = meta.artist.ifBlank { "Unknown Artist" },
+            artist = meta.artist,
             albumName = "",
             uri = com.lmg.vk.engine.VkAudioIdentity.playbackUri(),
             durationMs = meta.durationMs,

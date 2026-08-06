@@ -756,7 +756,7 @@ fun FullPlayer(
                                         // локалка) — резолвим по ИМЕНИ через поиск:
                                         // тап работает везде, где артист существует.
                                         val name = artistName
-                                        if (name.isNotBlank() && name != "Unknown Artist" && name != "—") {
+                                        if (name.isNotBlank() && name != "—") {
                                             scope.launch(kotlinx.coroutines.Dispatchers.IO) {
                                                 val resolved = try {
                                                     com.lmg.vk.engine.backend.MusicBackend

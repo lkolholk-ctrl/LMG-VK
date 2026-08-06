@@ -156,11 +156,17 @@ data class SearchItem(
     @SerialName("trackId") val trackId: String? = null,
     @SerialName("isAvailable") val isAvailable: Boolean = true
 ) {
+    /**
+     * Пусто, если исполнителя нет: у плейлистов и сборников VK его действительно
+     * не бывает. Синтетическая заглушка вместо пустой строки показывала
+     * «Unknown Artist» на карточках, где показывать нечего — UI сам скрывает
+     * пустой подзаголовок.
+     */
     val displayArtist: String
         get() = artist?.takeIf { it.isNotBlank() && it != "Исполнитель" }
             ?: artistName?.takeIf { it.isNotBlank() && it != "Исполнитель" }
             ?: title.takeIf { isArtist }
-            ?: "Unknown Artist"
+            ?: ""
 
     /** VK returns duration in seconds, Apple in milliseconds. Normalized to ms. */
     val durationMs: Long
@@ -337,7 +343,7 @@ data class MiniArtist(
     val name: String? = null
 ) {
     val displayName: String
-        get() = name ?: "Unknown Artist"
+        get() = name.orEmpty()
 }
 
 @Serializable
@@ -363,7 +369,7 @@ data class SimilarArtist(
     val cover: String? = null
 ) {
     val displayName: String
-        get() = name ?: "Unknown Artist"
+        get() = name.orEmpty()
 }
 
 @Serializable
@@ -643,7 +649,9 @@ fun ArtistSong.toTrack(): com.lmg.vk.engine.Track {
     return com.lmg.vk.engine.Track(
         id = id,
         title = title,
-        artist = artists.firstOrNull()?.displayName ?: artist.takeIf { it.isNotBlank() } ?: "Unknown Artist",
+        artist = artists.firstOrNull()?.displayName?.takeIf { it.isNotBlank() }
+            ?: artist.takeIf { it.isNotBlank() }
+            ?: "",
         albumName = albumName ?: "",
         uri = com.lmg.vk.engine.VkAudioIdentity.playbackUri(),
         durationMs = durationMs,
@@ -808,7 +816,7 @@ data class WaveTrack(
         return com.lmg.vk.engine.Track(
             id = id,
             title = title,
-            artist = artist ?: "Unknown Artist",
+            artist = artist.orEmpty(),
             albumName = "",
             uri = com.lmg.vk.engine.VkAudioIdentity.playbackUri(),
             durationMs = durationMs,
@@ -895,7 +903,7 @@ data class LibraryArtist(
     val source: String? = null
 ) {
     val displayName: String
-        get() = name ?: "Unknown Artist"
+        get() = name.orEmpty()
 
     /** Prefer the explicit image field, fallback to cover. */
     val displayImage: String?
@@ -1087,10 +1095,12 @@ data class HomeItem(
     val isTrack: Boolean
         get() = !isAlbum && !isPlaylist && !isArtist && !isClip && !isCustom
 
+    /** Пусто — значит исполнителя нет; UI прячет строку, а не пишет заглушку. */
     val displayArtist: String
         get() = artist?.takeIf { it.isNotBlank() && it != "Исполнитель" }
             ?: artistName?.takeIf { it.isNotBlank() && it != "Исполнитель" }
-            ?: "Unknown Artist"
+            ?: subtitle?.takeIf { it.isNotBlank() }
+            ?: ""
 
     /** VK returns duration in seconds, Apple in milliseconds. Normalized to ms. */
     val durationMs: Long

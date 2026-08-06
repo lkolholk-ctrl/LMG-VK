@@ -730,7 +730,7 @@ fun LibraryScreen(
                                             val t = Track(
                                                 id = track.trackId,
                                                 title = track.title,
-                                                artist = track.artistName ?: "Unknown Artist",
+                                                artist = track.artistName.orEmpty(),
                                                 albumName = track.albumTitle ?: "",
                                                 uri = com.lmg.vk.engine.VkAudioIdentity.playbackUri(),
                                                 durationMs = track.durationMs,
@@ -819,7 +819,7 @@ fun LibraryScreen(
                                                 Track(
                                                     id = entity.trackId,
                                                     title = entity.title,
-                                                    artist = entity.artistName ?: "Unknown Artist",
+                                                    artist = entity.artistName.orEmpty(),
                                                     albumName = entity.albumTitle ?: "",
                                                     // content:// (публичные Загрузки) или легаси-файл
                                                     uri = com.lmg.vk.data.local.PublicDownloads.toPlayableUri(entity.localPath),
@@ -2070,10 +2070,12 @@ private fun FavoriteTrackItem(
                 )
             }
             Text(
-                text = if (enabled) {
-                    track.artistName?.takeIf { it.isNotBlank() } ?: "Unknown Artist"
-                } else {
-                    "Недоступно · ${track.artistName?.takeIf { it.isNotBlank() } ?: "Unknown Artist"}"
+                text = track.artistName?.takeIf { it.isNotBlank() }.let { name ->
+                    when {
+                        enabled -> name.orEmpty()
+                        name != null -> "Недоступно · $name"
+                        else -> "Недоступно"
+                    }
                 },
                 color = lc.textSecondary,
                 fontSize = if (compact) 11.5.sp else 13.sp,
@@ -2143,7 +2145,7 @@ private fun DownloadedTrackItem(
                 overflow = TextOverflow.Ellipsis
             )
             Text(
-                text = track.artistName?.takeIf { it.isNotBlank() } ?: "Unknown Artist",
+                text = track.artistName.orEmpty(),
                 color = lc.textSecondary,
                 fontSize = if (compact) 11.5.sp else 13.sp,
                 maxLines = 1,

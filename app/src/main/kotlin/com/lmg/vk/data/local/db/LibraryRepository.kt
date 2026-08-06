@@ -317,7 +317,7 @@ class LibraryRepository private constructor(context: Context) {
         return Track(
             id = trackId,
             title = title,
-            artist = artistName ?: "Unknown Artist",
+            artist = artistName.orEmpty(),
             albumName = albumTitle ?: "",
             uri = com.lmg.vk.engine.VkAudioIdentity.playbackUri(),
             durationMs = durationMs,

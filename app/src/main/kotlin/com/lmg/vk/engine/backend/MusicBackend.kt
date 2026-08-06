@@ -1314,11 +1314,23 @@ object MusicBackend {
         release_audio_id = release_audio_id,
     )
 
+    /**
+     * Строка исполнителя для плейлиста/альбома. У редакторских и пользовательских
+     * плейлистов VK `main_artists` пуст — тогда показываем собственный подзаголовок
+     * VK, а если и его нет, возвращаем null: пусть UI скроет строку.
+     */
+    private fun AudioPlaylistDto.playlistArtistLine(): String? =
+        main_artist?.takeIf { it.isNotBlank() }
+            ?: main_artists?.joinToString(", ") { it.name }?.takeIf { it.isNotBlank() }
+            ?: subtitle?.takeIf { it.isNotBlank() }
+
     private fun AudioPlaylistDto.toSearchItem() = SearchItem(
         id = fullId,
         title = title,
-        artist = main_artist ?: main_artists?.joinToString(", ") { it.name },
-        artistName = main_artist ?: main_artists?.joinToString(", ") { it.name },
+        // joinToString по пустому списку даёт "", а не null: без takeIf строка
+        // проходила дальше как «есть исполнитель» и упиралась в заглушку.
+        artist = playlistArtistLine(),
+        artistName = playlistArtistLine(),
         artistId = main_artists?.firstOrNull()?.id,
         artists = main_artists.orEmpty().map {
             MiniArtist(id = it.id.orEmpty(), name = it.name)
@@ -1350,11 +1362,16 @@ object MusicBackend {
         )
     }
 
+    /** См. [AudioPlaylistDto.playlistArtistLine] — та же логика для старой модели. */
+    private fun AudioPlaylist.playlistArtistLine(): String? =
+        main_artists?.joinToString(", ") { it.name }?.takeIf { it.isNotBlank() }
+            ?: subtitle?.takeIf { it.isNotBlank() }
+
     private fun AudioPlaylist.toSearchItem() = SearchItem(
         id = fullId,
         title = title,
-        artist = main_artists?.joinToString(", ") { it.name },
-        artistName = main_artists?.joinToString(", ") { it.name },
+        artist = playlistArtistLine(),
+        artistName = playlistArtistLine(),
         artistId = main_artists?.firstOrNull()?.id,
         artists = main_artists.orEmpty().map { MiniArtist(id = it.id, name = it.name) },
         cover = photo?.bestUrl ?: thumbs?.maxByOrNull { it.width * it.height }?.bestUrl,
@@ -1407,7 +1424,7 @@ object MusicBackend {
         return HomeItem(
             id = fullId,
             title = title,
-            artist = main_artists?.joinToString(", ") { it.name },
+            artist = main_artists?.joinToString(", ") { it.name }?.takeIf { it.isNotBlank() },
             artistId = main_artists?.firstOrNull()?.id,
             cover = cover,
             collectionId = fullId,

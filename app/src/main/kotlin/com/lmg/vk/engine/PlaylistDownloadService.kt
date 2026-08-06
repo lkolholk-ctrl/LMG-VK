@@ -461,8 +461,10 @@ class PlaylistDownloadService : Service() {
      * Strips illegal chars: \ / : * ? " < > |
      */
     private fun buildSanitizedFileName(artist: String?, title: String?, ext: String): String {
-        val safeArtist = sanitizeFileName(artist?.takeIf { it.isNotBlank() } ?: "Unknown Artist")
-        val safeTitle = sanitizeFileName(title?.takeIf { it.isNotBlank() } ?: "Unknown Track")
+        // Имя файла на диске: пустое недопустимо, поэтому здесь заглушка остаётся,
+        // но по-русски — она попадает в файловый менеджер пользователя.
+        val safeArtist = sanitizeFileName(artist?.takeIf { it.isNotBlank() } ?: "Без исполнителя")
+        val safeTitle = sanitizeFileName(title?.takeIf { it.isNotBlank() } ?: "Без названия")
         return "$safeArtist - $safeTitle$ext"
     }
 
@@ -688,7 +690,7 @@ class PlaylistDownloadService : Service() {
             for (obj in objects) {
                 val id = extractJsonField(obj, "id") ?: continue
                 val title = extractJsonField(obj, "title") ?: id
-                val artist = extractJsonField(obj, "artist") ?: "Unknown Artist"
+                val artist = extractJsonField(obj, "artist").orEmpty()
                 val coverUrl = extractJsonField(obj, "coverUrl")
                 val durationMs = extractJsonLong(obj, "durationMs")
                 result[id] = DownloadTrackMeta(

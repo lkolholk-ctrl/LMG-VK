@@ -55,7 +55,7 @@ private val BottomBarInset = 88.dp
 private fun FavoriteTrackEntity.toTrack(): Track = Track(
     id = trackId,
     title = title,
-    artist = artistName ?: "Unknown Artist",
+    artist = artistName.orEmpty(),
     albumName = albumTitle ?: "",
     uri = com.lmg.vk.engine.VkAudioIdentity.playbackUri(),
     durationMs = durationMs,
@@ -160,7 +160,7 @@ fun LandscapeHome(
                     }
                     itemsIndexed(favorites, key = { _, f -> f.trackId }) { _, fav ->
                         TrackRow(
-                            fav.title, fav.artistName ?: "Unknown Artist", fav.imageUrl,
+                            fav.title, fav.artistName.orEmpty(), fav.imageUrl,
                             duration = fmtDuration(fav.durationMs),
                             enabled = fav.isAvailable,
                         ) {
