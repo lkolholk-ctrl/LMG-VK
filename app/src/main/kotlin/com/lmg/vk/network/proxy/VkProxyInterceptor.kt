@@ -24,8 +24,6 @@ import java.io.IOException
  *   буквально `get(0)`) и при мёртвом узле просто отдаёт ошибку. Здесь адреса
  *   перебираются по порядку, а если не ответил ни один — запрос уходит напрямую.
  *   Прокси задуман как обход блокировки, а не как единственный путь к сети.
- * - Редиректы доводятся вручную только для тех запросов, которые мы подменили;
- *   остальные отдаются наверх как есть, чтобы не дублировать чужую логику.
  * - `domain_overrides` (в конфиге VK — `override_api_domain`) применяется только
  *   к проксируемым запросам. У VK это отдельный эксперимент с выкаткой на 50%
  *   (`override_domain_part`), и включать зеркало `r.vk.com` на прямом пути,
@@ -38,11 +36,13 @@ internal class VkProxyInterceptor(
 
     override fun intercept(chain: Interceptor.Chain): Response {
         val original = chain.request()
-        if (!enabled()) return chain.proceed(original)
+        val available = (if (enabled()) state() else null) as? VkProxyState.Available
 
-        val available = state() as? VkProxyState.Available ?: return chain.proceed(original)
-        if (!available.matches(original.url.host)) return chain.proceed(original)
-        if (available.ips.isEmpty()) return chain.proceed(original)
+        // Редиректы у самого OkHttp выключены (см. installVkProxy), поэтому даже
+        // непроксируемый запрос надо довести до конца здесь.
+        if (available == null || available.ips.isEmpty() || !available.matches(original.url.host)) {
+            return withReqHash(execute(chain, original, null, null))
+        }
 
         // Повтор возможен, только если тело можно прочитать заново. Односторонний
         // поток после первой попытки уже вычерпан — тогда работаем как VK X, по
@@ -53,7 +53,7 @@ internal class VkProxyInterceptor(
         var lastFailure: IOException? = null
         for (ip in candidates) {
             try {
-                return withReqHash(run(chain, original, available, ip))
+                return withReqHash(execute(chain, original, available, ip))
             } catch (error: IOException) {
                 lastFailure = error
             }
@@ -63,7 +63,7 @@ internal class VkProxyInterceptor(
         // Ни один узел не ответил — пробуем напрямую. Если домен и правда
         // заблокирован, здесь прилетит своя ошибка, и это честнее, чем молчать.
         return try {
-            chain.proceed(original)
+            withReqHash(execute(chain, original, null, null))
         } catch (direct: IOException) {
             throw lastFailure?.also { it.addSuppressed(direct) } ?: direct
         }
@@ -76,11 +76,11 @@ internal class VkProxyInterceptor(
      * уходит в сеть: `Location` разрешается относительно домена, а не IP, иначе
      * относительный редирект увёл бы следующий шаг на голый адрес без `Host`.
      */
-    private fun run(
+    private fun execute(
         chain: Interceptor.Chain,
         start: Request,
-        available: VkProxyState.Available,
-        ip: String,
+        available: VkProxyState.Available?,
+        ip: String?,
     ): Response {
         var logical = start
         var response = chain.proceed(wire(logical, available, ip))
@@ -100,7 +100,8 @@ internal class VkProxyInterceptor(
      * имя (или его замена из `domain_overrides`). Домены не из списка остаются
      * как есть — редирект мог увести за пределы VK.
      */
-    private fun wire(request: Request, available: VkProxyState.Available, ip: String): Request {
+    private fun wire(request: Request, available: VkProxyState.Available?, ip: String?): Request {
+        if (available == null || ip == null) return request
         val host = request.url.host
         if (!available.matches(host)) return request
         val target = available.domainOverrides[host] ?: host

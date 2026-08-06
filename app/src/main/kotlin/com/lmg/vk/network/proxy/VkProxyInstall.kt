@@ -20,6 +20,13 @@ import javax.net.ssl.TrustManager
 internal fun OkHttpClient.Builder.installVkProxy(): OkHttpClient.Builder {
     val pins = { VkProxyRepository.pinnedCertificates() }
 
+    // Редиректы уводим в интерцептор. Иначе OkHttp следовал бы им сам, ниже
+    // прикладных интерцепторов, и следующий шаг ушёл бы на домен из `Location`
+    // напрямую — мимо подмены, то есть в блокировку. Интерцептор доводит их
+    // сам для всех запросов, поэтому поведение не теряется и когда прокси выкл.
+    followRedirects(false)
+    followSslRedirects(false)
+
     addInterceptor(
         VkProxyInterceptor(
             enabled = { VkProxyRepository.enabled.value },
