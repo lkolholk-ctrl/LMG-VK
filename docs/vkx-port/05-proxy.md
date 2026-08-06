@@ -54,6 +54,15 @@
 вызывается только в `C6803e` и заполняет поле телеметрии AppMetrica `mcc_mnc`.
 Реальное включение — ручной тумблер в настройках (`C15601e.vkProxyEnabled`).
 
+Так же не читаются `config_network_hpkp` (отдельный пин
+`QMIjnw+kxrzn8vk5K0o6xP+ugjlqAQ4bxDQabw4q7zA=`) и `config_network_pin`.
+Единственное место, где в приложении считается SPKI-пин, — внутренности самого
+OkHttp (`AbstractC15365e.vip`), и там строка `sha256/…` идёт только в текст
+`SSLPeerUnverifiedException`; `CertificatePinner` не настраивается нигде.
+То есть пиннинг у VK X ровно один — сверка с PEM из `config_network_proxy_certs`,
+а поле `hpkp` рядом с каждым сертификатом остаётся меткой. Пропускать эти два
+ключа в порте — не пробел.
+
 ## Конфиг
 
 Порт тянет конфиг не из Firebase, а с сервера пользователя:
