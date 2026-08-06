@@ -29,7 +29,11 @@ import java.security.cert.X509Certificate
  */
 object VkProxyRepository {
 
-    private const val CONFIG_URL = "https://gsgit.org/lmg-vk/network-config.json"
+    // Адрес документа намеренно не «говорящий»: репозиторий публичный, и по
+    // прошлому предсказуемому пути (`/lmg-vk/network-config.json`) конфиг могли
+    // тянуть посторонние. Сам документ в git не хранится — только на сервере,
+    // см. docs/vkx-port/05-proxy.md.
+    private const val CONFIG_URL = "https://gsgit.org/lmg-vk/net-b06288beab4fd276.json"
     private const val PREFS = "vk_proxy"
     private const val KEY_ENABLED = "enabled"
     private const val KEY_CACHED_DOC = "cached_document"
