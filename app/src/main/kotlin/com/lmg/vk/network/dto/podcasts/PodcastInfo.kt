@@ -14,6 +14,17 @@ data class PodcastInfo(
     val is_favorite: Boolean? = null,
     val description: String? = null,
     val position: Int? = null,
+    // --- ключи нового слоя C3961e/C9432e, типы подтверждены ---
+    val rss_guid: String? = null,
+    val restriction_description: String? = null,
+    val restriction_text: String? = null,
+    val is_random: Boolean? = null,
+    val post: String? = null,
+    val is_donut: Boolean? = null,
+    val podcast_id: Int? = null,
+    // Ключи `restriction_button` и `friends_liked` в C3961e есть, но их типы
+    // (BaseLinkButtonDto / элемент списка) доками не подтверждены. Moshi
+    // неизвестные ключи игнорирует, поэтому пропуск безопаснее догадки.
 ) {
     /** Преобразованная обложка (в оригинале — transient-геттер `ad()`). */
     val thumb: AlbumThumb?

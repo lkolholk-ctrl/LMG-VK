@@ -159,9 +159,10 @@ C18422e», `P1:308-309` — таблица восстановленных имё
 
 Это НЕ `{count, items}`.
 
-**Уверенность:** подтверждено (ключи), частично (типы значений: kotlinx-дескриптор даёт имена и
-`isOptional`, но не Kotlin-типы; типы `album`/`main_artists`/`featured_artists`/`podcast_info`/
-`audio_chart_info` доками не подтверждены поимённо).
+**Уверенность:** подтверждено — и ключи, и типы значений. Типы восстановлены по объявлениям полей
+класса `C18422e` (типы читаются из таблицы полей DEX, то есть точны), сопоставленным с
+именами свойств через `toString()`, и перекрёстно проверены массивом кастомных сериализаторов
+`C18422e.try`. См. подраздел «Типы полей AudioAudioDto» ниже.
 
 ### DTO
 
@@ -176,8 +177,103 @@ in_clips_favorite, dmca_blocked, kws_skip, is_official,
 podcast_info, audio_chart_info
 ```
 
-Типы для `podcast_info` и `audio_chart_info` в доках не подтверждены — до проверки на живом API
-безопаснее `Any?` или отдельные nullable-DTO с полностью опциональными полями.
+#### Типы полей AudioAudioDto
+
+**Как получены типы.** kotlinx-дескриптор (`SRC C14729e.java:12-52`) несёт только имена ключей и
+`isOptional`. Типы взяты из трёх независимых источников, которые полностью согласуются между собой:
+
+1. **Объявления полей класса `SRC C18422e.java:10-48`** — jadx читает их из таблицы полей DEX,
+   поэтому `String` / `Integer` / `Boolean` / `List` / `int` / `long` точны. Боксированный
+   `Integer`/`Boolean` = nullable, примитивный `int`/`long` = non-null.
+2. **`SRC C18422e.java:919-1029` (`toString`)** — даёт соответствие «обфусцированное имя поля →
+   имя Kotlin-свойства» в порядке объявления, совпадающем с порядком `advert(...)` в дескрипторе
+   (39 позиций, порядок совпал элемент в элемент).
+3. **Массив кастомных сериализаторов `SRC C18422e.java:76-116` (`try`)** — ненулевые элементы
+   ровно на индексах 14, 15, 19, 20, 21, 22, 23, 36, то есть на `genre_id`, `no_search`,
+   `mstcp_type`, `track_genre_id`, `content_restricted`, `main_artists`, `featured_artists`,
+   `kws_skip`. Это независимо подтверждает, что именно эти восемь полей — enum'ы и списки,
+   а все остальные разбираются встроенными примитивными сериализаторами.
+
+Примитивные сериализаторы, на которые ссылается `C14729e`:
+`C9582e` = `kotlin.String` (`SRC C9582e.java:9-10`), `C6266e` = `kotlin.Boolean`
+(`SRC C6266e.java:9-10`), `C13257e` = `kotlin.Int` (`SRC C13257e.java:9-10`),
+`C13852e` = `kotlin.Float` (`SRC C13852e.java:6-12`).
+
+**Ключевое предупреждение.** В этом DTO есть два разных способа кодирования «да/нет»:
+
+* `Boolean` (`C6266e` = `kotlin.Boolean`) — на проводе настоящие JSON-литералы `true`/`false`.
+  Так закодированы `short_videos_allowed`, `stories_allowed`, `stories_cover_allowed`,
+  `in_clips_favorite_allowed`, `in_clips_favorite`, `dmca_blocked`, `is_official`
+  (а также уже имеющиеся `is_explicit`, `is_focus_track`, `is_licensed`, `has_lyrics`).
+* **`no_search` — НЕ Boolean.** Это `BaseBoolIntDto` с `@SerialName("0")` / `@SerialName("1")`
+  (`SRC C14582e.java:222-228`), то есть на проводе **число 0/1**. `Boolean?` здесь уронит парсинг.
+
+Аналогично числами приходят все пять enum-полей: kotlinx-`@SerialName` у них — это строки цифр
+(`"1"`, `"21"`, `"1001"` и т.п.), что означает числовые значения в JSON. Для Moshi их надо
+объявлять как `Int?`, а не как строки и не как enum.
+
+| JSON-ключ | Тип для Moshi | Nullable | Источник | Уверенность |
+|---|---|---|---|---|
+| `genre_id` | `Int?` — жанр числом | да | `C18422e.java:30` (`EnumC10609e loadAd`), `:955-956`; `C9283e.java:172-197` — `AudioAudioDto.GenreIdDto`, `@SerialName` = `1,2,3,4,5,6,7,21,8,1001,10,11,12,13,14,15,16,17,19,22,18` | подтверждено |
+| `no_search` | `Int?` — **0/1, не Boolean** | да | `C18422e.java:10` (`EnumC6664e Signature`), `:958-959`; `C14582e.java:222-228` — `BaseBoolIntDto`, имена `"0"`/`"1"` | подтверждено |
+| `release_id` | `Int?` (боксированный `Integer`, не `Long`) | да | `C18422e.java:42` (`Integer subscription`), `:964-965` | подтверждено |
+| `track_id` | `Int?` (боксированный `Integer`, не `Long`) | да | `C18422e.java:37` (`Integer remoteconfig`), `:967-968` | подтверждено |
+| `mstcp_type` | `Int?` — `0` UGC, `1` MASTER_COPY, `2` COPY_OF_MASTER_COPY | да | `C18422e.java:35` (`EnumC2057e pro`), `:970-971`; `C9283e.java:163-170` — `AudioAudioDto.MstcpTypeDto`, имена `"0","1","2"` | подтверждено |
+| `track_genre_id` | `Int?` | да | `C18422e.java:38` (`EnumC14925e signatures`), `:973-974`; `C9283e.java:139-161` — `AudioAudioDto.TrackGenreIdDto`, имена `1,2,3,5,6,4,7,8,10,11,13,14,15,16,17,21,22,1001` | подтверждено |
+| `album_part_number` | `Int?` | да | `C18422e.java:17` (`Integer applovin`), `:988-989` | подтверждено |
+| `performer` | `String?` | да | `C18422e.java:14` (`String ads`), `:991-992` | подтверждено |
+| `original_sound_video_id` | `String?` — **строка, не число** | да | `C18422e.java:21` (`String crashlytics`), `:1000-1001` | подтверждено |
+| `short_videos_allowed` | `Boolean?` | да | `C18422e.java:23` (`Boolean firebase`), `:1003-1004`; `C14729e.java:282-324` (`C6266e` = `kotlin.Boolean`) | подтверждено |
+| `stories_allowed` | `Boolean?` | да | `C18422e.java:20` (`Boolean class`), `:1006-1007`; `C14729e.java:282-324` | подтверждено |
+| `stories_cover_allowed` | `Boolean?` | да | `C18422e.java:26` (`Boolean interface`), `:1009-1010`; `C14729e.java:282-324` | подтверждено |
+| `in_clips_favorite_allowed` | `Boolean?` | да | `C18422e.java:24` (`Boolean goto`), `:1012-1013`; `C14729e.java:282-324` | подтверждено |
+| `in_clips_favorite` | `Boolean?` | да | `C18422e.java:44` (`Boolean this`), `:1015-1016`; `C14729e.java:282-324` | подтверждено |
+| `dmca_blocked` | `Boolean?` | да | `C18422e.java:33` (`Boolean native`), `:1018-1019`; `C14729e.java:282-324` | подтверждено |
+| `kws_skip` | `List<List<Float>>?` — массив массивов чисел с плавающей точкой | да | `C18422e.java:22` (`List extends`), `:1021-1022`, `:113` (`try[36]`); `C9283e.java:199-204` (двойной `C13758e` = List<List<…>>); `C13852e.java:6-12` (`kotlin.Float`) | подтверждено |
+| `is_official` | `Boolean?` | да | `C18422e.java:45` (`Boolean throw`), `:1024-1025`; `C14729e.java:282-324` | подтверждено |
+| `podcast_info` | `PodcastInfoDto?` (14 ключей, см. ниже) | да | `C18422e.java:34` (`C9432e premium`), `:994-995`; сериализатор `C3961e.java:10-26` | подтверждено |
+| `audio_chart_info` | `AudioChartInfoDto?` (2 ключа, см. ниже) | да | `C18422e.java:41` (`C4742e subs`), `:997-998`; сериализатор `C11752e.java:9-12` | подтверждено |
+
+##### `podcast_info` → `PodcastInfoDto`
+
+Сериализатор — `C3961e` (`SRC C3961e.java:10-26`), FQN
+`bruhcollective.itaysonlab.vkapi.objects.podcast.PodcastInfoDto`, 14 ключей, **все опциональные**.
+Типы — из объявлений `SRC C9432e.java:7-20`, имена свойств — из `SRC C9432e.java:298-341`.
+
+| Ключ | Тип | Nullable |
+|---|---|---|
+| `cover` | `PodcastCoverDto?` (`C14086e`, единственное поле `sizes: List<…>` — `SRC C14086e.java:7,54`) | да |
+| `description` | `String?` | да |
+| `is_favorite` | `Boolean?` | да |
+| `plays` | `Int?` | да |
+| `position` | `Int?` | да |
+| `rss_guid` | `String?` | да |
+| `restriction_description` | `String?` | да |
+| `restriction_text` | `String?` | да |
+| `restriction_button` | `BaseLinkButtonDto?` (`C11617e`, `SRC C11617e.java:256`) | да |
+| `friends_liked` | `List<…>?` (тип элемента в доках не найден) | да |
+| `is_random` | `Boolean?` | да |
+| `post` | `String?` | да |
+| `is_donut` | `Boolean?` | да |
+| `podcast_id` | `Int?` | да |
+
+##### `audio_chart_info` → `AudioChartInfoDto`
+
+Сериализатор — `C11752e` (`SRC C11752e.java:9-12`), FQN
+`bruhcollective.itaysonlab.vkapi.objects.audio.AudioChartInfoDto`, 2 ключа, оба опциональные
+(`SRC C4742e.java:6-7,73-82`):
+
+| Ключ | Тип | Nullable |
+|---|---|---|
+| `position` | `Int?` (`C13257e` = `kotlin.Int`, `SRC C11752e.java:25-27`) | да |
+| `state` | `Int?` — enum `AudioChartInfoDto.StateDto` с `@SerialName` `"0","1","2","3"`, то есть **число** (`SRC C9283e.java:56-64`) | да |
+
+##### Попутная находка: `content_restricted` уже есть в LMG-VK и имеет неверный тип
+
+Поле `content_restricted` входит в те 21, что уже объявлены в LMG-`AudioAudioDto`. По
+`SRC C18422e.java:43` (`EnumC13802e tapsense`) и `SRC C1349e.java:166-188` это enum
+`AudioRestrictionDto` с `@SerialName` `"0".."14"`, `"21"`, `"22"`, `"23"` — то есть на проводе
+**число**, а не строка и не Boolean. Проверить текущее объявление перед добавлением остальных полей.
 
 ### Расхождение с кодом LMG-VK
 
@@ -672,10 +768,14 @@ FQN: `…objects.audio.AudioGetStreamMixSettingsResponseDto` / `AudioStreamMixSe
    `coerceIn(0..300)` внутри VK X, а не задокументированный серверный лимит. Для
    `audio.searchArtists` (100) и `audio.getRelatedArtistsById` (10) в коде вообще нет клампа —
    это просто литералы конкретного экрана, границы неизвестны.
-8. **Типы значений вложенных полей `AudioAudioDto`.** kotlinx-дескриптор `C14729e` даёт имена
-   ключей и `isOptional`, но не Kotlin-типы. Для `album`, `main_artists`, `featured_artists`,
-   `podcast_info`, `audio_chart_info`, `mstcp_type`, `performer`, `release_id`, `track_id`
-   типы доками не подтверждены.
+8. **Типы полей `AudioAudioDto` — закрыто** для всех 19 недостающих полей (см. подраздел
+   «Типы полей AudioAudioDto» в п. 3). Осталось три мелких неизвестных внутри вложенных DTO:
+   тип элемента `podcast_info.friends_liked`, тип элемента `podcast_info.cover.sizes`
+   (`PodcastCoverDto`, `SRC C14086e.java:7`) и набор полей `album` (`C5442e`) — ни одно из них
+   не блокирует порт, поля можно временно не объявлять.
+   Заодно подтверждено: `main_artists` и `featured_artists` — это `List<AudioArtistDto>`
+   (`SRC C18422e.java:98-99` → `try[22]`, `try[23]` → `SRC C9283e.java:205-214`, где обёртка
+   списка построена над `C5992e` = `AudioArtistDto`).
 9. **`audio.searchMain` с ненулевым `offset`.** Все найденные места вызова шлют `offset = 0`;
    поведение пагинации (в частности, применяется ли offset ко всем 7 секциям сразу) не проверено.
 10. **Имя метода в P2 указано неверно.** `P2:14` и `P2:145` называют `AudioSearchMainResponseDto`

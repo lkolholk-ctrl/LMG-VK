@@ -1,5 +1,6 @@
 package com.lmg.vk.network.dto.music
 
+import com.lmg.vk.network.dto.podcasts.PodcastInfo
 import com.squareup.moshi.JsonClass
 
 /**
@@ -18,7 +19,16 @@ data class AudioSearchMainResponse(
     val own_albums: VkRootItems<AudioPlaylistDto> = VkRootItems(),
 )
 
-/** Минимально нужный, но wire-точный поднабор 39-польного C18422e/C14729e. */
+/**
+ * Полный 39-польный `C18422e` / `C14729e`
+ * (`bruhcollective.itaysonlab.vkapi.objects.audio.AudioAudioDto`).
+ *
+ * Обязательных ключей ровно 5 (`artist`, `id`, `owner_id`, `title`,
+ * `duration`), остальные 34 опциональны. Типы сверены по
+ * `C18422e.java` и `C14729e.java:282-324` — угадывать здесь нельзя:
+ * `no_search` это `BaseBoolIntDto` (0/1), а не `Boolean`, и один неверный
+ * тип роняет парсинг каждого трека.
+ */
 @JsonClass(generateAdapter = true)
 data class AudioAudioDto(
     val artist: String,
@@ -41,8 +51,35 @@ data class AudioAudioDto(
     val featured_artists: List<AudioArtistDto>? = null,
     val subtitle: String? = null,
     val release_audio_id: String? = null,
+    // --- восстановлено из C18422e: типы подтверждены, не угаданы ---
+    val genre_id: Int? = null,
+    /** `BaseBoolIntDto` — приходит числом 0/1, Boolean здесь уронит парсинг. */
+    val no_search: Int? = null,
+    val release_id: Int? = null,
+    val track_id: Int? = null,
+    /** 0/1/2 (`C9283e.java:163-170`). */
+    val mstcp_type: Int? = null,
+    val track_genre_id: Int? = null,
+    val album_part_number: Int? = null,
+    val performer: String? = null,
+    /** Строка, несмотря на суффикс `_id`. */
+    val original_sound_video_id: String? = null,
+    val short_videos_allowed: Boolean? = null,
+    val stories_allowed: Boolean? = null,
+    val stories_cover_allowed: Boolean? = null,
+    val in_clips_favorite_allowed: Boolean? = null,
+    val in_clips_favorite: Boolean? = null,
+    val dmca_blocked: Boolean? = null,
+    /** Интервалы пропуска заставки: массив пар `[from, to]` в секундах. */
+    val kws_skip: List<List<Float>>? = null,
+    val is_official: Boolean? = null,
+    val podcast_info: PodcastInfo? = null,
+    val audio_chart_info: AudioChartInfoDto? = null,
 ) {
     val fullId: String get() = "${owner_id}_$id"
+
+    /** Трек является выпуском подкаста, если VK прислал `podcast_info`. */
+    val isPodcast: Boolean get() = podcast_info != null
     val isAvailable: Boolean
         get() = (content_restricted ?: 0) == 0 &&
             !url.orEmpty().contains("audio_api_unavailable.mp3", ignoreCase = true)
