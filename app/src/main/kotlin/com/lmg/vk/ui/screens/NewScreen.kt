@@ -231,6 +231,65 @@ fun NewScreen(
                             )
                         }
 
+                        block.layoutName in NEW_LARGE_SLIDER_LAYOUTS -> {
+                            NewSectionHeader(
+                                title = title,
+                                compact = compact,
+                                itemCount = block.items.size,
+                                onClick = { sectionSheetBlock = block },
+                            )
+                            LazyRow(
+                                contentPadding = PaddingValues(horizontal = 20.dp),
+                                horizontalArrangement = Arrangement.spacedBy(rowGap)
+                            ) {
+                                items(block.items, key = { "${block.id}_${it.id}" }) { homeItem ->
+                                    NewLargeCard(
+                                        item = homeItem,
+                                        compact = compact,
+                                        showRank = block.layoutName.startsWith("music_chart"),
+                                        onClick = { onItemClick(homeItem) },
+                                    )
+                                }
+                            }
+                        }
+
+                        block.layoutName in NEW_GRID_LAYOUTS -> {
+                            NewSectionHeader(
+                                title = title,
+                                compact = compact,
+                                itemCount = block.items.size,
+                                onClick = { sectionSheetBlock = block },
+                            )
+                            NewDoubleGrid(
+                                blockId = block.id,
+                                items = block.items,
+                                compact = compact,
+                                rowGap = rowGap,
+                                onItemClick = onItemClick,
+                            )
+                        }
+
+                        block.layoutName == "audio_content_card_extended_slider" -> {
+                            NewSectionHeader(
+                                title = title,
+                                compact = compact,
+                                itemCount = block.items.size,
+                                onClick = { sectionSheetBlock = block },
+                            )
+                            LazyRow(
+                                contentPadding = PaddingValues(horizontal = 20.dp),
+                                horizontalArrangement = Arrangement.spacedBy(rowGap)
+                            ) {
+                                items(block.items, key = { "${block.id}_${it.id}" }) { homeItem ->
+                                    NewExtendedCard(
+                                        item = homeItem,
+                                        compact = compact,
+                                        onClick = { onItemClick(homeItem) },
+                                    )
+                                }
+                            }
+                        }
+
                         else -> {
                             NewSectionHeader(
                                 title = title,
@@ -871,6 +930,222 @@ private fun NewTrackRow(
     }
 }
 
+/**
+ * Крупная карточка для «больших» слайдеров VK X: `large_slider`,
+ * `music_chart_large_slider`, `music_exclusive_slider`, `recomms_slider`.
+ *
+ * Отличие от [NewTrackCard] не только в размере: обложка здесь широкая (4:3), а
+ * не квадратная, поэтому в один экран попадает меньше карточек — именно этим VK
+ * и выделяет такие блоки среди обычных каруселей.
+ */
+@Composable
+private fun NewLargeCard(
+    item: com.lmg.vk.engine.backend.HomeItem,
+    compact: Boolean,
+    showRank: Boolean,
+    onClick: () -> Unit,
+) {
+    val lc = LiquidTheme.colors
+    val cardWidth = if (compact) 190.dp else 248.dp
+    val imageHeight = if (compact) 140.dp else 184.dp
+    val enabled = !item.isCustom && (!item.isTrack || item.isAvailable)
+    Column(
+        modifier = Modifier
+            .width(cardWidth)
+            .clickable(enabled = enabled && item.title.isNotBlank(), onClick = onClick)
+            .alpha(if (!enabled && !item.isCustom) 0.42f else 1f),
+    ) {
+        Box {
+            AlbumArtImage(
+                uri = null,
+                contentDescription = item.title,
+                coverUrl = item.cover,
+                placeholderKey = "${item.title}\u0000${item.subtitle.orEmpty()}",
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .width(cardWidth)
+                    .height(imageHeight)
+                    .clip(RoundedCornerShape(14.dp)),
+            )
+            if (showRank && item.rank != null) {
+                Box(
+                    modifier = Modifier
+                        .padding(10.dp)
+                        .size(34.dp)
+                        .clip(RoundedCornerShape(50))
+                        .background(Color(0xCC111111)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = item.rank.toString(),
+                        color = Color.White,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
+            }
+        }
+        Spacer(Modifier.height(if (compact) 7.dp else 9.dp))
+        Text(
+            text = item.title,
+            color = lc.textPrimary,
+            fontSize = if (compact) 13.sp else 14.5.sp,
+            fontWeight = FontWeight.SemiBold,
+            fontFamily = AppFontFamily,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        (item.subtitle ?: item.artist ?: item.displayArtist.takeIf { it.isNotBlank() })
+            ?.let { subtitle ->
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    text = subtitle,
+                    color = lc.textSecondary,
+                    fontSize = if (compact) 11.5.sp else 12.5.sp,
+                    fontFamily = AppFontFamily,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+    }
+}
+
+/**
+ * Карточка расширенного аудио-контента (`audio_content_card_extended_slider`).
+ * У VK это блок с описанием, поэтому подзаголовок здесь живёт в две строки, а
+ * обложка квадратная — карточка вытянута вертикально.
+ */
+@Composable
+private fun NewExtendedCard(
+    item: com.lmg.vk.engine.backend.HomeItem,
+    compact: Boolean,
+    onClick: () -> Unit,
+) {
+    val lc = LiquidTheme.colors
+    val cardWidth = if (compact) 152.dp else 196.dp
+    val enabled = !item.isCustom && (!item.isTrack || item.isAvailable)
+    Column(
+        modifier = Modifier
+            .width(cardWidth)
+            .clickable(enabled = enabled && item.title.isNotBlank(), onClick = onClick)
+            .alpha(if (!enabled && !item.isCustom) 0.42f else 1f),
+    ) {
+        AlbumArtImage(
+            uri = null,
+            contentDescription = item.title,
+            coverUrl = item.cover,
+            placeholderKey = "${item.title}\u0000${item.subtitle.orEmpty()}",
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.size(cardWidth).clip(RoundedCornerShape(14.dp)),
+        )
+        Spacer(Modifier.height(if (compact) 7.dp else 9.dp))
+        Text(
+            text = item.title,
+            color = lc.textPrimary,
+            fontSize = if (compact) 13.sp else 14.sp,
+            fontWeight = FontWeight.SemiBold,
+            fontFamily = AppFontFamily,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        (item.subtitle ?: item.artist ?: item.displayArtist.takeIf { it.isNotBlank() })
+            ?.let { subtitle ->
+                Spacer(Modifier.height(3.dp))
+                Text(
+                    text = subtitle,
+                    color = lc.textSecondary,
+                    fontSize = if (compact) 11.sp else 12.sp,
+                    fontFamily = AppFontFamily,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+    }
+}
+
+/**
+ * Сетка из двух рядов для `entity_double_grid` и `categories_grid`.
+ *
+ * Прокрутка горизонтальная, но элементы идут парами по вертикали — так VK
+ * показывает жанры и подборки. Разбиваем список на столбцы по два, чтобы
+ * порядок читался слева-вниз-вправо, как в оригинале.
+ */
+@Composable
+private fun NewDoubleGrid(
+    blockId: String,
+    items: List<com.lmg.vk.engine.backend.HomeItem>,
+    compact: Boolean,
+    rowGap: androidx.compose.ui.unit.Dp,
+    onItemClick: (com.lmg.vk.engine.backend.HomeItem) -> Unit,
+) {
+    val columns = remember(blockId, items) { items.chunked(2) }
+    LazyRow(
+        contentPadding = PaddingValues(horizontal = 20.dp),
+        horizontalArrangement = Arrangement.spacedBy(rowGap),
+    ) {
+        items(columns, key = { column -> "${blockId}_grid_${column.first().id}" }) { column ->
+            Column(verticalArrangement = Arrangement.spacedBy(if (compact) 8.dp else 10.dp)) {
+                column.forEach { item ->
+                    NewGridTile(item = item, compact = compact, onClick = { onItemClick(item) })
+                }
+            }
+        }
+    }
+}
+
+/** Плитка сетки: обложка слева, подписи справа — компактнее вертикальной карточки. */
+@Composable
+private fun NewGridTile(
+    item: com.lmg.vk.engine.backend.HomeItem,
+    compact: Boolean,
+    onClick: () -> Unit,
+) {
+    val lc = LiquidTheme.colors
+    val artSize = if (compact) 52.dp else 62.dp
+    val tileWidth = if (compact) 208.dp else 252.dp
+    val enabled = !item.isCustom && (!item.isTrack || item.isAvailable)
+    Row(
+        modifier = Modifier
+            .width(tileWidth)
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(enabled = enabled && item.title.isNotBlank(), onClick = onClick)
+            .alpha(if (!enabled && !item.isCustom) 0.42f else 1f),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        AlbumArtImage(
+            uri = null,
+            contentDescription = item.title,
+            coverUrl = item.cover,
+            placeholderKey = "${item.title}\u0000${item.subtitle.orEmpty()}",
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.size(artSize).clip(RoundedCornerShape(10.dp)),
+        )
+        Column(modifier = Modifier.padding(start = 10.dp)) {
+            Text(
+                text = item.title,
+                color = lc.textPrimary,
+                fontSize = if (compact) 12.5.sp else 13.5.sp,
+                fontWeight = FontWeight.SemiBold,
+                fontFamily = AppFontFamily,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            (item.subtitle ?: item.artist ?: item.displayArtist.takeIf { it.isNotBlank() })
+                ?.let { subtitle ->
+                    Text(
+                        text = subtitle,
+                        color = lc.textSecondary,
+                        fontSize = if (compact) 11.sp else 12.sp,
+                        fontFamily = AppFontFamily,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(top = 1.dp),
+                    )
+                }
+        }
+    }
+}
+
 @Composable
 private fun NewCuratorCard(title: String, coverUrl: String?, compact: Boolean) {
     val size = if (compact) 76.dp else 94.dp
@@ -902,14 +1177,33 @@ private fun formatNewDuration(durationMs: Long): String {
 }
 
 private fun newLayoutLabel(layoutName: String): String = when (layoutName) {
-    "music_chart_list", "music_chart_triple_stacked_slider" -> "чарт"
+    "music_chart_list", "music_chart_triple_stacked_slider", "music_chart_large_slider" -> "чарт"
     "triple_stacked_slider" -> "треки"
     "promo_banners_slider", "snippets_banner", "banner" -> "подборка"
+    "music_exclusive_slider" -> "эксклюзив"
+    "recomms_slider" -> "рекомендации"
+    "large_slider", "audio_content_card_extended_slider" -> "подборки"
+    "entity_double_grid" -> "сетка"
+    "categories_grid" -> "жанры"
     "list", "listened_list", "small_list", "compact_list", "large_list", "double_list" -> "список"
     else -> layoutName.replace('_', ' ')
 }
 
 private val NEW_HERO_LAYOUTS = setOf("banner", "promo_banners_slider", "snippets_banner")
+
+/**
+ * «Большие» слайдеры VK X — крупная карточка 4:3 вместо квадрата.
+ * Имена подтверждены в исходниках VK X, см. docs/vkx-port/06-new-section.md.
+ */
+private val NEW_LARGE_SLIDER_LAYOUTS = setOf(
+    "large_slider",
+    "music_chart_large_slider",
+    "music_exclusive_slider",
+    "recomms_slider",
+)
+
+/** Блоки, которые VK показывает сеткой в два ряда, а не одной строкой. */
+private val NEW_GRID_LAYOUTS = setOf("entity_double_grid", "categories_grid")
 
 private val NEW_TRACK_LIST_LAYOUTS = setOf(
     "triple_stacked_slider",
