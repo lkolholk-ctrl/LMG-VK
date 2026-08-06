@@ -54,8 +54,8 @@
 вызывается только в `C6803e` и заполняет поле телеметрии AppMetrica `mcc_mnc`.
 Реальное включение — ручной тумблер в настройках (`C15601e.vkProxyEnabled`).
 
-Так же не читаются `config_network_hpkp` (отдельный пин
-`QMIjnw+kxrzn8vk5K0o6xP+ugjlqAQ4bxDQabw4q7zA=`) и `config_network_pin`.
+Так же не читаются `config_network_hpkp` (отдельный SPKI-пин) и
+`config_network_pin`.
 Единственное место, где в приложении считается SPKI-пин, — внутренности самого
 OkHttp (`AbstractC15365e.vip`), и там строка `sha256/…` идёт только в текст
 `SSLPeerUnverifiedException`; `CertificatePinner` не настраивается нигде.
@@ -65,16 +65,21 @@ OkHttp (`AbstractC15365e.vip`), и там строка `sha256/…` идёт т�
 
 ## Конфиг
 
-Порт тянет конфиг не из Firebase, а с сервера пользователя:
-`https://gsgit.org/lmg-vk/network-config.json`. Оба ключа VK
+Порт тянет конфиг не из Firebase, а с сервера пользователя. Оба ключа VK
 (`config_network_proxy`, `config_network_proxy_certs`) слиты в один документ,
 плюс разобранный `override_api_domain` как `domain_overrides`. Документ
-кэшируется в `SharedPreferences` и перечитывается по `update_delay_minutes`
-(в дампе — 360 минут). Кэш переживает отсутствие сети: он мог быть загружен до
+кэшируется в `SharedPreferences` и перечитывается по `update_delay_minutes`.
+Кэш переживает отсутствие сети: он мог быть загружен до
 блокировки, и терять его при первой же неудаче нельзя.
 
-Содержимое: 10 адресов `213.248.110.66..69, 83, 85..89`, 19 доменов, 4
-сертификата (id 2–5) с HPKP-пинами.
+Сам документ (адреса, домены, сертификаты) намеренно **не хранится в этом
+репозитории** — он публичный, а данные обхода блокировок имеют смысл только
+пока не опубликованы. Конфиг живёт на сервере и отдаётся приложению в рантайме;
+адрес документа — в `VkProxyRepository`.
+
+Структура: `proxy_endpoints` (`ip` + `weight`), `proxy_domains`,
+`domain_overrides`, `certificates` (`id`, `pem`, `hpkp`), плюс флаги
+`enabled` / `pinning_enabled` / `update_delay_minutes`.
 
 ## Отличия от VK X
 
