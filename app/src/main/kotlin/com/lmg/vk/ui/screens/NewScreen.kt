@@ -343,6 +343,8 @@ fun NewScreen(
                             }
                         }
 
+                        block.layoutName in NEW_SKIPPED_LAYOUTS -> Unit
+
                         else -> {
                             NewSectionHeader(
                                 title = title,
@@ -369,6 +371,12 @@ fun NewScreen(
                                                 ?: if (homeItem.isCustom) "VK Музыка" else homeItem.displayArtist,
                                             coverUrl = homeItem.cover,
                                             compact = compact,
+                                            // `slider` — самый частый layout VK Музыки, им отдаётся
+                                            // основная часть подборок. У VK карточка здесь заметно
+                                            // крупнее мелких плиток, поэтому обычная карусель тоже
+                                            // должна быть широкой, иначе весь экран выглядит как
+                                            // одинаковая мелкая сетка.
+                                            wide = block.layoutName == "slider" || block.layoutName.isBlank(),
                                             showRank = block.layoutName.startsWith("music_chart"),
                                             rank = homeItem.rank,
                                             enabled = !homeItem.isCustom &&
@@ -779,6 +787,7 @@ private fun NewTrackCard(
     subtitle: String,
     coverUrl: String?,
     compact: Boolean = false,
+    wide: Boolean = false,
     showRank: Boolean = false,
     rank: Int? = null,
     enabled: Boolean = true,
@@ -786,7 +795,12 @@ private fun NewTrackCard(
     onClick: () -> Unit
 ) {
     val lc = LiquidTheme.colors
-    val cardSize = if (compact) 110.dp else 140.dp
+    val cardSize = when {
+        compact && wide -> 138.dp
+        compact -> 110.dp
+        wide -> 172.dp
+        else -> 140.dp
+    }
     val canClick = enabled && !title.isBlank()
     Column(
         modifier = Modifier
@@ -1444,17 +1458,42 @@ private val NEW_HERO_LAYOUTS = setOf(
 
 /**
  * «Большие» слайдеры VK X — крупная карточка 4:3 вместо квадрата.
- * Имена подтверждены в исходниках VK X, см. docs/vkx-port/06-new-section.md.
+ * Имена подтверждены реестром `Catalog2LayoutJsonAdapter` из VK X,
+ * см. docs/vkx-port/06-new-section.md.
  */
 private val NEW_LARGE_SLIDER_LAYOUTS = setOf(
     "large_slider",
     "music_chart_large_slider",
     "music_exclusive_slider",
     "recomms_slider",
+    "audio_stream_mix",
+    "audio_stream_mix_interactive",
 )
 
 /** Блоки, которые VK показывает сеткой в два ряда, а не одной строкой. */
-private val NEW_GRID_LAYOUTS = setOf("entity_double_grid", "categories_grid")
+private val NEW_GRID_LAYOUTS = setOf(
+    "entity_double_grid",
+    "categories_grid",
+    "categories_list",
+    "podcast_category_genre_buttons",
+    "horizontal_buttons",
+)
+
+/**
+ * Технические блоки-разделители из реестра VK X: собственного содержимого не
+ * несут, а нарисованные как карточки выглядели бы мусором. `header*` отсекается
+ * раньше, в `MusicBackend` (заголовок применяется к следующему блоку).
+ */
+private val NEW_SKIPPED_LAYOUTS = setOf(
+    "separator",
+    "in_block_separator",
+    "placeholder",
+    "placeholder_big",
+    "placeholder_small",
+    "text",
+    "music_newsfeed_title",
+    "playable_item_in_progress",
+)
 
 private val NEW_TRACK_LIST_LAYOUTS = setOf(
     "triple_stacked_slider",
