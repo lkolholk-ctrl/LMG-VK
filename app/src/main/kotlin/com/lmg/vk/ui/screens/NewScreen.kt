@@ -27,6 +27,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ChevronRight
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material3.CircularProgressIndicator
@@ -74,6 +75,9 @@ fun NewScreen(
 ) {
     val context = LocalContext.current
     LaunchedEffect(viewModel) { viewModel.loadHomeContent() }
+    // Список скрытых баннеров нужен до первой отрисовки блоков, иначе закрытый
+    // баннер мигнёт при заходе на экран.
+    LaunchedEffect(Unit) { NewDismissedBanners.init(context) }
 
     val homeContent by viewModel.homeContent.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
@@ -203,6 +207,42 @@ fun NewScreen(
                         it == "VK Музыка" && block.layoutName.isNotBlank()
                     }
                     when {
+                        block.layoutName == "close_catalog_banner" -> {
+                            // Закрытый баннер не рисуем вовсе — вместе с заголовком,
+                            // иначе на экране останется пустая секция.
+                            if (!NewDismissedBanners.isDismissed(block.id)) {
+                                NewSectionHeader(
+                                    title = title,
+                                    compact = compact,
+                                    itemCount = block.items.size,
+                                    onClick = { sectionSheetBlock = block },
+                                )
+                                block.items.firstOrNull()?.let { homeItem ->
+                                    NewCloseableBanner(
+                                        item = homeItem,
+                                        compact = compact,
+                                        onClick = { onItemClick(homeItem) },
+                                        onDismiss = { NewDismissedBanners.dismiss(block.id) },
+                                    )
+                                }
+                            }
+                        }
+
+                        block.layoutName == "subsection_tabs" -> {
+                            NewSectionHeader(
+                                title = title,
+                                compact = compact,
+                                itemCount = block.items.size,
+                                onClick = { sectionSheetBlock = block },
+                            )
+                            NewSubsectionTabs(
+                                blockId = block.id,
+                                items = block.items,
+                                compact = compact,
+                                onItemClick = onItemClick,
+                            )
+                        }
+
                         block.layoutName in NEW_HERO_LAYOUTS -> {
                             NewSectionHeader(
                                 title = title,
@@ -210,8 +250,21 @@ fun NewScreen(
                                 itemCount = block.items.size,
                                 onClick = { sectionSheetBlock = block },
                             )
-                            block.items.firstOrNull()?.let { homeItem ->
-                                NewHeroBanner(homeItem, compact, onClick = { onItemClick(homeItem) })
+                            // У «слайдерных» баннеров элементов больше одного, и
+                            // раньше все кроме первого просто терялись. Один
+                            // баннер по-прежнему рисуется во всю ширину.
+                            if (block.items.size > 1) {
+                                NewBannerRow(
+                                    blockId = block.id,
+                                    items = block.items,
+                                    compact = compact,
+                                    rowGap = rowGap,
+                                    onItemClick = onItemClick,
+                                )
+                            } else {
+                                block.items.firstOrNull()?.let { homeItem ->
+                                    NewHeroBanner(homeItem, compact, onClick = { onItemClick(homeItem) })
+                                }
                             }
                         }
 
@@ -1146,6 +1199,191 @@ private fun NewGridTile(
     }
 }
 
+/**
+ * Карусель широких баннеров — для «слайдерных» вариантов hero-семейства
+ * (`promo_banners_slider`, `podcast_banners_slider`, `crop_slider`).
+ *
+ * Ширина карточки чуть меньше экрана: край следующего баннера видно, и это
+ * подсказывает, что блок листается. Тот же приём у VK.
+ */
+@Composable
+private fun NewBannerRow(
+    blockId: String,
+    items: List<com.lmg.vk.engine.backend.HomeItem>,
+    compact: Boolean,
+    rowGap: androidx.compose.ui.unit.Dp,
+    onItemClick: (com.lmg.vk.engine.backend.HomeItem) -> Unit,
+) {
+    val lc = LiquidTheme.colors
+    val bannerWidth = if (compact) 268.dp else 320.dp
+    val bannerHeight = if (compact) 126.dp else 152.dp
+    LazyRow(
+        contentPadding = PaddingValues(horizontal = 20.dp),
+        horizontalArrangement = Arrangement.spacedBy(rowGap),
+    ) {
+        items(items, key = { "${blockId}_banner_${it.id}" }) { item ->
+            val enabled = !item.isCustom
+            Column(
+                modifier = Modifier
+                    .width(bannerWidth)
+                    .clickable(enabled = enabled, onClick = { onItemClick(item) }),
+            ) {
+                AlbumArtImage(
+                    uri = null,
+                    contentDescription = item.title,
+                    coverUrl = item.cover,
+                    placeholderKey = "${item.title}\u0000${item.subtitle.orEmpty()}",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .width(bannerWidth)
+                        .height(bannerHeight)
+                        .clip(RoundedCornerShape(16.dp)),
+                )
+                Text(
+                    text = item.title,
+                    color = lc.textPrimary,
+                    fontSize = if (compact) 13.5.sp else 15.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    fontFamily = AppFontFamily,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 7.dp),
+                )
+                (item.subtitle ?: item.artist)?.takeIf(String::isNotBlank)?.let { subtitle ->
+                    Text(
+                        text = subtitle,
+                        color = lc.textSecondary,
+                        fontSize = if (compact) 11.5.sp else 12.5.sp,
+                        fontFamily = AppFontFamily,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(top = 2.dp),
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Закрываемый баннер каталога (`close_catalog_banner`).
+ *
+ * Отличие от обычного hero — крестик, и закрытие должно пережить перезапуск:
+ * баннер, который возвращается после каждого старта, раздражает сильнее, чем
+ * помогает. Поэтому id закрытых блоков хранится в [NewDismissedBanners].
+ */
+@Composable
+private fun NewCloseableBanner(
+    item: com.lmg.vk.engine.backend.HomeItem,
+    compact: Boolean,
+    onClick: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val lc = LiquidTheme.colors
+    val imageHeight = if (compact) 142.dp else 192.dp
+    Box(modifier = Modifier.padding(horizontal = 20.dp)) {
+        Column(modifier = Modifier.clickable(enabled = !item.isCustom, onClick = onClick)) {
+            AlbumArtImage(
+                uri = null,
+                contentDescription = item.title,
+                coverUrl = item.cover,
+                placeholderKey = "${item.title}\u0000${item.subtitle.orEmpty()}",
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(imageHeight)
+                    .clip(RoundedCornerShape(16.dp)),
+            )
+            Text(
+                text = item.title,
+                color = lc.textPrimary,
+                fontSize = if (compact) 15.sp else 18.sp,
+                fontWeight = FontWeight.Bold,
+                fontFamily = AppFontFamily,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(top = 8.dp, end = 40.dp),
+            )
+            (item.subtitle ?: item.artist)?.takeIf(String::isNotBlank)?.let { subtitle ->
+                Text(
+                    text = subtitle,
+                    color = lc.textSecondary,
+                    fontSize = if (compact) 12.sp else 13.sp,
+                    fontFamily = AppFontFamily,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 2.dp, end = 40.dp),
+                )
+            }
+        }
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(10.dp)
+                .size(30.dp)
+                .clip(RoundedCornerShape(50))
+                .background(Color(0x99111111))
+                .clickable(onClick = onDismiss),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.Close,
+                contentDescription = "Скрыть",
+                tint = Color.White,
+                modifier = Modifier.size(18.dp),
+            )
+        }
+    }
+}
+
+/**
+ * Табы подразделов (`subsection_tabs`).
+ *
+ * У VK это переключатель внутри блока: у каждого таба своя выдача, которая
+ * приходит отдельным запросом по `sectionId`. Пока такого запроса нет, показываем
+ * табы как навигацию по элементам самого блока — выбранный элемент раскрывается
+ * ниже. Это честнее, чем рисовать неработающий переключатель.
+ */
+@Composable
+private fun NewSubsectionTabs(
+    blockId: String,
+    items: List<com.lmg.vk.engine.backend.HomeItem>,
+    compact: Boolean,
+    onItemClick: (com.lmg.vk.engine.backend.HomeItem) -> Unit,
+) {
+    val lc = LiquidTheme.colors
+    var selected by remember(blockId) { mutableStateOf(0) }
+    val current = items.getOrNull(selected)
+    LazyRow(
+        contentPadding = PaddingValues(horizontal = 20.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        itemsIndexed(items, key = { _, item -> "${blockId}_tab_${item.id}" }) { index, item ->
+            val active = index == selected
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(50))
+                    .background(if (active) lc.accent.copy(alpha = 0.18f) else Color.Transparent)
+                    .clickable { selected = index }
+                    .padding(horizontal = 14.dp, vertical = 7.dp),
+            ) {
+                Text(
+                    text = item.title,
+                    color = if (active) lc.accent else lc.textSecondary,
+                    fontSize = if (compact) 12.5.sp else 13.5.sp,
+                    fontWeight = if (active) FontWeight.SemiBold else FontWeight.Medium,
+                    fontFamily = AppFontFamily,
+                    maxLines = 1,
+                )
+            }
+        }
+    }
+    current?.let { item ->
+        Spacer(Modifier.height(if (compact) 10.dp else 14.dp))
+        NewHeroBanner(item, compact, onClick = { onItemClick(item) })
+    }
+}
+
 @Composable
 private fun NewCuratorCard(title: String, coverUrl: String?, compact: Boolean) {
     val size = if (compact) 76.dp else 94.dp
@@ -1180,6 +1418,10 @@ private fun newLayoutLabel(layoutName: String): String = when (layoutName) {
     "music_chart_list", "music_chart_triple_stacked_slider", "music_chart_large_slider" -> "чарт"
     "triple_stacked_slider" -> "треки"
     "promo_banners_slider", "snippets_banner", "banner" -> "подборка"
+    "podcast_banners_slider" -> "подкасты"
+    "smart_banner", "close_catalog_banner" -> "баннер"
+    "crop_slider" -> "истории"
+    "subsection_tabs" -> "разделы"
     "music_exclusive_slider" -> "эксклюзив"
     "recomms_slider" -> "рекомендации"
     "large_slider", "audio_content_card_extended_slider" -> "подборки"
@@ -1189,7 +1431,16 @@ private fun newLayoutLabel(layoutName: String): String = when (layoutName) {
     else -> layoutName.replace('_', ' ')
 }
 
-private val NEW_HERO_LAYOUTS = setOf("banner", "promo_banners_slider", "snippets_banner")
+private val NEW_HERO_LAYOUTS = setOf(
+    "banner",
+    "promo_banners_slider",
+    "snippets_banner",
+    // Батч 2: то же семейство широких баннеров, отдельной вёрстки не требуют.
+    // `crop_slider` у VK — обрезанная по высоте карусель, визуально это баннер.
+    "podcast_banners_slider",
+    "smart_banner",
+    "crop_slider",
+)
 
 /**
  * «Большие» слайдеры VK X — крупная карточка 4:3 вместо квадрата.
