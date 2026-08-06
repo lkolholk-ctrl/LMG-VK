@@ -29,6 +29,8 @@ import com.lmg.vk.logging.CrashHandler
 import com.lmg.vk.network.EncryptedVkSessionStore
 import com.lmg.vk.network.VkApiClient
 import com.lmg.vk.network.VkApiLocator
+import com.lmg.vk.network.proxy.VkProxyRepository
+import com.lmg.vk.network.proxy.installVkProxy
 import com.lmg.vk.ui.DeviceTier
 import com.lmg.vk.ui.PowerSaveMonitor
 import kotlinx.coroutines.CoroutineScope
@@ -165,11 +167,17 @@ class LmgApplication : Application(), ImageLoaderFactory {
         PlayerController.init(this)
         PlaylistManager.init(this)
 
+        // Обход блокировок: конфиг с адресами и сертификатами. Поднимаем до
+        // создания Ktor-клиента — интерцептор читает состояние на каждом запросе,
+        // но кэш должен быть уже в памяти к первому из них.
+        VkProxyRepository.init(this)
+
         // VK API: Ktor-клиент + зашифрованная сессия + доменный фасад UI.
         val vkSessionStore = EncryptedVkSessionStore(this)
         val vkApiClient = VkApiClient(
             httpClient = KtorHttpClient(KtorOkHttp) {
                 expectSuccess = false
+                engine { config { installVkProxy() } }
             },
             sessionStore = vkSessionStore,
             deviceIdProvider = ::resolveVkDeviceId,

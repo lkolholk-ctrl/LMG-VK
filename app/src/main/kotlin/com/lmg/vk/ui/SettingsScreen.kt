@@ -981,6 +981,45 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(sectionGap))
 
+            // NETWORK
+            SectionLabel("NETWORK")
+
+            val proxyEnabled by com.lmg.vk.network.proxy.VkProxyRepository.enabled
+                .collectAsState()
+            val proxyState by com.lmg.vk.network.proxy.VkProxyRepository.state
+                .collectAsState()
+            val proxyScope = rememberCoroutineScope()
+
+            PlainCard {
+                SettingsToggleItem(
+                    title = "Обход блокировок",
+                    subtitle = when (val state = proxyState) {
+                        is com.lmg.vk.network.proxy.VkProxyState.Available ->
+                            "Готово: ${state.ips.size} адр., " +
+                                "${state.allowedDomains.size} доменов" +
+                                if (state.certificates.isEmpty()) "" else ", пиннинг"
+                        is com.lmg.vk.network.proxy.VkProxyState.Loading -> "Загружаю настройки…"
+                        is com.lmg.vk.network.proxy.VkProxyState.FailedToLoad ->
+                            "Настройки не загрузились — нажмите «Обновить»"
+                    },
+                    selected = proxyEnabled,
+                    onSelect = { com.lmg.vk.network.proxy.VkProxyRepository.setEnabled(it) }
+                )
+                PlainDivider()
+                SettingsActionItem(
+                    title = "Обновить адреса",
+                    subtitle = "Перечитать список серверов и сертификатов",
+                    icon = Icons.Rounded.ChevronRight,
+                    onClick = {
+                        proxyScope.launch {
+                            com.lmg.vk.network.proxy.VkProxyRepository.refresh()
+                        }
+                    }
+                )
+            }
+
+            Spacer(modifier = Modifier.height(sectionGap))
+
             // CROSSFADE
             SectionLabel("APPEARANCE & ACCESSIBILITY")
 
