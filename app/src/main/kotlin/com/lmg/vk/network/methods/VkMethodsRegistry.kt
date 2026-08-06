@@ -31,6 +31,7 @@ import com.lmg.vk.network.dto.VkFriend
 import com.lmg.vk.network.dto.VkGroup
 import com.lmg.vk.network.dto.gen.auth.ValidatePhoneResponse
 import com.lmg.vk.network.dto.music.AudioAudioDto
+import com.lmg.vk.network.dto.music.AudioPlaylistReorderAction
 import com.lmg.vk.network.dto.music.ProfileLibrarySearchResponse
 import com.squareup.moshi.Json
 import com.squareup.moshi.JsonClass
@@ -99,11 +100,34 @@ class VkMethodsRegistry(private val client: VkApiClient) {
     suspend fun getStreamMixSettings(mixId: String) =
         execute<Any>("audio.getStreamMixSettings") { param("mix_id", mixId) }
 
-    /** audio.reorderInPlaylist. */
-    suspend fun reorderInPlaylist(playlistId: Int, ownerId: Long) =
-        executeUnit("audio.reorderInPlaylist") {
-            param("playlist_id", playlistId); param("owner_id", ownerId)
-        }
+    /**
+     * audio.reorderInPlaylist.
+     *
+     * `actions` — обязательный параметр (`C3294e.java:17-70`); без него VK не
+     * знает, что и куда переместить, поэтому перегрузки без него нет.
+     * Формат — позиционные тройки, см. [AudioPlaylistReorderAction].
+     */
+    suspend fun reorderInPlaylist(
+        playlistId: Int,
+        ownerId: Long,
+        actions: List<AudioPlaylistReorderAction>,
+    ) = executeUnit("audio.reorderInPlaylist") {
+        param("playlist_id", playlistId)
+        param("owner_id", ownerId)
+        param("actions", AudioPlaylistReorderAction.encode(actions))
+    }
+
+    /**
+     * audio.recommendationsOnboarding — исполнители для онбординга рекомендаций.
+     * Параметров нет вовсе (`C14197e.java:104-109`).
+     *
+     * Форма ответа подтверждена лишь частично: место вызова
+     * (`C14197e.java:115-124`) кастует результат к `RootItemsResponseDto` и
+     * берёт `.items`, поэтому ждём `{count, items:[…]}`; `P1:241` при этом
+     * обещает один объект артиста. До проверки на живом API парсер общий.
+     */
+    suspend fun recommendationsOnboarding() =
+        execute<Any>("audio.recommendationsOnboarding") { }
 
     /** audio.followRadioStation / unfollow. */
     suspend fun followRadioStation(stationId: Int) =
