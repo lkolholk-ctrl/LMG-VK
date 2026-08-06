@@ -563,6 +563,7 @@ private fun NewSectionHeader(
     }
 }
 
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 private fun NewSectionSheet(
     block: com.lmg.vk.engine.backend.HomeBlock,
