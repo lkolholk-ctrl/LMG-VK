@@ -52,8 +52,14 @@ data class VkFriend(
 }
 
 /**
- * Элемент `groups.get?extended=1`. В `owner_id` для аудио сообщества
- * подставляется `-id` — см. [audioOwnerId].
+ * Элемент `groups.get?extended=1` и `groups.getById`. В `owner_id` для аудио
+ * сообщества подставляется `-id` — см. [audioOwnerId].
+ *
+ * Все поля сверх обязательных (`id`, `name`) nullable/с дефолтом намеренно:
+ * `groups.get` запрашивает узкий набор `fields`, `groups.getById` — широкий
+ * ([com.lmg.vk.network.methods.VkMethodsRegistry.GROUP_DETAIL_FIELDS]), и один
+ * DTO обслуживает оба. Отсутствие поля тут означает «VK его не присылал», а не
+ * «значение пустое» — экран обязан различать это и не рисовать нули вместо данных.
  */
 @JsonClass(generateAdapter = true)
 data class VkGroup(
@@ -67,6 +73,41 @@ data class VkGroup(
     @Json(name = "members_count") val membersCount: Int? = null,
     val verified: Int? = null,
     @Json(name = "is_member") val isMember: Int? = null,
+    // ── Поля, приходящие только от `groups.getById` с широким `fields` ──
+    /** Однострочное «чем занимается» сообщества (у VK MP3 Mod — `infoLine`). */
+    val activity: String? = null,
+    /** Полное описание сообщества; у многих сообществ пустое. */
+    val description: String? = null,
+    /**
+     * Статус-строка. У VK это ОБЪЕКТ `{"text": "...", "audio": {...}}`, а не
+     * строка (`GetFullProfile.java:466` — `getJSONObject("status").optString("text")`),
+     * поэтому здесь вложенный DTO, а не `String` — иначе Moshi упал бы на разборе.
+     */
+    val status: VkGroupStatus? = null,
+    /** Внешний сайт сообщества. */
+    val site: String? = null,
+    /** Уровень прав ТЕКУЩЕГО пользователя: 0 — не управляющий. */
+    @Json(name = "admin_level") val adminLevel: Int? = null,
+    /** Постить может текущий пользователь; для музыки не нужно, но входит в `fields`. */
+    @Json(name = "can_post") val canPost: Int? = null,
+    @Json(name = "can_message") val canMessage: Int? = null,
+    /** Дата начала события (unix); только у `type == "event"`. */
+    @Json(name = "start_date") val startDate: Long? = null,
+    @Json(name = "finish_date") val finishDate: Long? = null,
+    /** Крупные аватары — нужны шапке экрана, `photo_200` для неё мелковат. */
+    @Json(name = "photo_400_orig") val photo400Orig: String? = null,
+    @Json(name = "photo_max_orig") val photoMaxOrig: String? = null,
+    /** Обложка сообщества (широкий баннер) — рисуется фоном шапки. */
+    val cover: VkGroupCover? = null,
+    /**
+     * Счётчики разделов. VK отдаёт их ТОЛЬКО управляющим сообщества, поэтому
+     * для обычного зрителя поле приходит пустым — число аудио берётся из
+     * `audio.get`, а не отсюда (см. `AudioGet.java:36` в VK MP3 Mod: там счётчик
+     * аудио сообщества тянут именно через `counters.audios`, когда он доступен).
+     */
+    val counters: VkGroupCounters? = null,
+    /** `"deleted"`/`"banned"` — сообщество недоступно, показывать это честно. */
+    val deactivated: String? = null,
 ) {
     /** Отрицательный id — то, что ждут музыкальные методы VK. */
     val audioOwnerId: Long
@@ -75,9 +116,102 @@ data class VkGroup(
     val avatarUrl: String
         get() = sequenceOf(photo200, photo100).firstOrNull(String::isNotBlank).orEmpty()
 
+    /**
+     * Аватар для шапки: сначала самые большие варианты. `photo_200` тут крайний
+     * случай — на шапку он растянется мылом, но это лучше пустого места.
+     */
+    val bigAvatarUrl: String
+        get() = sequenceOf(photoMaxOrig, photo400Orig, photo200, photo100)
+            .firstOrNull { !it.isNullOrBlank() }
+            .orEmpty()
+
+    /** Широкая обложка; `null` — её у сообщества нет, шапка обойдётся аватаром. */
+    val coverUrl: String?
+        get() = cover?.bestUrl
+
     val isPublicPage: Boolean
         get() = type == "page"
 
     val isEvent: Boolean
         get() = type == "event"
+
+    /** Закрытое или приватное: `1` — закрытое, `2` — приватное (см. `Group.java`). */
+    val isPrivate: Boolean
+        get() = (isClosed ?: 0) > 0
+
+    val isMemberOrNull: Boolean?
+        get() = isMember?.let { it == 1 }
+
+    /** Сообщество удалено/заблокировано — контента у него не будет вообще. */
+    val isDeactivated: Boolean
+        get() = !deactivated.isNullOrBlank()
+
+    /** Текст статуса без вложенности — удобнее для UI. */
+    val statusText: String?
+        get() = status?.text?.takeIf(String::isNotBlank)
+
+    /**
+     * Тип сообщества словами. Формулировки соответствуют `Group.typeString()`
+     * VK MP3 Mod: у публичной страницы и события свои названия, у группы тип
+     * зависит от закрытости.
+     */
+    val typeLabel: String
+        get() = when {
+            isEvent -> "Event"
+            isPublicPage -> "Public page"
+            isClosed == 2 -> "Private group"
+            isClosed == 1 -> "Closed group"
+            else -> "Community"
+        }
+
+    /** Адрес сообщества: своё короткое имя либо каноничное `club<id>`. */
+    val addressSlug: String
+        get() = screenName.ifBlank { "club$id" }
 }
+
+/**
+ * `status` сообщества. `audio` (играющий в статусе трек) VK присылает тут же,
+ * но разбирать его нечем без полного DTO трека — а гадать поля нельзя, поэтому
+ * взято только то, что достоверно известно по реверсу: текст.
+ */
+@JsonClass(generateAdapter = true)
+data class VkGroupStatus(
+    val text: String? = null,
+)
+
+/**
+ * Обложка сообщества: VK отдаёт набор размеров в `images`, из которого берём
+ * самый широкий — шапка растянута во всю ширину экрана.
+ */
+@JsonClass(generateAdapter = true)
+data class VkGroupCover(
+    val enabled: Int? = null,
+    val images: List<VkGroupCoverImage> = emptyList(),
+) {
+    val bestUrl: String?
+        get() = images
+            .filter { it.url.isNotBlank() }
+            .maxByOrNull { it.width * it.height }
+            ?.url
+            ?.takeIf { enabled != 0 }
+}
+
+@JsonClass(generateAdapter = true)
+data class VkGroupCoverImage(
+    val url: String = "",
+    val width: Int = 0,
+    val height: Int = 0,
+)
+
+/**
+ * `counters` сообщества — только для управляющих. Поля, не относящиеся к
+ * музыке, здесь не описаны: их значения экран всё равно не показывает, а
+ * лишние поля в DTO создают ложное впечатление, что они где-то используются.
+ */
+@JsonClass(generateAdapter = true)
+data class VkGroupCounters(
+    val audios: Int? = null,
+    val albums: Int? = null,
+    val photos: Int? = null,
+    val videos: Int? = null,
+)

@@ -60,6 +60,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.lmg.vk.debug.DebugLog
 import com.lmg.vk.engine.backend.MusicAuth
 import com.lmg.vk.engine.backend.VkProfileRepository
 import com.lmg.vk.network.dto.VkFriend
@@ -645,20 +646,43 @@ private fun OwnerRow(
                     .background(colors.textTertiary.copy(alpha = 0.16f)),
                 contentAlignment = Alignment.Center,
             ) {
-                if (avatarUrl.isNotBlank()) {
+                // Загрузка может провалиться уже после того, как ссылка пришла
+                // (блокировка домена, TLS, 403 от CDN). Тогда вместо пустого
+                // круга показываем честную заглушку, а причину пишем в лог —
+                // по нему видно, ссылки не дошли или картинка не скачалась.
+                var loadFailed by remember(avatarUrl) { mutableStateOf(false) }
+                if (avatarUrl.isNotBlank() && !loadFailed) {
                     AsyncImage(
                         model = avatarUrl,
                         contentDescription = null,
                         contentScale = ContentScale.Crop,
                         modifier = Modifier.fillMaxSize(),
+                        onError = { state ->
+                            loadFailed = true
+                            DebugLog.add(
+                                "AVATAR fail \"$title\" $avatarUrl -> " +
+                                    (state.result.throwable.message ?: state.result.throwable.toString()),
+                            )
+                        },
                     )
                 } else {
-                    Icon(
-                        imageVector = if (circleAvatar) Icons.Rounded.Person else Icons.Rounded.Groups,
-                        contentDescription = null,
-                        tint = colors.iconMuted,
-                        modifier = Modifier.size(20.dp),
-                    )
+                    val initials = remember(title) { initialsOf(title) }
+                    if (initials.isNotEmpty()) {
+                        Text(
+                            text = initials,
+                            fontFamily = AppFontFamily,
+                            color = colors.textSecondary,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium,
+                        )
+                    } else {
+                        Icon(
+                            imageVector = if (circleAvatar) Icons.Rounded.Person else Icons.Rounded.Groups,
+                            contentDescription = null,
+                            tint = colors.iconMuted,
+                            modifier = Modifier.size(20.dp),
+                        )
+                    }
                 }
             }
             if (showOnlineDot) {
@@ -871,6 +895,22 @@ private fun ProfileDivider() {
 }
 
 // ---------------------------------- форматы ----------------------------------
+
+/**
+ * Инициалы для заглушки аватара: «Иван Петров» → «ИП», «Public page» → «P».
+ * Берём буквы/цифры первых двух слов — у сообществ в названии часто попадаются
+ * эмодзи и знаки, из которых инициал получился бы бессмысленным.
+ */
+private fun initialsOf(title: String): String = title
+    .split(*WORD_SEPARATORS)
+    .asSequence()
+    .mapNotNull { word -> word.firstOrNull { it.isLetterOrDigit() } }
+    .take(2)
+    .joinToString("")
+    .uppercase()
+
+/** Обычный пробел и неразрывный U+00A0 — записан escape-ом намеренно. */
+private val WORD_SEPARATORS = charArrayOf(' ', '\u00A0')
 
 private fun Int?.orDash(): String = this?.let(::formatCount) ?: "—"
 

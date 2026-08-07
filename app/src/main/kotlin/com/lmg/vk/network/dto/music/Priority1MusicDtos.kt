@@ -274,6 +274,23 @@ data class VkCatalogLayout(
     val title: String? = null,
     val subtitle: String? = null,
     val style: String? = null,
+    /**
+     * Единственное поле layout'а `owner_cell` (`Catalog2Layout.OwnerCell`).
+     *
+     * Зачем оно нам: у `owner_cell` НЕТ ни заголовка, ни списка — только этот
+     * id. Именно он и отличает «своё» сообщество артиста от «похожих»: VK
+     * помечает `owner_cell`-ом ровно один блок страницы, и `owner_id` в нём
+     * указывает на официальную страницу самого артиста. У блоков с похожими
+     * сообществами layout обычный (`slider`/`list`) и `owner_id` отсутствует.
+     * Без этого поля различить их в ответе нечем — оба блока приходят как
+     * `group_ids` + `groups`.
+     *
+     * Источник: `src-deobf/ua_itaysonlab_catalogkit_objects_seals_Catalog2Layout_OwnerCellJsonAdapter.java:13`
+     * (`firebase("owner_id")`, тип `Long.class`) и
+     * `…Catalog2LayoutJsonAdapter.java:86` (`OwnerCell.class → "owner_cell"`).
+     * Тип Long, потому что owner может быть отрицательным (сообщество).
+     */
+    val owner_id: Long? = null,
 )
 
 /** VKProfile: один DTO используется VK X для profiles, groups и curators. */

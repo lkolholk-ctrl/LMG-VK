@@ -1,5 +1,6 @@
 package com.lmg.vk.engine.backend
 
+import com.lmg.vk.debug.DebugLog
 import com.lmg.vk.network.VkApiClient
 import com.lmg.vk.network.VkItems
 import com.lmg.vk.network.VkResult
@@ -169,8 +170,36 @@ object VkProfileRepository {
                 musicError = loaded.playlists.errorMessage() ?: loaded.audioCount.errorMessage(),
                 error = profileError.takeIf { profile == null },
             )
+
+            logAvatarSources(_state.value)
         } finally {
             refreshMutex.unlock()
+        }
+    }
+
+    /**
+     * Диагностика жалобы «иконки не прогружает»: по одной строке на список видно,
+     * дошли ли вообще ссылки на аватары от VK. Пустой `avatarUrl` при непустом
+     * списке означает, что `fields` не доехал до ответа (проблема на стороне
+     * запроса), а непустой — что дальше виноват уже загрузчик картинок, и его
+     * провал печатает `AVATAR fail` из ProfileScreen.
+     */
+    private fun logAvatarSources(state: ProfileState) {
+        state.friends.firstOrNull()?.let { friend ->
+            val withAvatar = state.friends.count { it.avatarUrl.isNotBlank() }
+            DebugLog.add(
+                "AVATAR friends: $withAvatar/${state.friends.size} с ссылкой; " +
+                    "первый \"${friend.displayName}\" photo_200=\"${friend.photo200}\" " +
+                    "photo_100=\"${friend.photo100}\"",
+            )
+        }
+        state.groups.firstOrNull()?.let { group ->
+            val withAvatar = state.groups.count { it.avatarUrl.isNotBlank() }
+            DebugLog.add(
+                "AVATAR groups: $withAvatar/${state.groups.size} с ссылкой; " +
+                    "первый \"${group.name}\" photo_200=\"${group.photo200}\" " +
+                    "photo_100=\"${group.photo100}\"",
+            )
         }
     }
 

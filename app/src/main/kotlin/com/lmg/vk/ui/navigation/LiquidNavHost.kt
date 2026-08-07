@@ -164,6 +164,26 @@ fun LiquidNavHost(
                     onBack = { navController.popBackStack() }
                 )
             }
+            // Экран сообщества. Аргумент строковый по той же причине, что у
+            // OWNER_AUDIO: в пути лежит отрицательный owner_id.
+            composable(
+                NavRoutes.GROUP_ROUTE,
+                arguments = listOf(navArgument(NavRoutes.ARG_ID) { type = NavType.StringType })
+            ) { entry ->
+                val ownerId = entry.arguments?.getString(NavRoutes.ARG_ID)?.toLongOrNull() ?: 0L
+                com.lmg.vk.ui.screens.GroupScreen(
+                    ownerId = ownerId,
+                    onBack = { navController.popBackStack() },
+                    // Плейлист сообщества открывается штатным экраном плейлиста
+                    // внутри ЭТОЙ же вкладки — иначе он лёг бы в чужой бэкстек.
+                    onOpenPlaylist = {
+                        navController.navigate(NavRoutes.playlist(NavRoutes.TAB_LIBRARY, it))
+                    },
+                    // Тап по участнику ведёт в его аудиозаписи: экран музыкальный,
+                    // и профиля пользователя как отдельного экрана в проекте нет.
+                    onOpenMemberAudio = { navController.navigate(NavRoutes.ownerAudio(it)) }
+                )
+            }
             composable(
                 NavRoutes.LOCAL_ARTIST_ROUTE,
                 arguments = listOf(navArgument(NavRoutes.ARG_NAME) { type = NavType.StringType })
@@ -270,6 +290,10 @@ private fun NavGraphBuilder.musicDetailDestinations(
             onNavigateToAlbum = { navController.navigate(NavRoutes.album(tab, it)) },
             onNavigateToArtist = { navController.navigate(NavRoutes.artist(tab, it)) },
             onNavigateToPlaylist = { navController.navigate(NavRoutes.playlist(tab, it)) },
+            // Сообщества артиста (своё и похожие) ведут на экран сообщества.
+            // Колбэк отдаёт ОТРИЦАТЕЛЬНЫЙ owner_id — конвенция VkGroup.audioOwnerId,
+            // её же ждут NavRoutes.group и GroupViewModel.
+            onOpenGroup = { navController.navigate(NavRoutes.group(it)) },
         )
     }
     composable(

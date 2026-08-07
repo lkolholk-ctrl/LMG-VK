@@ -48,6 +48,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -93,6 +94,10 @@ import com.lmg.vk.ui.theme.LiquidMetrics
 import com.lmg.vk.ui.theme.LiquidMotion
 import com.lmg.vk.ui.theme.LiquidSurfaces
 import com.lmg.vk.ui.theme.LiquidTheme
+import com.lmg.vk.ui.theme.AppFontFamily
+import com.lmg.vk.ui.viewmodel.ArtistCommunitiesViewModel
+import com.lmg.vk.ui.viewmodel.ArtistCommunity
+import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.launch
 
 
@@ -117,6 +122,13 @@ fun ArtistDetailScreen(
     onNavigateToAlbum: (String) -> Unit = {},
     onNavigateToArtist: (String) -> Unit = {},
     onNavigateToPlaylist: (String) -> Unit = {},
+    /**
+     * Открыть экран сообщества. Передаётся ОТРИЦАТЕЛЬНЫЙ owner_id — та же
+     * конвенция, что у `NavRoutes.group()` и `GroupViewModel.load()`.
+     * Дефолт пустой намеренно: до связывания в NavHost карточки просто не
+     * реагируют на тап, а не падают.
+     */
+    onOpenGroup: (Long) -> Unit = {},
 ) {
     val context = LocalContext.current
     val colors = LiquidTheme.colors
@@ -129,6 +141,13 @@ fun ArtistDetailScreen(
     var isFollowBusy by remember(artistId) { mutableStateOf(false) }
     var isMixBusy by remember(artistId) { mutableStateOf(false) }
     var reloadKey by remember(artistId) { mutableStateOf(0) }
+
+    // Сообщества артиста грузим отдельно от MusicBackend.getArtist: там блок
+    // `groups` теряется (сообщества сваливаются в officialPages без различения
+    // «своё/похожие», а layout `owner_cell` не читается вообще).
+    val communitiesViewModel: ArtistCommunitiesViewModel = viewModel()
+    val artistCommunities by communitiesViewModel.state.collectAsState()
+    LaunchedEffect(artistId, reloadKey) { communitiesViewModel.load(artistId) }
 
     LaunchedEffect(artistId, reloadKey) {
         isLoading = true
@@ -634,23 +653,43 @@ fun ArtistDetailScreen(
 
                     art?.officialPages.orEmpty().let { pages ->
                         val profiles = pages.filterNot { it.isCommunity }
-                        val communities = pages.filter { it.isCommunity }
                         if (profiles.isNotEmpty()) {
                             item { SectionHeaderThemed(colors.isDark, "Official profiles") }
                             items(profiles, key = { "profile-${it.id}" }) { page ->
                                 ArtistLinkRow(page.name, page.subtitle, page.cover, colors.isDark)
                             }
                         }
-                        if (communities.isNotEmpty()) {
-                            item { SectionHeaderThemed(colors.isDark, "Communities") }
-                            items(communities, key = { "community-${it.id}" }) { community ->
-                                ArtistLinkRow(
-                                    community.name,
-                                    community.subtitle,
-                                    community.cover,
-                                    colors.isDark,
-                                )
-                            }
+                    }
+
+                    // Сообщества из блока страницы артиста. Раздельно: своя
+                    // официальная страница (VK помечает её layout'ом
+                    // `owner_cell`) и похожие сообщества. Блок появляется
+                    // только когда VK реально что-то отдал — пустоту не рисуем.
+                    artistCommunities.own?.let { ownCommunity ->
+                        item { SectionHeaderThemed(colors.isDark, "Official community") }
+                        item {
+                            ArtistCommunityRow(
+                                community = ownCommunity,
+                                isDark = colors.isDark,
+                                onClick = onOpenGroup,
+                            )
+                        }
+                    }
+
+                    if (artistCommunities.similar.isNotEmpty()) {
+                        item {
+                            // Заголовок берём тот, что прислал VK; свой текст —
+                            // только если блок пришёл без header'а.
+                            SectionHeaderThemed(
+                                colors.isDark,
+                                artistCommunities.similarTitle ?: "Similar communities",
+                            )
+                        }
+                        item {
+                            ArtistCommunityCarousel(
+                                communities = artistCommunities.similar,
+                                onClick = onOpenGroup,
+                            )
                         }
                     }
 
@@ -1481,6 +1520,119 @@ private fun ArtistLinkRow(
                     fontSize = 12.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Официальное сообщество артиста — строкой, а не карточкой в карусели.
+ *
+ * Почему иначе, чем «похожие»: оно всегда одно, и это не «ещё вариант», а
+ * страница самого артиста. Строка на всю ширину читается как заявление, а не
+ * как элемент выбора, и рядом влезает подпись о подписке.
+ */
+@Composable
+private fun ArtistCommunityRow(
+    community: ArtistCommunity,
+    isDark: Boolean,
+    onClick: (Long) -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = LiquidMetrics.ScreenPadding)
+            .clip(RoundedCornerShape(16.dp))
+            .background(LiquidSurfaces.card(isDark))
+            .liquidClickable(
+                pressedScale = LiquidMotion.PressButton,
+                onClick = { onClick(community.ownerId) },
+            )
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        AlbumArtImage(
+            uri = null,
+            coverUrl = community.cover.toThumb(),
+            contentDescription = community.name,
+            placeholderKey = community.name,
+            modifier = Modifier.size(52.dp).clip(CircleShape),
+            contentScale = ContentScale.Crop,
+        )
+        Spacer(Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = community.name,
+                color = LiquidSurfaces.textPrimary(isDark),
+                fontSize = 15.sp,
+                fontWeight = FontWeight.SemiBold,
+                fontFamily = AppFontFamily,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            // Подписку показываем только когда VK её подтвердил: `is_followed`
+            // приходит не всегда, и «не подписаны» было бы домыслом.
+            if (community.isFollowed) {
+                Text(
+                    text = "Вы подписаны",
+                    color = LiquidSurfaces.textSecondary(isDark),
+                    fontSize = 12.sp,
+                    fontFamily = AppFontFamily,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Похожие сообщества — горизонтальная карусель круглых аватаров, как у
+ * кураторов на экране New: их всегда несколько и они равнозначны.
+ */
+@Composable
+private fun ArtistCommunityCarousel(
+    communities: List<ArtistCommunity>,
+    onClick: (Long) -> Unit,
+) {
+    val colors = LiquidTheme.colors
+    // На узком экране аватары мельче, иначе в карусель влезает меньше двух с
+    // половиной карточек и она перестаёт читаться как список.
+    val compact = !com.lmg.vk.ui.rememberWindowInfo().useSideBySide
+    val size = if (compact) 76.dp else 94.dp
+    LazyRow(
+        contentPadding = PaddingValues(horizontal = LiquidMetrics.ScreenPadding),
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        items(communities, key = { "artist-community-${it.id}" }) { community ->
+            Column(
+                modifier = Modifier.width(size),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                AlbumArtImage(
+                    uri = null,
+                    coverUrl = community.cover.toThumb(),
+                    contentDescription = community.name,
+                    placeholderKey = community.name,
+                    modifier = Modifier
+                        .size(size)
+                        .clip(CircleShape)
+                        .liquidClickable(
+                            pressedScale = LiquidMotion.PressButton,
+                            onClick = { onClick(community.ownerId) },
+                        ),
+                    contentScale = ContentScale.Crop,
+                )
+                Text(
+                    text = community.name,
+                    color = colors.textPrimary,
+                    fontSize = if (compact) 11.sp else 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    fontFamily = AppFontFamily,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 7.dp),
                 )
             }
         }

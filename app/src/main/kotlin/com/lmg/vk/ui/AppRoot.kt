@@ -196,7 +196,15 @@ fun AppRoot() {
             // один, состояние в VkProfileRepository одно), поэтому вкладку здесь
             // НЕ подставляем — навигация сама переключит граф.
             is com.lmg.vk.engine.VkLinkTarget.OwnerAudio ->
-                NavRoutes.ownerAudio(target.ownerId)
+                // Ссылка на само сообщество (`/club123`, короткое имя) открывает
+                // его экран; ссылка именно на аудиозаписи (`/audios-123`) — список
+                // треков. Подменять одно другим нельзя: пользователь открывал
+                // разные вещи.
+                if (target.isGroup && target.wantsProfile) {
+                    NavRoutes.group(target.ownerId)
+                } else {
+                    NavRoutes.ownerAudio(target.ownerId)
+                }
             // Трек играется самим резолвером — сюда такие цели не доходят.
             else -> null
         }

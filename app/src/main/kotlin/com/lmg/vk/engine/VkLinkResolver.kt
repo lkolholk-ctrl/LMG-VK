@@ -134,7 +134,11 @@ object VkLinkResolver {
             val id = m.groupValues[1].toLongOrNull() ?: return VkLinkResolution.Unsupported(path)
             // Музыкальные методы VK ждут отрицательный owner_id сообщества
             // (та же логика, что в `VkGroup.audioOwnerId`).
-            return VkLinkResolution.Resolved(VkLinkTarget.OwnerAudio(-id, isGroup = true))
+            // wantsProfile: ссылка вида /club123 ведёт на СООБЩЕСТВО, поэтому
+            // открываем его экран, а не сразу список треков.
+            return VkLinkResolution.Resolved(
+                VkLinkTarget.OwnerAudio(-id, isGroup = true, wantsProfile = true)
+            )
         }
 
         // Короткое имя: кто за ним стоит, знает только сервер.
@@ -182,7 +186,9 @@ object VkLinkResolver {
             // Набор значений `type` в спеке не подтверждён, поэтому группой
             // считаем все известные «сообществные» варианты.
             "group", "page", "event", "club" -> VkLinkResolution.Resolved(
-                VkLinkTarget.OwnerAudio(-objectId, isGroup = true),
+                // Короткое имя сообщества (`vk.com/somename`) — тоже ссылка на
+                // само сообщество, а не на его аудио.
+                VkLinkTarget.OwnerAudio(-objectId, isGroup = true, wantsProfile = true),
             )
             else -> VkLinkResolution.Unsupported("vk.com/$screenName")
         }
@@ -387,7 +393,20 @@ sealed interface VkLinkTarget {
     }
 
     /** Аудиозаписи пользователя/сообщества (`/audios123`, короткое имя). */
-    data class OwnerAudio(val ownerId: Long, val isGroup: Boolean) : VkLinkTarget
+    /**
+     * Аудиозаписи владельца (`/audios-123`, `/audios123`).
+     *
+     * [isGroup] — владелец это сообщество (отрицательный owner_id).
+     * [wantsProfile] — ссылка вела на само сообщество (`/club123`), а не на его
+     * аудио: тогда правильнее открыть экран сообщества, а не сразу список
+     * треков. Различие смысловое: `/audios-123` пользователь открывал ради
+     * музыки, `/club123` — ради сообщества.
+     */
+    data class OwnerAudio(
+        val ownerId: Long,
+        val isGroup: Boolean,
+        val wantsProfile: Boolean = false,
+    ) : VkLinkTarget
 }
 
 /** Результат разбора ссылки. */

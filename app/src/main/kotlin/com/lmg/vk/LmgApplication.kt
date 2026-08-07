@@ -67,6 +67,13 @@ class LmgApplication : Application(), ImageLoaderFactory {
             .callTimeout(12, TimeUnit.SECONDS)
             .dispatcher(Dispatcher().apply { maxRequests = 6; maxRequestsPerHost = 4 })
             .connectionPool(ConnectionPool(4, 60, TimeUnit.SECONDS))
+            // Картинки живут на тех же заблокированных доменах, что и API с
+            // медиа (`*.userapi.com`, `*.vk-cdn.net`), поэтому обход нужен и им.
+            // Без этого при включённом обходе получалась ровно жалоба «иконки не
+            // прогружает»: списки друзей и сообществ приходят (API идёт через
+            // проксируемый Ktor-клиент), а вот аватары к ним грузятся этим
+            // клиентом напрямую — и молча падают на блокировке.
+            .installVkProxy()
             .build()
     }
 

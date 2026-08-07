@@ -54,6 +54,14 @@ object NavRoutes {
     const val OWNER_AUDIO_ROUTE = "library/owner-audio/{$ARG_ID}"
     fun ownerAudio(ownerId: Long) = "library/owner-audio/$ownerId"
 
+    // ── Экран сообщества (vk.com/club<id>, vk.com/public<id>, короткое имя) ──
+    // Живёт в графе Библиотеки по той же причине, что и OWNER_AUDIO: экран один
+    // на приложение, и регистрировать его в каждом графе значило бы плодить
+    // копии состояния. Аргумент строковый: в пути лежит ОТРИЦАТЕЛЬНЫЙ owner_id,
+    // а минус NavType.LongType не сматчил бы.
+    const val GROUP_ROUTE = "library/group/{$ARG_ID}"
+    fun group(ownerId: Long) = "library/group/$ownerId"
+
     // ── Онбординг рекомендаций (открывается из Настроек) ──
     const val RECOMMENDATIONS_ONBOARDING = "settings/recommendations-onboarding"
 

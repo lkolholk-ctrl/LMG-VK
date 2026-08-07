@@ -26,6 +26,7 @@ import com.lmg.vk.network.dto.EcosystemCheckOtpResponse
 import com.lmg.vk.network.dto.EcosystemGetVerificationMethodsResponse
 import com.lmg.vk.network.dto.EcosystemSendOtpResponse
 import com.lmg.vk.network.dto.RequestTokenResponse
+import com.lmg.vk.network.dto.VKError
 import com.lmg.vk.network.dto.VkAccountProfile
 import com.lmg.vk.network.dto.VkFriend
 import com.lmg.vk.network.dto.VkGroup
@@ -36,6 +37,7 @@ import com.lmg.vk.network.dto.music.ProfileLibrarySearchResponse
 import com.squareup.moshi.Json
 import com.squareup.moshi.JsonClass
 import com.squareup.moshi.Types
+import org.json.JSONArray
 import org.json.JSONObject
 
 /**
@@ -352,6 +354,68 @@ class VkMethodsRegistry(private val client: VkApiClient) {
         }
         return client.execute(method)
     }
+
+    /**
+     * Одно сообщество по id — вход для экрана сообщества и для ссылок
+     * `vk.com/club<id>` / `vk.com/public<id>`.
+     *
+     * [groupId] можно передавать и отрицательным (owner_id, как в ссылках):
+     * `groups.getById` ждёт id сообщества БЕЗ знака, поэтому знак снимается —
+     * на `group_ids=-123` VK ответил бы ошибкой.
+     *
+     * Возвращается контейнер, а не `VkGroup?`, СПЕЦИАЛЬНО: `VkApiClient.execute`
+     * на паре «нет ошибки, но data == null» бросает исключение с внутренним
+     * текстом «needs investigating» (см. его `unboxVkResponse`). А пустой ответ
+     * здесь — штатный случай (несуществующий id), и он обязан дойти до экрана
+     * как «сообщество не найдено», а не как невнятная ошибка. Контейнер всегда
+     * не-null, поэтому этой ветки не возникает.
+     */
+    suspend fun groupsGetById(groupId: Long): VkResult<GroupsByIdResponse> {
+        val method = VkMethod("groups.getById", GroupByIdParser).apply {
+            param("group_ids", kotlin.math.abs(groupId))
+            param("fields", GROUP_DETAIL_FIELDS)
+        }
+        return client.execute(method)
+    }
+
+    /**
+     * Участники сообщества — только аватары для строки «кто подписан».
+     * `fields` узкий намеренно: экрану нужна лишь картинка и имя, а каждое
+     * лишнее поле здесь умножается на count.
+     */
+    suspend fun groupsGetMembers(
+        groupId: Long,
+        offset: Int = 0,
+        count: Int = 20,
+    ): VkResult<VkItems<VkFriend>> {
+        val itemsType = Types.newParameterizedType(VkItems::class.java, VkFriend::class.java)
+        val method = VkMethod(
+            "groups.getMembers",
+            MoshiEnvelopeParser<VkItems<VkFriend>>(itemsType),
+        ).apply {
+            param("group_id", kotlin.math.abs(groupId))
+            param("offset", offset)
+            param("count", count)
+            param("fields", GROUP_MEMBER_FIELDS)
+        }
+        return client.execute(method)
+    }
+
+    /**
+     * Подписка на сообщество. Пара `groups.join`/`groups.leave` — ровно то, чем
+     * подписывается официальный клиент (реверс VK MP3 Mod:
+     * `api/groups/GroupsJoin.java`, `api/groups/GroupsLeave.java`); оба метода
+     * принимают ПОЛОЖИТЕЛЬНЫЙ `group_id` и возвращают `1`, а не объект.
+     *
+     * Это не `audio.followOwner`: тот подписывает на МУЗЫКУ владельца и в
+     * `is_member` сообщества не отражается, так что кнопка «Subscribed» после
+     * него врала бы.
+     */
+    suspend fun groupsJoin(groupId: Long) =
+        executeUnit("groups.join") { param("group_id", kotlin.math.abs(groupId)) }
+
+    suspend fun groupsLeave(groupId: Long) =
+        executeUnit("groups.leave") { param("group_id", kotlin.math.abs(groupId)) }
 
     suspend fun resolveScreenName(screenName: String) =
         execute<Any>("utils.resolveScreenName") { param("screen_name", screenName) }
@@ -773,6 +837,57 @@ class VkMethodsRegistry(private val client: VkApiClient) {
         override suspend fun parse(raw: RawHttpResponse) = delegate.parse(raw)
     }
 
+    /**
+     * Результат `groups.getById`. Обёртка нужна, чтобы «сообщества нет» дошло до
+     * вызывающего как успех с пустым [group], а не как исключение из
+     * `VkApiClient.execute` на null-данных.
+     */
+    data class GroupsByIdResponse(val group: VkGroup?)
+
+    /**
+     * `groups.getById` меняла форму ответа между версиями API: до v5.130
+     * `response` — плоский массив (так его и читает `GroupsGetById.java` в
+     * реверсе VK MP3 Mod: `response[0]`), с v5.130+ — объект `{"groups": [...]}`
+     * (VK X: `API.groups.getById({...}).groups[0]`, `C13029e.java:41`). Проект
+     * ходит с `v=5.272`, но поддерживаются обе формы: различаем по фактическому
+     * типу узла, а не по версии в запросе — версию задаёт [VkMethod], и
+     * молчаливая рассинхронизация с ней стоила бы пустого экрана.
+     *
+     * Тело читается РОВНО ОДИН раз: `bodyText()` у Ktor-обёртки читает канал
+     * ответа, и на второй вызов для того же ответа полагаться нельзя. Поэтому
+     * обе формы разбираются из уже полученной строки, а не двумя проходами
+     * готовых парсеров по [RawHttpResponse].
+     */
+    private object GroupByIdParser : VkResponseParser<GroupsByIdResponse> {
+        private val groupAdapter = VkJson.moshi.adapter(VkGroup::class.java)
+
+        // Ошибку разбираем тем же адаптером, что и остальные методы: собирать
+        // VKError вручную значило бы потерять captcha_sid/redirect_uri, на
+        // которых держится ретрай капчи и валидации в VkApiClient.
+        private val errorAdapter = VkJson.moshi.adapter(VKError::class.java)
+
+        override suspend fun parse(raw: RawHttpResponse): VkParsedResponse<GroupsByIdResponse> {
+            val json = JSONObject(raw.bodyText())
+
+            // Ошибку смотрим ДО ветвления по форме: при ошибке `response` в
+            // ответе отсутствует вовсе.
+            json.optJSONObject("error")?.let { error ->
+                return VkParsedResponse(null, errorAdapter.fromJson(error.toString()))
+            }
+
+            val first = when (val response = json.opt("response")) {
+                is JSONObject -> response.optJSONArray("groups")?.optJSONObject(0)
+                is JSONArray -> response.optJSONObject(0)
+                else -> null
+            }
+
+            return VkParsedResponse(
+                GroupsByIdResponse(first?.let { groupAdapter.fromJson(it.toString()) }),
+                null,
+            )
+        }
+    }
+
     private companion object {
         const val VKX_STORAGE_APP_ID = 52384530
         const val PROFILE_FIELDS = "first_name,last_name,name,photo_100,photo_200"
@@ -790,6 +905,28 @@ class VkMethodsRegistry(private val client: VkApiClient) {
             "photo_100,photo_200,domain,screen_name,online,online_info,last_seen,verified,sex,can_see_audio"
 
         const val GROUP_FIELDS = "photo_100,photo_200,members_count,verified,is_member"
+
+        /**
+         * `fields` для карточки сообщества. Имена НЕ выдуманы — каждое реально
+         * читается из ответа `groups.getById` в реверсе VK MP3 Mod
+         * (`api/users/GetFullProfile.java`, ветка `uid < 0`, строки 462-596):
+         * `name`, `activity` → infoLine, `status.text`, `description`, `site`,
+         * `start_date`/`finish_date`, `admin_level`, `can_post`, `can_message`,
+         * `is_closed`, `is_member`, `members_count`, `type`, `deactivated`.
+         * `counters` — оттуда же (`AudioGet.java:36` берёт `counters.audios`),
+         * но VK отдаёт их только управляющим сообщества.
+         *
+         * `cover` и крупные аватары в `fields` перечислены отдельно: без запроса
+         * VK их не присылает, а шапке нужен кадр шире `photo_200`.
+         */
+        const val GROUP_DETAIL_FIELDS = "activity,description,status,site," +
+            "members_count,counters,verified,is_member,is_closed,type,deactivated," +
+            "admin_level,can_post,can_message,start_date,finish_date," +
+            "screen_name,photo_100,photo_200,photo_400_orig,photo_max_orig,cover"
+
+        /** Участникам в списке нужны только аватар и имя — остальное лишний трафик. */
+        const val GROUP_MEMBER_FIELDS = "photo_100,photo_200,screen_name,domain,verified"
+
         const val AUDIO_PRIVACY_EXECUTE_CODE = """var settings = API.account.getPrivacySettings();
 var i = 0;
 while (i != settings.settings.length) {
