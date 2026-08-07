@@ -115,6 +115,9 @@ fun LibraryScreen(
     onNavigateToArtist: (String) -> Unit = {},
     onOpenPlaylist: (String) -> Unit = {},
     onOpenLocalLibrary: () -> Unit = {},
+    // Вход на экран «Загрузки». Дефолт — прежнее поведение (внутренний вид
+    // LibraryView.DOWNLOADS), поэтому старые вызовы LibraryScreen не ломаются.
+    onOpenDownloads: (() -> Unit)? = null,
 
     backdrop: LayerBackdrop? = null
 ) {
@@ -221,6 +224,17 @@ fun LibraryScreen(
     fun refreshLibrary() {
         viewModel.syncWithCloud()
         loadImportedPlaylists()
+    }
+
+    // Загрузки: если хост дал маршрут — уходим на отдельный экран (у него свой
+    // бэкстек и системная кнопка «назад»), иначе остаёмся на прежнем внутреннем
+    // виде. Одна точка, чтобы оба входа (таб и карточка) не разъехались.
+    fun openDownloads() {
+        if (onOpenDownloads != null) {
+            onOpenDownloads()
+        } else {
+            currentView = LibraryView.DOWNLOADS
+        }
     }
 
     LaunchedEffect(isLoggedIn) {
@@ -334,7 +348,7 @@ fun LibraryScreen(
                             isDark = lc.isDark,
                             downloaded = false,
                             onLibrary = {},
-                            onDownloaded = { currentView = LibraryView.DOWNLOADS },
+                            onDownloaded = { openDownloads() },
                         )
                     }
 
@@ -393,7 +407,7 @@ fun LibraryScreen(
                                 icon = Icons.Default.Download,
                                 tint = Color(0xFF29B6F6),
                                 compact = win.useSideBySide,
-                                onClick = { currentView = LibraryView.DOWNLOADS }
+                                onClick = { openDownloads() }
                             )
                         }
                     }

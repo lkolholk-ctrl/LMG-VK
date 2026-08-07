@@ -92,7 +92,12 @@ fun NewScreen(
     val homeBlocks = remember(homeContent) {
         homeContent?.blocks?.filter {
             // Блок табов элементов не несёт — его «содержимое» это сами табы.
-            it.items.isNotEmpty() || it.subsectionTabs.isNotEmpty()
+            (it.items.isNotEmpty() || it.subsectionTabs.isNotEmpty()) &&
+                // Служебные блоки VK (separator, placeholder, text и прочие) в
+                // выдаче есть, но карточками не рисуются. Раньше они отсекались
+                // ниже, уже при отрисовке, и попадали в счётчик «N разделов» —
+                // число в шапке не совпадало с тем, что видно на экране.
+                it.layoutName !in NEW_SKIPPED_LAYOUTS
         } ?: emptyList()
     }
     var sectionSheetBlock by remember { mutableStateOf<com.lmg.vk.engine.backend.HomeBlock?>(null) }
@@ -127,7 +132,14 @@ fun NewScreen(
             item {
                 NewScreenHeader(
                     compact = compact,
-                    sectionCount = homeBlocks.size,
+                    // Закрытые баннеры вычитаем здесь, а не в homeBlocks: список
+                    // скрытых меняется по нажатию крестика, а `remember(homeContent)`
+                    // на это не пересчитался бы — число в шапке осталось бы прежним
+                    // до перезагрузки выдачи.
+                    sectionCount = homeBlocks.count { block ->
+                        block.layoutName != "close_catalog_banner" ||
+                            !NewDismissedBanners.isDismissed(block.id)
+                    },
                     updatedAt = homeContent?.updatedAt,
                     isLoading = isLoading,
                     onRefresh = { viewModel.loadHomeContent(force = true) },
@@ -531,7 +543,7 @@ private fun NewScreenHeader(
                 if (sectionCount > 0 || updatedAt != null) {
                     Text(
                         text = buildString {
-                            if (sectionCount > 0) append("$sectionCount разделов VK")
+                            if (sectionCount > 0) append("$sectionCount ${newSectionsWord(sectionCount)} VK")
                             formatNewUpdatedAt(updatedAt)?.let {
                                 if (isNotEmpty()) append("  ·  ")
                                 append(it)
@@ -1688,6 +1700,20 @@ private fun NewCuratorCard(title: String, coverUrl: String?, compact: Boolean) {
 private fun formatNewDuration(durationMs: Long): String {
     val seconds = durationMs / 1_000L
     return "%d:%02d".format(seconds / 60L, seconds % 60L)
+}
+
+/**
+ * Склонение слова «раздел» по числу: 1 раздел, 2 раздела, 18 разделов.
+ * Русские правила, а не `if (n == 1)`: иначе в шапке появлялось «22 разделов».
+ */
+private fun newSectionsWord(count: Int): String {
+    val mod100 = count % 100
+    if (mod100 in 11..14) return "разделов"
+    return when (count % 10) {
+        1 -> "раздел"
+        2, 3, 4 -> "раздела"
+        else -> "разделов"
+    }
 }
 
 private fun newLayoutLabel(layoutName: String): String = when (layoutName) {

@@ -295,6 +295,22 @@ object AudioDownloadManager {
             inputStream.close()
             connection.disconnect()
 
+            // 2.5. ID3-теги и обложка — только для mp3.
+            //
+            // Пишем ДО переноса в итоговое место: если запись тега сорвётся, у
+            // пользователя останется корректный mp3 без тегов, а не битый файл в
+            // его музыке. Сам `Mp3TagWriter.write` тоже атомарен (пишет рядом и
+            // подменяет), так что двойная страховка ничего не стоит.
+            //
+            // m4a/mp4 пропускаем осознанно: ID3 туда не пишется, там MP4-атомы —
+            // другой формат тегов, и попытка дописать ID3 сделала бы файл битым.
+            if (ext.equals(".mp3", ignoreCase = true) && tempFile.length() > 0L) {
+                runCatching { writeTagsForDownload(tempFile, track) }
+                    .onFailure {
+                        android.util.Log.w("DOWNLOAD", "теги не записались: ${it.message}")
+                    }
+            }
+
             // 3. Move temp file to final location
             val finalFile = File(downloadsDir, "$trackId$ext")
             if (finalFile.exists()) {
@@ -311,6 +327,55 @@ object AudioDownloadManager {
             }
             false
         }
+    }
+
+    /**
+     * Дописывает ID3v2.3-тег и обложку в скачанный mp3.
+     *
+     * Зачем: без тегов файл в сторонних плеерах выглядит как «неизвестный
+     * исполнитель», а обложки нет вовсе — то есть скачанное фактически теряет
+     * половину смысла. Реализация тега — [com.lmg.vk.audio.Mp3TagWriter]
+     * (перенос из VK MP3 Mod), кириллица там пишется в UTF-16 с BOM, потому что
+     * ISO-8859-1 её не вмещает.
+     *
+     * Год и номер трека не заполняем: `Track` их не несёт, а у VK они приходят
+     * отдельным запросом. Пустое поле честнее выдуманного года — по нему
+     * сортируют библиотеку.
+     */
+    private suspend fun writeTagsForDownload(file: File, track: Track) {
+        val cover = track.coverUrl
+            ?.takeIf { it.isNotBlank() }
+            ?.let { url ->
+                // Обложка не обязательна: нет сети или VK отдал ошибку — трек
+                // всё равно получит текстовые теги.
+                runCatching { com.lmg.vk.audio.Mp3TagWriter.fetchCover(tagHttpClient, url) }
+                    .getOrNull()
+            }
+        com.lmg.vk.audio.Mp3TagWriter.write(
+            file = file,
+            meta = com.lmg.vk.audio.Mp3TagWriter.Meta(
+                title = track.title.takeIf { it.isNotBlank() },
+                artist = track.artist.takeIf { it.isNotBlank() },
+                album = track.albumName.takeIf { it.isNotBlank() },
+                year = null,
+                trackNumber = null,
+                genre = track.genre?.takeIf { it.isNotBlank() },
+                lyrics = null,
+                comment = null,
+                coverBytes = cover,
+            ),
+        )
+    }
+
+    /**
+     * Отдельный HTTP-клиент только под обложки.
+     *
+     * Клиент внутри `VkApiClient` приватный и настроен под API-запросы с
+     * токеном, а обложка лежит на CDN и токена не требует. Ленивый, чтобы не
+     * создавать движок, пока пользователь ничего не скачивает.
+     */
+    private val tagHttpClient: io.ktor.client.HttpClient by lazy {
+        io.ktor.client.HttpClient(io.ktor.client.engine.okhttp.OkHttp)
     }
 
     private fun updateProgress(trackId: String, progress: Float?) {

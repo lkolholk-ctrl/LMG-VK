@@ -125,11 +125,18 @@ fun LiquidNavHost(
                     onNavigateToArtist = { navController.navigate(NavRoutes.artist(NavRoutes.TAB_LIBRARY, it)) },
                     onOpenPlaylist = { navController.navigate(NavRoutes.playlist(NavRoutes.TAB_LIBRARY, it)) },
                     onOpenLocalLibrary = { navController.navigate(NavRoutes.LOCAL_LIBRARY) },
+                    onOpenDownloads = { navController.navigate(NavRoutes.DOWNLOADS) },
                     backdrop = backdrop
                 )
             }
             musicDetailDestinations(NavRoutes.TAB_LIBRARY, navController)
 
+
+            // Экран «Загрузки» — скачанное на устройство. В графе Библиотеки:
+            // вход только оттуда, и бэкстек должен оставаться внутри вкладки.
+            composable(NavRoutes.DOWNLOADS) {
+                com.lmg.vk.ui.screens.DownloadsScreen(onBack = { navController.popBackStack() })
+            }
 
             composable(NavRoutes.LOCAL_LIBRARY) {
                 LocalLibraryScreen(

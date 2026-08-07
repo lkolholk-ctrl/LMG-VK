@@ -57,6 +57,9 @@ object NavRoutes {
     // ── Онбординг рекомендаций (открывается из Настроек) ──
     const val RECOMMENDATIONS_ONBOARDING = "settings/recommendations-onboarding"
 
+    // ── Экран «Загрузки» (скачанное на устройство; вход из Библиотеки) ──
+    const val DOWNLOADS = "library/downloads"
+
     // ── Локальная медиатека (только внутри Библиотеки) ──
     const val LOCAL_LIBRARY = "library/local"
     const val LOCAL_ARTIST_ROUTE = "library/local/artist/{$ARG_NAME}"
