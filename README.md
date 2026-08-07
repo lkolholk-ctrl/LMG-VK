@@ -13,7 +13,7 @@ recovered_project/  (rootProject = "lmg-recovered")
 ├── gradle.properties
 └── app/
     ├── build.gradle.kts         # namespace/applicationId = com.lmg.vk, v1.0.0
-    │                            # Ktor + Moshi + Realm + media3-lmg fork (1.5.1-lmg29)
+    │                            # Ktor + Moshi + Realm + media3-lmg fork (1.5.1-lmg30)
     └── src/main/
         ├── AndroidManifest.xml  # .LmgApplication, label "LMG VK"
         ├── cpp/

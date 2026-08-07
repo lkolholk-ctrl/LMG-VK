@@ -323,7 +323,7 @@ UI ссылается на ресурсы LMG, которых нет в прое
 
 ```
 LMG-VK/  (rootProject "lmg-recovered")
-├── settings.gradle.kts          # :app + media3-m2 (форк media3-lmg, 1.5.1-lmg29)
+├── settings.gradle.kts          # :app + media3-m2 (форк media3-lmg, 1.5.1-lmg30)
 ├── build.gradle.kts             # AGP 8.7.3 + Kotlin 2.1.0 + KSP
 ├── gradle.properties
 ├── .gitignore                   # + media3-m2 исключён

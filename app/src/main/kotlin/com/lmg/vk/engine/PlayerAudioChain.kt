@@ -43,6 +43,17 @@ object PlayerAudioChain {
                 // диагностика молча исчезла бы именно там, где нужна.
                 val n = sinkCount.incrementAndGet()
                 android.util.Log.w("PlayerAudioChain", "buildAudioSink #$n")
+                // Дублируем в DebugLog: с форка lmg30 второй аудио-рендерер
+                // наконец проходит через эту фабрику (там исправлено, что он
+                // собирал сырой DefaultAudioSink в обход неё). То есть
+                // `buildAudioSink #2` теперь НОРМА, а не признак поломки — и
+                // видеть это надо на телефоне, где logcat недоступен.
+                //
+                // Следствие, за которым следим: цепочка процессоров существует в
+                // двух экземплярах, а AudioReactor — статический object. Если
+                // поедет пульсация ауры или определение «уходящего» трека в
+                // DjStreamFx, причина здесь, и правка на нашей стороне.
+                com.lmg.vk.debug.DebugLog.add("buildAudioSink #$n (с lmg30 два — норма)")
                 return DefaultAudioSink.Builder(context)
                     .setAudioProcessors(
                         arrayOf(

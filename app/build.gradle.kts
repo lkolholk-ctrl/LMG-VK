@@ -132,14 +132,14 @@ dependencies {
     implementation("com.squareup.moshi:moshi-kotlin:1.15.1")
     ksp("com.squareup.moshi:moshi-kotlin-codegen:1.15.1")
 
-    // --- плеер: media3 из НАШЕГО форка (media3-lmg, 1.5.1-lmg29) ---
-    implementation("com.liquidmusicglass.media3:media3-common:1.5.1-lmg29")
-    implementation("com.liquidmusicglass.media3:media3-exoplayer:1.5.1-lmg29")
-    implementation("com.liquidmusicglass.media3:media3-exoplayer-hls:1.5.1-lmg29")
-    implementation("com.liquidmusicglass.media3:media3-extractor:1.5.1-lmg29")
-    implementation("com.liquidmusicglass.media3:media3-session:1.5.1-lmg29")
-    implementation("com.liquidmusicglass.media3:media3-common-ktx:1.5.1-lmg29")
-    implementation("com.liquidmusicglass.media3:media3-ui:1.5.1-lmg29")
+    // --- плеер: media3 из НАШЕГО форка (media3-lmg, 1.5.1-lmg30) ---
+    implementation("com.liquidmusicglass.media3:media3-common:1.5.1-lmg30")
+    implementation("com.liquidmusicglass.media3:media3-exoplayer:1.5.1-lmg30")
+    implementation("com.liquidmusicglass.media3:media3-exoplayer-hls:1.5.1-lmg30")
+    implementation("com.liquidmusicglass.media3:media3-extractor:1.5.1-lmg30")
+    implementation("com.liquidmusicglass.media3:media3-session:1.5.1-lmg30")
+    implementation("com.liquidmusicglass.media3:media3-common-ktx:1.5.1-lmg30")
+    implementation("com.liquidmusicglass.media3:media3-ui:1.5.1-lmg30")
 
     // --- кэш загрузок: Realm ---
     implementation("io.realm.kotlin:library-base:2.3.0")
