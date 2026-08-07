@@ -437,7 +437,30 @@ object PlayerController {
             indicesToPrefetch.forEach { idx ->
                 val track = currentQueue.getOrNull(idx) ?: return@forEach
                 if (track.isOnlineTrack) {
-                    resolveStreamUrl(track.id)
+                    val result = resolveStreamUrl(track.id)
+                    // ВАЖНО для бесшовного перехода. Прогрев кэша ссылок сам по
+                    // себе перехода не даёт: элемент очереди у ExoPlayer остаётся
+                    // с пустым uri (`liquid://track?trackId=…` без PARAM_URL), и
+                    // его предзагрузка всё равно упирается в открытие DataSource,
+                    // то есть в блокирующий резолв — уже в момент перехода.
+                    //
+                    // Поэтому подменяем элемент готовым: с прямой ссылкой и
+                    // правильным MIME. Тогда `PreloadConfiguration` (30 с) успевает
+                    // подтянуть начало следующего трека заранее, и переход идёт
+                    // без паузы — а нативный кроссфейд форка получает то, что ему
+                    // нужно: уже открытый источник.
+                    if (result is StreamResult.Success) {
+                        withContext(Dispatchers.Main) {
+                            runCatching {
+                                val ctrl = controller ?: return@runCatching
+                                // Индекс мог сдвинуться, пока шёл резолв: сверяем
+                                // mediaId, иначе подменим чужой трек.
+                                if (ctrl.getMediaItemAt(idx).mediaId == track.id) {
+                                    ctrl.replaceMediaItem(idx, buildMediaItem(track, result.uri))
+                                }
+                            }
+                        }
+                    }
                 }
             }
             android.util.Log.d("PlayerController", "Pre-warmed caches for indices $indicesToPrefetch")
