@@ -6,7 +6,7 @@ import androidx.glance.action.ActionParameters
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.GlanceAppWidgetReceiver
 import androidx.glance.appwidget.action.ActionCallback
-import androidx.glance.appwidget.update
+import androidx.glance.appwidget.updateAll
 
 /**
  * Приёмник виджета — то, что регистрируется в манифесте.
@@ -22,10 +22,13 @@ class VkMusicWidgetReceiver : GlanceAppWidgetReceiver() {
 /**
  * Тап по заголовку: переключить `recomms` <-> `mymusic`.
  *
- * Обновляем только этот экземпляр (`update(context, glanceId)`), а не все:
- * пользователь мог поставить два виджета, и переключение одного не должно
- * дёргать второй. Сам тип при этом общий — отдельного per-widget состояния
- * Glance без configuration-activity не даёт.
+ * Обновляем все экземпляры: тип контента в Glance один на приложение (отдельного
+ * per-widget состояния без configuration-activity он не даёт), поэтому и
+ * показывать разное в двух виджетах всё равно нечем — второй обязан
+ * перерисоваться вместе с первым, иначе покажет чужой тип.
+ *
+ * `updateAll`, а не `update(context, glanceId)`: extension-функции `update` для
+ * `GlanceAppWidget` в Glance 1.1.1 нет — на ней и упала сборка.
  */
 class VkWidgetToggleTypeAction : ActionCallback {
     override suspend fun onAction(
@@ -37,7 +40,7 @@ class VkWidgetToggleTypeAction : ActionCallback {
         VkWidgetPreferences.setContentType(context, next)
         // Новый тип — новый ключ кэша, поэтому запрос при следующей отрисовке
         // уйдёт сам; принудительное обновление здесь не нужно.
-        runCatching { VkMusicWidget().update(context, glanceId) }
+        runCatching { VkMusicWidget().updateAll(context) }
     }
 }
 
@@ -55,6 +58,6 @@ class VkWidgetRefreshAction : ActionCallback {
         parameters: ActionParameters,
     ) {
         VkWidgetPreferences.requestForceRefresh(context)
-        runCatching { VkMusicWidget().update(context, glanceId) }
+        runCatching { VkMusicWidget().updateAll(context) }
     }
 }
