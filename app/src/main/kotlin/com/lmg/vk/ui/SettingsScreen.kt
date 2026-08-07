@@ -981,6 +981,33 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(sectionGap))
 
+            // ПРОФИЛЬ ВКОНТАКТЕ
+            SectionLabel("VK PROFILE")
+
+            val broadcastToStatus by AppSettings.broadcastToStatus.collectAsState()
+            val vkLoggedIn by com.lmg.vk.engine.backend.MusicAuth.isLoggedIn.collectAsState()
+
+            PlainCard {
+                SettingsToggleItem(
+                    title = "Транслировать в статус",
+                    // Честно про последствия: это единственная настройка в списке,
+                    // которая меняет что-то ВНЕ приложения и видна другим людям.
+                    // Про «не вошли» пишем прямо, потому что тумблер сам по себе
+                    // ничего не сделает — статус ставить некуда.
+                    subtitle = if (!vkLoggedIn) {
+                        "Войдите в аккаунт ВКонтакте, чтобы включить трансляцию"
+                    } else {
+                        "Играющий трек будет виден в вашем профиле ВКонтакте — " +
+                            "его увидят друзья. Статус снимается, когда музыка " +
+                            "останавливается"
+                    },
+                    selected = broadcastToStatus,
+                    onSelect = { AppSettings.setBroadcastToStatus(it) }
+                )
+            }
+
+            Spacer(modifier = Modifier.height(sectionGap))
+
             // NETWORK
             SectionLabel("NETWORK")
 

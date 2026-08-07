@@ -4,6 +4,8 @@ import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.lmg.vk.engine.backend.MusicAuth
+import com.lmg.vk.engine.backend.BlockPagingState
+import com.lmg.vk.engine.backend.CatalogTabState
 import com.lmg.vk.engine.backend.Chart
 import com.lmg.vk.engine.backend.HomeBlock
 import com.lmg.vk.engine.backend.HomeResponse
@@ -193,6 +195,17 @@ class HomeViewModel : ViewModel() {
     fun refresh() {
         _homeContent.value = null
         HomeCacheManager.clear()
+        // Выдача табов и догруженные порции привязаны к id блоков и курсорам
+        // ПРЕЖНЕГО ответа: VK меняет их при каждой выдаче. Не сбросив, мы бы
+        // показали под новыми блоками содержимое старых.
+        tabJobs.values.forEach { it.cancel() }
+        tabJobs.clear()
+        pagingJobs.values.forEach { it.cancel() }
+        pagingJobs.clear()
+        usedCursors.clear()
+        _tabContent.value = emptyMap()
+        _selectedTab.value = emptyMap()
+        _blockPaging.value = emptyMap()
         loadHomeContent(force = true)
     }
 
@@ -201,6 +214,153 @@ class HomeViewModel : ViewModel() {
      */
     fun getBlockByType(type: String): HomeBlock? {
         return _homeContent.value?.blocks?.find { it.type == type }
+    }
+
+    // ─── subsection_tabs: своя выдача на каждый таб ───
+
+    /**
+     * Выбранный таб на блок. Ключ — id блока, значение — `replacementId` таба.
+     * Держим в VM, а не в composable: при уходе с таба New и возврате обратно
+     * выбор пользователя должен сохраниться, а `remember` в LazyColumn его теряет
+     * вместе с прокрученным за экран блоком.
+     */
+    private val _selectedTab = MutableStateFlow<Map<String, String>>(emptyMap())
+    val selectedTab: StateFlow<Map<String, String>> = _selectedTab
+
+    /** Выдача табов: ключ — `replacementId`, а не id блока. */
+    private val _tabContent = MutableStateFlow<Map<String, CatalogTabState>>(emptyMap())
+    val tabContent: StateFlow<Map<String, CatalogTabState>> = _tabContent
+
+    private val tabJobs = HashMap<String, Job>()
+
+    /**
+     * Выбор таба подраздела. Грузит выдачу таба ОДИН раз: успешный результат
+     * кэшируется по `replacementId` в пределах жизни VM — переключение туда-обратно
+     * не должно бить в сеть повторно.
+     */
+    fun selectSubsectionTab(blockId: String, replacementId: String) {
+        if (blockId.isBlank() || replacementId.isBlank()) return
+        _selectedTab.value = _selectedTab.value + (blockId to replacementId)
+        loadSubsectionTab(replacementId)
+    }
+
+    /** Повтор после ошибки: сбрасывает кэш неудачи и грузит заново. */
+    fun retrySubsectionTab(replacementId: String) {
+        _tabContent.value = _tabContent.value - replacementId
+        loadSubsectionTab(replacementId)
+    }
+
+    private fun loadSubsectionTab(replacementId: String) {
+        // Готовую выдачу не перезапрашиваем; активный запрос не дублируем.
+        if (_tabContent.value[replacementId] is CatalogTabState.Ready) return
+        if (tabJobs[replacementId]?.isActive == true) return
+
+        _tabContent.value = _tabContent.value + (replacementId to CatalogTabState.Loading)
+        tabJobs[replacementId] = viewModelScope.launch {
+            try {
+                val blocks = MusicBackend.loadCatalogTab(replacementId)
+                _tabContent.value = _tabContent.value + (
+                    replacementId to if (blocks.isEmpty()) {
+                        // Пустая выдача — это ответ сервера, а не сбой: так и пишем,
+                        // вместо того чтобы оставить пустое место под табами.
+                        CatalogTabState.Failed("VK не вернул содержимое раздела")
+                    } else {
+                        CatalogTabState.Ready(blocks)
+                    }
+                    )
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _tabContent.value = _tabContent.value + (
+                    replacementId to CatalogTabState.Failed(
+                        com.lmg.vk.engine.backend.backendUserMessage(e)
+                    )
+                    )
+            } finally {
+                if (tabJobs[replacementId] === coroutineContext[Job]) {
+                    tabJobs.remove(replacementId)
+                }
+            }
+        }
+    }
+
+    // ─── Пагинация внутри блока (шторка «показать все») ───
+
+    private val _blockPaging = MutableStateFlow<Map<String, BlockPagingState>>(emptyMap())
+    val blockPaging: StateFlow<Map<String, BlockPagingState>> = _blockPaging
+
+    private val pagingJobs = HashMap<String, Job>()
+
+    /**
+     * Курсоры, уже отработанные по каждому блоку. Нужны, чтобы повторный
+     * `next_from` от VK не пустил догрузку по кругу — сам ответ этого не
+     * отслеживает.
+     */
+    private val usedCursors = HashMap<String, MutableSet<String>>()
+
+    /**
+     * Догрузить следующую порцию элементов блока.
+     *
+     * Первый вызов подхватывает `nextFrom` из самого блока, дальше идёт по
+     * курсору из последнего ответа. Пустая порция при непустом курсоре — это
+     * конец списка (`exhausted`), а не ошибка: VK так закрывает выдачу.
+     */
+    fun loadMoreBlockItems(block: HomeBlock) {
+        val blockId = block.id
+        if (blockId.isBlank()) return
+        val state = _blockPaging.value[blockId] ?: BlockPagingState(nextFrom = block.nextFrom)
+        val cursor = state.nextFrom ?: block.nextFrom
+        if (state.isLoading || state.exhausted || cursor.isNullOrBlank()) return
+        if (pagingJobs[blockId]?.isActive == true) return
+
+        _blockPaging.value = _blockPaging.value + (
+            blockId to state.copy(nextFrom = cursor, isLoading = true, error = null)
+            )
+        pagingJobs[blockId] = viewModelScope.launch {
+            val seen = usedCursors.getOrPut(blockId) { HashSet() }
+            try {
+                val page = MusicBackend.loadBlockItemsPage(
+                    blockId = blockId,
+                    startFrom = cursor,
+                    usedCursors = seen,
+                )
+                seen += cursor
+                val current = _blockPaging.value[blockId] ?: state
+                // Дедупликация по id: VK при догрузке нередко повторяет хвост
+                // предыдущей порции, и без неё в списке появлялись дубли, а
+                // LazyColumn падал на неуникальных ключах.
+                val known = (block.items + current.extraItems).mapTo(HashSet()) { it.id }
+                val fresh = page.items.filter { known.add(it.id) }
+                _blockPaging.value = _blockPaging.value + (
+                    blockId to current.copy(
+                        extraItems = current.extraItems + fresh,
+                        nextFrom = page.nextFrom,
+                        isLoading = false,
+                        error = null,
+                        exhausted = fresh.isEmpty() || page.nextFrom.isNullOrBlank(),
+                    )
+                    )
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                val current = _blockPaging.value[blockId] ?: state
+                _blockPaging.value = _blockPaging.value + (
+                    blockId to current.copy(
+                        isLoading = false,
+                        error = com.lmg.vk.engine.backend.backendUserMessage(e),
+                    )
+                    )
+            } finally {
+                if (pagingJobs[blockId] === coroutineContext[Job]) pagingJobs.remove(blockId)
+            }
+        }
+    }
+
+    /** Повтор догрузки после ошибки: снимает error, курсор остаётся тот же. */
+    fun retryBlockItems(block: HomeBlock) {
+        val current = _blockPaging.value[block.id] ?: return
+        _blockPaging.value = _blockPaging.value + (block.id to current.copy(error = null))
+        loadMoreBlockItems(block)
     }
 
     // ─── Wave (My Wave) ───

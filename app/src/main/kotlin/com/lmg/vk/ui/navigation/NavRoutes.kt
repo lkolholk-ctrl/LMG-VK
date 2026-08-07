@@ -41,6 +41,9 @@ object NavRoutes {
     fun playlistRoute(tab: String) = "$tab/playlist/{$ARG_ID}"
     fun playlist(tab: String, id: String) = "$tab/playlist/$id"
 
+    // ── Итоги года (открывается из статистики) ──
+    const val YEAR_RECAP = "library/year-recap"
+
     // ── Локальная медиатека (только внутри Библиотеки) ──
     const val LOCAL_LIBRARY = "library/local"
     const val LOCAL_ARTIST_ROUTE = "library/local/artist/{$ARG_NAME}"

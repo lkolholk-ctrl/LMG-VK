@@ -24,6 +24,17 @@
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
 
+    <!-- Android 11+ фильтрует видимость пакетов: без этого блока
+         queryIntentActivities не находит браузер, и запасной путь
+         VkLinkResolver.openOutside (открыть ссылку вне приложения) молча падал бы
+         в «браузер не найден». Спрашиваем ровно про обработчиков https-ссылок. -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="https" />
+        </intent>
+    </queries>
+
     <application
         android:name=".LmgApplication"
         android:allowBackup="true"
@@ -51,7 +62,41 @@
             android:exported="true"
             android:launchMode="singleTask"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize|density|uiMode"
-            android:windowSoftInputMode="adjustResize" />
+            android:windowSoftInputMode="adjustResize">
+
+            <!-- Ссылки ВКонтакте (порт VK X: те же префиксы путей, что в его
+                 манифесте — /audio*, /music*, /artist/*). Один фильтр вместо
+                 восьми: Android перемножает все scheme × host × path внутри
+                 фильтра, поведение то же.
+
+                 ВАЖНО: перехватываем ТОЛЬКО музыкальные префиксы. Фильтр на весь
+                 vk.com предлагал бы LMG VK на любую ссылку (посты, профили,
+                 видео) — этого пользователи не прощают. Обратная сторона: короткие
+                 ссылки вида vk.com/somename сюда не попадают, хотя резолвер их
+                 разбирает (utils.resolveScreenName) — они приходят к нам только
+                 через `z=`-параметр музыкального пути.
+
+                 autoVerify намеренно false (как у VK X): это НЕ верифицированные
+                 App Links — мы не владеем vk.com и не можем положить туда
+                 assetlinks.json, поэтому остаёмся в списке выбора приложения. -->
+            <intent-filter android:autoVerify="false">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <!-- http тоже: старые ссылки из переписок приходят без TLS. -->
+                <data android:scheme="https" />
+                <data android:scheme="http" />
+                <data android:host="vk.com" />
+                <data android:host="m.vk.com" />
+                <data android:host="vk.ru" />
+                <data android:host="m.vk.ru" />
+                <!-- /audio123_456, /audio_playlist…, /audios123, /audiobook… -->
+                <data android:pathPrefix="/audio" />
+                <!-- /music, /music/album/…, /music/playlist/…, /music?z=… -->
+                <data android:pathPrefix="/music" />
+                <data android:pathPrefix="/artist/" />
+            </intent-filter>
+        </activity>
 
         <!-- Один alias включён всегда: Settings переключает их для смены иконки. -->
         <activity-alias

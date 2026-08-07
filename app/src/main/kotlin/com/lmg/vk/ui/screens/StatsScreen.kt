@@ -22,6 +22,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -79,6 +80,11 @@ fun StatsScreen(
     var loading by remember { mutableStateOf(true) }
     var data by remember { mutableStateOf(StatsData()) }
 
+    // «Итоги года» ВКонтакте — отдельный экран поверх статистики.
+    // Показывается изнутри, а не через NavHost: StatsScreen сам открывается как
+    // оверлей в AppRoot, и navController тут недоступен.
+    var yearRecapOpen by remember { mutableStateOf(false) }
+
     LaunchedEffect(Unit) {
         val dao = AppDatabase.getInstance(context).playbackHistoryDao()
         data = withContext(Dispatchers.IO) {
@@ -130,6 +136,16 @@ fun StatsScreen(
                     modifier = Modifier.weight(1f)
                 )
             }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Вход в «Итоги года» ВКонтакте. Стоит выше ветки empty намеренно:
+            // серверные итоги не зависят от локальной истории, и они должны быть
+            // доступны, даже когда локально ничего не наслушано.
+            YearRecapEntryRow(
+                compact = compact,
+                modifier = Modifier.padding(horizontal = sidePad),
+            ) { yearRecapOpen = true }
 
             Spacer(modifier = Modifier.height(16.dp))
 
@@ -198,6 +214,53 @@ fun StatsScreen(
                 }
             }
         }
+
+        // Оверлей «Итогов года» — поверх статистики, со своей кнопкой «назад».
+        if (yearRecapOpen) {
+            YearRecapScreen(onBack = { yearRecapOpen = false })
+        }
+    }
+}
+
+/**
+ * Строка-вход в «Итоги года» ВКонтакте. Ничего не считает и не обещает данных:
+ * есть ли итоги, решает сам VK уже на открытом экране.
+ */
+@Composable
+private fun YearRecapEntryRow(
+    compact: Boolean,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+) {
+    val lc = LiquidTheme.colors
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(if (lc.isDark) Color(0xFF1C1C1E) else Color(0xFFF2F2F7))
+            .liquidClickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = if (compact) 12.dp else 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = "Итоги года",
+                color = lc.textPrimary,
+                fontSize = if (compact) 14.sp else 16.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+            Text(
+                text = "Музыкальные метрики ВКонтакте",
+                color = lc.textSecondary,
+                fontSize = if (compact) 11.sp else 12.sp
+            )
+        }
+        Icon(
+            imageVector = Icons.AutoMirrored.Rounded.ArrowForward,
+            contentDescription = null,
+            tint = lc.textTertiary,
+            modifier = Modifier.size(if (compact) 16.dp else 18.dp)
+        )
     }
 }
 

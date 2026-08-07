@@ -30,6 +30,7 @@ import com.lmg.vk.engine.NotificationRouter
 import com.lmg.vk.engine.PlayerController
 import com.lmg.vk.engine.PlayerSettings
 import com.lmg.vk.engine.SecurityUtils
+import com.lmg.vk.engine.VkLinkResolver
 import com.lmg.vk.engine.automix.JuceContextHolder
 import com.lmg.vk.engine.backend.MusicAuth
 import com.lmg.vk.logging.CrashHandler
@@ -89,6 +90,9 @@ class MainActivity : ComponentActivity() {
         // Тап по уведомлению плеера.
         handleNotificationTap(intent)
 
+        // Ссылка ВКонтакте из браузера/мессенджера (ACTION_VIEW).
+        handleVkLink(intent)
+
         val isSecurityCompromised = mutableStateOf(false)
         val compromiseReason = mutableStateOf("")
 
@@ -125,7 +129,12 @@ class MainActivity : ComponentActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        // Activity объявлена singleTask: при живой задаче ссылка приходит СЮДА,
+        // а не в onCreate — без этой ветки VK-ссылки работали бы только на
+        // холодном старте.
+        setIntent(intent)
         handleNotificationTap(intent)
+        handleVkLink(intent)
     }
 
     /** Тап по медиа-уведомлению → раскрыть большой плеер. */
@@ -135,6 +144,23 @@ class MainActivity : ComponentActivity() {
                 NotificationRouter.emitOpenLargePlayer()
             }
         }
+    }
+
+    /**
+     * Входящая ссылка ВКонтакте. Разбор и `utils.resolveScreenName` — сетевые,
+     * поэтому уходим в [authScope] (IO): держать на них главный поток нельзя.
+     *
+     * Intent помечаем обработанным: при повороте/пересоздании Activity система
+     * отдаёт ТОТ ЖЕ intent в onCreate, и без флага ссылка отрабатывала бы заново,
+     * уводя пользователя с текущего экрана.
+     */
+    private fun handleVkLink(intent: Intent?) {
+        if (intent == null || intent.action != Intent.ACTION_VIEW) return
+        if (intent.getBooleanExtra(EXTRA_VK_LINK_HANDLED, false)) return
+        val uri = intent.data ?: return
+        if (!VkLinkResolver.isVkLink(uri)) return
+        intent.putExtra(EXTRA_VK_LINK_HANDLED, true)
+        authScope.launch { VkLinkResolver.handle(this@MainActivity, uri) }
     }
 
     /**
@@ -157,6 +183,9 @@ class MainActivity : ComponentActivity() {
     }
 
     companion object {
+        /** Метка «эта ссылка уже отработана» — живёт внутри самого Intent. */
+        private const val EXTRA_VK_LINK_HANDLED = "com.lmg.vk.VK_LINK_HANDLED"
+
         /**
          * Java-уровень защиты (Root/Emulator). Проверка подписи и целостности APK
          * отключена для восстановленных сборок, подписанных владельцем проекта.

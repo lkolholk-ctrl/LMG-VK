@@ -82,8 +82,17 @@ fun NewScreen(
     val homeContent by viewModel.homeContent.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val loadError by viewModel.error.collectAsState()
+    // Выдача табов и догруженные порции живут в VM: у блока с табами своих
+    // элементов нет, а прокрутка за экран не должна сбрасывать ни выбор таба,
+    // ни уже подгруженные страницы.
+    val tabStates by viewModel.tabContent.collectAsState()
+    val selectedTabs by viewModel.selectedTab.collectAsState()
+    val blockPaging by viewModel.blockPaging.collectAsState()
     val homeBlocks = remember(homeContent) {
-        homeContent?.blocks?.filter { it.items.isNotEmpty() } ?: emptyList()
+        homeContent?.blocks?.filter {
+            // Блок табов элементов не несёт — его «содержимое» это сами табы.
+            it.items.isNotEmpty() || it.subsectionTabs.isNotEmpty()
+        } ?: emptyList()
     }
     var sectionSheetBlock by remember { mutableStateOf<com.lmg.vk.engine.backend.HomeBlock?>(null) }
 
@@ -203,192 +212,17 @@ fun NewScreen(
             // ── Блоки CatalogKit в исходном серверном порядке. ──
             homeBlocks.forEach { block ->
                 item(key = "block_${block.id}") {
-                    val title = block.title.takeUnless {
-                        it == "VK Музыка" && block.layoutName.isNotBlank()
-                    }
-                    when {
-                        block.layoutName == "close_catalog_banner" -> {
-                            // Закрытый баннер не рисуем вовсе — вместе с заголовком,
-                            // иначе на экране останется пустая секция.
-                            if (!NewDismissedBanners.isDismissed(block.id)) {
-                                NewSectionHeader(
-                                    title = title,
-                                    compact = compact,
-                                    itemCount = block.items.size,
-                                    onClick = { sectionSheetBlock = block },
-                                )
-                                block.items.firstOrNull()?.let { homeItem ->
-                                    NewCloseableBanner(
-                                        item = homeItem,
-                                        compact = compact,
-                                        onClick = { onItemClick(homeItem) },
-                                        onDismiss = { NewDismissedBanners.dismiss(block.id) },
-                                    )
-                                }
-                            }
-                        }
-
-                        block.layoutName == "subsection_tabs" -> {
-                            NewSectionHeader(
-                                title = title,
-                                compact = compact,
-                                itemCount = block.items.size,
-                                onClick = { sectionSheetBlock = block },
-                            )
-                            NewSubsectionTabs(
-                                blockId = block.id,
-                                items = block.items,
-                                compact = compact,
-                                onItemClick = onItemClick,
-                            )
-                        }
-
-                        block.layoutName in NEW_HERO_LAYOUTS -> {
-                            NewSectionHeader(
-                                title = title,
-                                compact = compact,
-                                itemCount = block.items.size,
-                                onClick = { sectionSheetBlock = block },
-                            )
-                            // У «слайдерных» баннеров элементов больше одного, и
-                            // раньше все кроме первого просто терялись. Один
-                            // баннер по-прежнему рисуется во всю ширину.
-                            if (block.items.size > 1) {
-                                NewBannerRow(
-                                    blockId = block.id,
-                                    items = block.items,
-                                    compact = compact,
-                                    rowGap = rowGap,
-                                    onItemClick = onItemClick,
-                                )
-                            } else {
-                                block.items.firstOrNull()?.let { homeItem ->
-                                    NewHeroBanner(homeItem, compact, onClick = { onItemClick(homeItem) })
-                                }
-                            }
-                        }
-
-                        block.layoutName in NEW_TRACK_LIST_LAYOUTS -> {
-                            NewSectionHeader(
-                                title = title,
-                                compact = compact,
-                                itemCount = block.items.size,
-                                onClick = { sectionSheetBlock = block },
-                            )
-                            NewTrackColumns(
-                                blockId = block.id,
-                                homeItems = block.items,
-                                compact = compact,
-                                showRank = block.layoutName.startsWith("music_chart"),
-                                onItemClick = onItemClick,
-                            )
-                        }
-
-                        block.layoutName in NEW_LARGE_SLIDER_LAYOUTS -> {
-                            NewSectionHeader(
-                                title = title,
-                                compact = compact,
-                                itemCount = block.items.size,
-                                onClick = { sectionSheetBlock = block },
-                            )
-                            LazyRow(
-                                contentPadding = PaddingValues(horizontal = 20.dp),
-                                horizontalArrangement = Arrangement.spacedBy(rowGap)
-                            ) {
-                                items(block.items, key = { "${block.id}_${it.id}" }) { homeItem ->
-                                    NewLargeCard(
-                                        item = homeItem,
-                                        compact = compact,
-                                        showRank = block.layoutName.startsWith("music_chart"),
-                                        onClick = { onItemClick(homeItem) },
-                                    )
-                                }
-                            }
-                        }
-
-                        block.layoutName in NEW_GRID_LAYOUTS -> {
-                            NewSectionHeader(
-                                title = title,
-                                compact = compact,
-                                itemCount = block.items.size,
-                                onClick = { sectionSheetBlock = block },
-                            )
-                            NewDoubleGrid(
-                                blockId = block.id,
-                                items = block.items,
-                                compact = compact,
-                                rowGap = rowGap,
-                                onItemClick = onItemClick,
-                            )
-                        }
-
-                        block.layoutName == "audio_content_card_extended_slider" -> {
-                            NewSectionHeader(
-                                title = title,
-                                compact = compact,
-                                itemCount = block.items.size,
-                                onClick = { sectionSheetBlock = block },
-                            )
-                            LazyRow(
-                                contentPadding = PaddingValues(horizontal = 20.dp),
-                                horizontalArrangement = Arrangement.spacedBy(rowGap)
-                            ) {
-                                items(block.items, key = { "${block.id}_${it.id}" }) { homeItem ->
-                                    NewExtendedCard(
-                                        item = homeItem,
-                                        compact = compact,
-                                        onClick = { onItemClick(homeItem) },
-                                    )
-                                }
-                            }
-                        }
-
-                        block.layoutName in NEW_SKIPPED_LAYOUTS -> Unit
-
-                        else -> {
-                            NewSectionHeader(
-                                title = title,
-                                compact = compact,
-                                itemCount = block.items.size,
-                                onClick = { sectionSheetBlock = block },
-                            )
-                            LazyRow(
-                                contentPadding = PaddingValues(horizontal = 20.dp),
-                                horizontalArrangement = Arrangement.spacedBy(rowGap)
-                            ) {
-                                items(block.items, key = { "${block.id}_${it.id}" }) { homeItem ->
-                                    if (block.type == "curators" || block.id.contains("curator", ignoreCase = true)) {
-                                        NewCuratorCard(
-                                            title = homeItem.title,
-                                            coverUrl = homeItem.cover,
-                                            compact = compact,
-                                        )
-                                    } else {
-                                        NewTrackCard(
-                                            title = homeItem.title,
-                                            subtitle = homeItem.subtitle
-                                                ?: homeItem.artist
-                                                ?: if (homeItem.isCustom) "VK Музыка" else homeItem.displayArtist,
-                                            coverUrl = homeItem.cover,
-                                            compact = compact,
-                                            // `slider` — самый частый layout VK Музыки, им отдаётся
-                                            // основная часть подборок. У VK карточка здесь заметно
-                                            // крупнее мелких плиток, поэтому обычная карусель тоже
-                                            // должна быть широкой, иначе весь экран выглядит как
-                                            // одинаковая мелкая сетка.
-                                            wide = block.layoutName == "slider" || block.layoutName.isBlank(),
-                                            showRank = block.layoutName.startsWith("music_chart"),
-                                            rank = homeItem.rank,
-                                            enabled = !homeItem.isCustom &&
-                                                (!homeItem.isTrack || homeItem.isAvailable),
-                                            dimWhenDisabled = !homeItem.isCustom,
-                                            onClick = { onItemClick(homeItem) }
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
+                    NewCatalogBlock(
+                        block = block,
+                        compact = compact,
+                        rowGap = rowGap,
+                        tabStates = tabStates,
+                        selectedTabs = selectedTabs,
+                        onSelectTab = viewModel::selectSubsectionTab,
+                        onRetryTab = viewModel::retrySubsectionTab,
+                        onItemClick = onItemClick,
+                        onOpenSheet = { sectionSheetBlock = it },
+                    )
                     Spacer(Modifier.height(sectionGap))
                 }
             }
@@ -397,12 +231,236 @@ fun NewScreen(
             NewSectionSheet(
                 block = block,
                 compact = compact,
+                paging = blockPaging[block.id],
+                onLoadMore = { viewModel.loadMoreBlockItems(block) },
+                onRetryLoadMore = { viewModel.retryBlockItems(block) },
                 onDismiss = { sectionSheetBlock = null },
                 onItemClick = { item ->
                     sectionSheetBlock = null
                     onItemClick(item)
                 },
             )
+        }
+    }
+}
+
+/**
+ * Одна секция каталога: заголовок + содержимое по `layoutName`.
+ *
+ * Вынесено из [NewScreen] отдельным composable, потому что выдача таба
+ * `subsection_tabs` — это тоже полноценные блоки CatalogKit со своими
+ * layout'ами, и рисовать их надо тем же кодом. Иначе внутри табов пришлось бы
+ * держать вторую, урезанную вёрстку.
+ *
+ * [allowTabs] закрывает рекурсию: блок с табами внутри выдачи другого таба
+ * рисовать не начинаем — VK такую вложенность не строит, а стек она бы съела.
+ */
+@Composable
+private fun NewCatalogBlock(
+    block: com.lmg.vk.engine.backend.HomeBlock,
+    compact: Boolean,
+    rowGap: androidx.compose.ui.unit.Dp,
+    tabStates: Map<String, com.lmg.vk.engine.backend.CatalogTabState>,
+    selectedTabs: Map<String, String>,
+    onSelectTab: (String, String) -> Unit,
+    onRetryTab: (String) -> Unit,
+    onItemClick: (com.lmg.vk.engine.backend.HomeItem) -> Unit,
+    onOpenSheet: (com.lmg.vk.engine.backend.HomeBlock) -> Unit,
+    allowTabs: Boolean = true,
+) {
+    val title = block.title.takeUnless {
+        it == "VK Музыка" && block.layoutName.isNotBlank()
+    }
+    when {
+        block.layoutName == "close_catalog_banner" -> {
+            // Закрытый баннер не рисуем вовсе — вместе с заголовком,
+            // иначе на экране останется пустая секция.
+            if (!NewDismissedBanners.isDismissed(block.id)) {
+                NewSectionHeader(
+                    title = title,
+                    compact = compact,
+                    itemCount = block.items.size,
+                    onClick = { onOpenSheet(block) },
+                )
+                block.items.firstOrNull()?.let { homeItem ->
+                    NewCloseableBanner(
+                        item = homeItem,
+                        compact = compact,
+                        onClick = { onItemClick(homeItem) },
+                        onDismiss = { NewDismissedBanners.dismiss(block.id) },
+                    )
+                }
+            }
+        }
+
+        block.layoutName == "subsection_tabs" -> {
+            if (allowTabs && block.subsectionTabs.isNotEmpty()) {
+                // Заголовок без «показать все»: у блока табов своих элементов нет,
+                // открывать в шторке нечего — там оказался бы пустой список.
+                NewSectionHeader(
+                    title = title,
+                    compact = compact,
+                    itemCount = 0,
+                    showOpenButton = false,
+                )
+                NewSubsectionTabs(
+                    block = block,
+                    compact = compact,
+                    rowGap = rowGap,
+                    tabStates = tabStates,
+                    selectedTabs = selectedTabs,
+                    onSelectTab = onSelectTab,
+                    onRetryTab = onRetryTab,
+                    onItemClick = onItemClick,
+                    onOpenSheet = onOpenSheet,
+                )
+            }
+        }
+
+        block.layoutName in NEW_HERO_LAYOUTS -> {
+            NewSectionHeader(
+                title = title,
+                compact = compact,
+                itemCount = block.items.size,
+                onClick = { onOpenSheet(block) },
+            )
+            // У «слайдерных» баннеров элементов больше одного, и
+            // раньше все кроме первого просто терялись. Один
+            // баннер по-прежнему рисуется во всю ширину.
+            if (block.items.size > 1) {
+                NewBannerRow(
+                    blockId = block.id,
+                    items = block.items,
+                    compact = compact,
+                    rowGap = rowGap,
+                    onItemClick = onItemClick,
+                )
+            } else {
+                block.items.firstOrNull()?.let { homeItem ->
+                    NewHeroBanner(homeItem, compact, onClick = { onItemClick(homeItem) })
+                }
+            }
+        }
+
+        block.layoutName in NEW_TRACK_LIST_LAYOUTS -> {
+            NewSectionHeader(
+                title = title,
+                compact = compact,
+                itemCount = block.items.size,
+                onClick = { onOpenSheet(block) },
+            )
+            NewTrackColumns(
+                blockId = block.id,
+                homeItems = block.items,
+                compact = compact,
+                showRank = block.layoutName.startsWith("music_chart"),
+                onItemClick = onItemClick,
+            )
+        }
+
+        block.layoutName in NEW_LARGE_SLIDER_LAYOUTS -> {
+            NewSectionHeader(
+                title = title,
+                compact = compact,
+                itemCount = block.items.size,
+                onClick = { onOpenSheet(block) },
+            )
+            LazyRow(
+                contentPadding = PaddingValues(horizontal = 20.dp),
+                horizontalArrangement = Arrangement.spacedBy(rowGap)
+            ) {
+                items(block.items, key = { "${block.id}_${it.id}" }) { homeItem ->
+                    NewLargeCard(
+                        item = homeItem,
+                        compact = compact,
+                        showRank = block.layoutName.startsWith("music_chart"),
+                        onClick = { onItemClick(homeItem) },
+                    )
+                }
+            }
+        }
+
+        block.layoutName in NEW_GRID_LAYOUTS -> {
+            NewSectionHeader(
+                title = title,
+                compact = compact,
+                itemCount = block.items.size,
+                onClick = { onOpenSheet(block) },
+            )
+            NewDoubleGrid(
+                blockId = block.id,
+                items = block.items,
+                compact = compact,
+                rowGap = rowGap,
+                onItemClick = onItemClick,
+            )
+        }
+
+        block.layoutName == "audio_content_card_extended_slider" -> {
+            NewSectionHeader(
+                title = title,
+                compact = compact,
+                itemCount = block.items.size,
+                onClick = { onOpenSheet(block) },
+            )
+            LazyRow(
+                contentPadding = PaddingValues(horizontal = 20.dp),
+                horizontalArrangement = Arrangement.spacedBy(rowGap)
+            ) {
+                items(block.items, key = { "${block.id}_${it.id}" }) { homeItem ->
+                    NewExtendedCard(
+                        item = homeItem,
+                        compact = compact,
+                        onClick = { onItemClick(homeItem) },
+                    )
+                }
+            }
+        }
+
+        block.layoutName in NEW_SKIPPED_LAYOUTS -> Unit
+
+        else -> {
+            NewSectionHeader(
+                title = title,
+                compact = compact,
+                itemCount = block.items.size,
+                onClick = { onOpenSheet(block) },
+            )
+            LazyRow(
+                contentPadding = PaddingValues(horizontal = 20.dp),
+                horizontalArrangement = Arrangement.spacedBy(rowGap)
+            ) {
+                items(block.items, key = { "${block.id}_${it.id}" }) { homeItem ->
+                    if (block.type == "curators" || block.id.contains("curator", ignoreCase = true)) {
+                        NewCuratorCard(
+                            title = homeItem.title,
+                            coverUrl = homeItem.cover,
+                            compact = compact,
+                        )
+                    } else {
+                        NewTrackCard(
+                            title = homeItem.title,
+                            subtitle = homeItem.subtitle
+                                ?: homeItem.artist
+                                ?: if (homeItem.isCustom) "VK Музыка" else homeItem.displayArtist,
+                            coverUrl = homeItem.cover,
+                            compact = compact,
+                            // `slider` — самый частый layout VK Музыки, им отдаётся
+                            // основная часть подборок. У VK карточка здесь заметно
+                            // крупнее мелких плиток, поэтому обычная карусель тоже
+                            // должна быть широкой, иначе весь экран выглядит как
+                            // одинаковая мелкая сетка.
+                            wide = block.layoutName == "slider" || block.layoutName.isBlank(),
+                            showRank = block.layoutName.startsWith("music_chart"),
+                            rank = homeItem.rank,
+                            enabled = !homeItem.isCustom &&
+                                (!homeItem.isTrack || homeItem.isAvailable),
+                            dimWhenDisabled = !homeItem.isCustom,
+                            onClick = { onItemClick(homeItem) }
+                        )
+                    }
+                }
+            }
         }
     }
 }
@@ -641,6 +699,8 @@ private fun NewSectionHeader(
     title: String?,
     compact: Boolean = false,
     itemCount: Int = 0,
+    /** Блок табов открывать в шторке нечего — там был бы пустой список. */
+    showOpenButton: Boolean = true,
     onClick: () -> Unit = {},
 ) {
     if (title.isNullOrBlank()) return
@@ -659,25 +719,27 @@ private fun NewSectionHeader(
             fontFamily = AppFontFamily,
             modifier = Modifier.weight(1f),
         )
-        Box(
-            modifier = Modifier
-                .size(if (compact) 42.dp else 46.dp)
-                .clip(RoundedCornerShape(50))
-                .background(if (LiquidTheme.colors.isDark) Color(0xFF252525) else Color(0xFFE8E8ED)),
-            contentAlignment = Alignment.Center,
-        ) {
+        if (showOpenButton) {
             Box(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .clickable(onClick = onClick),
+                    .size(if (compact) 42.dp else 46.dp)
+                    .clip(RoundedCornerShape(50))
+                    .background(if (LiquidTheme.colors.isDark) Color(0xFF252525) else Color(0xFFE8E8ED)),
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(
-                    imageVector = Icons.Rounded.ChevronRight,
-                    contentDescription = if (itemCount > 0) "Открыть раздел, $itemCount элементов" else "Открыть раздел",
-                    tint = LiquidTheme.colors.textPrimary,
-                    modifier = Modifier.size(if (compact) 20.dp else 23.dp),
-                )
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clickable(onClick = onClick),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.ChevronRight,
+                        contentDescription = if (itemCount > 0) "Открыть раздел, $itemCount элементов" else "Открыть раздел",
+                        tint = LiquidTheme.colors.textPrimary,
+                        modifier = Modifier.size(if (compact) 20.dp else 23.dp),
+                    )
+                }
             }
         }
     }
@@ -688,14 +750,45 @@ private fun NewSectionHeader(
 private fun NewSectionSheet(
     block: com.lmg.vk.engine.backend.HomeBlock,
     compact: Boolean,
+    paging: com.lmg.vk.engine.backend.BlockPagingState?,
+    onLoadMore: () -> Unit,
+    onRetryLoadMore: () -> Unit,
     onDismiss: () -> Unit,
     onItemClick: (com.lmg.vk.engine.backend.HomeItem) -> Unit,
 ) {
     val lc = LiquidTheme.colors
     val context = LocalContext.current
-    val playableItems = remember(block) {
-        block.items.filter { it.isTrack && it.isAvailable }
+    // Догруженные порции идут ПОСЛЕ исходных: серверный порядок выдачи
+    // сохраняется, а VK отдаёт продолжение, а не новую сортировку.
+    val allItems = remember(block, paging?.extraItems) {
+        block.items + paging?.extraItems.orEmpty()
     }
+    val playableItems = remember(allItems) {
+        allItems.filter { it.isTrack && it.isAvailable }
+    }
+    // Пагинация возможна, только если сервер дал курсор — либо в самом блоке,
+    // либо в последнем ответе. Иначе догружать нечего и просить нечего.
+    val hasCursor = !block.nextFrom.isNullOrBlank() || !paging?.nextFrom.isNullOrBlank()
+    val isPagingLoading = paging?.isLoading == true
+    val pagingError = paging?.error
+    val exhausted = paging?.exhausted == true
+    val listState = androidx.compose.foundation.lazy.rememberLazyListState()
+
+    // Догрузка по прокрутке: как только до конца списка остаётся меньше 6
+    // элементов — просим следующую порцию. Порог, а не «самый последний
+    // элемент», чтобы подгрузка успевала до того, как список кончится.
+    val shouldLoadMore by remember(allItems.size) {
+        androidx.compose.runtime.derivedStateOf {
+            val lastVisible = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
+            lastVisible >= allItems.size - 6
+        }
+    }
+    LaunchedEffect(shouldLoadMore, hasCursor, isPagingLoading, exhausted, pagingError) {
+        if (shouldLoadMore && hasCursor && !isPagingLoading && !exhausted && pagingError == null) {
+            onLoadMore()
+        }
+    }
+
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         containerColor = lc.settingsBackground,
@@ -723,7 +816,10 @@ private fun NewSectionSheet(
             ) {
                 Text(
                     text = buildString {
-                        append("${block.items.size} элементов")
+                        append("${allItems.size} элементов")
+                        // Пока курсор жив, точное число элементов неизвестно —
+                        // «+» честнее, чем выдавать первую порцию за весь список.
+                        if (hasCursor && !exhausted) append("+")
                         if (block.layoutName.isNotBlank()) append("  ·  ${newLayoutLabel(block.layoutName)}")
                     },
                     color = lc.textSecondary,
@@ -764,10 +860,11 @@ private fun NewSectionSheet(
                 }
             }
             LazyColumn(
+                state = listState,
                 modifier = Modifier.fillMaxWidth().fillMaxHeight(0.78f),
                 contentPadding = PaddingValues(top = 4.dp, bottom = 24.dp),
             ) {
-                itemsIndexed(block.items, key = { _, item -> "sheet_${block.id}_${item.id}" }) { index, item ->
+                itemsIndexed(allItems, key = { _, item -> "sheet_${block.id}_${item.id}" }) { index, item ->
                     NewTrackRow(
                         item = item,
                         rank = if (block.layoutName.startsWith("music_chart")) item.rank ?: (index + 1) else null,
@@ -775,6 +872,45 @@ private fun NewSectionSheet(
                         modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp),
                         onClick = { onItemClick(item) },
                     )
+                }
+                // Подвал списка: спиннер догрузки, ошибка с повтором или явное
+                // «это всё». Молча обрывать список нельзя — непонятно, кончился он
+                // или сломалась подгрузка.
+                if (isPagingLoading) {
+                    item(key = "sheet_${block.id}_loading") {
+                        Box(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(22.dp),
+                                strokeWidth = 2.dp,
+                                color = lc.accent,
+                            )
+                        }
+                    }
+                }
+                pagingError?.let { message ->
+                    item(key = "sheet_${block.id}_error") {
+                        NewInlineError(
+                            message = message,
+                            compact = compact,
+                            onRetry = onRetryLoadMore,
+                        )
+                    }
+                }
+                if (exhausted && paging?.extraItems?.isNotEmpty() == true) {
+                    item(key = "sheet_${block.id}_end") {
+                        Text(
+                            text = "Это всё, что отдал VK",
+                            color = lc.textSecondary,
+                            fontSize = if (compact) 11.sp else 12.sp,
+                            fontFamily = AppFontFamily,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 20.dp, vertical = 14.dp),
+                        )
+                    }
                 }
             }
         }
@@ -1353,48 +1489,134 @@ private fun NewCloseableBanner(
 /**
  * Табы подразделов (`subsection_tabs`).
  *
- * У VK это переключатель внутри блока: у каждого таба своя выдача, которая
- * приходит отдельным запросом по `sectionId`. Пока такого запроса нет, показываем
- * табы как навигацию по элементам самого блока — выбранный элемент раскрывается
- * ниже. Это честнее, чем рисовать неработающий переключатель.
+ * Теперь по-настоящему: у каждого таба своя выдача, приходящая отдельным
+ * запросом. Идентификатор таба — `replacement_id` из `actions[0].options`
+ * (НЕ `section_id`, как предполагала спека — см. [HomeSubsectionTab]), а по
+ * какому методу за ним идти, решает `parseCatalogTabRequest`.
+ *
+ * Выдача таба — это полноценные блоки CatalogKit, поэтому рисуем их тем же
+ * [NewCatalogBlock]; собственной вёрстки у табов нет.
+ *
+ * Начальный таб — тот, у которого сервер поставил `selected` (так же ищет его
+ * VK X в `AbstractC1574e`), иначе первый. Загрузку запускаем сразу: пустое место
+ * под табами выглядело бы как сломанный блок.
  */
 @Composable
 private fun NewSubsectionTabs(
-    blockId: String,
-    items: List<com.lmg.vk.engine.backend.HomeItem>,
+    block: com.lmg.vk.engine.backend.HomeBlock,
     compact: Boolean,
+    rowGap: androidx.compose.ui.unit.Dp,
+    tabStates: Map<String, com.lmg.vk.engine.backend.CatalogTabState>,
+    selectedTabs: Map<String, String>,
+    onSelectTab: (String, String) -> Unit,
+    onRetryTab: (String) -> Unit,
     onItemClick: (com.lmg.vk.engine.backend.HomeItem) -> Unit,
+    onOpenSheet: (com.lmg.vk.engine.backend.HomeBlock) -> Unit,
 ) {
     val lc = LiquidTheme.colors
-    var selected by remember(blockId) { mutableStateOf(0) }
-    val current = items.getOrNull(selected)
+    val tabs = block.subsectionTabs
+    val defaultTab = remember(block.id, tabs) {
+        (tabs.firstOrNull { it.selected } ?: tabs.first()).replacementId
+    }
+    val active = selectedTabs[block.id] ?: defaultTab
+    // Первый заход: выдачи ещё нет ни для одного таба — просим дефолтный.
+    LaunchedEffect(block.id, active) { onSelectTab(block.id, active) }
+
     LazyRow(
         contentPadding = PaddingValues(horizontal = 20.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        itemsIndexed(items, key = { _, item -> "${blockId}_tab_${item.id}" }) { index, item ->
-            val active = index == selected
+        items(tabs, key = { "${block.id}_tab_${it.replacementId}" }) { tab ->
+            val isActive = tab.replacementId == active
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(50))
-                    .background(if (active) lc.accent.copy(alpha = 0.18f) else Color.Transparent)
-                    .clickable { selected = index }
+                    .background(if (isActive) lc.accent.copy(alpha = 0.18f) else Color.Transparent)
+                    .clickable { onSelectTab(block.id, tab.replacementId) }
                     .padding(horizontal = 14.dp, vertical = 7.dp),
             ) {
                 Text(
-                    text = item.title,
-                    color = if (active) lc.accent else lc.textSecondary,
+                    text = tab.title,
+                    color = if (isActive) lc.accent else lc.textSecondary,
                     fontSize = if (compact) 12.5.sp else 13.5.sp,
-                    fontWeight = if (active) FontWeight.SemiBold else FontWeight.Medium,
+                    fontWeight = if (isActive) FontWeight.SemiBold else FontWeight.Medium,
                     fontFamily = AppFontFamily,
                     maxLines = 1,
                 )
             }
         }
     }
-    current?.let { item ->
-        Spacer(Modifier.height(if (compact) 10.dp else 14.dp))
-        NewHeroBanner(item, compact, onClick = { onItemClick(item) })
+
+    Spacer(Modifier.height(if (compact) 10.dp else 14.dp))
+    when (val state = tabStates[active]) {
+        is com.lmg.vk.engine.backend.CatalogTabState.Ready -> {
+            state.blocks.forEachIndexed { index, tabBlock ->
+                if (index > 0) Spacer(Modifier.height(if (compact) 14.dp else 20.dp))
+                NewCatalogBlock(
+                    block = tabBlock,
+                    compact = compact,
+                    rowGap = rowGap,
+                    tabStates = tabStates,
+                    selectedTabs = selectedTabs,
+                    onSelectTab = onSelectTab,
+                    onRetryTab = onRetryTab,
+                    onItemClick = onItemClick,
+                    onOpenSheet = onOpenSheet,
+                    // Вложенные табы внутри таба не рисуем: VK такую структуру не
+                    // строит, а рекурсия здесь ничем не ограничена.
+                    allowTabs = false,
+                )
+            }
+        }
+
+        is com.lmg.vk.engine.backend.CatalogTabState.Failed -> NewInlineError(
+            message = state.message,
+            compact = compact,
+            onRetry = { onRetryTab(active) },
+        )
+
+        // null трактуем как «запрос вот-вот уйдёт» (LaunchedEffect выше) — рисуем
+        // тот же скелетон, что и при Loading, чтобы блок не мигал пустотой.
+        else -> NewSubsectionSkeleton(compact = compact)
+    }
+}
+
+/** Плейсхолдер выдачи таба: ряд карточек в размер обычной карусели. */
+@Composable
+private fun NewSubsectionSkeleton(compact: Boolean) {
+    val pulse by androidx.compose.animation.core.rememberInfiniteTransition(label = "newTabSkeleton")
+        .animateFloat(
+            initialValue = 0.45f,
+            targetValue = 1f,
+            animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+                animation = androidx.compose.animation.core.tween(650),
+                repeatMode = androidx.compose.animation.core.RepeatMode.Reverse
+            ),
+            label = "newTabSkeletonPulse"
+        )
+    val base = if (LiquidTheme.colors.isDark) Color(0xFF1A1A1A) else Color(0xFFEAEAEF)
+    val cardSize = if (compact) 138.dp else 172.dp
+    Row(
+        modifier = Modifier.padding(horizontal = 20.dp),
+        horizontalArrangement = Arrangement.spacedBy(if (compact) 10.dp else 14.dp),
+    ) {
+        repeat(3) {
+            Column {
+                Box(
+                    modifier = Modifier
+                        .size(cardSize)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(base.copy(alpha = pulse))
+                )
+                Spacer(Modifier.height(8.dp))
+                Box(
+                    modifier = Modifier
+                        .size(width = cardSize * 0.7f, height = 12.dp)
+                        .clip(RoundedCornerShape(50))
+                        .background(base.copy(alpha = pulse))
+                )
+            }
+        }
     }
 }
 

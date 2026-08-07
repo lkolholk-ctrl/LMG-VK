@@ -172,6 +172,43 @@ fun AppRoot() {
         }
     }
 
+    // ── Входящие ссылки ВКонтакте (VkLinkResolver → VkLinkRouter) ──
+    // Резолвер живёт в MainActivity и знать про NavController не может, поэтому
+    // навигацию по разобранной ссылке выполняем здесь. Открываем деталь в ТЕКУЩЕЙ
+    // вкладке (у Настроек графа деталей нет — тогда уходим в Волну) и гасим
+    // оверлеи: иначе экран выехал бы ПОД поиском/профилем и тап казался мёртвым.
+    val pendingVkLink by com.lmg.vk.engine.VkLinkRouter.pending.collectAsState()
+    LaunchedEffect(pendingVkLink) {
+        val target = pendingVkLink ?: return@LaunchedEffect
+        val tab = when (currentGraph) {
+            NavRoutes.GRAPH_LIBRARY -> NavRoutes.TAB_LIBRARY
+            NavRoutes.GRAPH_NEW -> NavRoutes.TAB_NEW
+            else -> NavRoutes.TAB_WAVE
+        }
+        val route = when (target) {
+            is com.lmg.vk.engine.VkLinkTarget.Album ->
+                NavRoutes.album(tab, target.navId)
+            is com.lmg.vk.engine.VkLinkTarget.Playlist ->
+                NavRoutes.playlist(tab, target.navId)
+            is com.lmg.vk.engine.VkLinkTarget.Artist ->
+                NavRoutes.artist(tab, target.idOrDomain)
+            // Трек играется самим резолвером, аудио владельца ему не по силам —
+            // сюда такие цели не доходят.
+            else -> null
+        }
+        if (route != null) {
+            searchOpen = false
+            settingsOpen = false
+            profileOpen = false
+            statsOpen = false
+            equalizerOpen = false
+            animateCollapse()
+            navController.navigate(route)
+        }
+        // Обнуляем всегда: цель уже отработана, повторно вести по ней нельзя.
+        com.lmg.vk.engine.VkLinkRouter.consume()
+    }
+
     LaunchedEffect(Unit) {
         // Check for updates on launch
         try {

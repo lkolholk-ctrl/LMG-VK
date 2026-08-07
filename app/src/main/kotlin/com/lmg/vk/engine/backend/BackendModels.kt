@@ -1054,7 +1054,18 @@ data class HomeBlock(
     @Serializable(with = TolerantListSerializer::class)
     val items: List<HomeItem> = emptyList(),
     /** CatalogKit layout discriminator (`slider`, `triple_stacked_slider`, …). */
-    @SerialName("layoutName") val layoutName: String = ""
+    @SerialName("layoutName") val layoutName: String = "",
+    /**
+     * `Catalog2Block.next_from` — курсор следующей порции элементов ЭТОГО блока.
+     * Раньше терялся при сборке HomeBlock, поэтому шторка «показать все» всегда
+     * показывала только первую порцию, сколько бы её ни листали.
+     */
+    @SerialName("nextFrom") val nextFrom: String? = null,
+    /**
+     * Табы подраздела для `layoutName == "subsection_tabs"`.
+     * Приходят не в layout, а в `actions[0].options` — см. [HomeSubsectionTab].
+     */
+    @SerialName("subsectionTabs") val subsectionTabs: List<HomeSubsectionTab> = emptyList(),
 )
 
 /**

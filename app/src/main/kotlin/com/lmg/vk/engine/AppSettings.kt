@@ -112,6 +112,14 @@ object AppSettings {
     private val _hideExplicit = MutableStateFlow(false)
     val hideExplicit: StateFlow<Boolean> = _hideExplicit
 
+    // ── Трансляция играющего трека в статус ВКонтакте (audio.setBroadcast) ──
+    // ВЫКЛЮЧЕНО по умолчанию и персистится как есть: включённая трансляция меняет
+    // статус в профиле, это видят друзья пользователя — включать такое без его
+    // явного согласия нельзя. В VK X ключ назывался `broadcast_to_profile`, дефолт
+    // там тоже false.
+    private val _broadcastToStatus = MutableStateFlow(false)
+    val broadcastToStatus: StateFlow<Boolean> = _broadcastToStatus
+
     // ── Правый тайм-лейбл плеера: false = «-осталось», true = общая длительность ──
     private val _timeShowTotal = MutableStateFlow(false)
     val timeShowTotal: StateFlow<Boolean> = _timeShowTotal
@@ -256,6 +264,16 @@ object AppSettings {
     fun setHideExplicit(enabled: Boolean) {
         _hideExplicit.value = enabled
         safePrefs()?.edit()?.putBoolean("hide_explicit", enabled)?.apply()
+    }
+
+    fun setBroadcastToStatus(enabled: Boolean) {
+        _broadcastToStatus.value = enabled
+        safePrefs()?.edit()?.putBoolean("broadcast_to_profile", enabled)?.apply()
+        // Менеджер сам решит, ставить статус или снимать: он слушает и этот флаг,
+        // и текущий трек. Здесь только гарантируем, что подписка поднята — иначе
+        // включение тумблера при уже играющем треке осталось бы без эффекта до
+        // следующей смены трека.
+        VkBroadcastManager.ensureStarted()
     }
 
     fun setTimeShowTotal(showTotal: Boolean) {
@@ -413,5 +431,6 @@ object AppSettings {
         } catch (_: Exception) {}
 
         _timeShowTotal.value = p.getBoolean("time_show_total", false)
+        _broadcastToStatus.value = p.getBoolean("broadcast_to_profile", false)
     }
 }

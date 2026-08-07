@@ -367,10 +367,72 @@ object MusicBackend {
     }
 
     /**
+     * Выдача одного таба `subsection_tabs`.
+     *
+     * Ровно две ветки VK X (см. [parseCatalogTabRequest]): `catalog.getSection`
+     * для id, начинающихся с `#`, и `catalog.replaceBlocks` для остальных.
+     * Ответ у обеих — обычный `Catalog2Response`, поэтому разбираем его тем же
+     * `toHomeBlocks()`, что и главную выдачу: таб приносит НАСТОЯЩИЕ блоки со
+     * своими layout'ами, а не плоский список.
+     *
+     * Треки ответа кладём в кэш — иначе тап по треку из таба потребовал бы
+     * отдельного `audio.getById` перед воспроизведением.
+     */
+    suspend fun loadCatalogTab(replacementId: String): List<HomeBlock> {
+        requireInitialized()
+        val request = parseCatalogTabRequest(replacementId)
+            ?: throw backendFailure(404, "VK не дал идентификатор раздела")
+        val response = when (request) {
+            is CatalogTabRequest.Section -> catalogApi.getSection(request.sectionId)
+            is CatalogTabRequest.Replacement ->
+                catalogApi.replaceBlocks(listOf(request.replacementId))
+        }.requireData()
+        response.audios.orEmpty().distinctBy(AudioTrack::fullId).also(::cacheTracks)
+        return listOf(response).toHomeBlocks()
+    }
+
+    /**
+     * Следующая порция элементов блока: `catalog.getBlockItems(block_id, start_from)`.
+     *
+     * ВАЖНО про источник. В реверсе VK X отдельного `catalog.getBlockItems` НЕТ:
+     * там пагинация каталога устроена как повторный `catalog.getSection` с
+     * `start_from` (`src-deobf/AbstractC15876e.java:61-116` — единственная
+     * догрузка, `need_blocks=1` + `start_from`), а курсор берётся из
+     * `section.next_from` (`:194-204`). Имя `catalog.getBlockItems` в нашем
+     * `VkCatalogApi` — из более раннего порта, в исходниках VK X 8.12.1 оно не
+     * подтверждается. Поэтому здесь метод вызывается, но на пустой/ошибочный
+     * ответ мы не падаем, а честно отдаём «больше нет» (`exhausted`), и UI
+     * покажет это текстом, а не бесконечным спиннером.
+     *
+     * `usedCursors` защищает от зацикливания: VK умеет вернуть тот же
+     * `next_from`, и без проверки список грузил бы одну порцию по кругу.
+     */
+    suspend fun loadBlockItemsPage(
+        blockId: String,
+        startFrom: String,
+        usedCursors: Set<String> = emptySet(),
+    ): HomeBlockPage {
+        requireInitialized()
+        if (blockId.isBlank() || startFrom.isBlank()) return HomeBlockPage(emptyList(), null)
+        val response = catalogApi.getBlockItems(blockId, startFrom).getOrNull()
+            ?: return HomeBlockPage(emptyList(), null)
+        response.audios.orEmpty().distinctBy(AudioTrack::fullId).also(::cacheTracks)
+        // Разбираем страницу тем же путём, что и главную выдачу, а потом берём
+        // элементы блока с нужным id: сущности лежат в корне ответа, и склеить их
+        // с ссылками блока умеет только toHomeBlocks().
+        val blocks = listOf(response).toHomeBlocks()
+        val page = blocks.firstOrNull { it.id == blockId } ?: blocks.firstOrNull()
+        val nextFrom = (
+            response.block?.next_from
+                ?: response.allBlocks().firstOrNull { it.id == blockId }?.next_from
+            )?.takeIf { it.isNotBlank() && it != startFrom && it !in usedCursors }
+        return HomeBlockPage(items = page?.items.orEmpty(), nextFrom = nextFrom)
+    }
+
+    /**
      * Подтверждённый VK fallback для редких ответов без CatalogKit item IDs.
      * Это не локальные карточки: оба списка приходят из audio.* текущей сессии.
-     */
-    private suspend fun loadHomeFallbackBlocks(): List<HomeBlock> = coroutineScope {
+     */    private suspend fun loadHomeFallbackBlocks(): List<HomeBlock> = coroutineScope {
         val recommendations = async { audioApi.getRecommendations(count = 50).getOrNull().orEmpty() }
         val popular = async { audioApi.getPopular(count = 50).getOrNull().orEmpty() }
         listOfNotNull(
@@ -1769,6 +1831,38 @@ object MusicBackend {
         section?.blocks.orEmpty().let(::addAll)
         catalog?.sections.orEmpty().flatMap { it.blocks.orEmpty() }.let(::addAll)
     }.distinctBy { it.id }
+
+    /**
+     * Табы блока `subsection_tabs`.
+     *
+     * VK X берёт ПЕРВЫЙ элемент `actions` и рисует его `options`
+     * (`src-deobf/C2077e.java:645-672`). Мы отступаем от этого в одном месте:
+     * берём первый action, У КОТОРОГО options непусты. Причина — наш `mergeWith`
+     * склеивает один блок из нескольких страниц ответа, и порядок actions после
+     * склейки не гарантирован; жёсткое `first()` тогда отдавало бы кнопку
+     * «показать все» вместо кнопки с табами. Для одностраничного ответа
+     * поведение совпадает с оригиналом.
+     *
+     * `selected` приходит числом 0/1 (адаптер объявляет `Integer`), поэтому
+     * сравниваем с 1, а не приводим к Boolean.
+     */
+    private fun VkCatalogBlock.subsectionTabs(): List<HomeSubsectionTab> =
+        actions.orEmpty()
+            .firstOrNull { !it.options.isNullOrEmpty() }
+            ?.options.orEmpty()
+            .mapNotNull { option ->
+                val replacementId = option.replacement_id?.takeIf(String::isNotBlank)
+                    ?: return@mapNotNull null
+                // Таб без подписи нажать невозможно — рисовать его нечестно.
+                val title = option.text?.takeIf(String::isNotBlank) ?: return@mapNotNull null
+                HomeSubsectionTab(
+                    replacementId = replacementId,
+                    title = title,
+                    icon = option.icon?.takeIf(String::isNotBlank),
+                    selected = option.selected == 1,
+                )
+            }
+            .distinctBy(HomeSubsectionTab::replacementId)
     private fun VkCatalogBlock.mergeWith(other: VkCatalogBlock): VkCatalogBlock {
         fun mergeIds(left: List<String>?, right: List<String>?): List<String>? =
             (left.orEmpty() + right.orEmpty()).distinct().takeIf { it.isNotEmpty() }
@@ -1776,7 +1870,11 @@ object MusicBackend {
             data_type = data_type.ifBlank { other.data_type },
             layout = layout ?: other.layout,
             actions = (actions.orEmpty() + other.actions.orEmpty())
-                .distinctBy { it.section_id }.takeIf { it.isNotEmpty() },
+                // Раньше здесь стоял distinctBy { section_id }. У кнопок-табов
+                // (`subsection_tabs`) section_id всегда null, поэтому ВСЕ они
+                // считались одной и той же кнопкой и от блока оставалась ровно
+                // одна — вместе с ней терялись options, то есть сами табы.
+                .distinct().takeIf { it.isNotEmpty() },
             next_from = other.next_from ?: next_from,
             audios_ids = mergeIds(audios_ids, other.audios_ids),
             playlists_ids = mergeIds(playlists_ids, other.playlists_ids),
@@ -1968,6 +2066,26 @@ object MusicBackend {
                 else -> ""
             }
             pendingHeaderTitle = null
+            // `subsection_tabs` — блок БЕЗ entity-идентификаторов: всё его
+            // содержимое это `actions[0].options` (см. HomeSubsectionTab). Общее
+            // правило «пустой блок выбрасываем» съедало его целиком, поэтому
+            // переключатель подразделов не доходил до UI вообще. Пропускаем такой
+            // блок только если и табов в нём не оказалось.
+            val tabs = block.subsectionTabs()
+            if (layoutName == "subsection_tabs") {
+                return@mapNotNull tabs.takeIf { it.isNotEmpty() && block.id.isNotBlank() }
+                    ?.let {
+                        HomeBlock(
+                            id = block.id,
+                            title = title,
+                            type = contentType,
+                            items = items,
+                            layoutName = layoutName,
+                            nextFrom = block.next_from?.takeIf(String::isNotBlank),
+                            subsectionTabs = it,
+                        )
+                    }
+            }
             items.takeIf { it.isNotEmpty() && block.id.isNotBlank() }
                 ?.let {
                     HomeBlock(
@@ -1976,6 +2094,11 @@ object MusicBackend {
                         type = contentType,
                         items = it,
                         layoutName = layoutName,
+                        // Курсор блока раньше терялся: HomeBlock его не хранил, из-за
+                        // чего шторка «показать все» навсегда оставалась с первой
+                        // порцией. Пустую строку не пропускаем — она не курсор.
+                        nextFrom = block.next_from?.takeIf(String::isNotBlank),
+                        subsectionTabs = tabs,
                     )
                 }
         }

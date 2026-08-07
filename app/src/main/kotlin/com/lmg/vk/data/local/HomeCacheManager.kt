@@ -27,7 +27,7 @@ object HomeCacheManager {
     private const val CACHE_TTL_MS = 24 * 60 * 60 * 1000L // 24 hours
     // v3 also stores the playlist/album discriminator. Old caches would make
     // editorial VK playlists look like playable albums, so invalidate them.
-    private const val CACHE_SCHEMA_VERSION = 3
+    private const val CACHE_SCHEMA_VERSION = 4
 
     private var prefs: SharedPreferences? = null
 
@@ -49,6 +49,21 @@ object HomeCacheManager {
                         put("title", block.title)
                         put("type", block.type)
                         put("layoutName", block.layoutName)
+                        // Курсор догрузки и табы подраздела: без них после
+                        // холодного старта из кэша шторка «показать все» не умела
+                        // листать, а блок табов приезжал пустым — до первого
+                        // сетевого обновления.
+                        put("nextFrom", block.nextFrom ?: JSONObject.NULL)
+                        put("subsectionTabs", JSONArray().apply {
+                            block.subsectionTabs.forEach { tab ->
+                                put(JSONObject().apply {
+                                    put("replacementId", tab.replacementId)
+                                    put("title", tab.title)
+                                    put("icon", tab.icon ?: JSONObject.NULL)
+                                    put("selected", tab.selected)
+                                })
+                            }
+                        })
                         put("items", JSONArray().apply {
                             block.items.forEach { item ->
                                 put(JSONObject().apply {
@@ -133,7 +148,23 @@ object HomeCacheManager {
                     title = blockObj.getString("title"),
                     type = blockObj.getString("type"),
                     items = items,
-                    layoutName = blockObj.optString("layoutName", "")
+                    layoutName = blockObj.optString("layoutName", ""),
+                    nextFrom = blockObj.optString("nextFrom", "").takeIf { it.isNotBlank() },
+                    subsectionTabs = blockObj.optJSONArray("subsectionTabs")?.let { arr ->
+                        (0 until arr.length()).mapNotNull { i ->
+                            val t = arr.optJSONObject(i) ?: return@mapNotNull null
+                            val replacementId = t.optString("replacementId", "")
+                            // Таб без replacementId нажать некуда, без подписи —
+                            // не видно; такие в кэше не восстанавливаем.
+                            if (replacementId.isBlank()) return@mapNotNull null
+                            com.lmg.vk.engine.backend.HomeSubsectionTab(
+                                replacementId = replacementId,
+                                title = t.optString("title", ""),
+                                icon = t.optString("icon", "").takeIf { it.isNotBlank() },
+                                selected = t.optBoolean("selected", false),
+                            )
+                        }
+                    } ?: emptyList()
                 ))
             }
             

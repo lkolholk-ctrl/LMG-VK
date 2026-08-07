@@ -201,10 +201,36 @@ data class VkCatalogBlock(
     val audio_stream_mixes_ids: List<String>? = null,
 )
 
-/** `Catalog2Button` — the recovered root catalog navigation item. */
+/**
+ * `Catalog2Button` — the recovered root catalog navigation item.
+ *
+ * `options` — это табы блока `subsection_tabs`: VK X берёт первый элемент
+ * `Catalog2Block.actions` и рисует именно его `options`
+ * (`src-deobf/C2077e.java:645-672`). Порядок ключей и типы — из
+ * `ua_itaysonlab_catalogkit_objects_Catalog2ButtonJsonAdapter.java:22-42`.
+ */
 @JsonClass(generateAdapter = true)
 data class VkCatalogButton(
     val section_id: String? = null,
+    val title: String? = null,
+    val block_id: String? = null,
+    val options: List<VkCatalogReplacementOption>? = null,
+)
+
+/**
+ * `Catalog2ReplacementOption` — один таб подраздела.
+ *
+ * Ключи и типы подтверждены адаптером
+ * `ua_itaysonlab_catalogkit_objects_Catalog2ReplacementOptionJsonAdapter.java:14-25`.
+ * `selected` объявлен там как `Integer.class`, то есть на проводе это ЧИСЛО 0/1,
+ * а не JSON-литерал `true`/`false` — `Boolean?` здесь уронил бы разбор блока.
+ */
+@JsonClass(generateAdapter = true)
+data class VkCatalogReplacementOption(
+    val replacement_id: String? = null,
+    val text: String? = null,
+    val icon: String? = null,
+    val selected: Int? = null,
 )
 
 /** `Catalog2Banner` from the recovered CatalogKit response adapter. */

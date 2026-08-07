@@ -1050,6 +1050,13 @@ object PlayerController {
         _durationMs.value = track.durationMs
         _currentPositionMs.value = 0L
 
+        // Трансляция играющего трека в статус ВКонтакте (audio.setBroadcast).
+        // Одна точка вызова: менеджер сам подписан и на currentTrack, и на тумблер
+        // настроек, поэтому здесь достаточно гарантировать, что подписка поднята.
+        // Вызов идемпотентный и в сеть не ходит, пока тумблер выключен; ошибки
+        // трансляции воспроизведение не ломают — они глохнут внутри менеджера.
+        VkBroadcastManager.ensureStarted()
+
         resetPlaybackLogging(track.durationMs)
         appContext?.let {
             // URL-прогрев ближайшего — для мгновенного скипа.

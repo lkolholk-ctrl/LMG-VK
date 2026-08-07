@@ -29,6 +29,7 @@ import com.lmg.vk.ui.screens.NewScreen
 import com.lmg.vk.ui.screens.PlaylistDetailScreen
 import com.lmg.vk.ui.screens.SearchScreen
 import com.lmg.vk.ui.screens.WaveHomeScreen
+import com.lmg.vk.ui.screens.YearRecapScreen
 import com.lmg.vk.ui.theme.ForceDarkContent
 
 /**
@@ -133,6 +134,12 @@ fun LiquidNavHost(
                     onOpenArtist = { navController.navigate(NavRoutes.localArtist(it)) },
                     onOpenAlbum = { id, name -> navController.navigate(NavRoutes.localAlbum(id, name)) }
                 )
+            }
+
+            // «Итоги года» ВКонтакте. Живёт в графе Библиотеки, потому что вход
+            // на него — из локальной статистики прослушивания.
+            composable(NavRoutes.YEAR_RECAP) {
+                YearRecapScreen(onBack = { navController.popBackStack() })
             }
             composable(
                 NavRoutes.LOCAL_ARTIST_ROUTE,
