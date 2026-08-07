@@ -174,15 +174,23 @@ class LmgApplication : Application(), ImageLoaderFactory {
 
         // VK API: Ktor-клиент + зашифрованная сессия + доменный фасад UI.
         val vkSessionStore = EncryptedVkSessionStore(this)
+        // Клиент вынесен в переменную, потому что он нужен двум потребителям:
+        // самому VkApiClient и загрузке медиа-байтов (треки, обложки). Байты
+        // идут напрямую по подписанному URL с CDN, но обходной слой им нужен
+        // так же — иначе при блокировке userapi.com воспроизведение работает, а
+        // скачивание молча падает. Отдельный клиент для медиа пошёл бы мимо
+        // installVkProxy, поэтому переиспользуем этот.
+        val vkNetworkClient = KtorHttpClient(KtorOkHttp) {
+            expectSuccess = false
+            engine { config { installVkProxy() } }
+        }
         val vkApiClient = VkApiClient(
-            httpClient = KtorHttpClient(KtorOkHttp) {
-                expectSuccess = false
-                engine { config { installVkProxy() } }
-            },
+            httpClient = vkNetworkClient,
             sessionStore = vkSessionStore,
             deviceIdProvider = ::resolveVkDeviceId,
         )
         VkApiLocator.init(vkApiClient)
+        VkApiLocator.initMediaClient(vkNetworkClient)
         MusicBackend.init(vkApiClient, vkSessionStore)
 
         // ── Сетевая живучесть ─────────────────────────────────────────────

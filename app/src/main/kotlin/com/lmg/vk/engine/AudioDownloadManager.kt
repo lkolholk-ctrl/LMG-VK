@@ -4,6 +4,9 @@ import android.content.Context
 import com.lmg.vk.data.local.db.DownloadedTrackEntity
 import com.lmg.vk.data.local.db.FavoriteTrackDatabase
 import com.lmg.vk.engine.backend.MusicAuth
+import io.ktor.client.request.get
+import io.ktor.client.statement.bodyAsChannel
+import io.ktor.utils.io.readAvailable
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -262,38 +265,27 @@ object AudioDownloadManager {
             val urlString = resolvedUri.toString()
             android.util.Log.d("DOWNLOAD", "urlString=$urlString")
 
-            // 2. Open HTTP connection and download
-            val url = URL(urlString)
-            val connection = url.openConnection() as HttpURLConnection
-            connection.connectTimeout = 15000
-            connection.readTimeout = 15000
-            connection.requestMethod = "GET"
-            connection.connect()
-
-            if (connection.responseCode != HttpURLConnection.HTTP_OK) {
-                connection.disconnect()
+            // 2. Скачивание байтов.
+            //
+            // Идёт через тот же Ktor-клиент, что обслуживает API, то есть через
+            // `installVkProxy` — обход блокировок и пиннинг. Раньше здесь стоял
+            // голый HttpURLConnection: воспроизведение обход получало, а загрузка
+            // нет, и при блокировке CDN скачивание падало без внятной причины.
+            //
+            // Если клиент ещё не поднят (приложение только стартует), падаем на
+            // прежний HttpURLConnection — лучше скачать без обхода, чем не
+            // скачать вовсе.
+            val mediaClient = com.lmg.vk.network.VkApiLocator.mediaClientOrNull()
+            val downloaded = if (mediaClient != null) {
+                downloadViaKtor(mediaClient, urlString, tempFile, trackId)
+            } else {
+                android.util.Log.w("DOWNLOAD", "медиа-клиент не готов, качаю без обхода")
+                downloadViaUrlConnection(urlString, tempFile, trackId)
+            }
+            if (!downloaded) {
+                if (tempFile.exists()) tempFile.delete()
                 return@withContext false
             }
-
-            val fileLength = connection.contentLength
-            val inputStream = connection.inputStream
-            val outputStream = FileOutputStream(tempFile)
-
-            val data = ByteArray(4096)
-            var total: Long = 0
-            var count: Int
-            while (inputStream.read(data).also { count = it } != -1) {
-                total += count
-                if (fileLength > 0) {
-                    updateProgress(trackId, total.toFloat() / fileLength)
-                }
-                outputStream.write(data, 0, count)
-            }
-
-            outputStream.flush()
-            outputStream.close()
-            inputStream.close()
-            connection.disconnect()
 
             // 2.5. ID3-теги и обложка — только для mp3.
             //
@@ -346,9 +338,10 @@ object AudioDownloadManager {
         val cover = track.coverUrl
             ?.takeIf { it.isNotBlank() }
             ?.let { url ->
+                val client = tagHttpClient ?: return@let null
                 // Обложка не обязательна: нет сети или VK отдал ошибку — трек
                 // всё равно получит текстовые теги.
-                runCatching { com.lmg.vk.audio.Mp3TagWriter.fetchCover(tagHttpClient, url) }
+                runCatching { com.lmg.vk.audio.Mp3TagWriter.fetchCover(client, url) }
                     .getOrNull()
             }
         com.lmg.vk.audio.Mp3TagWriter.write(
@@ -368,14 +361,96 @@ object AudioDownloadManager {
     }
 
     /**
-     * Отдельный HTTP-клиент только под обложки.
+     * HTTP-клиент для обложек — тот же, что обслуживает API, вместе с
+     * `installVkProxy`.
      *
-     * Клиент внутри `VkApiClient` приватный и настроен под API-запросы с
-     * токеном, а обложка лежит на CDN и токена не требует. Ленивый, чтобы не
-     * создавать движок, пока пользователь ничего не скачивает.
+     * Свой клиент здесь был бы ошибкой: он пошёл бы мимо интерцептора, то есть
+     * мимо обхода блокировок. Пока приложение не поднялось, локатор отдаёт
+     * `null` — тогда обложку просто не встраиваем, трек всё равно получит
+     * текстовые теги.
      */
-    private val tagHttpClient: io.ktor.client.HttpClient by lazy {
-        io.ktor.client.HttpClient(io.ktor.client.engine.okhttp.OkHttp)
+    private val tagHttpClient: io.ktor.client.HttpClient?
+        get() = com.lmg.vk.network.VkApiLocator.mediaClientOrNull()
+
+    /**
+     * Скачивание через Ktor-клиент с обходом блокировок.
+     *
+     * Тело читается каналом по частям, а не целиком в память: трек на 10 МБ в
+     * heap ещё влез бы, но у скачивания плейлиста они пошли бы подряд.
+     */
+    private suspend fun downloadViaKtor(
+        client: io.ktor.client.HttpClient,
+        url: String,
+        dest: File,
+        trackId: String,
+    ): Boolean {
+        return try {
+            val response: io.ktor.client.statement.HttpResponse = client.get(url)
+            if (response.status.value !in 200..299) {
+                android.util.Log.e("DOWNLOAD", "HTTP ${response.status.value} для $trackId")
+                return false
+            }
+            // Длину берём из заголовка напрямую: extension-свойство
+            // `HttpResponse.contentLength()` в проекте нигде не используется, и
+            // ставить сборку на непроверенный импорт незачем — на `isSuccess`
+            // мы уже так обжигались.
+            val total = response.headers["Content-Length"]?.toLongOrNull() ?: -1L
+            val channel = response.bodyAsChannel()
+            FileOutputStream(dest).use { out ->
+                val buffer = ByteArray(64 * 1024)
+                var written = 0L
+                while (true) {
+                    val read = channel.readAvailable(buffer, 0, buffer.size)
+                    if (read <= 0) break
+                    out.write(buffer, 0, read)
+                    written += read
+                    if (total > 0) updateProgress(trackId, written.toFloat() / total)
+                }
+                out.flush()
+            }
+            dest.length() > 0L
+        } catch (e: Exception) {
+            android.util.Log.e("DOWNLOAD", "Ktor-загрузка сорвалась: ${e.message}")
+            false
+        }
+    }
+
+    /**
+     * Прежний путь на `HttpURLConnection` — запасной, когда сетевое ядро ещё не
+     * поднялось. Обхода блокировок здесь нет, поэтому это именно фолбэк.
+     */
+    private fun downloadViaUrlConnection(url: String, dest: File, trackId: String): Boolean {
+        return try {
+            val connection = URL(url).openConnection() as HttpURLConnection
+            connection.connectTimeout = 15000
+            connection.readTimeout = 15000
+            connection.requestMethod = "GET"
+            connection.connect()
+            if (connection.responseCode != HttpURLConnection.HTTP_OK) {
+                connection.disconnect()
+                return false
+            }
+            val fileLength = connection.contentLength
+            connection.inputStream.use { input ->
+                FileOutputStream(dest).use { out ->
+                    val data = ByteArray(64 * 1024)
+                    var total = 0L
+                    while (true) {
+                        val count = input.read(data)
+                        if (count == -1) break
+                        total += count
+                        if (fileLength > 0) updateProgress(trackId, total.toFloat() / fileLength)
+                        out.write(data, 0, count)
+                    }
+                    out.flush()
+                }
+            }
+            connection.disconnect()
+            dest.length() > 0L
+        } catch (e: Exception) {
+            android.util.Log.e("DOWNLOAD", "HttpURLConnection-загрузка сорвалась: ${e.message}")
+            false
+        }
     }
 
     private fun updateProgress(trackId: String, progress: Float?) {
