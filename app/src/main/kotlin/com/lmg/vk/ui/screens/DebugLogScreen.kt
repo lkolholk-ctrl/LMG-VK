@@ -114,9 +114,6 @@ fun DebugLogScreen(onBack: () -> Unit = {}) {
     }
 
     val listState = rememberLazyListState()
-    // «Мы у конца списка» — держим снаружи ветки со списком, чтобы флаг не
-    // сбрасывался, когда список на время оказался пустым (например, из-за фильтра).
-    var followTail by remember { mutableStateOf(true) }
     Box(modifier = Modifier.fillMaxSize().background(lc.settingsBackground)) {
         Column(modifier = Modifier.fillMaxSize()) {
             Spacer(Modifier.windowInsetsTopHeight(WindowInsets.statusBars))
