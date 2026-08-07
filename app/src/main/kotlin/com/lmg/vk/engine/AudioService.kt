@@ -304,6 +304,14 @@ class AudioService : MediaSessionService() {
 
         override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
             android.util.Log.e("AudioService", "Player error: ${error.errorCodeName} | ${error.message}")
+            // Дублируем в DebugLog: на телефоне без adb это единственный способ
+            // узнать, ЧЕМ именно недоволен плеер. Причина ошибки (`cause`) часто
+            // информативнее самой ошибки — например «Cannot resolve URL» из
+            // нашего DataSource.
+            com.lmg.vk.debug.DebugLog.add(
+                "ОШИБКА ПЛЕЕРА ${error.errorCodeName}: ${error.message}" +
+                    (error.cause?.let { " | причина: ${it.javaClass.simpleName} ${it.message}" } ?: "")
+            )
 
             val currentTrackId = player.currentMediaItem?.mediaId
 

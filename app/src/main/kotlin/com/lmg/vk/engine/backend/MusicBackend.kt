@@ -180,6 +180,12 @@ object MusicBackend {
         return kotlinx.coroutines.runBlocking {
             kotlinx.coroutines.withTimeout(SYNC_RESOLVE_TIMEOUT_MS) {
                 val track = resolveTrack(trackId, forceNetwork = true)
+                // Пишем в DebugLog ЧТО ИМЕННО вернул VK: без этого «не играет»
+                // неотличимо от «ссылка не пришла», а adb у пользователя нет.
+                com.lmg.vk.debug.DebugLog.add(
+                    "resolveSync $id: available=${track.isAvailable} " +
+                        "url=${if (track.url.isBlank()) "ПУСТО" else track.url.take(60)}"
+                )
                 if (!track.isAvailable) throw backendFailure(451, "Аудиозапись недоступна")
                 if (track.url.isBlank()) throw backendFailure(404, "VK не вернул URL трека")
                 if (!track.url.isPlayableStreamUrl()) {

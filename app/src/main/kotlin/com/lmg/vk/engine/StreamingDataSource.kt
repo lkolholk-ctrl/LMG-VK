@@ -82,6 +82,14 @@ class StreamingDataSource private constructor(
             .apply { if (liquidTrackId != null) setKey("lmg_$liquidTrackId") }
             .build()
 
+        // В DebugLog, а не только в android.util.Log: у пользователя телефон без
+        // adb, и экран отладки — единственный способ увидеть, чем закончился
+        // резолв. Без этой строки «плеер молчит» невозможно отличить от
+        // «ссылка не получена».
+        com.lmg.vk.debug.DebugLog.add(
+            "DataSource.open track=$liquidTrackId scheme=${resolvedUri.scheme} " +
+                "host=${runCatching { resolvedUri.host }.getOrNull()}"
+        )
         android.util.Log.d("StreamingDataSource", "open uri=$uri resolved=$resolvedUri scheme=${resolvedUri.scheme}")
 
         currentDataSource = when (resolvedUri.scheme) {
@@ -94,7 +102,16 @@ class StreamingDataSource private constructor(
             else -> httpDataSource
         }
 
-        return currentDataSource!!.open(resolvedSpec)
+        return try {
+            currentDataSource!!.open(resolvedSpec)
+        } catch (e: Exception) {
+            // Ошибку открытия потока обязательно видеть в отладочном экране:
+            // именно она объясняет тишину при формально играющем плеере.
+            com.lmg.vk.debug.DebugLog.add(
+                "DataSource.open ОШИБКА track=$liquidTrackId: ${e.javaClass.simpleName} ${e.message}"
+            )
+            throw e
+        }
     }
 
     override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
