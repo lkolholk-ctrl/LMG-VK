@@ -17,6 +17,12 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          # Полная история обязательна: versionCode считается как число
+          # коммитов (`git rev-list --count HEAD`). При стандартном
+          # fetch-depth: 1 счётчик дал бы 1, версия УПАЛА бы относительно
+          # установленной, и Android отказался бы обновлять приложение.
+          fetch-depth: 0
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
