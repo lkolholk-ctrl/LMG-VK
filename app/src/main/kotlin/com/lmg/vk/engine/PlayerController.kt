@@ -620,9 +620,26 @@ object PlayerController {
             return
         }
 
-        @Suppress("NAME_SHADOWING") val tracks = tracks.filter { kindOf(it) == TrackKind.ONLINE }
-        if (tracks.isEmpty()) return // очередь была целиком локальной — не наш бэкенд
-        @Suppress("NAME_SHADOWING") val startIndex = startIndex.coerceAtMost(tracks.lastIndex)
+        // Однородность очереди по СТАРТОВОМУ треку: смешивать локальное и
+        // онлайн в одной очереди нельзя (у онлайна свой резолв, у локального —
+        // готовый content://). Раньше здесь безусловно оставляли только ONLINE
+        // и выходили по `return` на локальной очереди — а после того, как
+        // playLocalOnJuce стал перенаправлять локальные треки сюда (JUCE в
+        // сборке нет), это означало: тап по скачанному треку не делает НИЧЕГО.
+        // Жалоба пользователя: «тыкаю на скачанное аудио, вообще ничего не
+        // срабатывает и не включается».
+        //
+        // Ниже локальный путь уже полностью рабочий: резолв пропускается
+        // (isOnlineTrack == false → StreamResult.Success(track.uri)), а
+        // buildMediaItem отдаёт content:// как есть, не оборачивая в liquid://.
+        val startTrackId = tracks[startIndex].id
+        val startKind = kindOf(tracks[startIndex])
+        @Suppress("NAME_SHADOWING") val tracks = tracks.filter { kindOf(it) == startKind }
+        if (tracks.isEmpty()) return
+        // Индекс ищем ПО ID, а не coerceAtMost: если фильтр выбросил треки
+        // ДО стартового, «обрезка» индекса заиграла бы чужой трек.
+        @Suppress("NAME_SHADOWING") val startIndex =
+            tracks.indexOfFirst { it.id == startTrackId }.coerceAtLeast(0)
         val startTrack = tracks[startIndex]
         DebugLog.add("PC.playFromList(EXO) n=${tracks.size} start=$startIndex online=${startTrack.isOnlineTrack} | ${DebugLog.caller()}")
 
@@ -772,9 +789,13 @@ object PlayerController {
             android.util.Log.e("VOIDPIXEL_MEDIA", "playLocalOnJuce: empty tracks or bad startIndex=$startIndex")
             return
         }
+        val startTrackId = tracks[startIndex].id
         @Suppress("NAME_SHADOWING") val tracks = tracks.filter { kindOf(it) == TrackKind.LOCAL }
         if (tracks.isEmpty()) return // онлайн-очередь в JUCE не отдаём
-        @Suppress("NAME_SHADOWING") val startIndex = startIndex.coerceAtMost(tracks.lastIndex)
+        // По ID, а не coerceAtMost: отброшенные онлайн-треки ДО стартового
+        // сдвигают индекс, и заиграл бы не тот трек, по которому тапнули.
+        @Suppress("NAME_SHADOWING") val startIndex =
+            tracks.indexOfFirst { it.id == startTrackId }.coerceAtLeast(0)
         val startTrack = tracks[startIndex]
         DebugLog.add("PC.playLocalOnJuce n=${tracks.size} start=$startIndex id=${startTrack.id} | ${DebugLog.caller()}")
 
@@ -794,7 +815,21 @@ object PlayerController {
         // ExoPlayer впустую.
         if (!com.lmg.vk.engine.automix.AutoMixNativeEngine.isAvailable()) {
             DebugLog.add("JUCE недоступен — локальные треки играем через ExoPlayer")
-            playFromList(context, tracks, startIndex)
+            // Контекст пробрасываем: без него playFromList выставил бы Global,
+            // а это включает автодозаправку «волны» поверх локальной очереди —
+            // к скачанным трекам начали бы приклеиваться онлайн-треки.
+            val (refillType, refillId) = when (playbackContext) {
+                is PlaybackContext.Downloads -> "library" to "downloads"
+                is PlaybackContext.Playlist -> "playlist" to playbackContext.id
+                is PlaybackContext.Album -> "album" to playbackContext.id
+                is PlaybackContext.Artist -> "artist" to playbackContext.id
+                else -> null to null
+            }
+            playFromList(
+                context, tracks, startIndex,
+                autoRefillType = refillType,
+                autoRefillId = refillId,
+            )
             return
         }
 
