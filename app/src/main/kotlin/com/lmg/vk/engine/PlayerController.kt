@@ -1088,7 +1088,51 @@ object PlayerController {
         android.util.Log.e("PlayerController", "Playback error: $errorCodeName")
         _isBuffering.value = false
         _isPlaying.value = false
+
+        // ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED почти всегда означает одно: VK
+        // отдал HLS-плейлист, а элемент очереди собирался без MIME, и фабрика
+        // выбрала progressive-экстрактор. Стартовый трек получает MIME сразу (его
+        // ссылка резолвится до сборки очереди), а вот следующие резолвятся на ходу
+        // — для них тип заранее неизвестен. Поэтому пересобираем текущий элемент,
+        // когда ссылка уже в кэше и точно оказалась m3u8.
+        if (errorCodeName == "ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED") {
+            retryCurrentAsHlsIfNeeded()
+        }
     }
+
+    /**
+     * Пересобрать текущий элемент очереди с явным HLS-типом и продолжить.
+     *
+     * Однократно на трек: если и после пересборки не заиграло, дело не в MIME, и
+     * повторять бессмысленно — иначе получится цикл.
+     */
+    private fun retryCurrentAsHlsIfNeeded() {
+        val trackId = queue.getOrNull(currentIndex)?.id ?: return
+        if (!hlsRetriedTrackIds.add(trackId)) return
+        val resolved = streamUrlCache[trackId]?.uri?.toString() ?: return
+        if (!com.lmg.vk.audio.HlsDownloader.isHlsUrl(resolved)) return
+
+        DebugLog.add("HLS: пересобираю $trackId с APPLICATION_M3U8")
+        ioScope.launch(Dispatchers.Main) {
+            val ctrl = controller ?: return@launch
+            val track = queue.getOrNull(currentIndex) ?: return@launch
+            val item = MediaItem.Builder()
+                .setMediaId(track.id)
+                .setUri(Uri.parse(resolved))
+                .setMimeType(androidx.media3.common.MimeTypes.APPLICATION_M3U8)
+                .build()
+            runCatching {
+                ctrl.replaceMediaItem(currentIndex, item)
+                ctrl.prepare()
+                ctrl.play()
+            }.onFailure { DebugLog.add("HLS: пересборка не удалась: ${it.message}") }
+        }
+    }
+
+    /** Треки, для которых пересборка под HLS уже пробовалась — защита от цикла. */
+    private val hlsRetriedTrackIds = java.util.Collections.newSetFromMap(
+        java.util.concurrent.ConcurrentHashMap<String, Boolean>()
+    )
 
     fun setQueue(tracks: List<Track>, startIndex: Int = 0) {
         val immutableTracks = tracks.toList()
@@ -1806,6 +1850,30 @@ object PlayerController {
         val item = MediaItem.Builder()
             .setMediaId(track.id)
             .setUri(mediaUri)
+            .apply {
+                // ЗАЧЕМ ЭТО НУЖНО. VK отдаёт часть треков (а на некоторых
+                // аккаунтах — все) не прямой ссылкой на mp3, а плейлистом HLS
+                // (`.m3u8`). Наш URI имеет схему `liquid://` и расширения не
+                // несёт, поэтому `DefaultMediaSourceFactory` определял тип по
+                // содержимому и выбирал progressive-экстрактор. Итог в логе:
+                // ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED и перечисление всех
+                // экстракторов, среди которых HLS нет вовсе — HLS это отдельный
+                // тип источника (`HlsMediaSource`), а не экстрактор.
+                //
+                // Явный MIME заставляет фабрику взять HlsMediaSource. Модуль
+                // `media3-exoplayer-hls` в проекте уже подключён.
+                //
+                // Тип берём из уже резолвленной ссылки: к моменту сборки очереди
+                // трек мог быть резолвлен ранее (кэш). Если нет — оставляем без
+                // MIME, и тогда сработает второй путь: DataSource, обнаружив
+                // m3u8, сообщит об этом, и элемент будет пересобран (см.
+                // onPlaybackError → handleUnsupportedContainer).
+                val known = streamUrlCache[track.id]?.uri?.toString()
+                    ?: uri.toString().takeIf { it.startsWith("http") }
+                if (known != null && com.lmg.vk.audio.HlsDownloader.isHlsUrl(known)) {
+                    setMimeType(androidx.media3.common.MimeTypes.APPLICATION_M3U8)
+                }
+            }
             .setMediaMetadata(metaBuilder.build())
             .build()
 

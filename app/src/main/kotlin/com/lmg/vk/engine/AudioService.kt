@@ -318,6 +318,17 @@ class AudioService : MediaSessionService() {
             val isExpiredUrl = error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS
                 && error.message?.contains("403") == true
 
+            // HLS раньше ретраев: ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED означает,
+            // что VK отдал m3u8-плейлист, а элемент собирался без MIME — фабрика
+            // выбрала progressive-экстрактор. Три ретрая того же элемента этого не
+            // исправят (в логе пользователя видно ровно это), поэтому пересобираем
+            // элемент с APPLICATION_M3U8 и выходим. Повтор на трек однократный —
+            // защита от цикла внутри PlayerController.
+            if (error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED) {
+                PlayerController.onPlaybackError(error.errorCodeName)
+                return
+            }
+
             if (isExpiredUrl && currentTrackId != null) {
                 // Ограничиваем число пере-резолвов на трек, чтобы не зациклиться
                 // на действительно недоступном треке.
