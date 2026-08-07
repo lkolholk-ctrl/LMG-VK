@@ -49,11 +49,18 @@ class StreamingDataSource private constructor(
         fun create(
             context: Context,
             httpDataSource: DefaultHttpDataSource.Factory,
-            fileDataSource: DataSource = DefaultDataSource.Factory(context).createDataSource()
+            fileDataSourceFactory: DataSource.Factory = DefaultDataSource.Factory(context)
         ): DataSource.Factory {
             return DataSource.Factory {
                 val http = httpDataSource.createDataSource()
-                val file = fileDataSource
+                // ВАЖНО: file-источник создаётся НА КАЖДЫЙ экземпляр.
+                // Раньше сюда по умолчанию приходил один готовый DataSource
+                // (createDataSource() вычислялся один раз в default-аргументе) и
+                // переиспользовался всеми StreamingDataSource сразу. DataSource не
+                // реентерабелен: media3 держит открытыми несколько источников
+                // одновременно (текущий трек + предзагрузка следующего), и второй
+                // open() на том же инстансе рвал чтение первого.
+                val file = fileDataSourceFactory.createDataSource()
                 val cache = MediaCacheManager.getCacheDataSourceFactory()?.createDataSource()
                 StreamingDataSource(context.applicationContext, http, file, cache)
             }
@@ -107,6 +114,11 @@ class StreamingDataSource private constructor(
         if (uri.scheme != SCHEME_LIQUID) return uri
 
         val trackId = uri.getQueryParameter(PARAM_TRACK_ID)
+        // URL, вложенный в liquid:// при сборке MediaItem. Это ПОДПИСАННАЯ ссылка,
+        // полученная перед prepare(), и для стартового трека она свежая — поэтому
+        // используем её как основной фолбэк, а не как последнюю надежду (см. ниже).
+        val embeddedUrl = uri.getQueryParameter(PARAM_URL)?.takeIf { it.isNotEmpty() }
+
         if (trackId != null) {
             // Check downloaded offline files first (regardless of premium status)
             val offlineMp3 = File(context.filesDir, "downloads/$trackId.mp3")
@@ -121,8 +133,15 @@ class StreamingDataSource private constructor(
             val cachedUri = PlayerController.getValidCachedUri(trackId)
             if (cachedUri != null) return cachedUri
 
-            val resolvedUrl = PlayerController.resolveStreamUrlSync(trackId)
-            if (resolvedUrl != null) return resolvedUrl
+            // resolveStreamUrlSync ходит ТОЛЬКО в память (MusicBackend.getTrackInfoSync
+            // бросает 404, если трека нет в streamCache) — на холодном кэше он всегда
+            // null. Поэтому раньше порядок «sync → embedded» означал: для любого трека,
+            // кроме стартового, резолв проваливался и открывался только вложенный URL,
+            // а если его не было — летел IOException. Теперь embedded идёт РАНЬШЕ
+            // сетевого добора: он уже валиден и не требует запроса.
+            PlayerController.resolveStreamUrlSync(trackId)?.let { return it }
+
+            if (embeddedUrl != null) return Uri.parse(embeddedUrl)
 
             // Сеть лежит, свежий URL не получить. Если аудио уже в кэше
             // (ключ = id трека), апстрим не понадобится — отдаём последний
@@ -131,8 +150,7 @@ class StreamingDataSource private constructor(
             if (stale != null) return stale
         }
 
-        val url = uri.getQueryParameter(PARAM_URL)
-        if (!url.isNullOrEmpty()) return Uri.parse(url)
+        if (embeddedUrl != null) return Uri.parse(embeddedUrl)
 
         throw IOException("Cannot resolve URL for track $trackId")
     }

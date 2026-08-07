@@ -221,6 +221,7 @@ fun LiquidNavHost(
                     onOpenRecommendationsOnboarding = {
                         navController.navigate(NavRoutes.RECOMMENDATIONS_ONBOARDING)
                     },
+                    onOpenDebugLog = { navController.navigate(NavRoutes.DEBUG_LOG) },
                     showBack = false,
                     backdrop = backdrop
                 )
@@ -229,6 +230,10 @@ fun LiquidNavHost(
             // что вход на него — пункт «Настроить рекомендации».
             composable(NavRoutes.RECOMMENDATIONS_ONBOARDING) {
                 RecommendationsOnboardingScreen(onBack = { navController.popBackStack() })
+            }
+            // Отладочный лог: живёт в графе Настроек, вход — пункт «Отладочный лог».
+            composable(NavRoutes.DEBUG_LOG) {
+                com.lmg.vk.ui.screens.DebugLogScreen(onBack = { navController.popBackStack() })
             }
         }
     }

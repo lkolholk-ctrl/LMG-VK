@@ -14,6 +14,7 @@ import androidx.media3.session.SessionToken
 import com.google.common.util.concurrent.MoreExecutors
 import androidx.glance.appwidget.updateAll
 import com.lmg.vk.debug.DebugLog
+import com.lmg.vk.engine.backend.BackendException
 import com.lmg.vk.engine.backend.MusicBackend
 import com.lmg.vk.engine.backend.StreamInfo
 import com.lmg.vk.data.local.WaveRepository
@@ -1318,26 +1319,30 @@ object PlayerController {
 
         return try {
             val quality = getEffectiveQuality(trackId)
+            // Здесь была та же ошибка, что и в асинхронном пути: `getTrackInfoSync`
+            // возвращает NON-NULL и при отказе бросает, поэтому `if (trackInfo != null)`
+            // всегда истинно, а `else` был мёртвым. Функционально это ничего не
+            // меняло (исключение всё равно уходило в catch → null), но читать код
+            // так, будто ветка работает, нельзя.
             val trackInfo = MusicBackend.getTrackInfoSync(trackId, quality = quality ?: "lossless")
-
-            if (trackInfo != null) {
-                val uri = Uri.parse(trackInfo.url)
-                val ttl = if (trackInfo.expiresAt > 0) {
-                    (trackInfo.expiresAt * 1000L - now - 60_000L).coerceAtLeast(60_000L)
-                } else {
-                    STREAM_CACHE_TTL_MS
-                }
-
-                streamUrlCache[trackId] = CachedStreamUrl(
-                    uri = uri,
-                    expiresAtMs = now + ttl,
-                    fileId = trackInfo.fileId
-                )
-                uri
+            val uri = Uri.parse(trackInfo.url)
+            val ttl = if (trackInfo.expiresAt > 0) {
+                (trackInfo.expiresAt * 1000L - now - 60_000L).coerceAtLeast(60_000L)
             } else {
-                null
+                STREAM_CACHE_TTL_MS
             }
+
+            streamUrlCache[trackId] = CachedStreamUrl(
+                uri = uri,
+                expiresAtMs = now + ttl,
+                fileId = trackInfo.fileId
+            )
+            uri
         } catch (e: Exception) {
+            // Синхронный путь работает только по кэшу и вызывается из
+            // StreamingDataSource. Причину пишем в лог: без неё «молчащий плеер»
+            // невозможно отличить от «трек ещё не резолвился».
+            DebugLog.add("resolveStreamUrlSync($trackId) неудача: ${e.message}")
             null
         }
     }
@@ -1375,47 +1380,62 @@ object PlayerController {
         return try {
             withTimeout(15_000) {
                 val quality = getEffectiveQuality(trackId)
-                val trackInfo = MusicBackend.getTrackInfo(trackId, quality = quality ?: "lossless")
+                // `getTrackInfo` возвращает NON-NULL `StreamInfo` и при отказе
+                // БРОСАЕТ `BackendException`. Раньше здесь стояла проверка
+                // `if (trackInfo != null)`, из-за которой весь разбор ошибок ниже
+                // был мёртвым кодом: условие всегда истинно, а исключение улетало
+                // в общий catch и любая причина превращалась в "network_error".
+                // Поэтому ловим явно и классифицируем по коду.
+                val trackInfo = runCatching {
+                    MusicBackend.getTrackInfo(trackId, quality = quality ?: "lossless")
+                }
+                trackInfo.getOrNull()?.let { return@withTimeout cacheAndReturn(trackId, it) }
 
-                if (trackInfo != null) {
-                    cacheAndReturn(trackId, trackInfo)
-                } else {
-                    val error = MusicBackend.lastError.value
-                    val apiException = MusicBackend.lastApiException.value
-                    
-                    when {
-                        error?.contains("region_unavailable") == true || error?.contains("451") == true -> {
-                            val requiredRegion = apiException?.requiredRegion
-                            if (requiredRegion != null) {
-                                val retryTrackInfo = MusicBackend.getTrackInfo(trackId, quality = quality ?: "lossless", region = requiredRegion)
-                                if (retryTrackInfo != null) {
-                                    cacheAndReturn(trackId, retryTrackInfo)
-                                } else {
-                                    StreamResult.Error("region_unavailable", "Failed after region switch")
-                                }
-                            } else {
-                                StreamResult.Error("region_unavailable", error)
-                            }
+                val failure = trackInfo.exceptionOrNull()
+                val apiException = MusicBackend.lastApiException.value
+                // Код берём из самого исключения: `lastApiException` — общее
+                // состояние и к моменту разбора могло быть перезаписано другим
+                // запросом. Текст оставляем как дополнение к коду.
+                val code = (failure as? BackendException)?.code ?: apiException?.code
+                val error = failure?.message ?: MusicBackend.lastError.value
+
+                when {
+                    code == 451 || error?.contains("region_unavailable") == true -> {
+                        val requiredRegion = apiException?.requiredRegion
+                        val retried = if (requiredRegion != null) {
+                            runCatching {
+                                MusicBackend.getTrackInfo(
+                                    trackId,
+                                    quality = quality ?: "lossless",
+                                    region = requiredRegion,
+                                )
+                            }.getOrNull()
+                        } else null
+                        when {
+                            retried != null -> cacheAndReturn(trackId, retried)
+                            // 451 — это и «ограничение на прослушивание», ради
+                            // которого существует обходной путь.
+                            else -> tryAudioRipFallback(trackId, error)
+                                ?: StreamResult.Error("region_unavailable", error)
                         }
-                        error?.contains("source_not_allowed") == true || error?.contains("403") == true -> {
-                            // Отказ по доступу — единственный случай, когда уместен
-                            // обходной путь audio_rip (см. tryAudioRipFallback).
-                            tryAudioRipFallback(trackId, error)
-                                ?: StreamResult.Error("source_not_allowed", error)
-                        }
-                        error?.contains("track_not_found") == true || error?.contains("404") == true -> {
-                            StreamResult.Error("track_not_found", error)
-                        }
-                        error?.contains("early_access") == true -> {
-                            StreamResult.Error("early_access", error)
-                        }
-                        else -> {
-                            // Сюда попадает и «451: Аудиозапись недоступна» —
-                            // ограничение на прослушивание, ради которого фолбэк и
-                            // нужен. shouldFallback сам решит, применим ли он.
-                            tryAudioRipFallback(trackId, error)
-                                ?: StreamResult.Error("unknown", error)
-                        }
+                    }
+                    code == 403 || error?.contains("source_not_allowed") == true -> {
+                        // Отказ по доступу — второй случай, где уместен audio_rip.
+                        tryAudioRipFallback(trackId, error)
+                            ?: StreamResult.Error("source_not_allowed", error)
+                    }
+                    code == 404 || error?.contains("track_not_found") == true -> {
+                        // 404 бывает и когда VK не отдал URL вовсе — тогда обходной
+                        // путь тоже имеет смысл, решает shouldFallback.
+                        tryAudioRipFallback(trackId, error)
+                            ?: StreamResult.Error("track_not_found", error)
+                    }
+                    error?.contains("early_access") == true -> {
+                        StreamResult.Error("early_access", error)
+                    }
+                    else -> {
+                        tryAudioRipFallback(trackId, error)
+                            ?: StreamResult.Error("unknown", error)
                     }
                 }
             }
@@ -1756,7 +1776,18 @@ object PlayerController {
                 .scheme(StreamingDataSource.SCHEME_LIQUID)
                 .authority("track")
                 .appendQueryParameter(StreamingDataSource.PARAM_TRACK_ID, track.id)
-                .appendQueryParameter(StreamingDataSource.PARAM_URL, uri.toString())
+                .apply {
+                    // Прямую ссылку кладём ТОЛЬКО если она есть. У онлайн-трека
+                    // почти со всех экранов `uri` = Uri.EMPTY
+                    // (`VkAudioIdentity.playbackUri()` без аргумента), и пустой
+                    // PARAM_URL раньше уезжал в DataSource как «ссылка есть» —
+                    // тот пытался её открыть и падал уже внутри, вместо того чтобы
+                    // сразу пойти за резолвом по trackId.
+                    val direct = uri.toString()
+                    if (direct.startsWith("http://") || direct.startsWith("https://")) {
+                        appendQueryParameter(StreamingDataSource.PARAM_URL, direct)
+                    }
+                }
                 .build()
         } else {
             uri

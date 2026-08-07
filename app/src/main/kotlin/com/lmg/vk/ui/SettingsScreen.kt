@@ -70,6 +70,8 @@ fun SettingsScreen(
     onOpenProfile: () -> Unit = {},
     /** Открыть онбординг рекомендаций ВКонтакте (`audio.recommendationsOnboarding`). */
     onOpenRecommendationsOnboarding: () -> Unit = {},
+    /** Открыть экран отладочного лога (диагностика воспроизведения без adb). */
+    onOpenDebugLog: () -> Unit = {},
     showBack: Boolean = true,
     backdrop: LayerBackdrop
 ) {
@@ -1071,6 +1073,23 @@ fun SettingsScreen(
                     onClick = {
                         if (onboardingLoggedIn) onOpenRecommendationsOnboarding()
                     }
+                )
+            }
+
+            Spacer(modifier = Modifier.height(sectionGap))
+
+            // ДИАГНОСТИКА. Раздел видим ВСЕГДА, а не под debug-тапами: лог нужен
+            // именно тогда, когда воспроизведение не работает, и объяснять по
+            // переписке «тапните 5 раз по заголовку» — лишний шаг к ответу.
+            SectionLabel("DIAGNOSTICS")
+
+            PlainCard {
+                SettingsActionItem(
+                    title = "Отладочный лог",
+                    subtitle = "Что происходит при запуске трека. Внутри — " +
+                        "«Очистить», затем воспроизведите трек и пришлите лог",
+                    icon = Icons.Rounded.ChevronRight,
+                    onClick = onOpenDebugLog
                 )
             }
 

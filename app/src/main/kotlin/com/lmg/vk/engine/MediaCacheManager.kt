@@ -37,7 +37,6 @@ object MediaCacheManager {
     // быстро → авто-ретрай/скип, музыка не встаёт.
     private const val CONNECT_TIMEOUT_MS = 12_000
     private const val READ_TIMEOUT_MS = 15_000
-    private const val PLAYBACK_USER_AGENT = "LiquidMusicGlass/1.0"
 
     /**
      * Единственная фабрика HTTP для воспроизведения.
@@ -46,13 +45,22 @@ object MediaCacheManager {
      * мёртвой: кэш включён по умолчанию, поток идёт через его upstream, а там
      * стояло ровно то самое 30/30, которое комментарий в плеере объявлял
      * неприемлемым. Держим значения в одном месте, чтобы это не повторилось.
+     *
+     * User-Agent — РЕАЛЬНЫЙ агент официального Android-клиента ([VkUserAgents.api]),
+     * тот же, которым подписан запрос `audio.getById`, выдавший ссылку. Раньше здесь
+     * стоял выдуманный "LiquidMusicGlass/1.0": VK CDN отдаёт на неизвестный агент
+     * 403/пустое тело, потому что подпись в URL привязана к клиенту, а не только к
+     * времени. Скачивание при этом работало (оно идёт через Ktor-клиент с настоящим
+     * агентом) — отсюда и симптом «скачать можно, а играть нельзя».
      */
     fun httpDataSourceFactory(): DefaultHttpDataSource.Factory =
         DefaultHttpDataSource.Factory()
             .setAllowCrossProtocolRedirects(true)
             .setConnectTimeoutMs(CONNECT_TIMEOUT_MS)
             .setReadTimeoutMs(READ_TIMEOUT_MS)
-            .setDefaultRequestProperties(mapOf("User-Agent" to PLAYBACK_USER_AGENT))
+            .setDefaultRequestProperties(
+                mapOf("User-Agent" to com.lmg.vk.network.VkUserAgents.api)
+            )
 
     @Volatile
     private var cache: SimpleCache? = null

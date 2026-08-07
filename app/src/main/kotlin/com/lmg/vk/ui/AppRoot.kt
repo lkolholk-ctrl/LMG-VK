@@ -630,6 +630,9 @@ fun AppRoot() {
                 onBack = { settingsOpen = false },
                 onOpenEqualizer = { equalizerOpen = true; settingsOpen = false },
                 onOpenProfile = { profileOpen = true; settingsOpen = false },
+                // Оверлей закрываем перед переходом: экран лога живёт в NavHost,
+                // то есть ПОД оверлеем — иначе переход просто не было бы видно.
+                onOpenDebugLog = { settingsOpen = false; navController.navigate(NavRoutes.DEBUG_LOG) },
                 backdrop = rootBackdrop
             )
         }

@@ -57,6 +57,10 @@ object NavRoutes {
     // ── Онбординг рекомендаций (открывается из Настроек) ──
     const val RECOMMENDATIONS_ONBOARDING = "settings/recommendations-onboarding"
 
+    // ── Отладочный лог (открывается из Настроек) ──
+    // Диагностика воспроизведения на телефоне, где нет adb logcat.
+    const val DEBUG_LOG = "settings/debug-log"
+
     // ── Экран «Загрузки» (скачанное на устройство; вход из Библиотеки) ──
     const val DOWNLOADS = "library/downloads"
 

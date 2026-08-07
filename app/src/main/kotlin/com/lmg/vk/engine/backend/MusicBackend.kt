@@ -124,26 +124,72 @@ object MusicBackend {
     // ---------- стрим ----------
     suspend fun getTrackInfo(trackId: String, quality: String = "lossless", region: String? = null): StreamInfo {
         requireInitialized()
-        streamCache[normalizeTrackId(trackId)]?.let { cached ->
-            if (System.currentTimeMillis() - cached.cachedAtMs < STREAM_CACHE_TTL_MS) {
+        streamCache[streamCacheKey(trackId)]?.let { cached ->
+            // Свежесть по TTL — не единственное условие. В кэш исторически попадал
+            // плейсхолдер `audio_api_unavailable.mp3` (см. cacheTracks), и тогда
+            // этот ранний return отдавал плееру заведомо неиграбельный URL, минуя
+            // проверку isAvailable ниже. Именно так «рабочая» ссылка доходила до
+            // ExoPlayer и трек молчал: URL есть, звука нет.
+            if (System.currentTimeMillis() - cached.cachedAtMs < STREAM_CACHE_TTL_MS &&
+                cached.info.url.isPlayableStreamUrl()
+            ) {
                 return cached.info
             }
         }
         val track = resolveTrack(trackId, forceNetwork = true)
         if (!track.isAvailable) throw backendFailure(451, "Аудиозапись недоступна")
         if (track.url.isBlank()) throw backendFailure(404, "VK не вернул URL трека")
+        // Плейсхолдер отличается от пустого url: VK ответил успехом и отдал строку,
+        // поэтому без явной проверки ошибка выглядела бы как успешный резолв.
+        if (!track.url.isPlayableStreamUrl()) {
+            throw backendFailure(451, "VK отдал audio_api_unavailable вместо ссылки")
+        }
         return track.toStreamInfo(quality).also {
             streamCache[track.fullId] = CachedStream(it, System.currentTimeMillis())
         }
     }
 
+    /**
+     * Синхронный резолв ссылки — его зовёт `StreamingDataSource` в момент, когда
+     * ExoPlayer открывает поток.
+     *
+     * ПОЧЕМУ ЗДЕСЬ БЛОКИРУЮЩИЙ СЕТЕВОЙ ВЫЗОВ. Раньше функция только заглядывала в
+     * кэш и бросала, если там пусто. А кэш заполняется выдачей поиска и каталога,
+     * то есть при первом обращении к треку его там нет — и поток не открывался
+     * ВООБЩЕ НИКОГДА. Именно поэтому воспроизведение не работало с самого начала
+     * проекта. В родственном рабочем проекте (LiquidMusicGlass,
+     * `IcmRepository.getTrackInfoSync`) этот путь тоже делает реальный запрос —
+     * `api.getTrackSync(...)`.
+     *
+     * Блокировка потока здесь допустима: `DataSource.open()` по контракту media3
+     * вызывается на загрузочном потоке ExoPlayer, а не на главном, и обязан
+     * возвращаться только когда поток готов. Ограничение по времени обязательно,
+     * иначе мёртвая сеть подвесила бы загрузчик плеера.
+     */
     fun getTrackInfoSync(trackId: String, quality: String = "lossless"): StreamInfo {
         requireInitialized()
-        val id = normalizeTrackId(trackId)
-        return streamCache[id]
+        val id = streamCacheKey(trackId)
+        streamCache[id]
             ?.takeIf { System.currentTimeMillis() - it.cachedAtMs < STREAM_CACHE_TTL_MS }
             ?.info
-            ?: throw backendFailure(404, "Трек ещё не загружен в сетевой кэш")
+            ?.takeIf { it.url.isPlayableStreamUrl() }
+            ?.let { return it }
+
+        // В кэше нет играбельной ссылки — идём в сеть. `resolveTrack` уже умеет
+        // подставлять access_key и различает плейсхолдер.
+        return kotlinx.coroutines.runBlocking {
+            kotlinx.coroutines.withTimeout(SYNC_RESOLVE_TIMEOUT_MS) {
+                val track = resolveTrack(trackId, forceNetwork = true)
+                if (!track.isAvailable) throw backendFailure(451, "Аудиозапись недоступна")
+                if (track.url.isBlank()) throw backendFailure(404, "VK не вернул URL трека")
+                if (!track.url.isPlayableStreamUrl()) {
+                    throw backendFailure(451, "VK отдал audio_api_unavailable вместо ссылки")
+                }
+                track.toStreamInfo(quality).also { info ->
+                    streamCache[id] = CachedStream(info, System.currentTimeMillis())
+                }
+            }
+        }
     }
 
     suspend fun getStreamUrl(trackId: String, source: String? = null): String? =
@@ -1168,9 +1214,17 @@ object MusicBackend {
 
     private suspend fun resolveTrack(trackId: String, forceNetwork: Boolean = false): AudioTrack {
         requireInitialized()
-        val id = normalizeTrackId(trackId)
+        val id = streamCacheKey(trackId)
         if (!forceNetwork) trackCache[id]?.let { return it }
-        val track = audioApi.getById(listOf(id)).requireData().firstOrNull()
+        // Третий сегмент `_access_key` обязателен для чужих/ограниченных записей:
+        // без него VK на audio.getById возвращает трек, но БЕЗ поля url (либо с
+        // плейсхолдером). Ключ приходит в выдаче поиска/каталога и лежит в
+        // trackCache, а `fullId` его теряет — поэтому берём его отсюда, как
+        // `AudioFile.asIdWithKey()` в VK MP3 Mod.
+        val explicitKey = normalizeTrackId(trackId).split('_').getOrNull(2)?.takeIf { it.isNotBlank() }
+        val accessKey = explicitKey ?: trackCache[id]?.access_key?.takeIf { it.isNotBlank() }
+        val requestId = accessKey?.let { "${id}_$it" } ?: id
+        val track = audioApi.getById(listOf(requestId)).requireData().firstOrNull()
             ?: throw backendFailure(404, "Трек $id не найден")
         trackCache[track.fullId] = track
         return track
@@ -1190,7 +1244,13 @@ object MusicBackend {
     private fun cacheTracks(tracks: Collection<AudioTrack>) {
         tracks.forEach { track ->
             trackCache[track.fullId] = track
-            if (track.url.isNotBlank()) {
+            // ВАЖНО: в stream-кэш идёт только реально играбельный URL. Раньше
+            // условием было `isNotBlank()`, и плейсхолдер VK
+            // (`audio_api_unavailable.mp3`) из выдачи поиска/каталога оседал тут
+            // как готовая ссылка. Дальше getTrackInfo отдавал его из кэша, а
+            // getTrackInfoSync — тем более (он только читает кэш), так что
+            // плеер получал URL, который физически не воспроизводится.
+            if (track.isAvailable && track.url.isPlayableStreamUrl()) {
                 streamCache[track.fullId] = CachedStream(
                     track.toStreamInfo(streamQuality),
                     System.currentTimeMillis(),
@@ -1260,6 +1320,34 @@ object MusicBackend {
     }
 
     private fun normalizeTrackId(id: String): String = id.removePrefix("vk_")
+
+    /**
+     * Ключ stream/track-кэша: всегда `owner_id_audio_id`, без `access_key`.
+     *
+     * Кэш заполняется по `AudioTrack.fullId` (двухсегментный), а звать резолв
+     * могут с ключом доступа третьим сегментом. Без срезания ключа такие id
+     * никогда не попадали в кэш: каждый раз промах, поход в сеть, а в
+     * синхронном пути — сразу ошибка «нет в кэше» и тишина вместо музыки.
+     */
+    private fun streamCacheKey(id: String): String {
+        val normalized = normalizeTrackId(id)
+        val parts = normalized.split('_')
+        return if (parts.size >= 2) "${parts[0]}_${parts[1]}" else normalized
+    }
+
+    /**
+     * Годится ли строка как ссылка на поток.
+     *
+     * Отдельная проверка нужна потому, что VK на недоступный клиенту трек
+     * отвечает УСПЕХОМ и кладёт в `url` служебный плейсхолдер
+     * `audio_api_unavailable.mp3` (разобрано в VK MP3 Mod, §2.1 AudioGetLink).
+     * Такой URL скачивается, но не содержит музыки, поэтому для плеера он
+     * равносилен отсутствию ссылки и должен приводить к честной ошибке.
+     */
+    private fun String.isPlayableStreamUrl(): Boolean =
+        isNotBlank() &&
+            !contains("audio_api_unavailable", ignoreCase = true) &&
+            (startsWith("http://") || startsWith("https://"))
 
     private fun String.isVkAudioFullId(): Boolean {
         val parts = split('_')
@@ -2164,6 +2252,16 @@ object MusicBackend {
     }
 
     private const val STREAM_CACHE_TTL_MS = 8L * 60L * 1000L
+
+    /**
+     * Предел ожидания для синхронного резолва (`getTrackInfoSync`).
+     *
+     * Он блокирует загрузочный поток ExoPlayer, поэтому висеть бесконечно не имеет
+     * права: при мёртвой сети плеер должен получить ошибку и отдать её наверх, а не
+     * замереть. 10 секунд — заметно меньше, чем таймаут самого плеера на открытие
+     * источника, так что причину увидит именно наш код.
+     */
+    private const val SYNC_RESOLVE_TIMEOUT_MS = 10_000L
 }
 
 /** Ответ треков плейлиста пользователя. */

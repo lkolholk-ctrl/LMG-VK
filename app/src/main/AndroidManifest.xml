@@ -218,11 +218,15 @@
             </intent-filter>
         </service>
 
-        <!-- Восстановленный стек VK X (референс; merge в engine.AudioService) -->
-        <service
-            android:name="com.lmg.vk.playback.PlaybackService"
-            android:exported="false"
-            android:foregroundServiceType="mediaPlayback" />
+        <!-- playback.PlaybackService НЕ объявлен намеренно. Это незавершённый
+             референс-порт стека VK X: его SessionCallback пуст (onAddMediaItems
+             не переопределён), очередь не восстанавливается, а startForegroundSafely
+             ничего не делает. Никто его не стартует и ComponentName на него не
+             указывает, поэтому украсть подключение MediaController он не мог. Но
+             объявленный второй media3-сервис с mediaPlayback — это заряженное
+             ружьё: любой system media-resumption или случайный startService поднял
+             бы ВТОРОЙ ExoPlayer с ВТОРОЙ MediaSession, и звук ушёл бы в сессию,
+             которой никто не управляет. Файл оставлен как справочник по VK X. -->
 
         <!-- Загрузки треков -->
         <service
