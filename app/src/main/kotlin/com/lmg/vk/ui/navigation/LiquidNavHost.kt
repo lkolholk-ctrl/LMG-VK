@@ -44,7 +44,7 @@ import com.lmg.vk.ui.theme.ForceDarkContent
  * Экраны-детали (альбом/артист/плейлист) регистрируются внутри графа каждой
  * вкладки с префиксом её тега — так они попадают в бэкстек ИМЕННО этой вкладки.
  *
- * Оверлеи (плеер, профиль, авторизация, эквалайзер, редакторы, диалоги) живут
+ * Оверлеи (плеер, профиль, авторизация, редакторы, диалоги) живут
  * НАД NavHost в [AppRoot] и дёргаются через колбэки-параметры.
  */
 @Composable
@@ -55,7 +55,6 @@ fun LiquidNavHost(
     onOpenPlayer: () -> Unit,
     onOpenAuth: () -> Unit,
     onOpenProfile: () -> Unit,
-    onOpenEqualizer: () -> Unit,
     onOpenSearch: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -236,7 +235,9 @@ fun LiquidNavHost(
             composable(NavRoutes.SETTINGS_HOME) {
                 SettingsScreen(
                     onBack = {},
-                    onOpenEqualizer = onOpenEqualizer,
+                    // Экран аудиоэффектов удалён (нет нативных JUCE/Oboe-библиотек);
+                    // параметр ещё в сигнатуре SettingsScreen — отдаём пустой колбэк.
+                    onOpenEqualizer = {},
                     onOpenProfile = onOpenProfile,
                     onOpenRecommendationsOnboarding = {
                         navController.navigate(NavRoutes.RECOMMENDATIONS_ONBOARDING)

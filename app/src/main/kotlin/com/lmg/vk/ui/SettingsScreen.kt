@@ -9,20 +9,15 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.border
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.Check
-import androidx.compose.material.icons.rounded.Equalizer
 import androidx.compose.material.icons.rounded.Person
-import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -44,13 +39,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.runtime.LaunchedEffect
 import com.kyant.backdrop.backdrops.LayerBackdrop
 import com.lmg.vk.engine.AppSettings
-import com.lmg.vk.engine.MediaCacheManager
 import com.lmg.vk.engine.PlayerController
 import com.lmg.vk.engine.PlayerSettings
-import com.lmg.vk.engine.backend.MusicBackend
 import com.lmg.vk.ui.glass.liquidClickable
 import com.lmg.vk.ui.liquid.LiquidToggle
 import com.lmg.vk.ui.LauncherIcon
@@ -58,7 +50,6 @@ import com.lmg.vk.ui.LauncherIconManager
 import com.lmg.vk.ui.theme.LiquidMotion
 import com.lmg.vk.ui.theme.LiquidTheme
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.delay
 
 // Единый акцент приложения — бледно-зелёный (заменил красный Apple-стиля).
 private val Accent = Color(0xFF7FB77E)
@@ -256,133 +247,15 @@ fun SettingsScreen(
             // PLAYBACK
             SectionLabel("PLAYBACK")
 
-            val hideExplicit by AppSettings.hideExplicit.collectAsState()
-            val audioCompatMode by AppSettings.audioCompatMode.collectAsState()
-            val audioCompatAuto by AppSettings.audioCompatAuto.collectAsState()
-            val hapticMusicEnabled by AppSettings.hapticMusicEnabled.collectAsState()
-            val hapticStrength by AppSettings.hapticStrength.collectAsState()
+            // Из PLAYBACK убраны: Hide Explicit, Audio Output, Warm Sound,
+            // Haptic Music (+ селектор силы) и вход на экран Audio
+            // (EQ/Bass/Loudness/Compressor/Limiter). Карточка опустела целиком,
+            // поэтому удалена вместе с ней.
+            // ПОЧЕМУ: всё это упиралось в нативную библиотеку automix_juce,
+            // которой в сборке НЕТ (линкуется только liblmg.so, без JUCE/Oboe) —
+            // пункты стояли в UI, но не работали. Не возвращать, пока JUCE-цепочка
+            // реально не собирается. Реализации в engine/ намеренно оставлены.
 
-            PlainCard {
-                // Gapless-тумблер удалён: флаг никто не читал (ExoPlayer бесшовный
-                // сам по себе, у JUCE — AutoMix), мёртвая настройка врала юзеру.
-                SettingsToggleItem(
-                    title = "Hide Explicit",
-                    subtitle = "Filter explicit content from search & artist",
-                    selected = hideExplicit,
-                    onSelect = { enabled ->
-                        AppSettings.setHideExplicit(enabled)
-                        // hide_explicit живёт в токене сессии backend → перевыпускаем
-                        // его сразу, чтобы фильтр включился без перезапуска.
-                        scope.launch(kotlinx.coroutines.Dispatchers.IO) {
-                            try {
-                                com.lmg.vk.engine.backend.MusicAuth.reissueSessionToken()
-                                com.lmg.vk.engine.backend.MusicBackend.clearSearchCache()
-                            } catch (_: Exception) {}
-                        }
-                    }
-                )
-                PlainDivider()
-                // Выход локального аудио. Auto — вендорная таблица AudioQuirks +
-                // watchdog (рекомендуется); Fast — нативный low-latency (AAudio);
-                // Compat — legacy-путь без low-latency; Track — Java AudioTrack,
-                // путь ExoPlayer (максимальная совместимость: vivo/Xiaomi).
-                // Продвинутые режимы (exclusive/i16/OpenSL) — кнопкой MODE в
-                // дебаг-панели; при них здесь не подсвечено ничего.
-                Column(modifier = Modifier.padding(top = 6.dp, bottom = 2.dp)) {
-                    Text(
-                        text = "Audio Output",
-                        color = LiquidTheme.colors.textPrimary,
-                        fontSize = if (win.useSideBySide) 14.sp else 16.sp,
-                        fontWeight = FontWeight.Medium,
-                        modifier = Modifier.padding(horizontal = 16.dp)
-                    )
-                    // Битые для этого вендора режимы — помечаем в селекторе.
-                    // Compat = mode 4 (SAFE_I16): float deep-buffer (был mode 1)
-                    // глух на Honor и капризен на vivo/Xiaomi; i16-вариант шире.
-                    val audioBadModes = remember { com.lmg.vk.engine.automix.AudioQuirks.knownBadModes() }
-                    val audioOutCtx = LocalContext.current
-                    val badKeys = remember(audioBadModes) {
-                        buildSet {
-                            if (0 in audioBadModes) add("fast")
-                            if (4 in audioBadModes) add("compat")
-                            if (6 in audioBadModes) add("track")
-                        }
-                    }
-                    AudioOutputSelector(
-                        selectedKey = when {
-                            audioCompatAuto -> "auto"
-                            audioCompatMode == 0 -> "fast"
-                            audioCompatMode == 1 || audioCompatMode == 4 -> "compat"
-                            audioCompatMode == 6 -> "track"
-                            else -> "custom"
-                        },
-                        badKeys = badKeys,
-                        onSelect = { key ->
-                            if (key in badKeys) {
-                                android.widget.Toast.makeText(
-                                    audioOutCtx,
-                                    "This path is known to be broken on this device. If you get silence or noise, switch back to Auto.",
-                                    android.widget.Toast.LENGTH_LONG
-                                ).show()
-                            }
-                            when (key) {
-                                "auto" -> AppSettings.setAudioCompatModeAuto()
-                                "fast" -> AppSettings.setAudioCompatMode(0)
-                                "compat" -> AppSettings.setAudioCompatMode(4)
-                                "track" -> AppSettings.setAudioCompatMode(6)
-                            }
-                        }
-                    )
-                    Text(
-                        text = "Auto picks the right path for this device and self-heals if audio stalls",
-                        color = LiquidTheme.colors.textSecondary,
-                        fontSize = 12.sp,
-                        modifier = Modifier.padding(horizontal = 16.dp)
-                    )
-                }
-                PlainDivider()
-                // Warm Sound: «звук как на Track» для быстрых выходов — свой
-                // bass-shelf + ширина в JUCE-цепочке (вендорский Histen быстрые
-                // пути обходит). На Track отключается сам (иначе бас двоится).
-                run {
-                    val warmEnabled by com.lmg.vk.engine.AudioFxController
-                        .warmEnabled.collectAsState()
-                    SettingsToggleItem(
-                        title = "Warm Sound",
-                        subtitle = "Track-like bass & width on the Fast output",
-                        selected = warmEnabled,
-                        onSelect = { com.lmg.vk.engine.AudioFxController.setWarmEnabled(it) }
-                    )
-                }
-                PlainDivider()
-                // Haptic Music: тактильные удары в такт (свой детектор в нативном
-                // колбэке — системный HapticGenerator вендоры не открывают).
-                SettingsToggleItem(
-                    title = "Haptic Music",
-                    subtitle = "Feel the beat — vibration taps follow the music",
-                    selected = hapticMusicEnabled,
-                    onSelect = { AppSettings.setHapticMusicEnabled(it) }
-                )
-                if (hapticMusicEnabled) {
-                    // Сила: Soft — только акценты (лёгкие тики), Medium — баланс,
-                    // Strong — каждый удар в полную руку.
-                    HapticStrengthSelector(
-                        selected = hapticStrength,
-                        onSelect = { AppSettings.setHapticStrength(it) }
-                    )
-                }
-                PlainDivider()
-                SettingsActionItem(
-                    title = "Audio",
-                    subtitle = "EQ, Bass, Loudness, Compressor, Limiter",
-                    icon = Icons.Rounded.Equalizer,
-                    onClick = onOpenEqualizer
-                )
-            }
-
-            Spacer(modifier = Modifier.height(sectionGap))
-
-            // SLEEP TIMER
             PlainCard {
                 SettingsActionItem(
                     title = "Ignore Battery Optimization",
@@ -406,8 +279,9 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(sectionGap))
 
-            // PRELOAD NEXT TRACK
-            // LISTEN TOGETHER + CONTINUE ON THIS DEVICE
+            // AUDIO — остался только кроссфейд (он работает через форк media3,
+            // без JUCE). Прежние подписи про preload/listen-together здесь
+            // устарели: те блоки удалены, см. комментарий ниже.
             SectionLabel("AUDIO")
 
             val crossfadeMs by PlayerSettings.crossfadeMs.collectAsState()
@@ -429,561 +303,20 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(sectionGap))
 
+            // Здесь была карточка AutoMix / Sound Check / Keep favourites offline —
+            // удалена целиком (все три пункта висели на отсутствующем automix_juce).
+            // AutoMix убран ВРЕМЕННО: пользователь вернёт его после интеграции
+            // ML-модели (1M параметров) в форк media3 — реализацию в
+            // engine/automix/ и PlayerSettings.autoMix НЕ удалять.
+            //
+            // Ниже была кнопка «Reset Wave Preferences» — тоже удалена по просьбе
+            // пользователя (MusicBackend.resetWave() при этом сохранён).
 
-            val autoMix by PlayerSettings.autoMix.collectAsState()
-            val volumeNorm by PlayerSettings.volumeNormalization.collectAsState()
-            val autoDownloadFavs by PlayerSettings.autoDownloadFavorites.collectAsState()
-            PlainCard {
-                SettingsToggleItem(
-                    title = "AutoMix",
-                    subtitle = "Model-driven JUCE blending between tracks (local + streaming) + auto wave",
-                    selected = autoMix,
-                    onSelect = { PlayerSettings.setAutoMix(it) }
-                )
-                PlainDivider()
-                SettingsToggleItem(
-                    title = "Sound Check",
-                    subtitle = "Normalize volume across tracks",
-                    selected = volumeNorm,
-                    onSelect = { PlayerSettings.setVolumeNormalization(it) }
-                )
-                PlainDivider()
-                SettingsToggleItem(
-                    title = "Keep favourites offline",
-                    subtitle = "Download liked songs in the background so they play without a " +
-                        "connection. Uses your data and storage, and pauses while you listen.",
-                    selected = autoDownloadFavs,
-                    onSelect = { PlayerSettings.setAutoDownloadFavorites(it) }
-                )
-            }
-
-            Spacer(modifier = Modifier.height(sectionGap))
-
-            // ── AUDIO CACHE ──
-
-            var isResettingWave by remember { mutableStateOf(false) }
-            var waveResetSuccess by remember { mutableStateOf(false) }
-
-            PlainCard {
-                SettingsActionItem(
-                    title = "Reset Wave Preferences",
-                    subtitle = if (waveResetSuccess) "Preferences reset successfully" else "Clear wave history and start fresh",
-                    icon = Icons.Rounded.ChevronRight,
-                    onClick = {
-                        if (isResettingWave) return@SettingsActionItem
-                        scope.launch {
-                            isResettingWave = true
-                            val success = MusicBackend.resetWave()
-                            isResettingWave = false
-                            if (success) {
-                                waveResetSuccess = true
-                                delay(3000)
-                                waveResetSuccess = false
-                            }
-                        }
-                    }
-                )
-            }
-
-            Spacer(modifier = Modifier.height(sectionGap))
-
-            // THEME
-            SectionLabel("QUALITY & CACHE")
-
-            val qualityOptions = listOf(
-                "128K" to "Compressed. Fastest load, lowest data usage.",
-                "256K" to "Balanced. Standard high-quality AAC.",
-                "320K" to "Premium. Near-lossless perceptual quality."
-            )
-            var selectedQuality by remember {
-                mutableStateOf(
-                    context.getSharedPreferences("lmg", Context.MODE_PRIVATE)
-                        .getString("stream_quality", "256K") ?: "256K"
-                )
-            }
-
-            PlainCard {
-                Column(modifier = Modifier.padding(vertical = 14.dp)) {
-                    val isPremium by com.lmg.vk.engine.backend.MusicAuth.isPremium.collectAsState()
-                    
-                    // Auto-fallback to 256K if premium is lost or ALAC is selected (as ALAC is deprecated due to decryption latency)
-                    androidx.compose.runtime.LaunchedEffect(isPremium, selectedQuality) {
-                        if (selectedQuality == "ALAC") {
-                            selectedQuality = "256K"
-                            context.getSharedPreferences("lmg", Context.MODE_PRIVATE)
-                                .edit().putString("stream_quality", "256K").apply()
-                            com.lmg.vk.engine.backend.MusicBackend.streamQuality = "256K"
-                        } else if (!isPremium && selectedQuality == "320K") {
-                            selectedQuality = "256K"
-                            context.getSharedPreferences("lmg", Context.MODE_PRIVATE)
-                                .edit().putString("stream_quality", "256K").apply()
-                            com.lmg.vk.engine.backend.MusicBackend.streamQuality = "256K"
-                        }
-                    }
-
-                    qualityOptions.forEach { (quality, description) ->
-                        val isSelected = selectedQuality == quality
-                        val isAvailable = isPremium || quality != "320K"
-                        
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .liquidClickable(enabled = isAvailable) {
-                                    selectedQuality = quality
-                                    context.getSharedPreferences("lmg", Context.MODE_PRIVATE)
-                                        .edit().putString("stream_quality", quality).apply()
-                                    com.lmg.vk.engine.backend.MusicBackend.streamQuality = quality
-                                    
-                                    // Sync preference to server
-                                    scope.launch {
-                                        com.lmg.vk.engine.backend.MusicBackend.updateUserPreferences(
-                                            com.lmg.vk.engine.backend.UserPreferences(qualityPreference = quality)
-                                        )
-                                    }
-                                }
-                                .padding(horizontal = 16.dp, vertical = 12.dp)
-                                .graphicsLayer { alpha = if (isAvailable) 1f else 0.4f },
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text(
-                                        text = quality,
-                                        color = if (isSelected) Accent else lc.textPrimary,
-                                        fontSize = if (win.useSideBySide) 14.sp else 16.sp,
-                                        fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal
-                                    )
-                                    if (!isAvailable) {
-                                        Spacer(Modifier.width(8.dp))
-                                        Text(
-                                            "Premium",
-                                            color = Color(0xFF8B5CF6),
-                                            fontSize = 10.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            modifier = Modifier
-                                                .background(Color(0xFF8B5CF6).copy(alpha = 0.15f), RoundedCornerShape(4.dp))
-                                                .padding(horizontal = 4.dp, vertical = 1.dp)
-                                        )
-                                    }
-                                }
-                                Text(
-                                    text = description,
-                                    color = lc.textSecondary,
-                                    fontSize = 12.sp,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            }
-                            if (isSelected) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(20.dp)
-                                        .clip(CircleShape)
-                                        .background(Accent),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        text = "✓",
-                                        color = Color.White,
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(sectionGap))
-
-            // WAVE
-
-            val cacheBytes by PlayerSettings.audioCacheBytes.collectAsState()
-            var cacheUsed by remember { mutableStateOf(-1L) }
-            var cacheRefresh by remember { mutableStateOf(0) }
-            LaunchedEffect(cacheBytes, cacheRefresh) {
-                cacheUsed = MediaCacheManager.getCacheSizeBytes()
-            }
-            PlainCard {
-                Column(modifier = Modifier.padding(vertical = 6.dp)) {
-                    CacheSizeSelector(
-                        options = PlayerSettings.CACHE_OPTIONS_BYTES,
-                        selected = cacheBytes,
-                        onSelect = { bytes ->
-                            PlayerSettings.setAudioCacheBytes(bytes)
-                            MediaCacheManager.applyCacheSizeChange()
-                            scope.launch {
-                                delay(600)
-                                cacheRefresh++
-                            }
-                        }
-                    )
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = if (cacheBytes <= 0L) "Cache is off"
-                            else "Currently used: ${formatBytes(cacheUsed.coerceAtLeast(0L))}",
-                            color = lc.textSecondary,
-                            fontSize = 12.sp,
-                            modifier = Modifier.weight(1f)
-                        )
-                        Text(
-                            text = "Clear",
-                            color = Accent,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(50))
-                                .liquidClickable(pressedScale = LiquidMotion.PressButton) {
-                                    scope.launch {
-                                        MediaCacheManager.clearCache()
-                                        delay(300)
-                                        cacheRefresh++
-                                    }
-                                }
-                                .padding(horizontal = 10.dp, vertical = 4.dp)
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(sectionGap))
-
-            // ── BACKGROUND PLAYBACK ──
-            // Doze/оптимизация батареи душит фоновые декод-потоки и сеть стриминга
-            // (лаги/«цикличка» при погашенном экране). Исключение из оптимизации —
-            // штатное решение для музыкальных плееров.
-
-            val preloadLead by AppSettings.preloadLeadSeconds.collectAsState()
-            PlainCard {
-                Column(modifier = Modifier.padding(vertical = 6.dp)) {
-                    PreloadSelector(
-                        options = listOf(30, 45, 60, 75, 90),
-                        selectedSeconds = preloadLead,
-                        onSelect = { AppSettings.setPreloadLeadSeconds(it) }
-                    )
-                    Text(
-                        text = "How early to preload the next track before the current one ends",
-                        color = lc.textSecondary,
-                        fontSize = 12.sp,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(sectionGap))
-
-            // STREAM QUALITY
-            SectionLabel("LISTEN TOGETHER")
-
-            val syncRoom by com.lmg.vk.engine.sync.PlaybackSyncManager.room
-                .collectAsState()
-            val continuity by com.lmg.vk.engine.sync.PlaybackSyncManager.continuity
-                .collectAsState()
-            var roomCodeInput by remember { mutableStateOf("") }
-
-            LaunchedEffect(Unit) {
-                com.lmg.vk.engine.sync.PlaybackSyncManager.refreshContinuity()
-            }
-
-            PlainCard {
-                Column(modifier = Modifier.padding(vertical = 12.dp, horizontal = 16.dp)) {
-                    val activeRoom = syncRoom
-                    if (activeRoom != null) {
-                        Text(
-                            text = "Room ${activeRoom.code}",
-                            color = lc.textPrimary,
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        Text(
-                            text = if (activeRoom.memberNames.isEmpty()) "Waiting for others"
-                            else activeRoom.memberNames.joinToString(", "),
-                            color = lc.textSecondary,
-                            fontSize = 12.sp,
-                            modifier = Modifier.padding(top = 2.dp)
-                        )
-                        Text(
-                            text = "Leave room",
-                            color = Accent,
-                            fontSize = 14.sp,
-                            modifier = Modifier
-                                .padding(top = 10.dp)
-                                .liquidClickable(
-                                    pressedScale = LiquidMotion.PressButton,
-                                    onClick = {
-                                        com.lmg.vk.engine.sync.PlaybackSyncManager
-                                            .leaveRoom()
-                                    }
-                                )
-                        )
-                    } else {
-                        Text(
-                            text = "Listen in sync with someone else: create a room and share " +
-                                "the code, or enter a code you were given.",
-                            color = lc.textSecondary,
-                            fontSize = 12.sp
-                        )
-                        Text(
-                            text = "Create a room",
-                            color = Accent,
-                            fontSize = 14.sp,
-                            modifier = Modifier
-                                .padding(top = 10.dp)
-                                .liquidClickable(
-                                    pressedScale = LiquidMotion.PressButton,
-                                    onClick = {
-                                        com.lmg.vk.engine.sync.PlaybackSyncManager
-                                            .createRoom()
-                                    }
-                                )
-                        )
-                        // Поле в том же виде, что и поиск: круглая пилюля с
-                        // подсказкой внутри — иначе один экран выглядит собранным
-                        // из двух разных приложений.
-                        val isDarkTheme = LiquidTheme.colors.isDark
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(top = 12.dp)
-                                .height(44.dp)
-                                .clip(CircleShape)
-                                .background(
-                                    if (isDarkTheme) Color.White.copy(alpha = 0.08f)
-                                    else Color.Black.copy(alpha = 0.05f)
-                                )
-                                .border(
-                                    1.5.dp,
-                                    if (roomCodeInput.length == 6) Accent else Color.Transparent,
-                                    CircleShape
-                                )
-                                .padding(horizontal = 14.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            BasicTextField(
-                                value = roomCodeInput,
-                                onValueChange = { roomCodeInput = it.uppercase().take(6) },
-                                textStyle = TextStyle(
-                                    color = lc.textPrimary,
-                                    fontSize = 16.sp,
-                                    // Код читают и диктуют по символам — моноширинный
-                                    // разбивается на знаки заметно легче.
-                                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-                                    letterSpacing = 2.sp
-                                ),
-                                singleLine = true,
-                                cursorBrush = SolidColor(Accent),
-                                modifier = Modifier.weight(1f),
-                                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
-                                    imeAction = androidx.compose.ui.text.input.ImeAction.Done,
-                                    capitalization =
-                                        androidx.compose.ui.text.input.KeyboardCapitalization.Characters
-                                ),
-                                decorationBox = { innerTextField ->
-                                    Box {
-                                        if (roomCodeInput.isEmpty()) {
-                                            Text(
-                                                text = "Room code",
-                                                color = lc.textSecondary,
-                                                fontSize = 16.sp
-                                            )
-                                        }
-                                        innerTextField()
-                                    }
-                                }
-                            )
-                            Text(
-                                text = "Join",
-                                color = if (roomCodeInput.length == 6) Accent else lc.textSecondary,
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                modifier = Modifier.liquidClickable(
-                                    pressedScale = LiquidMotion.PressButton,
-                                    onClick = {
-                                        if (roomCodeInput.length == 6) {
-                                            com.lmg.vk.engine.sync.PlaybackSyncManager
-                                                .joinRoom(context, roomCodeInput)
-                                        }
-                                    }
-                                )
-                            )
-                        }
-                    }
-
-                    val pending = continuity
-                    if (pending != null) {
-                        Text(
-                            text = "Continue from ${pending.deviceName.ifBlank { "another device" }}",
-                            color = lc.textPrimary,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier.padding(top = 16.dp)
-                        )
-                        Text(
-                            text = "${pending.title} — ${pending.artist}",
-                            color = lc.textSecondary,
-                            fontSize = 12.sp,
-                            modifier = Modifier.padding(top = 2.dp)
-                        )
-                        Text(
-                            text = "Play from where you left off",
-                            color = Accent,
-                            fontSize = 14.sp,
-                            modifier = Modifier
-                                .padding(top = 8.dp)
-                                .liquidClickable(
-                                    pressedScale = LiquidMotion.PressButton,
-                                    onClick = {
-                                        com.lmg.vk.engine.sync.PlaybackSyncManager
-                                            .resumeContinuity(context)
-                                    }
-                                )
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(sectionGap))
-
-            // SHARED PLAYLISTS
-
-            var myPlaylists by remember {
-                mutableStateOf<List<com.lmg.vk.engine.backend.lmg.LmgSyncApi.SharedPlaylistSummary>>(
-                    emptyList()
-                )
-            }
-            var playlistCodeInput by remember { mutableStateOf("") }
-            var playlistsRefresh by remember { mutableStateOf(0) }
-            val playlistScope = rememberCoroutineScope()
-
-            LaunchedEffect(playlistsRefresh) {
-                myPlaylists = com.lmg.vk.engine.backend.lmg.LmgSyncApi.listPlaylists()
-            }
-
-            PlainCard {
-                Column(modifier = Modifier.padding(vertical = 12.dp, horizontal = 16.dp)) {
-                    Text(
-                        text = "A playlist several people can add to. Share the code and " +
-                            "everyone with it can add songs.",
-                        color = lc.textSecondary,
-                        fontSize = 12.sp
-                    )
-
-                    myPlaylists.forEach { playlist ->
-                        Text(
-                            text = "${playlist.title} · ${playlist.code}",
-                            color = lc.textPrimary,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Medium,
-                            modifier = Modifier.padding(top = 12.dp)
-                        )
-                        Text(
-                            text = "${playlist.trackCount} songs · ${playlist.editorCount} people",
-                            color = lc.textSecondary,
-                            fontSize = 12.sp
-                        )
-                    }
-
-                    Text(
-                        text = "Create a shared playlist",
-                        color = Accent,
-                        fontSize = 14.sp,
-                        modifier = Modifier
-                            .padding(top = 12.dp)
-                            .liquidClickable(
-                                pressedScale = LiquidMotion.PressButton,
-                                onClick = {
-                                    playlistScope.launch {
-                                        com.lmg.vk.engine.backend.lmg.LmgSyncApi.createPlaylist(
-                                            title = "Shared playlist",
-                                            name = android.os.Build.MODEL ?: "Android"
-                                        )
-                                        playlistsRefresh++
-                                    }
-                                }
-                            )
-                    )
-
-                    val isDarkPl = LiquidTheme.colors.isDark
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 12.dp)
-                            .height(44.dp)
-                            .clip(CircleShape)
-                            .background(
-                                if (isDarkPl) Color.White.copy(alpha = 0.08f)
-                                else Color.Black.copy(alpha = 0.05f)
-                            )
-                            .border(
-                                1.5.dp,
-                                if (playlistCodeInput.length == 6) Accent else Color.Transparent,
-                                CircleShape
-                            )
-                            .padding(horizontal = 14.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        BasicTextField(
-                            value = playlistCodeInput,
-                            onValueChange = { playlistCodeInput = it.uppercase().take(6) },
-                            textStyle = TextStyle(
-                                color = lc.textPrimary,
-                                fontSize = 16.sp,
-                                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-                                letterSpacing = 2.sp
-                            ),
-                            singleLine = true,
-                            cursorBrush = SolidColor(Accent),
-                            modifier = Modifier.weight(1f),
-                            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
-                                imeAction = androidx.compose.ui.text.input.ImeAction.Done,
-                                capitalization =
-                                    androidx.compose.ui.text.input.KeyboardCapitalization.Characters
-                            ),
-                            decorationBox = { innerTextField ->
-                                Box {
-                                    if (playlistCodeInput.isEmpty()) {
-                                        Text(
-                                            text = "Playlist code",
-                                            color = lc.textSecondary,
-                                            fontSize = 16.sp
-                                        )
-                                    }
-                                    innerTextField()
-                                }
-                            }
-                        )
-                        Text(
-                            text = "Join",
-                            color = if (playlistCodeInput.length == 6) Accent else lc.textSecondary,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier.liquidClickable(
-                                pressedScale = LiquidMotion.PressButton,
-                                onClick = {
-                                    if (playlistCodeInput.length == 6) {
-                                        playlistScope.launch {
-                                            com.lmg.vk.engine.backend.lmg.LmgSyncApi.joinPlaylist(
-                                                playlistCodeInput,
-                                                android.os.Build.MODEL ?: "Android"
-                                            )
-                                            playlistCodeInput = ""
-                                            playlistsRefresh++
-                                        }
-                                    }
-                                }
-                            )
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(sectionGap))
+            // Разделы QUALITY & CACHE и LISTEN TOGETHER удалены целиком по
+            // просьбе пользователя (вместе с их содержимым: выбор битрейта,
+            // размер/очистка аудиокэша, preload следующего трека, комнаты
+            // совместного прослушивания, continuity и общие плейлисты).
+            // Не возвращать без отдельной просьбы.
 
             // ПРОФИЛЬ ВКОНТАКТЕ
             SectionLabel("VK PROFILE")
@@ -1165,49 +498,6 @@ fun SettingsScreen(
     }
 }
 
-/** 0/200МБ/500МБ/1/2/5ГБ — две строки по три кнопки. */
-@Composable
-private fun CacheSizeSelector(
-    options: List<Long>,
-    selected: Long,
-    onSelect: (Long) -> Unit
-) {
-    Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) {
-        options.chunked(3).forEach { rowOptions ->
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                rowOptions.forEach { bytes ->
-                    val isSelected = selected == bytes
-                    val isDark = LiquidTheme.colors.isDark
-                    val itemBg = if (isSelected) Accent else (if (isDark) Color(0xFF1C1C1E) else Color(0xFFE5E5EA))
-                    val unselectedTextColor = if (isDark) Color.White.copy(alpha = 0.45f) else Color.Black.copy(alpha = 0.45f)
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(36.dp)
-                            .background(itemBg, RoundedCornerShape(50))
-                            .clip(RoundedCornerShape(50))
-                            .liquidClickable(
-                                pressedScale = LiquidMotion.PressButton,
-                                onClick = { onSelect(bytes) }
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = cacheLabel(bytes),
-                            color = if (isSelected) Color.White else unselectedTextColor,
-                            fontSize = 13.sp,
-                            fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
 /**
  * Запрос исключения из оптимизации батареи — МАКСИМАЛЬНО защищённо. На части
  * прошивок/версий Android этот интент вырезан или кидает SecurityException
@@ -1256,18 +546,6 @@ private fun requestIgnoreBatteryOptimizations(context: Context) {
             android.net.Uri.parse("package:$pkg")
         )
     )
-}
-
-private fun cacheLabel(bytes: Long): String = when {
-    bytes <= 0L -> "Off"
-    bytes >= 1024L * 1024 * 1024 -> "${bytes / (1024L * 1024 * 1024)} GB"
-    else -> "${bytes / (1024L * 1024)} MB"
-}
-
-private fun formatBytes(bytes: Long): String = when {
-    bytes >= 1024L * 1024 * 1024 ->
-        String.format("%.1f GB", bytes / (1024.0 * 1024 * 1024))
-    else -> "${bytes / (1024L * 1024)} MB"
 }
 
 // ── UI Components ──
@@ -1321,106 +599,6 @@ private fun PlainDivider() {
             .height(1.dp)
             .background(dividerColor)
     )
-}
-
-/** Выбор выхода локального аудио: Auto / Fast / Compat / Track (стиль PreloadSelector). */
-@Composable
-private fun AudioOutputSelector(
-    selectedKey: String,
-    badKeys: Set<String> = emptySet(),
-    onSelect: (String) -> Unit
-) {
-    val options = listOf("auto" to "Auto", "fast" to "Fast", "compat" to "Compat", "track" to "Track")
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 10.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        options.forEach { (key, label) ->
-            val isSelected = selectedKey == key
-            val isBad = key in badKeys
-            val isDark = LiquidTheme.colors.isDark
-            val itemBg = if (isSelected) Accent else (if (isDark) Color(0xFF1C1C1E) else Color(0xFFE5E5EA))
-            // Битый режим — сильно приглушаем (юзер видит: путь есть, но глухой).
-            val baseAlpha = if (isBad) 0.25f else 0.45f
-            val unselectedTextColor = if (isDark) Color.White.copy(alpha = baseAlpha) else Color.Black.copy(alpha = baseAlpha)
-
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .height(36.dp)
-                    .background(itemBg, RoundedCornerShape(50))
-                    .clip(RoundedCornerShape(50))
-                    .liquidClickable(
-                        pressedScale = LiquidMotion.PressButton,
-                        onClick = { onSelect(key) }
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                val textColor by animateColorAsState(
-                    targetValue = if (isSelected) Color.White else unselectedTextColor,
-                    animationSpec = tween(200),
-                    label = "audioOutText"
-                )
-                Text(
-                    // Битый режим помечаем крестиком-подсказкой.
-                    text = if (isBad) "$label ✕" else label,
-                    color = textColor,
-                    fontSize = 13.sp,
-                    fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal
-                )
-            }
-        }
-    }
-}
-
-/** Сила Haptic Music: Soft / Medium / Strong (стиль AudioOutputSelector). */
-@Composable
-private fun HapticStrengthSelector(
-    selected: Int,
-    onSelect: (Int) -> Unit
-) {
-    val options = listOf(1 to "Medium", 2 to "Strong")
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 12.dp)
-            .padding(bottom = 10.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        options.forEach { (key, label) ->
-            val isSelected = selected == key
-            val isDark = LiquidTheme.colors.isDark
-            val itemBg = if (isSelected) Accent else (if (isDark) Color(0xFF1C1C1E) else Color(0xFFE5E5EA))
-            val unselectedTextColor = if (isDark) Color.White.copy(alpha = 0.45f) else Color.Black.copy(alpha = 0.45f)
-
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .height(36.dp)
-                    .background(itemBg, RoundedCornerShape(50))
-                    .clip(RoundedCornerShape(50))
-                    .liquidClickable(
-                        pressedScale = LiquidMotion.PressButton,
-                        onClick = { onSelect(key) }
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                val textColor by animateColorAsState(
-                    targetValue = if (isSelected) Color.White else unselectedTextColor,
-                    animationSpec = tween(200),
-                    label = "hapticStrengthText"
-                )
-                Text(
-                    text = label,
-                    color = textColor,
-                    fontSize = 13.sp,
-                    fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal
-                )
-            }
-        }
-    }
 }
 
 @Composable
@@ -1623,52 +801,6 @@ private fun CrossfadeSelector(
                 )
                 Text(
                     text = if (sec == 0) "Off" else "${sec}s",
-                    color = textColor,
-                    fontSize = 13.sp,
-                    fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun PreloadSelector(
-    options: List<Int>,
-    selectedSeconds: Int,
-    onSelect: (Int) -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 10.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        options.forEach { sec ->
-            val isSelected = selectedSeconds == sec
-            val isDark = LiquidTheme.colors.isDark
-            val itemBg = if (isSelected) Accent else (if (isDark) Color(0xFF1C1C1E) else Color(0xFFE5E5EA))
-            val unselectedTextColor = if (isDark) Color.White.copy(alpha = 0.45f) else Color.Black.copy(alpha = 0.45f)
-
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .height(36.dp)
-                    .background(itemBg, RoundedCornerShape(50))
-                    .clip(RoundedCornerShape(50))
-                    .liquidClickable(
-                        pressedScale = LiquidMotion.PressButton,
-                        onClick = { onSelect(sec) }
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                val textColor by animateColorAsState(
-                    targetValue = if (isSelected) Color.White else unselectedTextColor,
-                    animationSpec = tween(200),
-                    label = "preloadText"
-                )
-                Text(
-                    text = "${sec}s",
                     color = textColor,
                     fontSize = 13.sp,
                     fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal

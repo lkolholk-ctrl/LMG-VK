@@ -137,21 +137,6 @@ object AudioFxController {
     private val _monoEnabled = MutableStateFlow(false)
     val monoEnabled: StateFlow<Boolean> = _monoEnabled
 
-    // ── Warm Sound: «звук как на Track» для быстрых выходов ────────────────
-    // Полевое наблюдение: на Track (системный AudioTrack) звук «басистее и
-    // объёмнее» — это вендорская DSP (Honor Sound / тюнинг динамиков), которая
-    // живёт в системном тракте; быстрые пути (AAudio/OpenSL) летят мимо неё.
-    // Warm — наш аналог ПОВЕРХ пользовательских настроек: bass-shelf +6 дБ на
-    // 160 Гц (панч-зона, которую ДИНАМИКИ телефона реально воспроизводят —
-    // шельф на 90 Гц в динамиках не слышен вообще, «сухие верхушки»),
-    // ширина x1.25 и тонкомпенсация (loudness) как у вендоров. На режиме
-    // Track (6) отключается сам — иначе бас двоился бы с вендорской DSP.
-    private val _warmEnabled = MutableStateFlow(false)
-    val warmEnabled: StateFlow<Boolean> = _warmEnabled
-    private const val WARM_BASS_DB = 6.0f
-    private const val WARM_BASS_FREQ = 160f
-    private const val WARM_WIDTH_MULT = 1.25f
-
     private val _compEnabled = MutableStateFlow(false)
     val compEnabled: StateFlow<Boolean> = _compEnabled
     private val _compPreset = MutableStateFlow(1)           // Medium
@@ -224,7 +209,6 @@ object AudioFxController {
     private val K_REV_WET = floatPreferencesKey("rev_wet")
     private val K_SAT_ON = booleanPreferencesKey("sat_on")
     private val K_SAT_DRIVE = floatPreferencesKey("sat_drive")
-    private val K_WARM = booleanPreferencesKey("warm_on")
     // Пер-девайс профили: JSON-снимок настроек на категорию устройства + авто-переключение.
     private val K_SNAP_HP = stringPreferencesKey("snap_headphones")
     private val K_SNAP_BT = stringPreferencesKey("snap_bluetooth")
@@ -245,11 +229,6 @@ object AudioFxController {
             runCatching { apply(ds.data.first()) }
             applyToEngine()
             refreshSystemVolume()
-        }
-        // Warm зависит от режима выхода (на Track отключается сам) — при смене
-        // режима переотправляем бас/ширину с учётом нового состояния.
-        scope.launch {
-            AppSettings.audioCompatMode.collect { pushBass(); pushWidth(); pushLoudness() }
         }
         // Пер-девайс профили: следим за категорией выхода; при авто-переключении
         // грузим снимок настроек для текущего устройства.
@@ -299,7 +278,6 @@ object AudioFxController {
         _revWet.value = (p[K_REV_WET] ?: 0.3f).coerceIn(0f, 1f)
         _satEnabled.value = p[K_SAT_ON] ?: false
         _satDrive.value = (p[K_SAT_DRIVE] ?: 0.3f).coerceIn(0f, 1f)
-        _warmEnabled.value = p[K_WARM] ?: false
         _autoSwitch.value = p[K_AUTOSWITCH] ?: false
     }
 
@@ -334,38 +312,22 @@ object AudioFxController {
         applySaturation()
     }
 
-    // ── Warm-оверлей: эффективные бас/ширина = пользовательские + Warm ──────
-    private fun warmActive(): Boolean =
-        _warmEnabled.value && AppSettings.audioCompatMode.value != 6   // не на Track
-
     private fun pushBass() {
-        val warm = warmActive()
-        val on = _bassEnabled.value || warm
-        val freq = if (_bassEnabled.value) _bassFreq.value else WARM_BASS_FREQ
-        val gain = ((if (_bassEnabled.value) _bassGain.value else 0f) +
-            (if (warm) WARM_BASS_DB else 0f)).coerceAtMost(12f)
+        val on = _bassEnabled.value
+        val freq = _bassFreq.value
+        val gain = (if (_bassEnabled.value) _bassGain.value else 0f).coerceAtMost(12f)
         AutoMixNativeEngine.fxSetBassBoost(on, freq, gain)
     }
 
     private fun pushWidth() {
-        val w = if (warmActive()) _stereoWidth.value * WARM_WIDTH_MULT else _stereoWidth.value
+        val w = _stereoWidth.value
         AutoMixNativeEngine.fxSetStereoWidth(w.coerceIn(0f, 2f))
     }
 
     private fun pushLoudness() {
-        // Warm включает тонкомпенсацию (низ+верх по громкости) — часть
-        // вендорского «насыщенного» характера на обычном тракте.
-        val on = _loudnessEnabled.value || warmActive()
+        val on = _loudnessEnabled.value
         AutoMixNativeEngine.fxSetLoudnessEnabled(on)
         if (on) refreshSystemVolume()
-    }
-
-    fun setWarmEnabled(on: Boolean) {
-        _warmEnabled.value = on
-        pushBass()
-        pushWidth()
-        pushLoudness()
-        persist { it[K_WARM] = on }
     }
 
     private fun preampDb(): Float = PREAMP_MIN_DB + (PREAMP_MAX_DB - PREAMP_MIN_DB) * _preamp01.value
@@ -688,7 +650,6 @@ object AudioFxController {
         put("revWet", _revWet.value.toDouble())
         put("satOn", _satEnabled.value)
         put("satDrive", _satDrive.value.toDouble())
-        put("warm", _warmEnabled.value)
     }.toString()
 
     private fun restoreJson(s: String) {
@@ -728,7 +689,6 @@ object AudioFxController {
         setReverbEnabled(o.optBoolean("revOn", _reverbEnabled.value))
         setSaturationDrive(o.optDouble("satDrive", _satDrive.value.toDouble()).toFloat())
         setSaturationEnabled(o.optBoolean("satOn", _satEnabled.value))
-        setWarmEnabled(o.optBoolean("warm", _warmEnabled.value))
     }
 
     /** Сохранить ТЕКУЩИЕ настройки как профиль устройства. */

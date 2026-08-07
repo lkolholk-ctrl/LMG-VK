@@ -4,52 +4,19 @@ package com.lmg.vk.engine.backend.lmg
  * Compatibility surface for UI that was copied from the separate LMG/ICM project.
  *
  * The VK X and VK MP3 MOD reference archives contain no VK methods for this
- * broker-specific continuity, listening-room, collaborative-playlist or external
- * credits service. Network implementations are therefore intentionally disabled:
- * inventing VK endpoints or silently retaining the foreign service would violate
- * the VK-only contract of this project.
+ * broker-specific collaborative-playlist or external credits service. Network
+ * implementations are therefore intentionally disabled: inventing VK endpoints or
+ * silently retaining the foreign service would violate the VK-only contract of
+ * this project.
+ *
+ * Continuity и комнаты совместного прослушивания (Listen Together) вырезаны
+ * вместе с их UI: рабочей реализации за ними не было.
  *
  * The data types stay temporarily so the copied UI can be separated in a later
  * small batch without breaking unrelated VK screens.
  */
 @Suppress("UNUSED_PARAMETER")
 object LmgSyncApi {
-
-    data class PlaybackState(
-        val trackId: String,
-        val positionMs: Long,
-        val durationMs: Long,
-        val title: String,
-        val artist: String,
-        val coverUrl: String,
-        val isPlaying: Boolean,
-        val deviceName: String = "",
-        val updatedAt: Long = 0L,
-    )
-
-    data class Room(
-        val code: String,
-        val hostPid: String,
-        val state: PlaybackState?,
-        val memberNames: List<String>,
-        val serverTimeMs: Long,
-    )
-
-    fun isHost(room: Room): Boolean = room.hostPid.isNotBlank()
-
-    suspend fun saveState(state: PlaybackState): Boolean = false
-
-    suspend fun fetchState(): Pair<PlaybackState, Boolean>? = null
-
-    suspend fun createRoom(name: String): Room? = null
-
-    suspend fun joinRoom(code: String, name: String): Room? = null
-
-    suspend fun fetchRoom(code: String): Room? = null
-
-    suspend fun publishRoomState(code: String, state: PlaybackState): Room? = null
-
-    suspend fun leaveRoom(code: String): Boolean = false
 
     data class SharedTrack(
         val trackId: String,

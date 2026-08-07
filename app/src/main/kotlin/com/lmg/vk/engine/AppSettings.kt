@@ -53,14 +53,6 @@ object AppSettings {
     private val _audioCompatAuto = MutableStateFlow(true)
     val audioCompatAuto: StateFlow<Boolean> = _audioCompatAuto
 
-    // ── Haptic Music: тактильные удары в такт музыке (HapticMusicEngine) ──
-    private val _hapticMusicEnabled = MutableStateFlow(false)
-    val hapticMusicEnabled: StateFlow<Boolean> = _hapticMusicEnabled
-
-    /** Сила хаптики: 1 Medium, 2 Strong (Soft выброшен — гейт душил всё). */
-    private val _hapticStrength = MutableStateFlow(1)
-    val hapticStrength: StateFlow<Int> = _hapticStrength
-
     private val _ignoreThresholdSec = MutableStateFlow(30f)
     val ignoreThresholdSec: StateFlow<Float> = _ignoreThresholdSec
 
@@ -107,10 +99,6 @@ object AppSettings {
 
     private val _loudness = MutableStateFlow(0)
     val loudness: StateFlow<Int> = _loudness
-
-    // ── Explicit Content Filter ──
-    private val _hideExplicit = MutableStateFlow(false)
-    val hideExplicit: StateFlow<Boolean> = _hideExplicit
 
     // ── Трансляция играющего трека в статус ВКонтакте (audio.setBroadcast) ──
     // ВЫКЛЮЧЕНО по умолчанию и персистится как есть: включённая трансляция меняет
@@ -159,20 +147,9 @@ object AppSettings {
         safePrefs()?.edit()?.putBoolean("ignore_short", enabled)?.apply()
     }
 
-    fun setHapticMusicEnabled(enabled: Boolean) {
-        _hapticMusicEnabled.value = enabled
-        safePrefs()?.edit()?.putBoolean("haptic_music", enabled)?.apply()
-    }
-
     fun setDebugUiEnabled(enabled: Boolean) {
         _debugUiEnabled.value = enabled
         safePrefs()?.edit()?.putBoolean("debug_ui", enabled)?.apply()
-    }
-
-    fun setHapticStrength(level: Int) {
-        val v = level.coerceIn(1, 2)
-        _hapticStrength.value = v
-        safePrefs()?.edit()?.putInt("haptic_strength", v)?.apply()
     }
 
     fun setAudioCompatMode(mode: Int) {
@@ -259,11 +236,6 @@ object AppSettings {
     fun setLoudness(value: Int) {
         _loudness.value = value
         safePrefs()?.edit()?.putInt("loudness", value)?.apply()
-    }
-
-    fun setHideExplicit(enabled: Boolean) {
-        _hideExplicit.value = enabled
-        safePrefs()?.edit()?.putBoolean("hide_explicit", enabled)?.apply()
     }
 
     fun setBroadcastToStatus(enabled: Boolean) {
@@ -399,9 +371,6 @@ object AppSettings {
         else
             p.getInt("audio_compat_mode", 0).coerceIn(0, 6)
         _preloadLeadSeconds.value = p.getInt("preload_lead_seconds", 60).coerceIn(30, 90)
-        _hapticMusicEnabled.value = p.getBoolean("haptic_music", false)
-        // 0 (бывший Soft) мигрирует в Medium.
-        _hapticStrength.value = p.getInt("haptic_strength", 1).coerceIn(1, 2)
         _debugUiEnabled.value = p.getBoolean("debug_ui", false)
 
         _lastTrackIndex.value = p.getInt("last_track", -1)
@@ -409,7 +378,6 @@ object AppSettings {
         _lastScreenIndex.value = p.getInt("last_screen", 0)
 
         _eqEnabled.value = p.getBoolean("eq_enabled", false)
-        _hideExplicit.value = p.getBoolean("hide_explicit", false)
         _eqPreset.value = p.getString("eq_preset", "Flat") ?: "Flat"
         _bassBoost.value = p.getInt("bass_boost", 0)
         _virtualizer.value = p.getInt("virtualizer", 0)

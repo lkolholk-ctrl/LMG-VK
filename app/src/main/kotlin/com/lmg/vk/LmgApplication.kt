@@ -20,7 +20,6 @@ import com.lmg.vk.engine.PlayerSettings
 import com.lmg.vk.engine.PlaylistManager
 import com.lmg.vk.engine.PlaylistSyncManager
 import com.lmg.vk.engine.automix.AudioTelemetry
-import com.lmg.vk.engine.automix.HapticMusicEngine
 import com.lmg.vk.engine.automix.RemoteQuirks
 import com.lmg.vk.engine.backend.MusicAuth
 import com.lmg.vk.engine.backend.MusicBackend
@@ -166,9 +165,6 @@ class LmgApplication : Application(), ImageLoaderFactory {
         AudioRouteMonitor.init(this)
         PowerSaveMonitor.init(this)
         DeviceTier.init(this)
-
-        // Haptic Music — тактильные удары в такт (спит, если выкл).
-        HapticMusicEngine.init(this)
 
         // PlayerController — просто сохраняет context.
         PlayerController.init(this)

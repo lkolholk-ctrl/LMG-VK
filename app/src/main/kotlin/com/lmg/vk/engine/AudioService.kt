@@ -485,7 +485,6 @@ class AudioService : MediaSessionService() {
         // Инициализация кэша (lazy, не блокирует старт)
         serviceScope.launch {
             MediaCacheManager.init(this@AudioService)
-            FavoritesAutoDownloader.start(this@AudioService)
         }
 
         // ── Один плеер ──

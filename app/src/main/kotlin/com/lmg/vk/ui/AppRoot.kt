@@ -66,7 +66,6 @@ import com.lmg.vk.ui.navigation.BottomBar
 import com.lmg.vk.ui.navigation.LiquidNavHost
 import com.lmg.vk.ui.navigation.NavRoutes
 import com.lmg.vk.ui.player.FullPlayer
-import com.lmg.vk.ui.screens.AudioFxScreen
 import com.lmg.vk.ui.screens.SettingsScreen
 import com.lmg.vk.ui.screens.AuthScreen
 import com.lmg.vk.ui.screens.ProfileScreen
@@ -120,7 +119,6 @@ fun AppRoot() {
 
     // Оверлеи — живут НАД NavHost.
     var settingsOpen by remember { mutableStateOf(false) }
-    var equalizerOpen by remember { mutableStateOf(false) }
     var lrcPublishTrack by remember { mutableStateOf<com.lmg.vk.engine.Track?>(null) }
     var tagEditTrack by remember { mutableStateOf<com.lmg.vk.engine.Track?>(null) }
     var authOpen by remember { mutableStateOf(false) }
@@ -133,7 +131,7 @@ fun AppRoot() {
     var searchOpen by remember { mutableStateOf(false) }
 
     // Бар/сайдбар видны на вкладках и деталях; прячем под полными оверлеями.
-    val barsVisible = !equalizerOpen && !settingsOpen && !authOpen && !profileOpen && !statsOpen && !searchOpen
+    val barsVisible = !settingsOpen && !authOpen && !profileOpen && !statsOpen && !searchOpen
 
     val currentTrack by PlayerController.currentTrack.collectAsState()
     val isPlaying by PlayerController.isPlaying.collectAsState()
@@ -213,7 +211,6 @@ fun AppRoot() {
             settingsOpen = false
             profileOpen = false
             statsOpen = false
-            equalizerOpen = false
             animateCollapse()
             navController.navigate(route)
         }
@@ -254,7 +251,7 @@ fun AppRoot() {
     // который сам попает деталь → старт вкладки → предыдущая вкладка → выход.
     BackHandler(
         enabled = tagEditTrack != null || lrcPublishTrack != null || settingsOpen ||
-            authOpen || profileOpen || statsOpen || equalizerOpen || searchOpen || expandProgress.value > 0.5f
+            authOpen || profileOpen || statsOpen || searchOpen || expandProgress.value > 0.5f
     ) {
         when {
             tagEditTrack != null -> tagEditTrack = null
@@ -263,7 +260,6 @@ fun AppRoot() {
             settingsOpen -> settingsOpen = false
             authOpen -> authOpen = false
             profileOpen -> profileOpen = false
-            equalizerOpen -> equalizerOpen = false
             searchOpen -> searchOpen = false
             expandProgress.value > 0.5f -> animateCollapse()
         }
@@ -293,7 +289,7 @@ fun AppRoot() {
                 .layerBackdrop(rootBackdrop)
         ) {
             val waveAnimationsActive = onWaveHome &&
-                    !equalizerOpen && !settingsOpen && !authOpen && !profileOpen &&
+                    !settingsOpen && !authOpen && !profileOpen &&
                     expandProgress.value < 0.05f &&
                     // При потере фокуса окна (пикер, «о приложении», шторка) замораживаем
                     // тяжёлый дым Волны, чтобы рендер не душил аудио-колбэк JUCE.
@@ -329,26 +325,9 @@ fun AppRoot() {
                         onOpenPlayer = { animateExpand() },
                         onOpenAuth = { authOpen = true },
                         onOpenProfile = { profileOpen = true },
-                        onOpenEqualizer = { equalizerOpen = true },
                         onOpenSearch = { searchOpen = true }
                     )
                 }
-            }
-
-            // ── Equalizer ── (оверлей на весь фоновый Box, поверх Row/сайдбара).
-            // Вне Row: иначе RowScope.AnimatedVisibility перехватывал вызов.
-            AnimatedVisibility(
-                visible = equalizerOpen,
-                enter = slideInVertically(
-                    initialOffsetY = { it },
-                    animationSpec = spring(dampingRatio = 0.88f, stiffness = 300f)
-                ) + fadeIn(tween(200)),
-                exit = slideOutVertically(
-                    targetOffsetY = { it },
-                    animationSpec = spring(dampingRatio = 0.92f, stiffness = 400f)
-                ) + fadeOut(tween(150))
-            ) {
-                AudioFxScreen(onBack = { equalizerOpen = false })
             }
 
         }
@@ -636,7 +615,8 @@ fun AppRoot() {
         ) {
             SettingsScreen(
                 onBack = { settingsOpen = false },
-                onOpenEqualizer = { equalizerOpen = true; settingsOpen = false },
+                // Экран аудиоэффектов удалён — колбэк пустой (см. выше).
+                onOpenEqualizer = {},
                 onOpenProfile = { profileOpen = true; settingsOpen = false },
                 // Оверлей закрываем перед переходом: экран лога живёт в NavHost,
                 // то есть ПОД оверлеем — иначе переход просто не было бы видно.
