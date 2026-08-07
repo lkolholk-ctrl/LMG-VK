@@ -37,9 +37,11 @@ import java.net.URL
  */
 object AppUpdater {
 
-    // ⚠️ ЗАМЕНИ НА СВОЙ РЕПОЗИТОРИЙ
-    private const val GITHUB_USER = "stanislavdev987"
-    private const val GITHUB_REPO = "LiquidMusicGlass"
+    // Репозиторий именно LMG VK. Раньше здесь стояли чужой пользователь
+    // (`stanislavdev987`) и другой проект (`LiquidMusicGlass`) — обновление
+    // тянуло бы APK постороннего приложения поверх этого.
+    private const val GITHUB_USER = "lkolholk-ctrl"
+    private const val GITHUB_REPO = "LMG-VK"
     private const val API_URL = "https://api.github.com/repos/$GITHUB_USER/$GITHUB_REPO/releases/latest"
 
     // ── State ──
@@ -145,7 +147,7 @@ object AppUpdater {
         val url = apkUrl ?: return
 
         val downloadManager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
-        val fileName = "LiquidMusicGlass_${_latestVersion.value}.apk"
+        val fileName = "LMG-VK_${_latestVersion.value}.apk"
 
         // Удалить старый файл если есть
         val oldFile = File(
@@ -155,7 +157,7 @@ object AppUpdater {
         if (oldFile.exists()) oldFile.delete()
 
         val request = DownloadManager.Request(Uri.parse(url))
-            .setTitle("LiquidMusicGlass Update")
+            .setTitle("LMG VK Update")
             .setDescription("Downloading v${_latestVersion.value}")
             .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
             .setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, fileName)

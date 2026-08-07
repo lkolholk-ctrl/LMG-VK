@@ -9,7 +9,6 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
-import android.os.Environment
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import com.lmg.vk.MainActivity
@@ -41,7 +40,7 @@ data class DownloadTrackMeta(
 /**
  * Foreground Service for batch playlist downloading (600–1000+ tracks).
  *
- * - Saves to public Downloads/LiquidMusicGlass
+ * - Saves to public Downloads/LMG-VK via MediaStore (see PublicDownloads)
  * - Semaphore(3) for max 3 concurrent downloads
  * - Skips existing files (resume support)
  * - Native progress notification with cancel action
@@ -163,12 +162,19 @@ class PlaylistDownloadService : Service() {
         metaMap: Map<String, DownloadTrackMeta>,
         playlistName: String?
     ) {
-        val targetDir = File(
-            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
-            "LiquidMusicGlass"
-        )
+        // Качаем в ПРИВАТНУЮ папку, а в публичные Загрузки уходит готовый файл
+        // через MediaStore (см. экспорт ниже и PublicDownloads).
+        //
+        // Раньше здесь строился File прямо в Download/… — при scoped storage
+        // (minSdk 29, targetSdk 36; WRITE_EXTERNAL_STORAGE в манифесте обрезан
+        // maxSdkVersion=32) такой путь не создаётся: mkdirs() возвращает false,
+        // и КАЖДЫЙ трек плейлиста падал на записи. Одиночное скачивание работало
+        // именно потому, что шло этим, приватным путём.
+        val targetDir = File(filesDir, "downloads")
         if (!targetDir.exists()) targetDir.mkdirs()
 
+        // Обложки остаются приватными: localCoverPath читает сам же процесс
+        // (Coil в LibraryScreen/DownloadsScreen), наружу их отдавать незачем.
         val coversDir = File(targetDir, ".covers")
         if (!coversDir.exists()) coversDir.mkdirs()
 
@@ -221,7 +227,11 @@ class PlaylistDownloadService : Service() {
                                 val targetFile = File(targetDir, safeName)
                                 val coverFile = File(coversDir, "$trackId.jpg")
 
-                                // ── Idempotency: skip if BOTH audio + cover exist ──
+                                // ── Idempotency ──
+                                // Приватный файл остаётся на диске ТОЛЬКО когда
+                                // экспорт в MediaStore не удался (фолбэк): на
+                                // успешном пути он удаляется после экспорта.
+                                // Основная проверка «уже скачано» — по БД ниже.
                                 val audioExists = targetFile.exists() && targetFile.length() > 1024
                                 val coverExists = coverFile.exists() && coverFile.length() > 128
                                 if (audioExists && coverExists) {

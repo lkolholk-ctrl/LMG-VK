@@ -28,7 +28,7 @@ sealed interface TrackDownloadState {
  *
  * ПОЧЕМУ НАДСТРОЙКА, А НЕ СВОЙ ДВИЖОК. Скачивание в проекте уже работало:
  * [AudioDownloadManager] тянет файл, `PublicDownloads` кладёт его через
- * MediaStore в `Download/LiquidMusicGlass`, таблица `downloaded_tracks` хранит
+ * MediaStore в `Download/LMG-VK`, таблица `downloaded_tracks` хранит
  * реестр, в библиотеке есть готовый раздел «Downloaded», плюс отдельно
  * скачивание плейлистов и клипов. Второй параллельный движок означал бы два
  * реестра, две папки и два несогласованных списка скачанного — а ID3-теги и

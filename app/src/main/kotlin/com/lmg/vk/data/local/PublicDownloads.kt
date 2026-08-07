@@ -8,7 +8,7 @@ import java.io.File
 
 /**
  * Экспорт скачанных треков в ПУБЛИЧНУЮ папку Загрузок
- * (`Download/LiquidMusicGlass/…`) через MediaStore.Downloads.
+ * (`Download/LMG-VK/…`) через MediaStore.Downloads.
  *
  * Почему MediaStore: scoped storage (minSdk 29, без MANAGE_EXTERNAL_STORAGE) —
  * прямой File-доступ к /storage/emulated/0/Download запрещён. MediaStore же
@@ -22,7 +22,9 @@ import java.io.File
  */
 object PublicDownloads {
 
-    private const val RELATIVE_DIR = "Download/LiquidMusicGlass"
+    // Папка LMG VK, а не LiquidMusicGlass: это разные приложения, и скачанное
+    // одним не должно оседать в папке другого — пользователь свой трек «еле нашёл».
+    private const val RELATIVE_DIR = "Download/LMG-VK"
 
     fun mimeFor(ext: String): String = when (ext.lowercase().removePrefix(".")) {
         "flac" -> "audio/flac"

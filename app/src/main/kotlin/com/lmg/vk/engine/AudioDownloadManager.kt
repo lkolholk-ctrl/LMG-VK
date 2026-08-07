@@ -115,7 +115,7 @@ object AudioDownloadManager {
      * Скачать ВИДЕОКЛИП (Apple Music) в публичные Загрузки как mp4.
      * [track] — псевдо-трек клипа из PlayerController (id = "clip_<clipId>").
      * В БД downloaded-треков НЕ пишем: клип — не аудио-трек (локальный плеер
-     * JUCE его не сыграет), файл живёт в Download/LiquidMusicGlass, открывается
+     * JUCE его не сыграет), файл живёт в Download/LMG-VK, открывается
      * галереей/видеоплеером. Прогресс — та же мапа, что у треков (ключ = id),
      * поэтому кольцо прогресса в FullPlayer работает без правок.
      */
@@ -211,7 +211,7 @@ object AudioDownloadManager {
 
     /**
      * Clears ALL downloaded tracks from both the database and the file system.
-     * Deletes everything in Downloads/LiquidMusicGlass/ including the .covers/ folder.
+     * Deletes everything in Downloads/LMG-VK/ including the .covers/ folder.
      * Runs on Dispatchers.IO to avoid ANR when deleting thousands of files.
      */
     suspend fun clearAllDownloads(context: Context) = withContext(Dispatchers.IO) {

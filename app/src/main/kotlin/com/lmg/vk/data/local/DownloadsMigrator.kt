@@ -14,7 +14,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * ОДНОРАЗОВАЯ миграция уже скачанного из приватной папки
- * (`filesDir/downloads/`) в публичные Загрузки (`Download/LiquidMusicGlass`).
+ * (`filesDir/downloads/`) в публичные Загрузки (`Download/LMG-VK`).
  *
  * У пользователей сотни треков (полевой кейс: ~800) — перекачивать нельзя,
  * переносим файлы на месте: копия через MediaStore → путь в БД на content:// →
