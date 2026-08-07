@@ -778,6 +778,26 @@ object PlayerController {
         val startTrack = tracks[startIndex]
         DebugLog.add("PC.playLocalOnJuce n=${tracks.size} start=$startIndex id=${startTrack.id} | ${DebugLog.caller()}")
 
+        // JUCE-библиотеки в сборке НЕТ: собирается только liblmg.so, а
+        // System.loadLibrary("automix_juce") падает в catch. Поэтому локальный
+        // путь через JUCE не заиграет ничего — трек показывался в плеере и молчал
+        // (жалоба пользователя: «скачал трек, он не воспроизводится, хотя плеер
+        // его показывает»).
+        //
+        // ExoPlayer умеет и file://, и content:// (через ContentDataSource в
+        // DefaultDataSource, см. StreamingDataSource.open) — значит скачанные
+        // треки надо играть им. Когда JUCE появится, условие снова пустит
+        // локальные треки в него.
+        //
+        // isAvailable(), а не isLoaded: последний до первой попытки загрузки
+        // отдаёт false даже при наличии библиотеки, и локальные треки ушли бы в
+        // ExoPlayer впустую.
+        if (!com.lmg.vk.engine.automix.AutoMixNativeEngine.isAvailable()) {
+            DebugLog.add("JUCE недоступен — локальные треки играем через ExoPlayer")
+            playFromList(context, tracks, startIndex)
+            return
+        }
+
         ioScope.launch {
             // Статичная локальная очередь — без онлайн-рефилла.
             _playbackContext = playbackContext

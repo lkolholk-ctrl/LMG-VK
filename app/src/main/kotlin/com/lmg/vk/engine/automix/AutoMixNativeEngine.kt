@@ -65,6 +65,17 @@ object AutoMixNativeEngine {
     val isLoaded: Boolean get() = libState == 1
 
     /**
+     * Доступен ли нативный JUCE-слой. В отличие от [isLoaded] — пытается
+     * загрузить библиотеку, если попытки ещё не было, и кэширует результат.
+     *
+     * Нужно там, где надо ВЫБРАТЬ путь воспроизведения до первого обращения к
+     * движку: `isLoaded` до первой попытки отдаёт false даже когда библиотека
+     * есть, и локальные треки ушли бы в ExoPlayer впустую. Загрузка идёт один
+     * раз, повторные вызовы читают кэшированный флаг.
+     */
+    fun isAvailable(): Boolean = ensureLibrary()
+
+    /**
      * Open the JUCE/Oboe output device. Returns true on success. Idempotent.
      *
      * КРИТИЧНО: JUCE-инициализация (Thread::initialiseJUCE -> JuceActivityWatcher

@@ -238,6 +238,19 @@ object MediaCacheManager {
      */
     fun preCacheTrack(trackId: String, url: android.net.Uri): Boolean {
         val factory = getCacheDataSourceFactory() ?: return false
+        // HLS кэшировать этим путём НЕЛЬЗЯ. CacheWriter качает ровно то, что лежит
+        // по ссылке, а по `.m3u8` лежит ТЕКСТ ПЛЕЙЛИСТА, а не аудио. Кэш при этом
+        // формально заполнится, метод вернёт успех — и данных не будет: ровно тот
+        // случай, когда «всё работает», а анализировать нечего.
+        //
+        // Для HLS нужен DownloadManager с HlsDownloader (скачивает сегменты по
+        // плейлисту). Пока его нет — честно отказываемся, чтобы не создавать
+        // видимость прогретого кэша. Важно для будущей ML-модели автомикса:
+        // она обязана отличать «нет данных» от «тишины».
+        if (com.lmg.vk.audio.HlsDownloader.isHlsUrl(url.toString())) {
+            com.lmg.vk.debug.DebugLog.add("preCache пропущен (HLS): $trackId")
+            return false
+        }
         val key = "lmg_$trackId"
         if (activePreCacheKey == key) return false
         try { activePreCache?.cancel() } catch (_: Throwable) {}
