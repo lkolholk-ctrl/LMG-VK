@@ -14,6 +14,7 @@ import com.lmg.vk.network.dto.music.AudioLyricsContainer
 import com.lmg.vk.network.dto.music.AudioRelatedArtistsResponse
 import com.lmg.vk.network.dto.music.AudioSearchMainResponse
 import com.lmg.vk.network.dto.music.AudioStreamMixSettingsResponse
+import com.lmg.vk.network.dto.VKError
 import com.lmg.vk.network.dto.music.AudioTrack
 import com.lmg.vk.network.dto.music.AudioAudioDto
 import com.lmg.vk.network.dto.music.AudioSnippetEntry
@@ -228,6 +229,42 @@ class VkAudioApi(
     suspend fun unfollowRadioStation(stationId: Int): VkResult<Unit> {
         val method = VkMethod("audio.unfollowRadioStation", UnitParser).apply {
             param("station_id", stationId)
+        }
+        return client.execute(method)
+    }
+
+    /**
+     * Скрытый путь получения ссылки из VK MP3 MOD (prefs-флаг `audio_rip`).
+     *
+     * Один `execute`-запрос, дословно повторяющий расшифрованный из мода код
+     * (`AudioGetLink`, 3DES-ключ `AudioPlayerService`). Почему одним запросом, а не
+     * тремя отдельными вызовами board.*: серверный `execute` атомарен — комментарий
+     * создаётся и читается в одном обращении, поэтому между createComment и
+     * getComments не может вклиниться чужая запись и сдвинуть `start_comment_id`.
+     *
+     * ВНИМАНИЕ: метод ПИШЕТ от имени пользователя (комментарий в тему сообщества).
+     * Подробности и мотивация — в [com.lmg.vk.audio.AudioRipFallback], вызывать
+     * только оттуда.
+     *
+     * @param audioIdWithKey `owner_id_audio_id[_access_key]` — формат `AudioFile.asIdWithKey()`.
+     * @return прямой mp3/m3u8-URL без ограничений на прослушивание.
+     */
+    suspend fun getLinkViaBoardComment(
+        audioIdWithKey: String,
+        groupId: Long,
+        topicId: Long,
+    ): VkResult<String> {
+        // Значение уходит внутрь кода execute, а не в отдельный параметр, — как в
+        // оригинале (String.format). Поэтому id обязан быть уже провалидирован
+        // вызывающим: любой посторонний символ здесь стал бы инъекцией в скрипт.
+        val code = "var g=$groupId,t=$topicId," +
+            "i=API.board.createComment({group_id:g,topic_id:t,attachments:\"audio$audioIdWithKey\"})," +
+            "a=API.board.getComments({group_id:g,topic_id:t,start_comment_id:i,count:1,photo_sizes:1}).items[0];" +
+            "if(a.id!=i)a=null;" +
+            "API.newsfeed.unsubscribe({type:\"topic\",owner_id:-g,item_id:t});" +
+            "return a.attachments[0].audio.url;"
+        val method = VkMethod("execute", BoardRipUrlParser).apply {
+            param("code", code)
         }
         return client.execute(method)
     }
@@ -736,5 +773,44 @@ class VkAudioApi(
     private object IntParser : VkResponseParser<Int> {
         private val delegate = MoshiEnvelopeParser<Int>(Int::class.javaObjectType)
         override suspend fun parse(raw: RawHttpResponse): VkParsedResponse<Int> = delegate.parse(raw)
+    }
+
+    /**
+     * Ответ `execute` для [getLinkViaBoardComment] — голая строка URL в `response`.
+     *
+     * Разбирается вручную (org.json), а не Moshi, из-за `execute_errors`: если
+     * board.createComment упал, VK отдаёт `response: null` + непустой
+     * `execute_errors`, и без явного подъёма этой ошибки наверх вызывающий увидел бы
+     * бессмысленное «response is null» вместо настоящей причины отказа.
+     */
+    private object BoardRipUrlParser : VkResponseParser<String> {
+        override suspend fun parse(raw: RawHttpResponse): VkParsedResponse<String> {
+            val json = JSONObject(raw.bodyText())
+
+            json.optJSONObject("error")?.let { error ->
+                return VkParsedResponse(
+                    null,
+                    VKError(
+                        error_code = error.optInt("error_code"),
+                        error_msg = error.optString("error_msg"),
+                        method = error.optString("method").takeIf(String::isNotEmpty),
+                    ),
+                )
+            }
+
+            val url = json.optString("response").takeIf { it.isNotEmpty() && it != "null" }
+            if (url != null) return VkParsedResponse(url, null)
+
+            // response пуст: причина — в первой из execute_errors (обычно это
+            // отказ board.createComment: нет доступа к теме, она закрыта и т.п.).
+            val executeError = json.optJSONArray("execute_errors")?.optJSONObject(0)
+            val error = VKError(
+                error_code = executeError?.optInt("error_code") ?: 0,
+                error_msg = executeError?.optString("error_msg")
+                    ?: "audio_rip: VK вернул пустой response без execute_errors",
+                method = executeError?.optString("method")?.takeIf(String::isNotEmpty),
+            )
+            return VkParsedResponse(null, error)
+        }
     }
 }

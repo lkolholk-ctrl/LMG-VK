@@ -67,17 +67,20 @@ object AudioDownloadManager {
             val ext = if (quality.uppercase() == "ALAC") ".m4a" else ".mp3"
 
             updateProgress(trackId, 0.0f)
-            val success = performDownload(context, track, ext)
-            if (success) {
+            // performDownload возвращает ФАКТИЧЕСКОЕ расширение: у HLS без
+            // FFmpeg результат может оказаться m4a вместо mp3, и искать файл по
+            // ожидаемому имени было бы ошибкой.
+            val actualExt = performDownload(context, track, ext)
+            if (actualExt != null) {
                 val downloadsDir = File(context.filesDir, "downloads")
-                val finalFile = File(downloadsDir, "$trackId$ext")
+                val finalFile = File(downloadsDir, "$trackId$actualExt")
                 // Публичные Загрузки (MediaStore) — основной путь; при неудаче
                 // остаёмся на приватном файле (см. PublicDownloads).
                 val publicUri = com.lmg.vk.data.local.PublicDownloads.exportAudio(
                     context, finalFile,
                     com.lmg.vk.data.local.PublicDownloads
                         .displayName(track.artist, track.title).ifBlank { trackId },
-                    ext,
+                    actualExt,
                 )
                 val storedPath = if (publicUri != null) {
                     finalFile.delete()
@@ -239,7 +242,14 @@ object AudioDownloadManager {
         db.clearAllDownloads()
     }
 
-    private suspend fun performDownload(context: Context, track: Track, ext: String): Boolean = withContext(Dispatchers.IO) {
+    /**
+     * Качает трек и возвращает ФАКТИЧЕСКОЕ расширение итогового файла
+     * (`.mp3` / `.m4a`) либо null при неудаче. Расширение — результат, а не
+     * параметр, потому что у HLS без FFmpeg оно может отличаться от ожидаемого
+     * (см. HlsDownloader): вернуть true и оставить вызывающего с неверным именем
+     * файла означало бы «успешную» загрузку, которой нет на диске.
+     */
+    private suspend fun performDownload(context: Context, track: Track, ext: String): String? = withContext(Dispatchers.IO) {
         val trackId = track.id
         val tempFile = File(context.filesDir, "downloads/${trackId}.temp")
 
@@ -260,10 +270,23 @@ object AudioDownloadManager {
             android.util.Log.d("DOWNLOAD", "resolvedUri=$resolvedUri")
             if (resolvedUri == null) {
                 android.util.Log.e("DOWNLOAD", "resolveStreamUrlSync returned null for $trackId")
-                return@withContext false
+                return@withContext null
             }
             val urlString = resolvedUri.toString()
             android.util.Log.d("DOWNLOAD", "urlString=$urlString")
+
+            // 1.5. HLS-ветка.
+            //
+            // VK на части треков отдаёт не прямую ссылку, а m3u8 — прежний код
+            // качал такой «файл» как есть и получал текстовый плейлист вместо
+            // музыки. Здесь поток собирается из сегментов и ремуксится в mp3
+            // (подробности и почему это возможно без реэнкода — в HlsDownloader).
+            //
+            // Расширение возвращает сам загрузчик: если внутри TS оказался AAC,
+            // без FFmpeg он останется m4a, и назвать его mp3 было бы обманом.
+            if (com.lmg.vk.audio.HlsDownloader.isHlsUrl(urlString)) {
+                return@withContext performHlsDownload(context, track, urlString, downloadsDir)
+            }
 
             // 2. Скачивание байтов.
             //
@@ -284,7 +307,7 @@ object AudioDownloadManager {
             }
             if (!downloaded) {
                 if (tempFile.exists()) tempFile.delete()
-                return@withContext false
+                return@withContext null
             }
 
             // 2.5. ID3-теги и обложка — только для mp3.
@@ -310,14 +333,76 @@ object AudioDownloadManager {
             }
             val renamed = tempFile.renameTo(finalFile)
             android.util.Log.d("DOWNLOAD", "Download complete trackId=$trackId finalFile=${finalFile.absolutePath} size=${finalFile.length()} renamed=$renamed")
-            renamed
+            if (renamed) ext else null
         } catch (e: Exception) {
             android.util.Log.e("DOWNLOAD", "Download failed trackId=$trackId error=${e.message}")
             e.printStackTrace()
             if (tempFile.exists()) {
                 tempFile.delete()
             }
-            false
+            null
+        }
+    }
+
+    /**
+     * HLS-путь: сегменты → единый поток → mp3.
+     *
+     * Вынесено из [performDownload], чтобы не разносить её пошаговую структуру:
+     * тут другой транспорт (плейлисты, ключи, ремукс), и в общий поток шагов
+     * 1-2-2.5-3 он не укладывается.
+     *
+     * Возвращает фактическое расширение или null. Теги пишем только для mp3 —
+     * ровно по той же причине, что и в прямой ветке: в m4a нужен MP4-атом, а не
+     * ID3, и дописанный ID3 сделал бы файл битым.
+     */
+    private suspend fun performHlsDownload(
+        context: Context,
+        track: Track,
+        url: String,
+        downloadsDir: File,
+    ): String? {
+        val trackId = track.id
+        // Обход блокировок обязателен и здесь: плейлисты и сегменты живут на том
+        // же CDN, что и прямые ссылки. Своего клиента не создаём — он пошёл бы
+        // мимо installVkProxy.
+        val client = com.lmg.vk.network.VkApiLocator.mediaClientOrNull()
+        if (client == null) {
+            // Честная ошибка вместо тихой деградации: без обхода HLS у
+            // заблокированного CDN всё равно не соберётся, а фолбэка тут нет.
+            android.util.Log.e("DOWNLOAD", "HLS: медиа-клиент не готов, отменяю $trackId")
+            return null
+        }
+
+        val base = File(downloadsDir, trackId)
+        val outcome = com.lmg.vk.audio.HlsDownloader.download(
+            context = context,
+            client = client,
+            url = url,
+            destWithoutExt = base,
+            onProgress = { updateProgress(trackId, it) },
+        )
+
+        return when (outcome) {
+            is com.lmg.vk.audio.HlsDownloader.Outcome.Failure -> {
+                android.util.Log.e("DOWNLOAD", "HLS не собрался ($trackId): ${outcome.reason}")
+                null
+            }
+            is com.lmg.vk.audio.HlsDownloader.Outcome.Success -> {
+                if (outcome.ext.equals(".mp3", ignoreCase = true) && outcome.file.length() > 0L) {
+                    runCatching { writeTagsForDownload(outcome.file, track) }
+                        .onFailure {
+                            android.util.Log.w("DOWNLOAD", "HLS: теги не записались: ${it.message}")
+                        }
+                } else {
+                    android.util.Log.w(
+                        "DOWNLOAD",
+                        "HLS: сохранён как ${outcome.ext} без ID3 — FFmpeg недоступен, поток не MP3",
+                    )
+                }
+                // Файл уже лежит как <trackId><ext> в downloads/ — именно там его
+                // ждёт вызывающий, переносить нечего.
+                outcome.ext
+            }
         }
     }
 

@@ -1398,7 +1398,10 @@ object PlayerController {
                             }
                         }
                         error?.contains("source_not_allowed") == true || error?.contains("403") == true -> {
-                            StreamResult.Error("source_not_allowed", error)
+                            // Отказ по доступу — единственный случай, когда уместен
+                            // обходной путь audio_rip (см. tryAudioRipFallback).
+                            tryAudioRipFallback(trackId, error)
+                                ?: StreamResult.Error("source_not_allowed", error)
                         }
                         error?.contains("track_not_found") == true || error?.contains("404") == true -> {
                             StreamResult.Error("track_not_found", error)
@@ -1406,13 +1409,54 @@ object PlayerController {
                         error?.contains("early_access") == true -> {
                             StreamResult.Error("early_access", error)
                         }
-                        else -> StreamResult.Error("unknown", error)
+                        else -> {
+                            // Сюда попадает и «451: Аудиозапись недоступна» —
+                            // ограничение на прослушивание, ради которого фолбэк и
+                            // нужен. shouldFallback сам решит, применим ли он.
+                            tryAudioRipFallback(trackId, error)
+                                ?: StreamResult.Error("unknown", error)
+                        }
                     }
                 }
             }
         } catch (e: Exception) {
             StreamResult.Error("network_error", e.message)
         }
+    }
+
+    /**
+     * Последняя попытка получить ссылку, когда обычный API отказал по доступу или
+     * ограничению: обходной путь `audio_rip` из VK MP3 Mod.
+     *
+     * Вызывается ТОЛЬКО из error-ветки [doResolveStreamUrl] и никогда параллельно
+     * основному пути — механизм публикует комментарий от имени пользователя, и
+     * дёргать его «на всякий случай» нельзя. Сетевые сбои и капча сюда не
+     * попадают: их отбирает [AudioRipFallback.shouldFallback], а повторы делает
+     * сам `VkApiClient`.
+     *
+     * Возвращает `null`, если фолбэк не применим или тоже не смог — тогда наверх
+     * уходит исходная ошибка, а не выдуманный успех.
+     */
+    private suspend fun tryAudioRipFallback(trackId: String, error: String?): StreamResult? {
+        val code = MusicBackend.lastApiException.value?.code
+        if (!com.lmg.vk.audio.AudioRipFallback.shouldFallback(code, error)) return null
+        val ripped = runCatching { com.lmg.vk.audio.AudioRipFallback.resolveUrl(trackId) }
+            .getOrNull()
+            ?: return null
+        DebugLog.add("audio_rip: ссылка получена обходным путём для $trackId")
+        // Собираем StreamInfo вручную: обходной путь отдаёт только URL, а
+        // остальные поля берём из запроса. `expiresAt = 0` означает «срок
+        // неизвестен», и кэш применит к ней штатный TTL.
+        return cacheAndReturn(
+            trackId,
+            StreamInfo(
+                trackId = trackId,
+                source = "audio_rip",
+                quality = "unknown",
+                url = ripped,
+                expiresAt = 0L,
+            ),
+        )
     }
 
     private fun cacheAndReturn(trackId: String, trackInfo: StreamInfo): StreamResult {

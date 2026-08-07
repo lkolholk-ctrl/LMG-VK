@@ -29,6 +29,10 @@ object PublicDownloads {
         "m4a" -> "audio/mp4"
         "ogg" -> "audio/ogg"
         "wav" -> "audio/x-wav"
+        // Сырой ADTS-поток из HLS, когда FFmpeg недоступен (см. HlsDownloader).
+        // Без своей ветки он уехал бы в audio/mpeg, то есть MediaStore считал бы
+        // его mp3 — и плеер спотыкался бы на непонятном ему «mp3».
+        "aac" -> "audio/aac"
         "mp4" -> "video/mp4"   // видеоклипы Apple Music
         else -> "audio/mpeg"
     }
