@@ -68,6 +68,8 @@ fun SettingsScreen(
     onBack: () -> Unit,
     onOpenEqualizer: () -> Unit = {},
     onOpenProfile: () -> Unit = {},
+    /** Открыть онбординг рекомендаций ВКонтакте (`audio.recommendationsOnboarding`). */
+    onOpenRecommendationsOnboarding: () -> Unit = {},
     showBack: Boolean = true,
     backdrop: LayerBackdrop
 ) {
@@ -1041,6 +1043,33 @@ fun SettingsScreen(
                         proxyScope.launch {
                             com.lmg.vk.network.proxy.VkProxyRepository.refresh()
                         }
+                    }
+                )
+            }
+
+            Spacer(modifier = Modifier.height(sectionGap))
+
+            // РЕКОМЕНДАЦИИ ВКОНТАКТЕ (порт онбординга VK X, docs/vkx-port/01-music.md §11).
+            // Отдельный раздел, а не пункт внутри VK PROFILE: этот экран меняет
+            // не аккаунт, а музыкальную выдачу, и требует входа в аккаунт.
+            SectionLabel("RECOMMENDATIONS")
+
+            val onboardingLoggedIn by com.lmg.vk.engine.backend.MusicAuth.isLoggedIn
+                .collectAsState()
+
+            PlainCard {
+                SettingsActionItem(
+                    title = "Настроить рекомендации",
+                    // Про «не вошли» говорим прямо: без токена метод вернёт
+                    // ошибку, и открывать пустой экран смысла нет.
+                    subtitle = if (!onboardingLoggedIn) {
+                        "Войдите в аккаунт ВКонтакте, чтобы выбрать исполнителей"
+                    } else {
+                        "Отметить исполнителей, под которых ВКонтакте подстроит выдачу"
+                    },
+                    icon = Icons.Rounded.ChevronRight,
+                    onClick = {
+                        if (onboardingLoggedIn) onOpenRecommendationsOnboarding()
                     }
                 )
             }

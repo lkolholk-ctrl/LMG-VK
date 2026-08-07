@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Стартовая разметка виджета (`initialLayout`).
+
+    Лончер рисует ЭТО в момент, когда виджет только добавили и Glance ещё не
+    успел отдать своё содержимое. Без внятного initialLayout пользователь видит
+    в этот промежуток пустой прямоугольник и решает, что виджет сломан, поэтому
+    здесь честная надпись «загружаем».
+
+    Разметка намеренно минимальная: RemoteViews поддерживает ограниченный набор
+    View, а всё настоящее содержимое всё равно приходит из Glance.
+-->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:padding="12dp">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:text="@string/vk_widget_loading"
+        android:textSize="13sp"
+        android:maxLines="1" />
+</FrameLayout>

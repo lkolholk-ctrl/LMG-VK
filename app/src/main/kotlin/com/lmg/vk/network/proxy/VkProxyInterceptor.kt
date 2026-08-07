@@ -151,11 +151,33 @@ internal class VkProxyInterceptor(
         return builder.build()
     }
 
-    /** Диагностический заголовок VK X: хост, которым запрос реально ушёл. */
-    private fun withReqHash(response: Response): Response =
-        response.newBuilder()
-            .header(HEADER_REQ_HASH, response.request.url.host)
-            .build()
+    /**
+     * Диагностический заголовок VK X — **фрагмент URL**, как в оригинале.
+     *
+     * В VK X `AbstractC3257e` кладёт сюда `response.request.url.fragment`
+     * (8-й аргумент конструктора `HttpUrl`, поле `C15718e.yandex`; в
+     * `C15718e.purchase()` оно вычисляется как «всё после `#`»). Именно поэтому у
+     * VK X работал путь чтения токена мини-приложения из `X-Req-Hash`: во
+     * фрагменте финального редиректа `…/blank.html#access_token=…` лежит токен.
+     *
+     * Раньше здесь стоял хост — это была ошибка порта: поле `yandex` приняли за
+     * имя хоста. Хост в заголовке ничего не давал, а токен доставать было нечем.
+     *
+     * Заголовок ставится на ОТВЕТ и в сеть не уходит: его читает только сам
+     * клиент, уже внутри процесса (`RawHttpResponse.header`).
+     */
+    private fun withReqHash(response: Response): Response {
+        // Через этот метод проходит КАЖДЫЙ ответ приложения, а OkHttp валидирует
+        // значения заголовков и бросает на недопустимых символах. Фрагмент — часть
+        // нашего же URL и таких символов содержать не должен, но цена ошибки здесь
+        // — мёртвая сеть во всём приложении, поэтому при сбое отдаём исходный
+        // ответ как есть.
+        return runCatching {
+            response.newBuilder()
+                .header(HEADER_REQ_HASH, response.request.url.fragment.orEmpty())
+                .build()
+        }.getOrDefault(response)
+    }
 
     private companion object {
         const val MAX_REDIRECTS = 20

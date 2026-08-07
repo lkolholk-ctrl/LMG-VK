@@ -190,7 +190,7 @@ object VkLinkResolver {
 
     /**
      * Точка входа для `MainActivity`: разобрать ссылку и что-то с ней сделать.
-     * Экранные цели уходят в [VkLinkRouter], трек играем сразу, всё остальное —
+     * Экранные цели уходят в [VkLinkRouter], трек играем сразу, нераспознанное —
      * честно наружу (браузер) с объяснением, а не молчаливое ничего.
      */
     suspend fun handle(context: Context, uri: Uri) {
@@ -200,17 +200,9 @@ object VkLinkResolver {
                     val failure = playAudio(context, target)
                     if (failure != null) reportAndOpenOutside(context, uri, failure)
                 }
-                is VkLinkTarget.OwnerAudio -> {
-                    // Аудиозаписи владельца в LMG VK живут подэкраном профиля
-                    // (OwnerAudioScreen внутри ProfileScreen) и своего маршрута в
-                    // навигации не имеют — открыть их по ссылке пока нечем.
-                    // Врать «ничего не произошло» нельзя, поэтому уходим в браузер.
-                    reportAndOpenOutside(
-                        context,
-                        uri,
-                        "Аудиозаписи профиля по ссылке пока не открываются",
-                    )
-                }
+                // Аудиозаписи владельца теперь открываются в приложении: у экрана
+                // появился свой маршрут (NavRoutes.OWNER_AUDIO_ROUTE), поэтому цель
+                // уходит в роутер вместе с остальными экранными, а не в браузер.
                 else -> VkLinkRouter.post(target)
             }
 

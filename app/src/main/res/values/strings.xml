@@ -3,4 +3,16 @@
     <string name="app_name">LMG VK</string>
     <string name="notification_channel_name">Music Playback</string>
     <string name="notification_channel_description">Shows current track and playback controls</string>
+
+    <!-- Виджет домашнего экрана: подборки VK (audio.getWidgetElements) -->
+    <string name="vk_widget_description">Подборки и плейлисты из ВКонтакте</string>
+    <string name="vk_widget_loading">Загружаем подборки…</string>
+    <string name="vk_widget_type_recomms">Рекомендации</string>
+    <string name="vk_widget_type_mymusic">Моя музыка</string>
+    <string name="vk_widget_refresh">Обновить</string>
+    <!-- Честные состояния: у виджета нет права показывать выдуманные карточки -->
+    <string name="vk_widget_not_logged_in">Войдите в аккаунт ВКонтакте, чтобы видеть подборки</string>
+    <string name="vk_widget_empty">ВКонтакте пока не собрал для вас подборки</string>
+    <string name="vk_widget_error">Не удалось обновить: %1$s</string>
+    <string name="vk_widget_stale">Данные могли устареть</string>
 </resources>

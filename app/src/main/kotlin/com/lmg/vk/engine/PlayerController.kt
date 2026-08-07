@@ -928,8 +928,16 @@ object PlayerController {
      * показывал бы трек, который закончился полчаса назад.
      */
     private fun refreshHomeWidget() {
-        // Виджет домашнего экрана (NowPlayingWidget) не портирован в LMG VK —
-        // заглушка, чтобы вызовы здесь не падали.
+        // Виджет живёт в чужом процессе (лончер), и обновление у Glance
+        // suspend — уходим на ioScope. Вызывающие (setPlaying / смена трека)
+        // работают на главном потоке и ждать здесь не должны.
+        //
+        // Ошибки глотаем сознательно: самый частый случай — виджет вообще не
+        // добавлен на домашний экран, и тогда updateAll законно бросает. Ронять
+        // из-за этого воспроизведение нельзя, поэтому runCatching внутри
+        // VkMusicWidget.refreshAll.
+        val ctx = appContext ?: return
+        ioScope.launch { com.lmg.vk.widget.VkMusicWidget.refreshAll(ctx) }
     }
 
     fun setPlaying(playing: Boolean) {
@@ -1583,6 +1591,97 @@ object PlayerController {
                 _isBuffering.value = true
                 _isVideoClip.value = true
                 _videoAspect.value = 16f / 9f   // до прихода onVideoSizeChanged
+            }
+        }
+    }
+
+    /**
+     * Проиграть ОДИН сниппет-фрагмент из ленты `audio.getSnippets` по уже
+     * подписанному VK URL.
+     *
+     * Почему нельзя обойтись [playFromList] (единственная причина правки
+     * PlayerController — зона не моя, поэтому точка одна и максимально узкая):
+     *  1) Сниппет — это КОРОТКИЙ поток, который VK отдаёт прямо в `audio.url`.
+     *     [buildMediaItem] для онлайн-трека подменяет uri на схему `liquid://`,
+     *     и [StreamingDataSource] по id трека резолвит URL заново через
+     *     `audio.getById` — то есть возвращает ПОЛНЫЙ трек. Фрагмент при этом
+     *     молча превращался бы в обычное воспроизведение целиком.
+     *  2) Очередь из одного трека мгновенно попадает под порог дозаправки
+     *     (`REFILL_THRESHOLD = 40`), и EndlessPlaybackEngine дописал бы в фид
+     *     40 треков «волны». В ленте сниппетов очередь обязана быть ровно та,
+     *     что листает пользователь.
+     *
+     * Поэтому здесь: прямой uri без `liquid://`, `PlaybackContext.Downloads`
+     * как ОГРАНИЧЕННЫЙ контекст (дозаправка разрешена только для Global) и
+     * пустой refill-контекст.
+     *
+     * Обрезку по времени НЕ делаем: VK X её тоже не делает — во всём
+     * деобфусцированном коде нет ни одного `ClippingConfiguration`, границы
+     * приходят уже применёнными к URL. Разбор — в `dto/music/SnippetsFeed.kt`.
+     */
+    fun playSnippet(
+        context: Context,
+        trackId: String,
+        streamUrl: String,
+        title: String,
+        artist: String,
+        coverUrl: String?,
+        durationMs: Long,
+    ) {
+        val uri = Uri.parse(streamUrl)
+        val track = Track(
+            id = trackId,
+            title = title,
+            artist = artist,
+            albumName = "",
+            uri = uri,
+            durationMs = durationMs,
+            albumId = -1L,
+            coverUrl = coverUrl,
+            source = "vk",
+        )
+        _isVideoClip.value = false
+        ioScope.launch {
+            endlessEngine.reset()
+            _playbackContext = PlaybackContext.Downloads
+            _playbackBackend.value = PlaybackBackend.EXO_STREAMING
+
+            withContext(Dispatchers.Main) {
+                val player = getPlayer(context) ?: return@withContext
+                // Прямой mediaId = id трека: onTrackChanged найдёт его в очереди
+                // и корректно обновит UI/виджет, как для обычного трека.
+                val metadata = MediaMetadata.Builder()
+                    .setTitle(title)
+                    .setArtist(artist)
+                    .setAlbumArtist(artist)
+                    .apply {
+                        coverUrl?.takeIf(String::isNotBlank)?.let { setArtworkUri(Uri.parse(it)) }
+                        if (durationMs > 0L) setDurationMs(durationMs)
+                    }
+                    .build()
+                val item = MediaItem.Builder()
+                    .setMediaId(trackId)
+                    .setUri(uri)   // подписанный VK URL как есть, без liquid://
+                    .setMediaMetadata(metadata)
+                    .build()
+
+                queue = listOf(track)
+                _queueFlow.value = queue
+                currentIndex = 0
+                resetSections(0, 1)
+                _currentTrack.value = track
+                _durationMs.value = durationMs
+                _currentPositionMs.value = 0L
+                _isBuffering.value = true
+
+                player.stop()
+                player.clearMediaItems()
+                player.setMediaItem(item)
+                player.prepare()
+                player.play()
+                resetPlaybackLogging(durationMs)
+
+                audioServiceRef?.setQueue(listOf(item), 0, 0L)
             }
         }
     }

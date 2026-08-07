@@ -28,7 +28,9 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -56,6 +58,49 @@ import com.lmg.vk.ui.components.formatTotalDuration
 import com.lmg.vk.ui.glass.liquidClickable
 import com.lmg.vk.ui.theme.AppFontFamily
 import com.lmg.vk.ui.theme.LiquidTheme
+
+/**
+ * Аудиозаписи владельца как ОТДЕЛЬНЫЙ экран навигации — вход по ссылке
+ * (`vk.com/audios123`, `vk.com/id123`, короткое имя; см.
+ * [com.lmg.vk.engine.VkLinkResolver]).
+ *
+ * Почему обёртка, а не второй экран: разметка та же, что у подэкрана профиля,
+ * различается только источник состояния. У профиля состояние уже загружено к
+ * моменту показа, здесь же экран открывается по ссылке и грузит себя сам.
+ *
+ * Состояние берётся из того же [VkProfileRepository.ownerAudio], что и у профиля:
+ * это единственный держатель пагинации ([VkProfileRepository.loadMoreOwnerAudio]
+ * ходит именно в него), и второй источник пришлось бы синхронизировать с первым.
+ * Плата — экран один за раз, но открыть два сразу и нельзя.
+ */
+@Composable
+fun OwnerAudioRoute(
+    ownerId: Long,
+    onBack: () -> Unit,
+) {
+    val state by VkProfileRepository.ownerAudio.collectAsState()
+
+    // Грузим на входе и при смене владельца. Если в репозитории уже лежит ЭТОТ
+    // владелец (возврат по бэкстеку), повторный запрос не нужен.
+    LaunchedEffect(ownerId) {
+        if (VkProfileRepository.ownerAudio.value?.ownerId != ownerId) {
+            VkProfileRepository.openOwnerAudioById(ownerId)
+        }
+    }
+
+    // Уходя с экрана, состояние гасим: иначе профиль, открытый следом, показал бы
+    // подэкраном чужое аудио, оставшееся от ссылки.
+    DisposableEffect(ownerId) {
+        onDispose { VkProfileRepository.closeOwnerAudio() }
+    }
+
+    // До первого ответа репозитория показываем свой каркас с тем же id: подставлять
+    // чужое состояние (вдруг там остался прежний владелец) нельзя.
+    val shown = state?.takeIf { it.ownerId == ownerId }
+        ?: VkProfileRepository.OwnerAudioState(ownerId = ownerId, isLoading = true)
+
+    OwnerAudioScreen(state = shown, onBack = onBack)
+}
 
 /**
  * Аудиозаписи друга или сообщества — открывается поверх профиля.

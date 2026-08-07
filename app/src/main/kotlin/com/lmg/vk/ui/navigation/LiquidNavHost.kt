@@ -26,8 +26,11 @@ import com.lmg.vk.ui.screens.LocalAlbumDetailScreen
 import com.lmg.vk.ui.screens.LocalArtistDetailScreen
 import com.lmg.vk.ui.screens.LocalLibraryScreen
 import com.lmg.vk.ui.screens.NewScreen
+import com.lmg.vk.ui.screens.OwnerAudioRoute
 import com.lmg.vk.ui.screens.PlaylistDetailScreen
+import com.lmg.vk.ui.screens.RecommendationsOnboardingScreen
 import com.lmg.vk.ui.screens.SearchScreen
+import com.lmg.vk.ui.screens.SnippetsScreen
 import com.lmg.vk.ui.screens.WaveHomeScreen
 import com.lmg.vk.ui.screens.YearRecapScreen
 import com.lmg.vk.ui.theme.ForceDarkContent
@@ -141,6 +144,19 @@ fun LiquidNavHost(
             composable(NavRoutes.YEAR_RECAP) {
                 YearRecapScreen(onBack = { navController.popBackStack() })
             }
+            // Аудиозаписи чужого профиля/сообщества по ссылке. Аргумент строковый:
+            // owner_id сообщества отрицательный, а NavType.LongType на «-2000123»
+            // в пути не сматчился бы.
+            composable(
+                NavRoutes.OWNER_AUDIO_ROUTE,
+                arguments = listOf(navArgument(NavRoutes.ARG_ID) { type = NavType.StringType })
+            ) { entry ->
+                val ownerId = entry.arguments?.getString(NavRoutes.ARG_ID)?.toLongOrNull() ?: 0L
+                OwnerAudioRoute(
+                    ownerId = ownerId,
+                    onBack = { navController.popBackStack() }
+                )
+            }
             composable(
                 NavRoutes.LOCAL_ARTIST_ROUTE,
                 arguments = listOf(navArgument(NavRoutes.ARG_NAME) { type = NavType.StringType })
@@ -177,8 +193,13 @@ fun LiquidNavHost(
                     viewModel = homeViewModel,
                     onNavigateToAlbum = { navController.navigate(NavRoutes.album(NavRoutes.TAB_NEW, it)) },
                     onNavigateToPlaylist = { navController.navigate(NavRoutes.playlist(NavRoutes.TAB_NEW, it)) },
-                    onNavigateToArtist = { navController.navigate(NavRoutes.artist(NavRoutes.TAB_NEW, it)) }
+                    onNavigateToArtist = { navController.navigate(NavRoutes.artist(NavRoutes.TAB_NEW, it)) },
+                    onOpenSnippets = { navController.navigate(NavRoutes.NEW_SNIPPETS) }
                 )
+            }
+            // Лента сниппетов — полноэкранный фид, живёт в бэкстеке вкладки New.
+            composable(NavRoutes.NEW_SNIPPETS) {
+                SnippetsScreen(onBack = { navController.popBackStack() })
             }
             musicDetailDestinations(NavRoutes.TAB_NEW, navController)
         }
@@ -190,9 +211,17 @@ fun LiquidNavHost(
                     onBack = {},
                     onOpenEqualizer = onOpenEqualizer,
                     onOpenProfile = onOpenProfile,
+                    onOpenRecommendationsOnboarding = {
+                        navController.navigate(NavRoutes.RECOMMENDATIONS_ONBOARDING)
+                    },
                     showBack = false,
                     backdrop = backdrop
                 )
+            }
+            // Онбординг рекомендаций ВКонтакте: живёт в графе Настроек, потому
+            // что вход на него — пункт «Настроить рекомендации».
+            composable(NavRoutes.RECOMMENDATIONS_ONBOARDING) {
+                RecommendationsOnboardingScreen(onBack = { navController.popBackStack() })
             }
         }
     }

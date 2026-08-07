@@ -72,6 +72,7 @@ fun NewScreen(
     onNavigateToAlbum: (String) -> Unit = {},
     onNavigateToPlaylist: (String) -> Unit = {},
     onNavigateToArtist: (String) -> Unit = {},
+    onOpenSnippets: () -> Unit = {},
 ) {
     val context = LocalContext.current
     LaunchedEffect(viewModel) { viewModel.loadHomeContent() }
@@ -222,6 +223,7 @@ fun NewScreen(
                         onRetryTab = viewModel::retrySubsectionTab,
                         onItemClick = onItemClick,
                         onOpenSheet = { sectionSheetBlock = it },
+                        onOpenSnippets = onOpenSnippets,
                     )
                     Spacer(Modifier.height(sectionGap))
                 }
@@ -266,6 +268,7 @@ private fun NewCatalogBlock(
     onRetryTab: (String) -> Unit,
     onItemClick: (com.lmg.vk.engine.backend.HomeItem) -> Unit,
     onOpenSheet: (com.lmg.vk.engine.backend.HomeBlock) -> Unit,
+    onOpenSnippets: () -> Unit = {},
     allowTabs: Boolean = true,
 ) {
     val title = block.title.takeUnless {
@@ -314,6 +317,34 @@ private fun NewCatalogBlock(
                     onItemClick = onItemClick,
                     onOpenSheet = onOpenSheet,
                 )
+            }
+        }
+
+        // Точка входа в полноэкранную ленту сниппетов. У VK это отдельный
+        // фрагмент-фид (`C1718e`), а не карусель, поэтому баннер здесь —
+        // только «дверь»: и заголовок, и сами карточки открывают
+        // SnippetsScreen, который грузит `audio.getSnippets` сам. Отдельные
+        // элементы никуда больше не ведут намеренно: в выдаче это превью той
+        // же ленты, а не ссылки на разные подборки.
+        block.layoutName == "snippets_banner" -> {
+            NewSectionHeader(
+                title = title,
+                compact = compact,
+                itemCount = block.items.size,
+                onClick = onOpenSnippets,
+            )
+            if (block.items.size > 1) {
+                NewBannerRow(
+                    blockId = block.id,
+                    items = block.items,
+                    compact = compact,
+                    rowGap = rowGap,
+                    onItemClick = { onOpenSnippets() },
+                )
+            } else {
+                block.items.firstOrNull()?.let { homeItem ->
+                    NewHeroBanner(homeItem, compact, onClick = onOpenSnippets)
+                }
             }
         }
 
@@ -821,10 +852,19 @@ private fun NewSectionSheet(
                         // «+» честнее, чем выдавать первую порцию за весь список.
                         if (hasCursor && !exhausted) append("+")
                         if (block.layoutName.isNotBlank()) append("  ·  ${newLayoutLabel(block.layoutName)}")
+                        // Техническое имя layout'а рядом с человеческим: без него
+                        // невозможно понять, ЧТО именно присылает VK этому
+                        // аккаунту, а от layoutName зависит вся вёрстка блока.
+                        // Прочитать выдачу иначе нечем — токен лежит в шифрованном
+                        // хранилище приложения.
+                        if (block.layoutName.isNotBlank()) append("  ·  ${block.layoutName}")
                     },
                     color = lc.textSecondary,
                     fontSize = if (compact) 11.sp else 12.sp,
-                    maxLines = 1,
+                    // Две строки: техническое имя layout'а длинное
+                    // (`music_chart_triple_stacked_slider`), в одну не влезает и
+                    // обрезалось бы ровно на той части, ради которой добавлено.
+                    maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f),
                 )

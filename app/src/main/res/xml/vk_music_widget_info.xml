@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Описание виджета подборок VK.
+
+    updatePeriodMillis = 0 намеренно: система всё равно не будит виджет чаще
+    30 минут, а у данных свой TTL в час (VkWidgetRepository) плюс явные
+    обновления из PlayerController при смене трека. Периодический будильник
+    здесь только тратил бы батарею на запросы, которые всё равно вернут кэш.
+
+    configure-activity нет: тип подборки переключается тапом по заголовку
+    (ОТСТУПЛЕНИЕ от VK X, у него для этого отдельная activity).
+-->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:minWidth="180dp"
+    android:minHeight="110dp"
+    android:minResizeWidth="180dp"
+    android:minResizeHeight="110dp"
+    android:targetCellWidth="3"
+    android:targetCellHeight="2"
+    android:resizeMode="horizontal|vertical"
+    android:widgetCategory="home_screen"
+    android:description="@string/vk_widget_description"
+    android:previewImage="@drawable/launcher_icon_sunset"
+    android:initialLayout="@layout/vk_widget_loading"
+    android:updatePeriodMillis="0" />

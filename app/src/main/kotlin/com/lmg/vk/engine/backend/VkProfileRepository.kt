@@ -248,6 +248,41 @@ object VkProfileRepository {
         _ownerAudio.value = null
     }
 
+    /**
+     * Аудио владельца по одному лишь id — вход для ссылок вида `vk.com/audios123`
+     * (см. [com.lmg.vk.engine.VkLinkResolver]). Отличается от [openFriendAudio] и
+     * [openGroupAudio] тем, что имени и аватара у вызывающего нет: ссылка их не
+     * содержит.
+     *
+     * Заголовок подставляется сразу — плейсхолдером, чтобы экран открылся без
+     * ожидания сети, — а имя дозапрашивается параллельно с треками и подменяется по
+     * приходу. Так экран не выглядит пустым и не врёт: если VK имя не отдаст,
+     * останется `id123`/`club123`, а не выдуманное название.
+     */
+    suspend fun openOwnerAudioById(ownerId: Long) {
+        if (ownerId == 0L) return
+        val isGroup = ownerId < 0
+        openOwnerAudio(
+            ownerId = ownerId,
+            title = if (isGroup) "club${-ownerId}" else "id$ownerId",
+            subtitle = "",
+            avatarUrl = "",
+        )
+        // Имя грузим ПОСЛЕ треков: для сообществ метода в реестре нет (есть только
+        // groups.get по своим), поэтому уточнить можно лишь пользователя.
+        if (isGroup) return
+        val registry = methods ?: return
+        val profile = (runCatching { registry.usersGetProfile(ownerId) }.getOrNull()
+            as? VkResult.Success)?.data?.firstOrNull() ?: return
+        // Экран могли закрыть или сменить владельца, пока шёл запрос.
+        val current = _ownerAudio.value?.takeIf { it.ownerId == ownerId } ?: return
+        _ownerAudio.value = current.copy(
+            title = profile.displayName.ifBlank { current.title },
+            subtitle = profile.addressSlug,
+            avatarUrl = profile.bestPhotoUrl,
+        )
+    }
+
     private suspend fun openOwnerAudio(
         ownerId: Long,
         title: String,

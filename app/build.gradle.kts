@@ -15,8 +15,12 @@ android {
         applicationId = "com.lmg.vk"
         minSdk = 29
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0.0" // собственная нумерация LMG VK
+        // versionCode обязан расти с каждой сборкой: Android при установке
+        // поверх с тем же кодом может молча оставить прежний APK — снаружи это
+        // выглядит как «обновилось, но ничего не поменялось». Ровно на это
+        // наступили 07.08.2026, потеряв время на поиск несуществующей проблемы.
+        versionCode = 2
+        versionName = "1.1.0" // собственная нумерация LMG VK
 
         externalNativeBuild {
             cmake {

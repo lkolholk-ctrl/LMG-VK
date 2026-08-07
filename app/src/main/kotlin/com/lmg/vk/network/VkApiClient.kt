@@ -296,7 +296,32 @@ class KtorRawHttpResponse(private val response: HttpResponse) : RawHttpResponse 
     override val statusCode: Int get() = response.status.value
     override val url: String get() = "HttpResponse[${response.call.request.url}, ${response.status}]"
     override suspend fun bodyText(): String = response.bodyAsText()
+
+    /**
+     * `response.headers` — заголовки, уже пропущенные через прокси-интерцептор,
+     * поэтому здесь видно и его `X-Req-Hash` с фрагментом финального URL.
+     * Ktor сравнивает имена заголовков без учёта регистра, как и требует HTTP.
+     */
+    override fun header(name: String): String? = response.headers[name]
 }
+
+/**
+ * Фрагмент URL финального ответа цепочки редиректов, если его удалось узнать.
+ *
+ * Нужен там, где значимая часть ответа лежит в САМОМ URL, а не в теле: OAuth
+ * мини-приложений возвращает токен как `…/blank.html#access_token=…`.
+ *
+ * Источник — заголовок `X-Req-Hash`, который ставит
+ * [com.lmg.vk.network.proxy.VkProxyInterceptor] ровно как VK X: там в него
+ * пишется `url.fragment` (`AbstractC3257e`, поле `C15718e.yandex`). Редиректы
+ * доводит сам интерцептор, поэтому фрагмент виден именно здесь — выше, в Ktor,
+ * `response.call.request` описывает уже исходный запрос.
+ *
+ * На пути без интерцептора заголовка не будет — тогда `null`, и вызывающий
+ * обязан это учесть.
+ */
+fun RawHttpResponse.urlFragmentOrNull(): String? =
+    header("X-Req-Hash")?.takeIf { it.isNotBlank() }
 
 /**
  * Языковой резолв VK (в jadx: `AbstractC4533e`).

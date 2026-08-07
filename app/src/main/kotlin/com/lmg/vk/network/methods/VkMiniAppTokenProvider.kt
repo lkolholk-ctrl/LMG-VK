@@ -7,6 +7,7 @@ import com.lmg.vk.network.VkMethod
 import com.lmg.vk.network.VkParsedResponse
 import com.lmg.vk.network.VkResponseParser
 import com.lmg.vk.network.RawHttpResponse
+import com.lmg.vk.network.urlFragmentOrNull
 
 /**
  * Порт `C8221e.vip(appId, scope, sourceUrl)` из VK X 8.12.1 — получение
@@ -28,27 +29,26 @@ import com.lmg.vk.network.RawHttpResponse
  *  2) из URL финального редиректа на `/blank.html#access_token=`.
  * В обоих случаях значение обрезается по `"&"`.
  *
- * ВАЖНОЕ ОТСТУПЛЕНИЕ ОТ VK X. Путь через `X-Req-Hash` в LMG VK нерабочий, и
- * подгонять его нельзя: в оригинале этот заголовок ставит сетевой слой и кладёт
- * туда URL запроса (`FRESH AbstractC3257e.java:78-83`), а наш
- * [com.lmg.vk.network.proxy.VkProxyInterceptor] пишет туда только ХОСТ. Хост
- * токена не содержит, поэтому здесь остаётся единственный путь — разбор
- * URL/тела ответа. Заголовок всё же проверяется первым: если он когда-нибудь
- * начнёт содержать полный URL, поведение само совпадёт с оригиналом.
+ * ПОЧЕМУ РАБОТАЕТ ПУТЬ ЧЕРЕЗ `X-Req-Hash`. Заголовок выглядит диагностическим, но
+ * сетевой слой VK X кладёт в него не хост, а ФРАГМЕНТ финального URL:
+ * `AbstractC3257e.java:123-127` пишет `response.request.url.fragment` (поле
+ * `C15718e.yandex` — 8-й аргумент конструктора HttpUrl, в
+ * `C15718e.purchase()` оно вычисляется как «всё после `#`»). Во фрагменте
+ * `…/blank.html#access_token=…` и лежит токен, поэтому оба «разных» пути в
+ * `C8221e` читают одно и то же значение.
  *
- * ИЗВЕСТНОЕ ОГРАНИЧЕНИЕ (проверять на живом API первым делом). Токен приходит во
- * ФРАГМЕНТЕ url (`…/blank.html#access_token=…`), а [RawHttpResponse] отдаёт
- * наружу только `statusCode`, `url` и тело. Причём `url` — это строка вида
- * `HttpResponse[<url>, <status>]`, собранная по ИСХОДНОМУ запросу Ktor
- * (`KtorRawHttpResponse.url`), а редиректы доводит OkHttp-интерцептор ниже. То
- * есть фрагмент финального редиректа может здесь просто не появиться, и тогда
- * токен получить не удастся — метрики отдадут честную ошибку, а не выдуманные
- * данные.
+ * Поведение оригинала воспроизведено как есть:
+ * [com.lmg.vk.network.proxy.VkProxyInterceptor] пишет фрагмент в `X-Req-Hash`, а
+ * читается он через [com.lmg.vk.network.urlFragmentOrNull]. Заголовок ставится на
+ * ОТВЕТ и в сеть не уходит — его видит только сам клиент внутри процесса.
  *
- * Чтобы закрыть это до конца, нужен доступ к заголовку `Location`/финальному URL
- * из [RawHttpResponse]. Это правка общего сетевого ядра
- * ([com.lmg.vk.network.VkApiClient] / [RawHttpResponse]), которая конфликтует с
- * параллельными батчами, поэтому здесь она НЕ сделана намеренно.
+ * Почему вообще нужен заголовок, а не `RawHttpResponse.url`: редиректы у OkHttp
+ * выключены и доводятся интерцептором, поэтому Ktor знает только ИСХОДНЫЙ запрос,
+ * и финальный URL до него не доходит.
+ *
+ * Если токен получить не удалось — возвращается `null`. Подставлять основной токен
+ * нельзя: `musicStatResults.*` его не примут, а тихая подмена превратила бы
+ * отсутствие данных в необъяснимую ошибку VK.
  *
  * Токен кэшируется в памяти процесса: за один заход на экран его дёргают минимум
  * дважды (метрики + создание плейлиста), а лишний OAuth-редирект — лишний шанс
@@ -88,7 +88,8 @@ class VkMiniAppTokenProvider(
             ?.takeIf { it.isNotBlank() }
             ?: return null
 
-        val method = VkMethod("authorize", MiniAppTokenParser).apply {
+        val parser = MiniAppTokenParser(mainToken)
+        val method = VkMethod("authorize", parser).apply {
             endpoint = VkEndpoint.OAUTH
             httpMethod = VkHttpMethod.GET
             param("scope", scope)
@@ -113,33 +114,68 @@ class VkMiniAppTokenProvider(
             )
         }.getOrNull() ?: return null
 
-        return MiniAppTokenParser.parse(raw).data
+        // Парсер знает основной токен, чтобы никогда не выдать его за токен
+        // мини-приложения (см. MiniAppTokenParser).
+        return parser.parse(raw).data
     }
 
-    /** Достаёт токен из URL/заголовка ответа. Ошибок не бросает: нет — значит нет. */
-    private object MiniAppTokenParser : VkResponseParser<String?> {
+    /**
+     * Достаёт токен из URL/заголовков ответа. Ошибок не бросает: нет — значит нет.
+     *
+     * [mainToken] — основной токен клиента, который ушёл в ЗАПРОСЕ параметром
+     * `access_token`. Из-за этого строка запроса сама содержит `access_token=…`, и
+     * наивный поиск подстроки вернул бы основной токен вместо токена
+     * мини-приложения: `musicStatResults.*` его не принимают, а подмена выглядела
+     * бы как необъяснимая ошибка VK вместо честного «токен не получен». Поэтому
+     * ниже два независимых предохранителя: из URL читается только ФРАГМЕНТ (VK
+     * кладёт токен после `#`, а основной токен остаётся в query до `#`), и любой
+     * кандидат, равный [mainToken], отбрасывается.
+     */
+    private class MiniAppTokenParser(private val mainToken: String) : VkResponseParser<String?> {
         override suspend fun parse(raw: RawHttpResponse): VkParsedResponse<String?> {
-            // `RawHttpResponse.url` у нас — строка вида
-            // "HttpResponse[<url>, <status>]", поэтому ищем подстроку, а не
-            // парсим URL: нужен только фрагмент после access_token=.
-            val token = extractToken(raw.url)
-                ?: extractToken(runCatching { raw.bodyText() }.getOrNull().orEmpty())
-            return VkParsedResponse(token, null)
+            // Штатный источник — тот же, что у VK X: заголовок `X-Req-Hash`, куда
+            // прокси-интерцептор кладёт ФРАГМЕНТ финального URL (`AbstractC3257e`
+            // пишет туда `url.fragment`). Именно во фрагменте
+            // `…/blank.html#access_token=…` и лежит токен.
+            //
+            // Дальше запасные пути, на случай если интерцептор в цепочке не
+            // участвовал (прокси выключен — тогда заголовка нет):
+            //  - `Location`, если редирект не был доведён и ответ остался 3xx;
+            //  - `RawHttpResponse.url` — строка по ИСХОДНОМУ запросу; фрагмента там
+            //    обычно нет, но если Ktor сам увидел финальный URL — сработает.
+            val fromFragment = raw.urlFragmentOrNull()?.let(::tokenFrom)
+            val fromUrls = fromFragment ?: sequenceOf(
+                raw.header("Location"),
+                raw.url,
+            ).firstNotNullOfOrNull { source -> source?.let(::tokenFromFragment) }
+
+            // Тело — последний шанс: если VK ответит не редиректом, а страницей
+            // с токеном. Здесь фрагмента нет, поэтому ищем по всей строке, полагаясь
+            // на проверку на mainToken.
+            return VkParsedResponse(
+                fromUrls ?: tokenFrom(runCatching { raw.bodyText() }.getOrNull().orEmpty()),
+                null,
+            )
         }
 
-        private fun extractToken(source: String): String? {
+        /** Токен из фрагмента URL (часть после `#`), где его и отдаёт VK. */
+        private fun tokenFromFragment(source: String): String? {
+            val hash = source.indexOf('#')
+            if (hash < 0) return null
+            return tokenFrom(source.substring(hash + 1))
+        }
+
+        private fun tokenFrom(source: String): String? {
             if (source.isEmpty()) return null
             val marker = "access_token="
             val start = source.indexOf(marker)
             if (start < 0) return null
             return source.substring(start + marker.length)
-                .substringBefore('&')
-                .substringBefore('"')
-                .substringBefore(' ')
-                .substringBefore(',')
-                .substringBefore(']')
-                .trim()
-                .takeIf { it.isNotBlank() }
+                // Граница — любой символ, которого в токене быть не может: VK отдаёт
+                // безопасный для URL набор, дальше идёт следующий параметр или
+                // обрамление лог-строки.
+                .takeWhile { it.isLetterOrDigit() || it == '.' || it == '-' || it == '_' }
+                .takeIf { it.isNotBlank() && it != mainToken }
         }
     }
 

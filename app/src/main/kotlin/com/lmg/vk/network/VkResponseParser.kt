@@ -24,6 +24,21 @@ interface RawHttpResponse {
     val statusCode: Int
     val url: String
     suspend fun bodyText(): String
+
+    /**
+     * Заголовок ответа по имени либо `null`, если его нет.
+     *
+     * Зачем понадобился. Редиректы у OkHttp выключены и доводятся вручную в
+     * [com.lmg.vk.network.proxy.VkProxyInterceptor], поэтому Ktor видит ровно одну
+     * пару «запрос-ответ» — ИСХОДНУЮ. Финальный URL редиректа до этого уровня не
+     * доходит ни через `url`, ни через `call.request`, и единственный канал снизу
+     * вверх — заголовки ответа. Через них OAuth-токен мини-приложения и достаётся
+     * (см. [com.lmg.vk.network.methods.VkMiniAppTokenProvider]).
+     *
+     * Реализация по умолчанию возвращает `null`: интерфейс реализуют снаружи, и
+     * добавление абстрактного метода сломало бы такие реализации.
+     */
+    fun header(name: String): String? = null
 }
 
 /**

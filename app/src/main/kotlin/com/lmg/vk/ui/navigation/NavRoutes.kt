@@ -27,6 +27,9 @@ object NavRoutes {
     // ── Экран поиска (достижим только с Волны) ──
     const val WAVE_SEARCH = "wave/search"
 
+    /** Лента сниппетов VK (`audio.getSnippets`) — открывается из вкладки New. */
+    const val NEW_SNIPPETS = "new/snippets"
+
     // ── Аргументы ──
     const val ARG_ID = "id"
     const val ARG_NAME = "name"
@@ -43,6 +46,16 @@ object NavRoutes {
 
     // ── Итоги года (открывается из статистики) ──
     const val YEAR_RECAP = "library/year-recap"
+
+    // ── Аудиозаписи владельца по ссылке (vk.com/audios123, короткое имя) ──
+    // Живёт в графе Библиотеки: это чужая фонотека, ближайшая по смыслу к своей.
+    // owner_id бывает отрицательным (сообщество), а минус в пути навигация примет
+    // только как часть строкового аргумента — поэтому тип строковый, а не Long.
+    const val OWNER_AUDIO_ROUTE = "library/owner-audio/{$ARG_ID}"
+    fun ownerAudio(ownerId: Long) = "library/owner-audio/$ownerId"
+
+    // ── Онбординг рекомендаций (открывается из Настроек) ──
+    const val RECOMMENDATIONS_ONBOARDING = "settings/recommendations-onboarding"
 
     // ── Локальная медиатека (только внутри Библиотеки) ──
     const val LOCAL_LIBRARY = "library/local"

@@ -192,8 +192,12 @@ fun AppRoot() {
                 NavRoutes.playlist(tab, target.navId)
             is com.lmg.vk.engine.VkLinkTarget.Artist ->
                 NavRoutes.artist(tab, target.idOrDomain)
-            // Трек играется самим резолвером, аудио владельца ему не по силам —
-            // сюда такие цели не доходят.
+            // Аудио владельца зарегистрировано только в графе Библиотеки (экран
+            // один, состояние в VkProfileRepository одно), поэтому вкладку здесь
+            // НЕ подставляем — навигация сама переключит граф.
+            is com.lmg.vk.engine.VkLinkTarget.OwnerAudio ->
+                NavRoutes.ownerAudio(target.ownerId)
+            // Трек играется самим резолвером — сюда такие цели не доходят.
             else -> null
         }
         if (route != null) {
