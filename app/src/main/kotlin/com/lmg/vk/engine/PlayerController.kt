@@ -1116,11 +1116,16 @@ object PlayerController {
         ioScope.launch(Dispatchers.Main) {
             val ctrl = controller ?: return@launch
             val track = queue.getOrNull(currentIndex) ?: return@launch
-            val item = MediaItem.Builder()
-                .setMediaId(track.id)
-                .setUri(Uri.parse(resolved))
-                .setMimeType(androidx.media3.common.MimeTypes.APPLICATION_M3U8)
-                .build()
+            // ВАЖНО: элемент строим через buildMediaItem, а не с нуля. Своя сборка
+            // теряла MediaMetadata (название, артист, обложка) — и тогда в шторке и
+            // на экране блокировки вместо карточки трека показывалась системная
+            // заглушка «Запущено приложение LMG VK». Симптом был характерный:
+            // первый трек очереди выглядел правильно (он собирается в
+            // playFromList), а все последующие — нет, потому что проходили здесь.
+            //
+            // Прямую ссылку передаём вторым аргументом: buildMediaItem сам увидит
+            // http-схему, положит её в PARAM_URL и выставит MIME по isHlsUrl.
+            val item = buildMediaItem(track, Uri.parse(resolved))
             runCatching {
                 ctrl.replaceMediaItem(currentIndex, item)
                 ctrl.prepare()
