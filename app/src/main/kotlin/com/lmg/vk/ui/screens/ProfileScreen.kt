@@ -8,17 +8,15 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.layout.windowInsetsTopHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -49,8 +47,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -67,16 +66,16 @@ import com.lmg.vk.engine.backend.MusicAuth
 import com.lmg.vk.engine.backend.VkProfileRepository
 import com.lmg.vk.network.dto.VkFriend
 import com.lmg.vk.network.dto.VkGroup
-import com.lmg.vk.ui.glass.dimensionalSurface
 import com.lmg.vk.ui.glass.liquidClickable
 import com.lmg.vk.ui.theme.AppFontFamily
+import com.lmg.vk.ui.theme.LiquidMetrics
+import com.lmg.vk.ui.theme.LiquidMotion
+import com.lmg.vk.ui.theme.LiquidSurfaces
 import com.lmg.vk.ui.theme.LiquidTheme
 import kotlinx.coroutines.launch
 
 private val DestructiveRed = Color(0xFFFC3C44)
 private val OnlineGreen = Color(0xFF34C759)
-private val ProfileSurfaceDark = Color(0xFF1C1C1E)
-private val ProfileSurfaceLight = Color(0xFFF2F2F7)
 
 /** Сколько друзей/сообществ показываем в свёрнутой карточке. */
 private const val PREVIEW_ROWS = 5
@@ -138,7 +137,6 @@ fun ProfileScreen(
 
     val window = com.lmg.vk.ui.rememberWindowInfo()
     val compact = window.useSideBySide
-    val surface = if (colors.isDark) ProfileSurfaceDark else ProfileSurfaceLight
 
     // Подэкран чужих аудио перехватывает "назад" раньше, чем оверлей профиля.
     BackHandler(enabled = ownerAudio != null) { VkProfileRepository.closeOwnerAudio() }
@@ -164,7 +162,10 @@ fun ProfileScreen(
     }
 
     Box(
-        modifier = Modifier.fillMaxSize().background(colors.settingsBackground),
+        // Фон — лист из общего словаря, как на экранах артиста и альбома.
+        // Раньше здесь стоял settingsBackground: профиль выглядел разделом
+        // настроек, а не таким же экраном, как остальные.
+        modifier = Modifier.fillMaxSize().background(LiquidSurfaces.sheet(colors.isDark)),
     ) {
         LazyColumn(
             modifier = if (window.useSideBySide) {
@@ -174,29 +175,27 @@ fun ProfileScreen(
             },
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            item { Spacer(Modifier.windowInsetsTopHeight(WindowInsets.statusBars)) }
-            item { Spacer(Modifier.height(if (compact) 12.dp else 24.dp)) }
-
+            // Шапка идёт ПОД статус-бар, как у артиста: фотография должна доходить
+            // до верхнего края экрана, иначе наезжающий лист теряет смысл.
             item {
-                ProfileHero(
+                ProfileHeaderWithSheet(
                     avatarUrl = avatarUrl,
                     displayName = displayName,
                     subtitle = accountSubtitle,
                     status = profile?.status?.takeIf(String::isNotBlank),
                     isVerified = profile?.isVerified == true,
                     isOnline = profile?.isOnline == true,
-                    surface = surface,
+                    isDark = colors.isDark,
                     compact = compact,
+                    onOpenLibrary = onOpenLibrary,
+                    onOpenSettings = onOpenSettings,
                 )
             }
-
-
-            item { Spacer(Modifier.height(if (compact) 16.dp else 24.dp)) }
 
             if (isLoggedIn) {
                 vk.error?.let { message ->
                     item {
-                        ProfileCard(surface = surface) {
+                        ProfileCard {
                             ProfileNoticeRow(message)
                         }
                     }
@@ -204,7 +203,7 @@ fun ProfileScreen(
                 }
 
                 item {
-                    ProfileCard(surface = surface) {
+                    ProfileCard {
                         ProfileInfoRow(
                             icon = Icons.Rounded.Person,
                             label = "VK ID",
@@ -253,7 +252,7 @@ fun ProfileScreen(
                 item { Spacer(Modifier.height(16.dp)) }
 
                 item {
-                    ProfileCard(surface = surface) {
+                    ProfileCard {
                         ProfileSectionLabel("MY MUSIC")
                         ProfileMetricsRow(
                             firstValue = vk.audioTotal.orDash(),
@@ -279,7 +278,7 @@ fun ProfileScreen(
                 item { Spacer(Modifier.height(16.dp)) }
 
                 item {
-                    ProfileCard(surface = surface) {
+                    ProfileCard {
                         ProfileSectionLabel("SOCIAL")
                         ProfileMetricsRow(
                             firstValue = (vk.friendsTotal ?: vk.profile?.counters?.friends).orDash(),
@@ -302,7 +301,7 @@ fun ProfileScreen(
 
                 // ---------------------------- Друзья ----------------------------
                 item {
-                    ProfileCard(surface = surface) {
+                    ProfileCard {
                         ProfileSectionLabel(
                             if (vk.friendsTotal != null) "FRIENDS • ${vk.friendsTotal}" else "FRIENDS",
                         )
@@ -350,7 +349,7 @@ fun ProfileScreen(
 
                 // -------------------------- Сообщества --------------------------
                 item {
-                    ProfileCard(surface = surface) {
+                    ProfileCard {
                         ProfileSectionLabel(
                             if (vk.groupsTotal != null) "COMMUNITIES • ${vk.groupsTotal}" else "COMMUNITIES",
                         )
@@ -398,7 +397,7 @@ fun ProfileScreen(
             }
 
             item {
-                ProfileCard(surface = surface) {
+                ProfileCard {
                     if (isLoggedIn) {
                         ProfileNavigationRow(
                             icon = Icons.Rounded.Refresh,
@@ -666,67 +665,112 @@ private fun OwnerRow(
 // --------------------------------- примитивы ---------------------------------
 
 /**
- * Шапка профиля.
+ * Шапка профиля + наезжающий лист — тот же приём, что на экранах артиста и
+ * альбома, чтобы профиль перестал выглядеть разделом настроек.
  *
- * Раньше это был плоский круг и три строки текста по центру — как в системных
- * настройках. Теперь карточка с глубиной, и глубина здесь СТРУКТУРНАЯ, а не
- * из-за цвета:
- *
- *  1. Подложка — аватар пользователя, растянутый и размытый (24dp). Это «свет
- *     из-за объекта»: карточка перестаёт быть вырезанной из бумаги, потому что
- *     позади неё есть пространство своего цвета. Blur только на подложке, не на
- *     содержимом — размывать текст незачем, а Modifier.blur на большой площади
- *     недёшев.
- *  2. Аватар приподнят над карточкой: ободок цвета поверхности вокруг фото
- *     читается как «лежит выше», плюс своя тень.
- *  3. Онлайн-точка на аватаре, а не строкой «Presence: Online now» в списке.
- *
- * Всё, что здесь показано, приходит из VK API — выдуманных значений нет.
+ * Собрано из общего словаря [LiquidMetrics]/[LiquidSurfaces], а не своими
+ * числами: смена ритма приложения должна оставаться правкой одного файла.
  */
 @Composable
-private fun ProfileHero(
+private fun ProfileHeaderWithSheet(
     avatarUrl: String?,
     displayName: String,
     subtitle: String,
     status: String?,
     isVerified: Boolean,
     isOnline: Boolean,
-    surface: Color,
+    isDark: Boolean,
     compact: Boolean,
+    onOpenLibrary: () -> Unit,
+    onOpenSettings: () -> Unit,
 ) {
-    val colors = LiquidTheme.colors
-    val avatarSize = if (compact) 88.dp else 116.dp
-    val ringWidth = 4.dp
+    Box(modifier = Modifier.fillMaxWidth()) {
+        ProfileHeader(
+            avatarUrl = avatarUrl,
+            displayName = displayName,
+            subtitle = subtitle,
+            status = status,
+            isVerified = isVerified,
+            isOnline = isOnline,
+            compact = compact,
+            onOpenLibrary = onOpenLibrary,
+            onOpenSettings = onOpenSettings,
+        )
+        ProfileSheetTop(
+            isDark = isDark,
+            modifier = Modifier.align(Alignment.BottomCenter),
+        )
+    }
+}
 
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 20.dp)
-            .clip(RoundedCornerShape(32.dp))
-            .dimensionalSurface(base = surface, isDark = colors.isDark, cornerRadius = 32.dp),
-    ) {
-        // Размытая подложка из аватара. Держим НАД заливкой, но под контентом:
-        // alpha невысокая, чтобы текст остался читаемым на любом фото.
-        if (!avatarUrl.isNullOrBlank()) {
-            AsyncImage(
-                model = avatarUrl,
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                alpha = if (colors.isDark) 0.28f else 0.20f,
-                modifier = Modifier
-                    .matchParentSize()
-                    .blur(24.dp),
-            )
-            // Вуаль: без неё яркое фото «съедает» подписи снизу.
+/**
+ * Фотография профиля на всю ширину, поверх неё — имя, адрес и действия.
+ *
+ * ПОЧЕМУ ФОТО НА ВСЮ ШИРИНУ, А НЕ КРУЖОК. У артиста и альбома шапка именно
+ * такая, и профиль был единственным экраном с центрированным кружком: разный
+ * приём для одной и той же роли («кто это») читается как два приложения.
+ *
+ * Аватар — квадратная картинка, растянутая по ширине с обрезкой по центру
+ * (ContentScale.Crop). VK отдаёт для photo_max квадрат, поэтому кадрирование
+ * попадает по лицу; на нестандартном фото обрежется по краям, а не исказится.
+ *
+ * Текст поверх фото всегда светлый (LiquidSurfaces.onHeader*), как у артиста:
+ * под ним затемняющий градиент, и в обеих темах шапка остаётся тёмной.
+ */
+@Composable
+private fun ProfileHeader(
+    avatarUrl: String?,
+    displayName: String,
+    subtitle: String,
+    status: String?,
+    isVerified: Boolean,
+    isOnline: Boolean,
+    compact: Boolean,
+    onOpenLibrary: () -> Unit,
+    onOpenSettings: () -> Unit,
+) {
+    // Ниже, чем у артиста (528dp): там под шапкой промо-кадр, здесь — аватар,
+    // и на всю его высоту растянутый портрет выглядел бы плакатом.
+    val headerHeight = if (compact) 300.dp else 380.dp
+
+    Box(modifier = Modifier.fillMaxWidth().height(headerHeight)) {
+        Box(modifier = Modifier.fillMaxSize().clipToBounds()) {
+            if (!avatarUrl.isNullOrBlank()) {
+                AsyncImage(
+                    model = avatarUrl,
+                    contentDescription = displayName,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            } else {
+                // Фото нет — ровная тёмная плашка со значком. Светлую здесь
+                // ставить нельзя: белый текст поверх неё исчезнет.
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color(0xFF2A2A2E)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Person,
+                        contentDescription = null,
+                        tint = Color.White.copy(alpha = 0.30f),
+                        modifier = Modifier.size(96.dp),
+                    )
+                }
+            }
+
+            // Затемнение снизу: имя поверх светлого кадра иначе не читается.
+            // Сверху тоже немного — под статус-баром иначе теряются часы.
             Box(
                 modifier = Modifier
-                    .matchParentSize()
+                    .fillMaxSize()
                     .background(
                         Brush.verticalGradient(
-                            listOf(
-                                surface.copy(alpha = 0.15f),
-                                surface.copy(alpha = 0.80f),
-                            ),
+                            0f to Color.Black.copy(alpha = 0.35f),
+                            0.30f to Color.Transparent,
+                            0.60f to Color.Black.copy(alpha = 0.25f),
+                            1f to Color.Black.copy(alpha = 0.88f),
                         ),
                     ),
             )
@@ -734,138 +778,171 @@ private fun ProfileHero(
 
         Column(
             modifier = Modifier
+                .align(Alignment.BottomStart)
                 .fillMaxWidth()
-                .padding(top = if (compact) 22.dp else 30.dp, bottom = if (compact) 20.dp else 26.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
+                .padding(
+                    start = LiquidMetrics.ScreenPadding,
+                    end = LiquidMetrics.ScreenPadding,
+                    // Ровно столько, чтобы кнопки не ушли под кромку листа.
+                    bottom = LiquidMetrics.SheetOverlap + 8.dp,
+                ),
         ) {
-            Box {
-                // Ободок цветом поверхности — аватар «лежит выше» карточки.
-                Box(
-                    modifier = Modifier
-                        .size(avatarSize + ringWidth * 2)
-                        .clip(CircleShape)
-                        .background(surface),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(avatarSize)
-                            .clip(CircleShape)
-                            .dimensionalSurface(base = surface, isDark = colors.isDark, edge = false),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        if (!avatarUrl.isNullOrBlank()) {
-                            AsyncImage(
-                                model = avatarUrl,
-                                contentDescription = null,
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier.fillMaxSize(),
-                            )
-                        } else {
-                            Icon(
-                                imageVector = Icons.Rounded.Person,
-                                contentDescription = null,
-                                tint = colors.iconMuted,
-                                modifier = Modifier.size(avatarSize / 2),
-                            )
-                        }
-                    }
-                }
-                // Онлайн-точка вместо строки «Presence» в списке ниже.
-                if (isOnline) {
-                    Box(
-                        modifier = Modifier
-                            .align(Alignment.BottomEnd)
-                            .size(20.dp)
-                            .clip(CircleShape)
-                            .background(surface),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(13.dp)
-                                .clip(CircleShape)
-                                .background(OnlineGreen),
-                        )
-                    }
-                }
-            }
-
-            Spacer(Modifier.height(if (compact) 14.dp else 18.dp))
-
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = displayName,
-                    fontFamily = AppFontFamily,
-                    color = colors.textPrimary,
-                    fontSize = if (compact) 21.sp else 27.sp,
-                    fontWeight = FontWeight.Bold,
-                    textAlign = TextAlign.Center,
+                    color = LiquidSurfaces.onHeaderPrimary,
+                    fontSize = if (compact) 32.sp else LiquidMetrics.TitleHuge,
+                    fontWeight = LiquidMetrics.TitleHugeWeight,
+                    letterSpacing = LiquidMetrics.TitleHugeSpacing,
+                    lineHeight = if (compact) 36.sp else 44.sp,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false),
                 )
                 if (isVerified) {
-                    Spacer(Modifier.width(6.dp))
+                    Spacer(Modifier.width(8.dp))
                     Icon(
                         imageVector = Icons.Rounded.Verified,
                         contentDescription = "Verified",
                         tint = Color(0xFF0077FF),
-                        modifier = Modifier.size(if (compact) 18.dp else 22.dp),
+                        modifier = Modifier.size(22.dp),
                     )
                 }
             }
 
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(6.dp))
 
-            // Адрес — стеклянной пилюлей, а не простой строкой: он один
-            // «кликабельного вида» элемент шапки и не должен читаться как
-            // продолжение имени.
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(50))
-                    .background(colors.textTertiary.copy(alpha = if (colors.isDark) 0.16f else 0.10f))
-                    .padding(horizontal = 12.dp, vertical = 5.dp),
-            ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (isOnline) {
+                    // Онлайн — точкой перед адресом. Строки «Presence» в списке
+                    // ниже больше нет: одно и то же дважды не сообщаем.
+                    Box(
+                        modifier = Modifier
+                            .size(7.dp)
+                            .clip(CircleShape)
+                            .background(OnlineGreen),
+                    )
+                    Spacer(Modifier.width(7.dp))
+                }
                 Text(
                     text = subtitle,
+                    color = LiquidSurfaces.onHeaderSecondary,
                     fontFamily = AppFontFamily,
-                    color = colors.textSecondary,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Medium,
+                    fontSize = LiquidMetrics.HeaderCaption,
                 )
             }
 
             status?.let {
-                Spacer(Modifier.height(10.dp))
+                Spacer(Modifier.height(6.dp))
                 Text(
                     text = it,
+                    color = LiquidSurfaces.onHeaderSecondary,
                     fontFamily = AppFontFamily,
-                    color = colors.textTertiary,
-                    fontSize = 12.sp,
-                    textAlign = TextAlign.Center,
+                    fontSize = 12.5.sp,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(horizontal = 24.dp),
+                )
+            }
+
+            Spacer(Modifier.height(16.dp))
+
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                ProfileHeaderButton(
+                    label = "My Music",
+                    icon = Icons.Rounded.QueueMusic,
+                    filled = true,
+                    onClick = onOpenLibrary,
+                )
+                ProfileHeaderButton(
+                    label = "Settings",
+                    icon = Icons.Rounded.Settings,
+                    filled = false,
+                    onClick = onOpenSettings,
                 )
             }
         }
     }
 }
 
+/**
+ * Кнопка действия в шапке — тот же контракт, что у артиста: главная сплошная
+ * белая (под ней фотография, только плотная заливка гарантирует читаемость),
+ * вторая стеклянная, чтобы не спорить за внимание.
+ */
 @Composable
-private fun ProfileCard(surface: Color, content: @Composable ColumnScope.() -> Unit) {
+private fun RowScope.ProfileHeaderButton(
+    label: String,
+    icon: ImageVector,
+    filled: Boolean,
+    onClick: () -> Unit,
+) {
+    val contentColor = if (filled) Color.Black else Color.White
+    Row(
+        modifier = Modifier
+            .weight(1f)
+            .height(LiquidMetrics.ActionButtonHeight)
+            .shadow(
+                elevation = if (filled) LiquidMetrics.ButtonElevation else 2.dp,
+                shape = CircleShape,
+                ambientColor = Color.Black,
+                spotColor = Color.Black,
+            )
+            .clip(CircleShape)
+            .background(if (filled) Color.White else LiquidSurfaces.glassAction)
+            .liquidClickable(pressedScale = LiquidMotion.PressButton, onClick = onClick),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center,
+    ) {
+        Icon(icon, null, tint = contentColor, modifier = Modifier.size(18.dp))
+        Spacer(Modifier.width(8.dp))
+        Text(
+            text = label,
+            color = contentColor,
+            fontFamily = AppFontFamily,
+            fontSize = LiquidMetrics.ActionLabel,
+            fontWeight = FontWeight.SemiBold,
+        )
+    }
+}
+
+/** Верхушка листа: наезжает на шапку, скруглена сверху, с полоской-ручкой. */
+@Composable
+private fun ProfileSheetTop(isDark: Boolean, modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(LiquidMetrics.SheetShape)
+            .background(LiquidSurfaces.sheet(isDark))
+            .padding(top = 12.dp, bottom = 4.dp),
+        contentAlignment = Alignment.TopCenter,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(width = 36.dp, height = 5.dp)
+                .clip(CircleShape)
+                .background(LiquidSurfaces.grabber(isDark)),
+        )
+    }
+}
+private fun ProfileCard(content: @Composable ColumnScope.() -> Unit) {
+    val isDark = LiquidTheme.colors.isDark
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 20.dp)
-            .clip(RoundedCornerShape(28.dp))
-            // Объём вместо плоской заливки. dimensionalSurface идёт ПОСЛЕ clip:
-            // кисть заливает весь слой, и форма должна быть обрезана раньше.
-            .dimensionalSurface(
-                base = surface,
-                isDark = LiquidTheme.colors.isDark,
-                cornerRadius = 28.dp,
-            ),
+            .padding(horizontal = LiquidMetrics.ScreenPadding)
+            // Карточки — из общего словаря: радиус CardRadius, заливка
+            // LiquidSurfaces.card, тень CardElevation с подсветкой (на тёмном
+            // фоне чёрная тень не видна, и карточка выглядит плоской).
+            // Свой dimensionalSurface здесь убран: он был вторым визуальным
+            // языком рядом с тем, по которому сделаны артист и альбом.
+            .shadow(
+                elevation = LiquidMetrics.CardElevation,
+                shape = LiquidMetrics.CardShape,
+                ambientColor = LiquidSurfaces.shadowTint(isDark),
+                spotColor = LiquidSurfaces.shadowTint(isDark),
+            )
+            .clip(LiquidMetrics.CardShape)
+            .background(LiquidSurfaces.card(isDark)),
         content = content,
     )
 }
@@ -893,14 +970,17 @@ private fun ProfileInfoRow(
 
 @Composable
 private fun ProfileSectionLabel(text: String) {
+    // Заголовок раздела — как на артисте: крупный полужирный с плотным
+    // трекингом. Прежний вариант (11sp капсом с разрядкой 1.4) — язык
+    // системных настроек, из которого экран и вытаскиваем.
     Text(
         text = text,
         fontFamily = AppFontFamily,
-        color = LiquidTheme.colors.textSecondary,
-        fontSize = 11.sp,
-        fontWeight = FontWeight.Bold,
-        letterSpacing = 1.4.sp,
-        modifier = Modifier.padding(start = 18.dp, end = 18.dp, top = 16.dp, bottom = 6.dp),
+        color = LiquidSurfaces.textPrimary(LiquidTheme.colors.isDark),
+        fontSize = LiquidMetrics.SectionTitle,
+        fontWeight = LiquidMetrics.SectionTitleWeight,
+        letterSpacing = LiquidMetrics.SectionTitleSpacing,
+        modifier = Modifier.padding(start = 18.dp, end = 18.dp, top = 18.dp, bottom = 8.dp),
     )
 }
 
@@ -973,14 +1053,16 @@ private fun ProfileMetric(
 ) {
     Column(
         modifier = modifier
-            .clip(RoundedCornerShape(18.dp))
-            .background(colors.textTertiary.copy(alpha = if (colors.isDark) 0.10f else 0.06f))
+            .clip(LiquidMetrics.CoverShape)
+            // cardPressed как «на тон отличную» поверхность: card совпал бы с
+            // карточкой-родителем, и плитка не читалась бы вовсе.
+            .background(LiquidSurfaces.cardPressed(colors.isDark))
             .padding(horizontal = 14.dp, vertical = if (compact) 10.dp else 13.dp),
     ) {
         Text(
             value,
             fontFamily = AppFontFamily,
-            color = colors.textPrimary,
+            color = LiquidSurfaces.textPrimary(colors.isDark),
             fontSize = if (compact) 20.sp else 23.sp,
             fontWeight = FontWeight.Bold,
         )
@@ -988,8 +1070,8 @@ private fun ProfileMetric(
         Text(
             label,
             fontFamily = AppFontFamily,
-            color = colors.textSecondary,
-            fontSize = 11.sp,
+            color = LiquidSurfaces.textSecondary(colors.isDark),
+            fontSize = LiquidMetrics.Caption,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
@@ -1056,7 +1138,7 @@ private fun ProfileDivider() {
             .fillMaxWidth()
             .height(1.dp)
             .padding(start = 52.dp)
-            .background(LiquidTheme.colors.textTertiary.copy(alpha = 0.12f)),
+            .background(LiquidSurfaces.divider(LiquidTheme.colors.isDark)),
     )
 }
 
