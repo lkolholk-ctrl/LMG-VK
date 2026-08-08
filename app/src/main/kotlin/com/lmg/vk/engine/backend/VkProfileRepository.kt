@@ -154,6 +154,20 @@ object VkProfileRepository {
             val profile = (loaded.profile as? VkResult.Success)?.data?.firstOrNull()
             val profileError = (loaded.profile as? VkResult.Error)?.let(::messageOf)
 
+            // Диагностика качества аватара: жалоба «нечёткое, как 360p».
+            // Печатаем ФАКТЫ вместо догадок — пришёл ли crop_photo, какие в нём
+            // размеры и что в итоге выбрано для шапки.
+            profile?.let { p ->
+                val sizes = p.cropPhoto?.photo?.sizes.orEmpty()
+                com.lmg.vk.debug.DebugLog.add(
+                    "AVATAR crop_photo=${if (p.cropPhoto == null) "НЕТ" else "есть"} " +
+                        "sizes=${sizes.size} [" +
+                        sizes.joinToString(",") { "${it.type}:${it.width}x${it.height}" } +
+                        "] max_orig=${p.photoMaxOrig.takeLast(28)} " +
+                        "выбрано=${p.largePhotoUrl.takeLast(40)}"
+                )
+            }
+
             _state.value = ProfileState(
                 isLoading = false,
                 isRefreshing = false,
