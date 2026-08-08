@@ -72,15 +72,21 @@ data class VkAccountProfile(
     /**
      * Фото для шапки во всю ширину экрана.
      *
-     * Сначала оригинал из `crop_photo` (самый крупный размер по площади), и лишь
-     * при его отсутствии — превью из [bestPhotoUrl]. Разница не косметическая:
-     * `photo_max_orig` это 400px, растянутые на ~1080px ширины экрана.
+     * Порядок: оригинал из `crop_photo` → превью с поднятым до максимума `cs`.
      *
-     * `crop_photo` приходит не всегда: у профилей без аватара, а также когда
-     * фото поставлено не из альбома. Поэтому fallback обязателен.
+     * ПОЧЕМУ НУЖЕН ПОДЪЁМ `cs`. На живом аккаунте `crop_photo` не пришёл вовсе,
+     * а `photo_max_orig` оказался ссылкой с `cs=240x240` (лог: «crop_photo=НЕТ
+     * sizes=0 … cs=240x240»). 240px, растянутые на ~1080px ширины экрана, и есть
+     * та самая жалоба «нечёткое, как 360p».
+     *
+     * Новые ссылки VK (`/s/v1/ig2/…`) несут размер не в имени файла, а в
+     * параметрах: `as=` перечисляет ДОСТУПНЫЕ нарезки, `cs=` выбирает одну из
+     * них. Подпись (`cs` входит в хеш) остаётся валидной для любого размера из
+     * `as`, поэтому подмена размера — законная операция, а не обход защиты.
      */
     val largePhotoUrl: String
-        get() = cropPhoto?.photo?.largestUrl().orEmpty().ifBlank { bestPhotoUrl }
+        get() = cropPhoto?.photo?.largestUrl().orEmpty()
+            .ifBlank { bestPhotoUrl.withLargestVkSize() }
 
     /** Короткий адрес профиля: `screen_name`, иначе `domain`, иначе `idN`. */
     val addressSlug: String
@@ -97,6 +103,51 @@ data class VkAccountProfile(
         get() = listOfNotNull(city?.title, country?.title)
             .filter(String::isNotBlank)
             .joinToString(", ")
+}
+
+/**
+ * Поднять `cs` в ссылке VK до самого крупного размера из `as`.
+ *
+ * Ссылки нового формата (`/s/v1/ig2/…`) выглядят так:
+ *
+ *     …ig2/<hash>.jpg?quality=95&as=32x32,48x48,72x72,108x108,160x160,240x240,
+ *     360x360,480x480,540x540,640x640,720x720,1080x1080&ava=1&cs=240x240
+ *
+ * `as` — что CDN умеет отдать, `cs` — что он отдаст. VK-клиент подставляет в
+ * `cs` размер под конкретное место в вёрстке; нам для шапки нужен максимум.
+ *
+ * КОНСЕРВАТИВНО ПО УМОЛЧАНИЮ. Любая неожиданность (нет `as`, нет `cs`, размеры
+ * не парсятся, максимум не больше текущего) → возвращаем ссылку БЕЗ изменений.
+ * Испорченный URL здесь означал бы пустую шапку, а это хуже нерезкой.
+ */
+internal fun String.withLargestVkSize(): String {
+    if (isBlank() || !contains("cs=") || !contains("as=")) return this
+
+    fun paramValue(name: String): String? =
+        Regex("""[?&]$name=([^&]+)""").find(this)?.groupValues?.getOrNull(1)
+
+    val available = paramValue("as") ?: return this
+    val current = paramValue("cs") ?: return this
+
+    // "1080x1080" → 1080. Берём меньшую сторону: у VK нарезки квадратные, но
+    // если попадётся прямоугольная, сравнение по меньшей стороне не завысит.
+    fun sideOf(size: String): Int {
+        val parts = size.split('x')
+        if (parts.size != 2) return 0
+        val w = parts[0].toIntOrNull() ?: return 0
+        val h = parts[1].toIntOrNull() ?: return 0
+        return minOf(w, h)
+    }
+
+    val largest = available.split(',')
+        .filter { sideOf(it) > 0 }
+        .maxByOrNull { sideOf(it) }
+        ?: return this
+
+    // Уже максимум (или в as нет ничего крупнее) — не трогаем.
+    if (sideOf(largest) <= sideOf(current)) return this
+
+    return replace("cs=$current", "cs=$largest")
 }
 
 /** Город/страна из `users.get`: VK отдаёт их объектом `{id, title}`. */
