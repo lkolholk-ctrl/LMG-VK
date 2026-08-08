@@ -924,6 +924,8 @@ private fun ProfileSheetTop(isDark: Boolean, modifier: Modifier = Modifier) {
         )
     }
 }
+
+@Composable
 private fun ProfileCard(content: @Composable ColumnScope.() -> Unit) {
     val isDark = LiquidTheme.colors.isDark
     Column(
