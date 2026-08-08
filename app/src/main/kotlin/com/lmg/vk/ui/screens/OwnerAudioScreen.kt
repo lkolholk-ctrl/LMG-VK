@@ -38,7 +38,11 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -47,6 +51,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import com.lmg.vk.engine.PlayerController
 import com.lmg.vk.engine.Track
 import com.lmg.vk.engine.backend.MusicBackend
@@ -57,6 +62,9 @@ import com.lmg.vk.ui.components.DetailTrackRow
 import com.lmg.vk.ui.components.formatTotalDuration
 import com.lmg.vk.ui.glass.liquidClickable
 import com.lmg.vk.ui.theme.AppFontFamily
+import com.lmg.vk.ui.theme.LiquidMetrics
+import com.lmg.vk.ui.theme.LiquidMotion
+import com.lmg.vk.ui.theme.LiquidSurfaces
 import com.lmg.vk.ui.theme.LiquidTheme
 
 /**
@@ -119,6 +127,9 @@ fun OwnerAudioScreen(
     val colors = LiquidTheme.colors
     val isDark = colors.isDark
     val listState = rememberLazyListState()
+    // Тот же признак, что на профиле: на узком экране шапка ниже, иначе она
+    // занимает его целиком и список не виден без прокрутки.
+    val compact = com.lmg.vk.ui.rememberWindowInfo().useSideBySide
 
     // Треки конвертируются один раз на изменение списка: маппинг заодно кладёт
     // их в кэш бэкенда, без него плеер полез бы за audio.getById.
@@ -147,7 +158,8 @@ fun OwnerAudioScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(colors.settingsBackground)
+            // Фон — лист из общего словаря, как на профиле и артисте.
+            .background(LiquidSurfaces.sheet(isDark))
             // Оверлей поверх профиля: без своего обработчика касания уходили бы
             // в список профиля под ним.
             .clickable(
@@ -199,6 +211,8 @@ fun OwnerAudioScreen(
                             if (state.playlists.isNotEmpty()) add("${state.playlists.size} playlists")
                         },
                         canPlay = playable.isNotEmpty(),
+                        isDark = isDark,
+                        compact = compact,
                         onPlay = { PlayerController.play(context, playable, 0) },
                         onShuffle = { PlayerController.play(context, playable.shuffled(), 0) },
                     )
@@ -261,82 +275,142 @@ fun OwnerAudioScreen(
 }
 
 @Composable
+/**
+ * Шапка чужой музыки — тот же приём, что на профиле, артисте и альбоме: фото на
+ * всю ширину, затемнение, крупное имя и действия капсулами, а поверх снизу
+ * наезжает лист контента.
+ *
+ * Раньше здесь был центрированный кружок 128dp на `settingsBackground` — язык
+ * системных настроек, из-за которого экран выпадал из общего ряда.
+ */
+@Composable
 private fun OwnerAudioHeader(
     title: String,
     subtitle: String,
     avatarUrl: String,
     facts: List<String>,
     canPlay: Boolean,
+    isDark: Boolean,
+    compact: Boolean,
     onPlay: () -> Unit,
     onShuffle: () -> Unit,
 ) {
-    val colors = LiquidTheme.colors
-    Column(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Spacer(Modifier.height(96.dp))
-        Box(
-            modifier = Modifier
-                .size(128.dp)
-                .clip(CircleShape)
-                .background(colors.textTertiary.copy(alpha = 0.16f)),
-            contentAlignment = Alignment.Center,
-        ) {
-            if (avatarUrl.isNotBlank()) {
-                AsyncImage(
-                    model = avatarUrl,
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize(),
-                )
-            } else {
-                Icon(
-                    Icons.Rounded.Person,
-                    null,
-                    tint = colors.iconMuted,
-                    modifier = Modifier.size(56.dp),
+    Box(modifier = Modifier.fillMaxWidth()) {
+        Box(modifier = Modifier.fillMaxWidth().height(if (compact) 300.dp else 380.dp)) {
+            Box(modifier = Modifier.fillMaxSize().clipToBounds()) {
+                if (avatarUrl.isNotBlank()) {
+                    AsyncImage(
+                        model = ImageRequest.Builder(LocalContext.current)
+                            .data(avatarUrl)
+                            .crossfade(true)
+                            .build(),
+                        contentDescription = title,
+                        contentScale = ContentScale.Crop,
+                        // Фото растягивается на ширину экрана — дефолтная Low
+                        // даёт на апскейле заметную ступеньку.
+                        filterQuality = FilterQuality.High,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                } else {
+                    // Тёмная плашка: белый текст поверх светлой исчез бы.
+                    Box(
+                        modifier = Modifier.fillMaxSize().background(Color(0xFF2A2A2E)),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            Icons.Rounded.Person,
+                            null,
+                            tint = Color.White.copy(alpha = 0.30f),
+                            modifier = Modifier.size(96.dp),
+                        )
+                    }
+                }
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            Brush.verticalGradient(
+                                0f to Color.Black.copy(alpha = 0.35f),
+                                0.30f to Color.Transparent,
+                                0.60f to Color.Black.copy(alpha = 0.25f),
+                                1f to Color.Black.copy(alpha = 0.88f),
+                            ),
+                        ),
                 )
             }
+
+            Column(
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .fillMaxWidth()
+                    .padding(
+                        start = LiquidMetrics.ScreenPadding,
+                        end = LiquidMetrics.ScreenPadding,
+                        bottom = LiquidMetrics.SheetOverlap + 8.dp,
+                    ),
+            ) {
+                Text(
+                    text = title,
+                    color = LiquidSurfaces.onHeaderPrimary,
+                    fontFamily = AppFontFamily,
+                    fontSize = if (compact) 30.sp else 38.sp,
+                    fontWeight = LiquidMetrics.TitleHugeWeight,
+                    letterSpacing = LiquidMetrics.TitleHugeSpacing,
+                    lineHeight = if (compact) 34.sp else 42.sp,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                // Адрес и факты одной строкой: по отдельности они занимали три
+                // строки текста ради нескольких слов.
+                val line = (listOf(subtitle).filter(String::isNotBlank) + facts)
+                    .joinToString(" • ")
+                if (line.isNotBlank()) {
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        text = line,
+                        color = LiquidSurfaces.onHeaderSecondary,
+                        fontFamily = AppFontFamily,
+                        fontSize = LiquidMetrics.HeaderCaption,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                Spacer(Modifier.height(16.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    OwnerAudioButton("Play", Icons.Rounded.PlayArrow, canPlay, Modifier.weight(1f), onPlay)
+                    OwnerAudioButton("Shuffle", Icons.Rounded.Shuffle, canPlay, Modifier.weight(1f), onShuffle)
+                }
+            }
         }
-        Spacer(Modifier.height(14.dp))
-        Text(
-            text = title,
-            fontFamily = AppFontFamily,
-            color = colors.textPrimary,
-            fontSize = 22.sp,
-            fontWeight = FontWeight.Bold,
-            textAlign = TextAlign.Center,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-        )
-        if (subtitle.isNotBlank()) {
-            Spacer(Modifier.height(4.dp))
-            Text(
-                text = subtitle,
-                fontFamily = AppFontFamily,
-                color = colors.textSecondary,
-                fontSize = 13.sp,
+
+        // Верхушка листа наезжает на шапку — шапка читается подложкой.
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .clip(LiquidMetrics.SheetShape)
+                .background(LiquidSurfaces.sheet(isDark))
+                .padding(top = 12.dp, bottom = 4.dp),
+            contentAlignment = Alignment.TopCenter,
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(width = 36.dp, height = 5.dp)
+                    .clip(CircleShape)
+                    .background(LiquidSurfaces.grabber(isDark)),
             )
         }
-        if (facts.isNotEmpty()) {
-            Spacer(Modifier.height(4.dp))
-            Text(
-                text = facts.joinToString(" • "),
-                fontFamily = AppFontFamily,
-                color = colors.textTertiary,
-                fontSize = 12.sp,
-            )
-        }
-        Spacer(Modifier.height(18.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            OwnerAudioButton("Play", Icons.Rounded.PlayArrow, canPlay, Modifier.weight(1f), onPlay)
-            OwnerAudioButton("Shuffle", Icons.Rounded.Shuffle, canPlay, Modifier.weight(1f), onShuffle)
-        }
-        Spacer(Modifier.height(20.dp))
     }
 }
 
+/**
+ * Кнопка действия поверх фотографии — контракт артиста: первая («Play»)
+ * сплошная белая, потому что под ней снимок и только плотная заливка
+ * гарантирует читаемость; вторая стеклянная, чтобы не спорить за внимание.
+ *
+ * Цвета темы здесь не годятся: они рассчитаны на лист, а не на кадр.
+ */
 @Composable
 private fun OwnerAudioButton(
     label: String,
@@ -345,24 +419,44 @@ private fun OwnerAudioButton(
     modifier: Modifier,
     onClick: () -> Unit,
 ) {
-    val colors = LiquidTheme.colors
-    val accent = Color(0xFFFC3C44)
+    val filled = label == "Play"
+    val contentColor = when {
+        !enabled -> Color.White.copy(alpha = 0.45f)
+        filled -> Color.Black
+        else -> Color.White
+    }
     Row(
         modifier = modifier
-            .clip(androidx.compose.foundation.shape.RoundedCornerShape(14.dp))
-            .background(colors.textTertiary.copy(alpha = if (enabled) 0.14f else 0.06f))
-            .liquidClickable(enabled = enabled, onClick = onClick)
-            .padding(vertical = 12.dp),
+            .height(LiquidMetrics.ActionButtonHeight)
+            .shadow(
+                elevation = if (filled) LiquidMetrics.ButtonElevation else 2.dp,
+                shape = CircleShape,
+                ambientColor = Color.Black,
+                spotColor = Color.Black,
+            )
+            .clip(CircleShape)
+            .background(
+                when {
+                    !enabled -> Color.White.copy(alpha = 0.10f)
+                    filled -> Color.White
+                    else -> LiquidSurfaces.glassAction
+                },
+            )
+            .liquidClickable(
+                enabled = enabled,
+                pressedScale = LiquidMotion.PressButton,
+                onClick = onClick,
+            ),
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(icon, null, tint = if (enabled) accent else colors.textTertiary, modifier = Modifier.size(20.dp))
+        Icon(icon, null, tint = contentColor, modifier = Modifier.size(18.dp))
         Spacer(Modifier.size(8.dp))
         Text(
             text = label,
             fontFamily = AppFontFamily,
-            color = if (enabled) accent else colors.textTertiary,
-            fontSize = 15.sp,
+            color = contentColor,
+            fontSize = LiquidMetrics.ActionLabel,
             fontWeight = FontWeight.SemiBold,
         )
     }

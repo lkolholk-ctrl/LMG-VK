@@ -50,18 +50,21 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import com.lmg.vk.engine.PlayerController
 import com.lmg.vk.engine.Track
 import com.lmg.vk.engine.backend.MusicBackend
@@ -74,6 +77,9 @@ import com.lmg.vk.ui.components.formatTotalDuration
 import com.lmg.vk.ui.glass.AlbumArtImage
 import com.lmg.vk.ui.glass.liquidClickable
 import com.lmg.vk.ui.theme.AppFontFamily
+import com.lmg.vk.ui.theme.LiquidMetrics
+import com.lmg.vk.ui.theme.LiquidMotion
+import com.lmg.vk.ui.theme.LiquidSurfaces
 import com.lmg.vk.ui.theme.LiquidTheme
 import com.lmg.vk.ui.viewmodel.GroupUiState
 import com.lmg.vk.ui.viewmodel.GroupViewModel
@@ -139,7 +145,8 @@ fun GroupScreen(
         }
     }
 
-    Box(modifier = Modifier.fillMaxSize().background(colors.settingsBackground)) {
+    // Фон — лист из общего словаря, как на профиле и артисте.
+    Box(modifier = Modifier.fillMaxSize().background(LiquidSurfaces.sheet(colors.isDark))) {
         when {
             // Скелетон вместо голого спиннера: экран сразу занимает ту же форму,
             // что и с данными, поэтому появление контента не «прыгает».
@@ -319,9 +326,17 @@ fun GroupScreen(
 }
 
 /**
- * Шапка сообщества. Обложка (`cover`) рисуется фоном, если VK её отдал: у
- * музыкальных сообществ она есть почти всегда и делает экран узнаваемым. Нет
- * обложки — остаётся аватар на нейтральном фоне, без выдуманной картинки.
+ * Шапка сообщества — тот же приём, что на профиле, артисте и альбоме: картинка
+ * на всю ширину, затемнение, крупное имя, действия капсулами, поверх снизу
+ * наезжает лист контента.
+ *
+ * ЧТО БЕРЁМ ФОНОМ. Сначала широкая обложка (`cover`): у музыкальных сообществ
+ * она есть почти всегда и специально нарисована под шапку. Нет обложки — аватар
+ * с обрезкой по центру. Нет и его — ровная тёмная плашка, но НЕ выдуманная
+ * картинка.
+ *
+ * Раньше здесь был центрированный кружок 96dp на `settingsBackground`, то есть
+ * язык системных настроек, из-за которого экран выпадал из общего ряда.
  */
 @Composable
 private fun GroupHeader(
@@ -333,31 +348,50 @@ private fun GroupHeader(
     onShuffle: () -> Unit,
     onToggleMembership: () -> Unit,
 ) {
-    val colors = LiquidTheme.colors
+    val isDark = LiquidTheme.colors.isDark
     val group = state.group
-    val coverUrl = group?.coverUrl
+    // Обложка приоритетнее: она широкая и рассчитана на шапку, аватар же
+    // квадратный и на всю ширину растягивается с большей обрезкой.
+    val backdrop = group?.coverUrl?.takeIf { it.isNotBlank() }
+        ?: group?.bigAvatarUrl?.takeIf { it.isNotBlank() }
 
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Box(modifier = Modifier.fillMaxWidth()) {
-            if (!coverUrl.isNullOrBlank()) {
-                AsyncImage(
-                    model = coverUrl,
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(if (compact) 150.dp else 190.dp),
-                )
-                // Градиент к фону экрана: без него обложка обрывается резкой
-                // линией, а текст под ней на светлом кадре не читается.
+    Box(modifier = Modifier.fillMaxWidth()) {
+        Box(modifier = Modifier.fillMaxWidth().height(if (compact) 300.dp else 380.dp)) {
+            Box(modifier = Modifier.fillMaxSize().clipToBounds()) {
+                if (backdrop != null) {
+                    AsyncImage(
+                        model = ImageRequest.Builder(LocalContext.current)
+                            .data(backdrop)
+                            .crossfade(true)
+                            .build(),
+                        contentDescription = group?.name,
+                        contentScale = ContentScale.Crop,
+                        filterQuality = FilterQuality.High,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                } else {
+                    Box(
+                        modifier = Modifier.fillMaxSize().background(Color(0xFF2A2A2E)),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            Icons.Rounded.Groups,
+                            null,
+                            tint = Color.White.copy(alpha = 0.30f),
+                            modifier = Modifier.size(96.dp),
+                        )
+                    }
+                }
+
                 Box(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .height(if (compact) 150.dp else 190.dp)
+                        .fillMaxSize()
                         .background(
                             Brush.verticalGradient(
-                                0f to Color.Transparent,
-                                1f to colors.settingsBackground,
+                                0f to Color.Black.copy(alpha = 0.35f),
+                                0.30f to Color.Transparent,
+                                0.60f to Color.Black.copy(alpha = 0.25f),
+                                1f to Color.Black.copy(alpha = 0.88f),
                             ),
                         ),
                 )
@@ -365,58 +399,58 @@ private fun GroupHeader(
 
             Column(
                 modifier = Modifier
+                    .align(Alignment.BottomStart)
                     .fillMaxWidth()
-                    .padding(horizontal = 20.dp)
-                    .padding(top = if (coverUrl.isNullOrBlank()) 96.dp else 78.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
+                    .padding(
+                        start = LiquidMetrics.ScreenPadding,
+                        end = LiquidMetrics.ScreenPadding,
+                        bottom = LiquidMetrics.SheetOverlap + 8.dp,
+                    ),
             ) {
-                GroupAvatar(
-                    url = group?.bigAvatarUrl.orEmpty(),
-                    size = if (compact) 96.dp else 116.dp,
-                )
-                Spacer(Modifier.height(14.dp))
-
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.Center,
-                ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         text = group?.name.orEmpty(),
+                        color = LiquidSurfaces.onHeaderPrimary,
                         fontFamily = AppFontFamily,
-                        color = colors.textPrimary,
-                        fontSize = if (compact) 20.sp else 22.sp,
-                        fontWeight = FontWeight.Bold,
-                        textAlign = TextAlign.Center,
+                        fontSize = if (compact) 28.sp else 36.sp,
+                        fontWeight = LiquidMetrics.TitleHugeWeight,
+                        letterSpacing = LiquidMetrics.TitleHugeSpacing,
+                        lineHeight = if (compact) 32.sp else 40.sp,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f, fill = false),
                     )
                     if (group?.verified == 1) {
-                        Spacer(Modifier.width(6.dp))
+                        Spacer(Modifier.width(8.dp))
                         Icon(
                             Icons.Rounded.Verified,
                             contentDescription = "Verified",
                             tint = Color(0xFF2787F5),
-                            modifier = Modifier.size(18.dp),
+                            modifier = Modifier.size(20.dp),
                         )
                     }
                 }
 
-                // Строка фактов: только то, что VK реально прислал. Тип
-                // сообщества известен всегда, остальное — по наличию.
+                // Одна строка фактов вместо трёх абзацев: тип, участники,
+                // закрытость и сводка по музыке. Только то, что VK реально
+                // прислал — счётчик участников приходит не всегда.
                 val facts = buildList {
                     group?.let { add(it.typeLabel) }
                     state.membersCount?.let { add("$it участников") }
                     if (group?.isPrivate == true) add("Закрытое")
+                    state.tracksTotal?.takeIf { it > 0 }?.let { add("$it треков") }
+                    if (totalDurationMs > 0) add(formatTotalDuration(totalDurationMs))
+                    state.playlists.size.takeIf { it > 0 }?.let { add("$it плейлистов") }
                 }
                 if (facts.isNotEmpty()) {
                     Spacer(Modifier.height(6.dp))
                     Text(
                         text = facts.joinToString(" • "),
+                        color = LiquidSurfaces.onHeaderSecondary,
                         fontFamily = AppFontFamily,
-                        color = colors.textSecondary,
-                        fontSize = 13.sp,
-                        textAlign = TextAlign.Center,
+                        fontSize = LiquidMetrics.HeaderCaption,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
                     )
                 }
 
@@ -424,40 +458,22 @@ private fun GroupHeader(
                     Spacer(Modifier.height(6.dp))
                     Text(
                         text = status,
+                        color = LiquidSurfaces.onHeaderSecondary,
                         fontFamily = AppFontFamily,
-                        color = colors.textTertiary,
-                        fontSize = 12.sp,
-                        textAlign = TextAlign.Center,
+                        fontSize = 12.5.sp,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
 
-                // Сводка по музыке: длительность считается по реально играбельным
-                // трекам, поэтому появляется только когда они есть.
-                val musicFacts = buildList {
-                    state.tracksTotal?.takeIf { it > 0 }?.let { add("$it треков") }
-                    if (totalDurationMs > 0) add(formatTotalDuration(totalDurationMs))
-                    state.playlists.size.takeIf { it > 0 }?.let { add("$it плейлистов") }
-                }
-                if (musicFacts.isNotEmpty()) {
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        text = musicFacts.joinToString(" • "),
-                        fontFamily = AppFontFamily,
-                        color = colors.textTertiary,
-                        fontSize = 12.sp,
-                        textAlign = TextAlign.Center,
-                    )
-                }
+                Spacer(Modifier.height(16.dp))
 
-                Spacer(Modifier.height(18.dp))
-
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     GroupActionButton(
                         label = "Слушать",
                         icon = Icons.Rounded.PlayArrow,
                         enabled = canPlay,
+                        filled = true,
                         modifier = Modifier.weight(1f),
                         onClick = onPlay,
                     )
@@ -465,6 +481,7 @@ private fun GroupHeader(
                         label = "Вперемешку",
                         icon = Icons.Rounded.Shuffle,
                         enabled = canPlay,
+                        filled = false,
                         modifier = Modifier.weight(1f),
                         onClick = onShuffle,
                     )
@@ -484,63 +501,60 @@ private fun GroupHeader(
                     Spacer(Modifier.height(6.dp))
                     Text(
                         text = message,
+                        color = LiquidSurfaces.onHeaderSecondary,
                         fontFamily = AppFontFamily,
-                        color = colors.textSecondary,
                         fontSize = 12.sp,
-                        textAlign = TextAlign.Center,
                     )
                 }
-
-                Spacer(Modifier.height(20.dp))
             }
         }
-    }
-}
 
-@Composable
-private fun GroupAvatar(url: String, size: Dp) {
-    val colors = LiquidTheme.colors
-    Box(
-        modifier = Modifier
-            .size(size)
-            .clip(CircleShape)
-            .background(colors.textTertiary.copy(alpha = 0.16f)),
-        contentAlignment = Alignment.Center,
-    ) {
-        if (url.isNotBlank()) {
-            AsyncImage(
-                model = url,
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize(),
-            )
-        } else {
-            Icon(
-                Icons.Rounded.Groups,
-                contentDescription = null,
-                tint = colors.iconMuted,
-                modifier = Modifier.size(size / 2.4f),
+        // Верхушка листа наезжает на шапку — та читается подложкой, а не первым
+        // элементом списка.
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .clip(LiquidMetrics.SheetShape)
+                .background(LiquidSurfaces.sheet(isDark))
+                .padding(top = 12.dp, bottom = 4.dp),
+            contentAlignment = Alignment.TopCenter,
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(width = 36.dp, height = 5.dp)
+                    .clip(CircleShape)
+                    .background(LiquidSurfaces.grabber(isDark)),
             )
         }
     }
 }
 
-/** Кнопка подписки. Подписанное состояние — приглушённое: это не призыв к действию. */
+/**
+ * Кнопка подписки. Стеклянная в обоих состояниях: она лежит на фотографии
+ * шапки, где цвета темы не работают. Подписанное состояние отличается значком
+ * и текстом, а не заливкой — это не призыв к действию, и выделять его нечем.
+ */
 @Composable
 private fun GroupMembershipButton(
     isMember: Boolean,
     isChanging: Boolean,
     onClick: () -> Unit,
 ) {
-    val colors = LiquidTheme.colors
-    val tint = if (isMember) colors.textSecondary else GroupAccent
+    val contentColor = if (isChanging) Color.White.copy(alpha = 0.45f) else Color.White
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
-            .background(colors.textTertiary.copy(alpha = if (isChanging) 0.06f else 0.14f))
-            .liquidClickable(enabled = !isChanging, onClick = onClick)
-            .padding(vertical = 12.dp),
+            .height(LiquidMetrics.ActionButtonHeight)
+            .clip(CircleShape)
+            .background(
+                if (isChanging) Color.White.copy(alpha = 0.10f) else LiquidSurfaces.glassAction,
+            )
+            .liquidClickable(
+                enabled = !isChanging,
+                pressedScale = LiquidMotion.PressButton,
+                onClick = onClick,
+            ),
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -548,13 +562,13 @@ private fun GroupMembershipButton(
             CircularProgressIndicator(
                 modifier = Modifier.size(16.dp),
                 strokeWidth = 2.dp,
-                color = colors.iconMuted,
+                color = Color.White.copy(alpha = 0.7f),
             )
         } else {
             Icon(
                 imageVector = if (isMember) Icons.Rounded.Check else Icons.Rounded.PersonAddAlt1,
                 contentDescription = null,
-                tint = tint,
+                tint = contentColor,
                 modifier = Modifier.size(18.dp),
             )
         }
@@ -562,43 +576,71 @@ private fun GroupMembershipButton(
         Text(
             text = if (isMember) "Вы подписаны" else "Подписаться",
             fontFamily = AppFontFamily,
-            color = if (isChanging) colors.textTertiary else tint,
-            fontSize = 15.sp,
+            color = contentColor,
+            fontSize = LiquidMetrics.ActionLabel,
             fontWeight = FontWeight.SemiBold,
         )
     }
 }
 
+/**
+ * Кнопка действия поверх картинки шапки — контракт артиста: главная сплошная
+ * белая (под ней снимок, только плотная заливка гарантирует читаемость),
+ * вторая стеклянная, чтобы не спорить с главной за внимание.
+ *
+ * Цвета темы здесь не годятся: они рассчитаны на лист, а не на кадр.
+ */
 @Composable
 private fun GroupActionButton(
     label: String,
     icon: ImageVector,
     enabled: Boolean,
+    filled: Boolean,
     modifier: Modifier,
     onClick: () -> Unit,
 ) {
-    val colors = LiquidTheme.colors
+    val contentColor = when {
+        !enabled -> Color.White.copy(alpha = 0.45f)
+        filled -> Color.Black
+        else -> Color.White
+    }
     Row(
         modifier = modifier
-            .clip(RoundedCornerShape(14.dp))
-            .background(colors.textTertiary.copy(alpha = if (enabled) 0.14f else 0.06f))
-            .liquidClickable(enabled = enabled, onClick = onClick)
-            .padding(vertical = 12.dp),
+            .height(LiquidMetrics.ActionButtonHeight)
+            .shadow(
+                elevation = if (filled) LiquidMetrics.ButtonElevation else 2.dp,
+                shape = CircleShape,
+                ambientColor = Color.Black,
+                spotColor = Color.Black,
+            )
+            .clip(CircleShape)
+            .background(
+                when {
+                    !enabled -> Color.White.copy(alpha = 0.10f)
+                    filled -> Color.White
+                    else -> LiquidSurfaces.glassAction
+                },
+            )
+            .liquidClickable(
+                enabled = enabled,
+                pressedScale = LiquidMotion.PressButton,
+                onClick = onClick,
+            ),
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(
             icon,
             contentDescription = null,
-            tint = if (enabled) GroupAccent else colors.textTertiary,
-            modifier = Modifier.size(20.dp),
+            tint = contentColor,
+            modifier = Modifier.size(18.dp),
         )
         Spacer(Modifier.width(8.dp))
         Text(
             text = label,
             fontFamily = AppFontFamily,
-            color = if (enabled) GroupAccent else colors.textTertiary,
-            fontSize = 15.sp,
+            color = contentColor,
+            fontSize = LiquidMetrics.ActionLabel,
             fontWeight = FontWeight.SemiBold,
         )
     }
@@ -905,41 +947,48 @@ private fun GroupRetryButton(label: String, onClick: () -> Unit) {
 private fun GroupSkeleton(compact: Boolean) {
     val colors = LiquidTheme.colors
     val block = colors.textTertiary.copy(alpha = 0.12f)
+    val headerHeight = if (compact) 300.dp else 380.dp
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 20.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Spacer(Modifier.height(96.dp))
-        Box(
-            modifier = Modifier
-                .size(if (compact) 96.dp else 116.dp)
-                .clip(CircleShape)
-                .background(block),
-        )
-        Spacer(Modifier.height(14.dp))
-        Box(Modifier.width(190.dp).height(20.dp).clip(RoundedCornerShape(6.dp)).background(block))
-        Spacer(Modifier.height(8.dp))
-        Box(Modifier.width(130.dp).height(13.dp).clip(RoundedCornerShape(6.dp)).background(block))
-        Spacer(Modifier.height(18.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
-            Box(Modifier.weight(1f).height(44.dp).clip(RoundedCornerShape(14.dp)).background(block))
-            Box(Modifier.weight(1f).height(44.dp).clip(RoundedCornerShape(14.dp)).background(block))
-        }
-        Spacer(Modifier.height(28.dp))
-        repeat(SKELETON_ROWS) {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
+    Column(modifier = Modifier.fillMaxSize()) {
+        // Геометрия новой шапки: картинка во всю ширину, а имя и кнопки внизу
+        // слева. Прежний скелетон повторял центрированный кружок, которого больше
+        // нет, и данные при появлении «прыгали».
+        Box(modifier = Modifier.fillMaxWidth().height(headerHeight)) {
+            Box(Modifier.fillMaxSize().background(block))
+            Column(
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .fillMaxWidth()
+                    .padding(
+                        start = LiquidMetrics.ScreenPadding,
+                        end = LiquidMetrics.ScreenPadding,
+                        bottom = LiquidMetrics.SheetOverlap + 8.dp,
+                    ),
             ) {
-                Box(Modifier.size(48.dp).clip(RoundedCornerShape(13.dp)).background(block))
-                Spacer(Modifier.width(14.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Box(Modifier.fillMaxWidth(0.6f).height(14.dp).clip(RoundedCornerShape(5.dp)).background(block))
-                    Spacer(Modifier.height(6.dp))
-                    Box(Modifier.fillMaxWidth(0.35f).height(11.dp).clip(RoundedCornerShape(5.dp)).background(block))
+                Box(Modifier.fillMaxWidth(0.7f).height(if (compact) 28.dp else 36.dp).clip(RoundedCornerShape(8.dp)).background(block))
+                Spacer(Modifier.height(8.dp))
+                Box(Modifier.fillMaxWidth(0.45f).height(14.dp).clip(RoundedCornerShape(6.dp)).background(block))
+                Spacer(Modifier.height(16.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                    Box(Modifier.weight(1f).height(LiquidMetrics.ActionButtonHeight).clip(CircleShape).background(block))
+                    Box(Modifier.weight(1f).height(LiquidMetrics.ActionButtonHeight).clip(CircleShape).background(block))
+                }
+            }
+        }
+        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = LiquidMetrics.ScreenPadding)) {
+            Spacer(Modifier.height(20.dp))
+            repeat(SKELETON_ROWS) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Box(Modifier.size(48.dp).clip(RoundedCornerShape(13.dp)).background(block))
+                    Spacer(Modifier.width(14.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Box(Modifier.fillMaxWidth(0.6f).height(14.dp).clip(RoundedCornerShape(5.dp)).background(block))
+                        Spacer(Modifier.height(6.dp))
+                        Box(Modifier.fillMaxWidth(0.35f).height(11.dp).clip(RoundedCornerShape(5.dp)).background(block))
+                    }
                 }
             }
         }

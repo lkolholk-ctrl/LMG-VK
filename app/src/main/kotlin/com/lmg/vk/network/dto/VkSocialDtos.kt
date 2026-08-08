@@ -40,6 +40,15 @@ data class VkFriend(
     val avatarUrl: String
         get() = sequenceOf(photo200, photo100).firstOrNull(String::isNotBlank).orEmpty()
 
+    /**
+     * Аватар для шапки во всю ширину. У друзей VK отдаёт только photo_100/200,
+     * но в новых ссылках размер задан параметром `cs`, и его можно поднять до
+     * максимума из `as` (см. [withLargestVkSize]). Без этого шапка получила бы
+     * 200px, растянутые на ~1080px ширины экрана.
+     */
+    val headerPhotoUrl: String
+        get() = avatarUrl.withLargestVkSize()
+
     val isOnline: Boolean
         get() = onlineInfo?.isOnline ?: (online == 1)
 
@@ -117,13 +126,15 @@ data class VkGroup(
         get() = sequenceOf(photo200, photo100).firstOrNull(String::isNotBlank).orEmpty()
 
     /**
-     * Аватар для шапки: сначала самые большие варианты. `photo_200` тут крайний
-     * случай — на шапку он растянется мылом, но это лучше пустого места.
+     * Аватар для шапки: сначала самые большие варианты, затем подъём `cs` до
+     * максимума из `as` ([withLargestVkSize]) — иначе даже photo_max_orig
+     * приходит нарезкой 240px и на всю ширину экрана растягивается мылом.
      */
     val bigAvatarUrl: String
         get() = sequenceOf(photoMaxOrig, photo400Orig, photo200, photo100)
             .firstOrNull { !it.isNullOrBlank() }
             .orEmpty()
+            .withLargestVkSize()
 
     /** Широкая обложка; `null` — её у сообщества нет, шапка обойдётся аватаром. */
     val coverUrl: String?

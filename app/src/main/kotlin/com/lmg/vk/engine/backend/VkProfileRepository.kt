@@ -263,14 +263,14 @@ object VkProfileRepository {
         ownerId = friend.id,
         title = friend.displayName,
         subtitle = friend.screenName.ifBlank { friend.domain },
-        avatarUrl = friend.avatarUrl,
+        avatarUrl = friend.headerPhotoUrl,
     )
 
     suspend fun openGroupAudio(group: VkGroup) = openOwnerAudio(
         ownerId = group.audioOwnerId,
         title = group.name,
         subtitle = group.screenName,
-        avatarUrl = group.avatarUrl,
+        avatarUrl = group.bigAvatarUrl,
     )
 
     fun closeOwnerAudio() {
