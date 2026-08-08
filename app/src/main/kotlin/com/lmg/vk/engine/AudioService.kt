@@ -233,7 +233,15 @@ class AudioService : MediaSessionService() {
             // запрашивался один раз в onCreate — чужая музыка вставала на паузу
             // при простом открытии приложения, а после AUDIOFOCUS_LOSS повторный
             // Play играл БЕЗ фокуса (две музыки одновременно, дакинг мёртв).
-            if (isPlaying) requestAudioFocus()
+            //
+            // Отказ уважаем: раньше результат запроса выбрасывался, и при
+            // AUDIOFOCUS_REQUEST_FAILED звук шёл без фокуса. Это ЗАПАСНОЙ
+            // рубеж — у Exo здесь handleAudioFocus=false, и штатный
+            // AudioFocusManager не работает (см. buildPlayer).
+            if (isPlaying && !requestAudioFocus()) {
+                DebugLog.add("EXO: фокус не дали — ставим на паузу")
+                runCatching { player.pause() }
+            }
         }
 
         override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
@@ -256,6 +264,21 @@ class AudioService : MediaSessionService() {
                 }
                 else ->
                     android.util.Log.d("VOIDPIXEL_MEDIA", "[PAUSE_TRIGGER] Reason: UNKNOWN/other ($reason)")
+            }
+
+            // Фокус отдаём на ПАУЗЕ, а не только в onDestroy: раньше приложение
+            // держало AUDIOFOCUS_GAIN всё время жизни сервиса, и система в конце
+            // концов отбирала его у держателя, который сам не отпускает —
+            // отсюда «фокус ушёл от приложения».
+            //
+            // Именно playWhenReady, а НЕ isPlaying: второй становится false ещё
+            // и на ребуферинге (STATE_BUFFERING), и фокус терялся бы посреди
+            // трека на плохой сети. playWhenReady отражает намерение играть.
+            //
+            // Транзитную паузу (звонок) не трогаем: там фокус уже у чужого
+            // приложения, а наш флаг ждёт GAIN для авто-резюме.
+            if (!playWhenReady && !pausedByTransientFocusLoss) {
+                abandonAudioFocus()
             }
         }
 
@@ -421,8 +444,26 @@ class AudioService : MediaSessionService() {
 
             PlayerController.setPlaying(isPlaying)
             manageWakeLock()
-            // См. Exo-листенер: фокус — при реальном старте плейбека.
-            if (isPlaying) requestAudioFocus()
+            // Фокус на JUCE-пути берём здесь: SimpleBasePlayer фокусом не
+            // управляет (в отличие от Exo с handleAudioFocus), значит это целиком
+            // наша забота. Отказ уважаем — играть без фокуса нельзя.
+            if (isPlaying && !requestAudioFocus()) {
+                DebugLog.add("JUCE: фокус не дали — ставим на паузу")
+                runCatching { juceLocalPlayer?.pause() }
+            }
+        }
+
+        override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
+            if (!juceOwnsSession()) return // события неактивного плеера — чужие
+
+            if (reason == Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST) {
+                pausedByTransientFocusLoss = false
+            }
+            // См. Exo-листенер: фокус отдаём на паузе, по playWhenReady.
+            // Без этого JUCE-путь держал бы AUDIOFOCUS_GAIN до onDestroy.
+            if (!playWhenReady && !pausedByTransientFocusLoss) {
+                abandonAudioFocus()
+            }
         }
 
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
@@ -563,9 +604,22 @@ class AudioService : MediaSessionService() {
         }
     }
 
-    private fun requestAudioFocus() {
-        val am = audioManager ?: return
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+    /**
+     * Запросить фокус. Возвращает true, если фокус ПОЛУЧЕН (можно играть).
+     *
+     * Раньше возврат `am.requestAudioFocus()` выбрасывался, и при отказе
+     * (`AUDIOFOCUS_REQUEST_FAILED` — активный звонок, чужой плеер держит
+     * GAIN_TRANSIENT_EXCLUSIVE) плеер играл БЕЗ фокуса: звук уходил в никуда,
+     * дакинг не работал. Штатный AudioFocusManager media3 в этом случае отдаёт
+     * плееру PLAYER_COMMAND_DO_NOT_PLAY, то есть не начинает воспроизведение —
+     * в ручном пути это надо повторять руками.
+     *
+     * DELAYED (система обещает фокус позже, придёт GAIN в листенер) трактуем как
+     * «пока не играть»: возобновит авто-резюме по GAIN.
+     */
+    private fun requestAudioFocus(): Boolean {
+        val am = audioManager ?: return false
+        val result = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val request = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
                 .setAudioAttributes(
                     android.media.AudioAttributes.Builder()
@@ -575,6 +629,11 @@ class AudioService : MediaSessionService() {
                 )
                 .setOnAudioFocusChangeListener(focusChangeListener)
                 .setWillPauseWhenDucked(false)
+                // setAcceptsDelayedFocusGain НЕ включаем намеренно. С ним система
+                // при занятом фокусе (звонок) отвечает DELAYED и выдаёт GAIN
+                // позже — наш листенер на GAIN делает play(), и музыка сама
+                // заиграла бы после звонка, которого пользователь не начинал.
+                // Это новое поведение, а не починка; чинить надо отказ.
                 .build()
             focusRequest = request
             am.requestAudioFocus(request)
@@ -586,6 +645,11 @@ class AudioService : MediaSessionService() {
                 AudioManager.AUDIOFOCUS_GAIN
             )
         }
+        val granted = result == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+        if (!granted) {
+            DebugLog.add("AudioFocus НЕ получен (result=$result) — не играем")
+        }
+        return granted
     }
 
     private fun abandonAudioFocus() {
@@ -1126,6 +1190,12 @@ class AudioService : MediaSessionService() {
                 juceLocalPlayer?.stop()
                 juceLocalPlayer?.clearMediaItems() // иначе JUCE остаётся с чужой очередью
             }
+            // Фокус, взятый ручным листенером под JUCE, отдаём ДО передачи
+            // сессии: иначе владельцев стало бы двое (наш AudioFocusRequest и
+            // тот, что запросит Exo-путь), а на один поток фокус должен быть
+            // один. Заново его возьмёт onIsPlayingChanged при старте Exo.
+            abandonAudioFocus()
+            pausedByTransientFocusLoss = false
             session?.player = player
         }
     }
