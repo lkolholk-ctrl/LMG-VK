@@ -65,6 +65,7 @@ import com.lmg.vk.engine.backend.MusicAuth
 import com.lmg.vk.engine.backend.VkProfileRepository
 import com.lmg.vk.network.dto.VkFriend
 import com.lmg.vk.network.dto.VkGroup
+import com.lmg.vk.ui.glass.dimensionalSurface
 import com.lmg.vk.ui.glass.liquidClickable
 import com.lmg.vk.ui.theme.AppFontFamily
 import com.lmg.vk.ui.theme.LiquidTheme
@@ -183,7 +184,15 @@ fun ProfileScreen(
                         modifier = Modifier
                             .size(if (compact) 92.dp else 132.dp)
                             .clip(CircleShape)
-                            .background(surface),
+                            // Купол света виден только когда фото нет: под
+                            // AsyncImage он был бы полностью перекрыт, а рисовать
+                            // впустую незачем. Кромку на круге не ставим — при
+                            // cornerRadius=0 штрих лёг бы прямоугольником.
+                            .dimensionalSurface(
+                                base = surface,
+                                isDark = colors.isDark,
+                                edge = false,
+                            ),
                         contentAlignment = Alignment.Center,
                     ) {
                         if (!avatarUrl.isNullOrBlank()) {
@@ -731,7 +740,13 @@ private fun ProfileCard(surface: Color, content: @Composable ColumnScope.() -> U
             .fillMaxWidth()
             .padding(horizontal = 20.dp)
             .clip(RoundedCornerShape(28.dp))
-            .background(surface),
+            // Объём вместо плоской заливки. dimensionalSurface идёт ПОСЛЕ clip:
+            // кисть заливает весь слой, и форма должна быть обрезана раньше.
+            .dimensionalSurface(
+                base = surface,
+                isDark = LiquidTheme.colors.isDark,
+                cornerRadius = 28.dp,
+            ),
         content = content,
     )
 }
