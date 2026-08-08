@@ -49,7 +49,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
@@ -176,81 +178,18 @@ fun ProfileScreen(
             item { Spacer(Modifier.height(if (compact) 12.dp else 24.dp)) }
 
             item {
-                Column(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(if (compact) 92.dp else 132.dp)
-                            .clip(CircleShape)
-                            // Купол света виден только когда фото нет: под
-                            // AsyncImage он был бы полностью перекрыт, а рисовать
-                            // впустую незачем. Кромку на круге не ставим — при
-                            // cornerRadius=0 штрих лёг бы прямоугольником.
-                            .dimensionalSurface(
-                                base = surface,
-                                isDark = colors.isDark,
-                                edge = false,
-                            ),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        if (!avatarUrl.isNullOrBlank()) {
-                            AsyncImage(
-                                model = avatarUrl,
-                                contentDescription = null,
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier.fillMaxSize(),
-                            )
-                        } else {
-                            Icon(
-                                imageVector = Icons.Rounded.Person,
-                                contentDescription = null,
-                                tint = colors.iconMuted,
-                                modifier = Modifier.size(if (compact) 44.dp else 64.dp),
-                            )
-                        }
-                    }
-                    Spacer(Modifier.height(if (compact) 12.dp else 18.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = displayName,
-                            fontFamily = AppFontFamily,
-                            color = colors.textPrimary,
-                            fontSize = if (compact) 20.sp else 26.sp,
-                            fontWeight = FontWeight.Bold,
-                        )
-                        if (profile?.isVerified == true) {
-                            Spacer(Modifier.width(6.dp))
-                            Icon(
-                                imageVector = Icons.Rounded.Verified,
-                                contentDescription = "Verified",
-                                tint = Color(0xFF0077FF),
-                                modifier = Modifier.size(if (compact) 18.dp else 22.dp),
-                            )
-                        }
-                    }
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        text = accountSubtitle,
-                        fontFamily = AppFontFamily,
-                        color = colors.textSecondary,
-                        fontSize = 13.sp,
-                    )
-                    profile?.status?.takeIf(String::isNotBlank)?.let { status ->
-                        Spacer(Modifier.height(6.dp))
-                        Text(
-                            text = status,
-                            fontFamily = AppFontFamily,
-                            color = colors.textTertiary,
-                            fontSize = 12.sp,
-                            textAlign = TextAlign.Center,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                }
+                ProfileHero(
+                    avatarUrl = avatarUrl,
+                    displayName = displayName,
+                    subtitle = accountSubtitle,
+                    status = profile?.status?.takeIf(String::isNotBlank),
+                    isVerified = profile?.isVerified == true,
+                    isOnline = profile?.isOnline == true,
+                    surface = surface,
+                    compact = compact,
+                )
             }
+
 
             item { Spacer(Modifier.height(if (compact) 16.dp else 24.dp)) }
 
@@ -299,16 +238,9 @@ fun ProfileScreen(
                                 compact = compact,
                             )
                         }
-                        profile?.let {
-                            ProfileDivider()
-                            ProfileInfoRow(
-                                icon = Icons.Rounded.Person,
-                                label = "Presence",
-                                value = if (it.isOnline) "Online now" else "Offline",
-                                compact = compact,
-                                valueTint = if (it.isOnline) OnlineGreen else null,
-                            )
-                        }
+                        // Строки «Presence» здесь больше нет: онлайн-статус
+                        // показывает точка на аватаре в шапке, и дублировать его
+                        // текстом означало бы сообщать одно и то же дважды.
                         ProfileDivider()
                         ProfileInfoRow(
                             icon = Icons.Rounded.Refresh,
@@ -733,6 +665,193 @@ private fun OwnerRow(
 
 // --------------------------------- примитивы ---------------------------------
 
+/**
+ * Шапка профиля.
+ *
+ * Раньше это был плоский круг и три строки текста по центру — как в системных
+ * настройках. Теперь карточка с глубиной, и глубина здесь СТРУКТУРНАЯ, а не
+ * из-за цвета:
+ *
+ *  1. Подложка — аватар пользователя, растянутый и размытый (24dp). Это «свет
+ *     из-за объекта»: карточка перестаёт быть вырезанной из бумаги, потому что
+ *     позади неё есть пространство своего цвета. Blur только на подложке, не на
+ *     содержимом — размывать текст незачем, а Modifier.blur на большой площади
+ *     недёшев.
+ *  2. Аватар приподнят над карточкой: ободок цвета поверхности вокруг фото
+ *     читается как «лежит выше», плюс своя тень.
+ *  3. Онлайн-точка на аватаре, а не строкой «Presence: Online now» в списке.
+ *
+ * Всё, что здесь показано, приходит из VK API — выдуманных значений нет.
+ */
+@Composable
+private fun ProfileHero(
+    avatarUrl: String?,
+    displayName: String,
+    subtitle: String,
+    status: String?,
+    isVerified: Boolean,
+    isOnline: Boolean,
+    surface: Color,
+    compact: Boolean,
+) {
+    val colors = LiquidTheme.colors
+    val avatarSize = if (compact) 88.dp else 116.dp
+    val ringWidth = 4.dp
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp)
+            .clip(RoundedCornerShape(32.dp))
+            .dimensionalSurface(base = surface, isDark = colors.isDark, cornerRadius = 32.dp),
+    ) {
+        // Размытая подложка из аватара. Держим НАД заливкой, но под контентом:
+        // alpha невысокая, чтобы текст остался читаемым на любом фото.
+        if (!avatarUrl.isNullOrBlank()) {
+            AsyncImage(
+                model = avatarUrl,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                alpha = if (colors.isDark) 0.28f else 0.20f,
+                modifier = Modifier
+                    .matchParentSize()
+                    .blur(24.dp),
+            )
+            // Вуаль: без неё яркое фото «съедает» подписи снизу.
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .background(
+                        Brush.verticalGradient(
+                            listOf(
+                                surface.copy(alpha = 0.15f),
+                                surface.copy(alpha = 0.80f),
+                            ),
+                        ),
+                    ),
+            )
+        }
+
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = if (compact) 22.dp else 30.dp, bottom = if (compact) 20.dp else 26.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Box {
+                // Ободок цветом поверхности — аватар «лежит выше» карточки.
+                Box(
+                    modifier = Modifier
+                        .size(avatarSize + ringWidth * 2)
+                        .clip(CircleShape)
+                        .background(surface),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(avatarSize)
+                            .clip(CircleShape)
+                            .dimensionalSurface(base = surface, isDark = colors.isDark, edge = false),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        if (!avatarUrl.isNullOrBlank()) {
+                            AsyncImage(
+                                model = avatarUrl,
+                                contentDescription = null,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize(),
+                            )
+                        } else {
+                            Icon(
+                                imageVector = Icons.Rounded.Person,
+                                contentDescription = null,
+                                tint = colors.iconMuted,
+                                modifier = Modifier.size(avatarSize / 2),
+                            )
+                        }
+                    }
+                }
+                // Онлайн-точка вместо строки «Presence» в списке ниже.
+                if (isOnline) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .size(20.dp)
+                            .clip(CircleShape)
+                            .background(surface),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(13.dp)
+                                .clip(CircleShape)
+                                .background(OnlineGreen),
+                        )
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(if (compact) 14.dp else 18.dp))
+
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = displayName,
+                    fontFamily = AppFontFamily,
+                    color = colors.textPrimary,
+                    fontSize = if (compact) 21.sp else 27.sp,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                if (isVerified) {
+                    Spacer(Modifier.width(6.dp))
+                    Icon(
+                        imageVector = Icons.Rounded.Verified,
+                        contentDescription = "Verified",
+                        tint = Color(0xFF0077FF),
+                        modifier = Modifier.size(if (compact) 18.dp else 22.dp),
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(8.dp))
+
+            // Адрес — стеклянной пилюлей, а не простой строкой: он один
+            // «кликабельного вида» элемент шапки и не должен читаться как
+            // продолжение имени.
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(50))
+                    .background(colors.textTertiary.copy(alpha = if (colors.isDark) 0.16f else 0.10f))
+                    .padding(horizontal = 12.dp, vertical = 5.dp),
+            ) {
+                Text(
+                    text = subtitle,
+                    fontFamily = AppFontFamily,
+                    color = colors.textSecondary,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium,
+                )
+            }
+
+            status?.let {
+                Spacer(Modifier.height(10.dp))
+                Text(
+                    text = it,
+                    fontFamily = AppFontFamily,
+                    color = colors.textTertiary,
+                    fontSize = 12.sp,
+                    textAlign = TextAlign.Center,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(horizontal = 24.dp),
+                )
+            }
+        }
+    }
+}
+
 @Composable
 private fun ProfileCard(surface: Color, content: @Composable ColumnScope.() -> Unit) {
     Column(
@@ -757,7 +876,6 @@ private fun ProfileInfoRow(
     label: String,
     value: String,
     compact: Boolean,
-    valueTint: Color? = null,
 ) {
     val colors = LiquidTheme.colors
     Row(
@@ -768,7 +886,7 @@ private fun ProfileInfoRow(
         Spacer(Modifier.width(14.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(label, fontFamily = AppFontFamily, color = colors.textPrimary, fontSize = 15.sp, fontWeight = FontWeight.Medium)
-            Text(value, fontFamily = AppFontFamily, color = valueTint ?: colors.textSecondary, fontSize = 12.sp)
+            Text(value, fontFamily = AppFontFamily, color = colors.textSecondary, fontSize = 12.sp)
         }
     }
 }
@@ -830,18 +948,51 @@ private fun ProfileMetricsRow(
     val colors = LiquidTheme.colors
     Row(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = if (compact) 10.dp else 12.dp),
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        ProfileMetric(firstValue, firstLabel, Modifier.weight(1f), colors)
-        ProfileMetric(secondValue, secondLabel, Modifier.weight(1f), colors)
+        ProfileMetric(firstValue, firstLabel, Modifier.weight(1f), colors, compact)
+        ProfileMetric(secondValue, secondLabel, Modifier.weight(1f), colors, compact)
     }
 }
 
+/**
+ * Плитка метрики. Раньше — просто два текста друг под другом; цифра тонула в
+ * общем потоке строк. Теперь вложенная плитка со своей поверхностью: число
+ * читается как значение, а не как ещё одна подпись.
+ *
+ * Поверхность чуть светлее/темнее карточки-родителя, а не тот же цвет — иначе
+ * плитка на ней не видна вовсе.
+ */
 @Composable
-private fun ProfileMetric(value: String, label: String, modifier: Modifier, colors: com.lmg.vk.ui.theme.LiquidColors) {
-    Column(modifier = modifier) {
-        Text(value, fontFamily = AppFontFamily, color = colors.textPrimary, fontSize = 17.sp, fontWeight = FontWeight.Bold)
-        Text(label, fontFamily = AppFontFamily, color = colors.textSecondary, fontSize = 12.sp)
+private fun ProfileMetric(
+    value: String,
+    label: String,
+    modifier: Modifier,
+    colors: com.lmg.vk.ui.theme.LiquidColors,
+    compact: Boolean,
+) {
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(18.dp))
+            .background(colors.textTertiary.copy(alpha = if (colors.isDark) 0.10f else 0.06f))
+            .padding(horizontal = 14.dp, vertical = if (compact) 10.dp else 13.dp),
+    ) {
+        Text(
+            value,
+            fontFamily = AppFontFamily,
+            color = colors.textPrimary,
+            fontSize = if (compact) 20.sp else 23.sp,
+            fontWeight = FontWeight.Bold,
+        )
+        Spacer(Modifier.height(2.dp))
+        Text(
+            label,
+            fontFamily = AppFontFamily,
+            color = colors.textSecondary,
+            fontSize = 11.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 
