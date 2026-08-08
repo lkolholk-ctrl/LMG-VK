@@ -29,6 +29,18 @@ data class VkAccountProfile(
     @Json(name = "photo_200_orig") val photo200Orig: String = "",
     @Json(name = "photo_400_orig") val photo400Orig: String = "",
     @Json(name = "photo_max_orig") val photoMaxOrig: String = "",
+    /**
+     * Оригинал аватара во всю загруженную величину.
+     *
+     * Ни одно из `photo_*` полей большим не является: `photo_max_orig` — это
+     * «максимум из НАРЕЗАННЫХ VK превью», на практике 400px по большей стороне.
+     * Для кружка 100dp это незаметно, а для шапки во всю ширину экрана (~1080px)
+     * даёт мыло — жалоба «качество аватарки плохое, нечёткое, как будто 360p».
+     *
+     * `crop_photo.photo.sizes` содержит настоящие размеры вплоть до `w`/`z`
+     * (1080–2560px), потому что это исходная фотография из альбома, а не превью.
+     */
+    @Json(name = "crop_photo") val cropPhoto: VkCropPhoto? = null,
     val domain: String = "",
     @Json(name = "screen_name") val screenName: String = "",
     val status: String = "",
@@ -48,11 +60,27 @@ data class VkAccountProfile(
             listOf(firstName, lastName).filter(String::isNotBlank).joinToString(" ")
         }.ifBlank { domain }
 
-    /** Самая качественная доступная фотография профиля с безопасными fallback. */
+    /**
+     * Фото для маленьких мест: список, строка, кружок. Здесь превью достаточно —
+     * тянуть ради 100dp оригинал на 2 Мп незачем.
+     */
     val bestPhotoUrl: String
         get() = sequenceOf(photoMaxOrig, photo400Orig, photo200Orig, photo200, photo100, photoBase)
             .firstOrNull(String::isNotBlank)
             .orEmpty()
+
+    /**
+     * Фото для шапки во всю ширину экрана.
+     *
+     * Сначала оригинал из `crop_photo` (самый крупный размер по площади), и лишь
+     * при его отсутствии — превью из [bestPhotoUrl]. Разница не косметическая:
+     * `photo_max_orig` это 400px, растянутые на ~1080px ширины экрана.
+     *
+     * `crop_photo` приходит не всегда: у профилей без аватара, а также когда
+     * фото поставлено не из альбома. Поэтому fallback обязателен.
+     */
+    val largePhotoUrl: String
+        get() = cropPhoto?.photo?.largestUrl().orEmpty().ifBlank { bestPhotoUrl }
 
     /** Короткий адрес профиля: `screen_name`, иначе `domain`, иначе `idN`. */
     val addressSlug: String
@@ -76,6 +104,46 @@ data class VkAccountProfile(
 data class VkPlace(
     val id: Int = 0,
     val title: String = "",
+)
+
+/**
+ * `crop_photo` из `users.get` — исходная фотография, из которой сделан аватар.
+ *
+ * Нужна ровно за одним: в `photo.sizes` лежат НАСТОЯЩИЕ размеры (до 2560px), а
+ * все поля `photo_*` профиля — это нарезанные превью не крупнее 400px.
+ * Прямоугольники обрезки (`crop`/`rect`) нам не нужны: шапка кадрирует сама
+ * через ContentScale.Crop.
+ */
+@JsonClass(generateAdapter = true)
+data class VkCropPhoto(
+    val photo: VkCropPhotoImage? = null,
+)
+
+@JsonClass(generateAdapter = true)
+data class VkCropPhotoImage(
+    val sizes: List<VkPhotoSize> = emptyList(),
+) {
+    /**
+     * Ссылка на самый крупный размер.
+     *
+     * Выбор по ПЛОЩАДИ, а не по буквенному типу: у VK порядок типов
+     * (`s m x o p q r y z w`) не совпадает с порядком величины — `w` больше `z`,
+     * но `o…r` вклиниваются между ними. Сравнение чисел не зависит от того,
+     * добавит ли VK новые буквы.
+     */
+    fun largestUrl(): String =
+        sizes.filter { it.url.isNotBlank() }
+            .maxByOrNull { it.width.toLong() * it.height.toLong() }
+            ?.url
+            .orEmpty()
+}
+
+@JsonClass(generateAdapter = true)
+data class VkPhotoSize(
+    val url: String = "",
+    val width: Int = 0,
+    val height: Int = 0,
+    val type: String = "",
 )
 
 /**

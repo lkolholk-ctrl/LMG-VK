@@ -898,6 +898,10 @@ class VkMethodsRegistry(private val client: VkApiClient) {
          */
         const val CURRENT_PROFILE_FIELDS = "photo_base,name,is_followed,can_follow," +
             "photo_100,photo_200,photo_200_orig,photo_400_orig,photo_max_orig," +
+            // crop_photo — единственный источник аватара крупнее 400px: все
+            // photo_* это нарезанные превью, и в шапке во всю ширину экрана они
+            // выглядят мылом.
+            "crop_photo," +
             "domain,screen_name,status,bdate,city,country,followers_count,counters," +
             "online,online_info,last_seen,verified,sex"
 

@@ -52,6 +52,7 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -61,6 +62,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import com.lmg.vk.debug.DebugLog
 import com.lmg.vk.engine.backend.MusicAuth
 import com.lmg.vk.engine.backend.VkProfileRepository
@@ -127,7 +129,10 @@ fun ProfileScreen(
         ?: if (isLoggedIn) "VK account" else "Guest"
     val slug = profile?.addressSlug?.takeIf(String::isNotBlank)
         ?: fallbackDomain?.takeIf(String::isNotBlank)
-    val avatarUrl = profile?.bestPhotoUrl?.takeIf(String::isNotBlank) ?: fallbackAvatar
+    // Для шапки во всю ширину нужен ОРИГИНАЛ (crop_photo), а не превью:
+    // photo_max_orig это 400px, и растянутый на ширину экрана он даёт мыло.
+    // fallbackAvatar — превью из сессии, лучше мыло, чем пустая шапка.
+    val avatarUrl = profile?.largePhotoUrl?.takeIf(String::isNotBlank) ?: fallbackAvatar
     val accountSubtitle = when {
         !slug.isNullOrBlank() -> "vk.com/$slug"
         profileId != null -> "VK ID $profileId"
@@ -737,9 +742,17 @@ private fun ProfileHeader(
         Box(modifier = Modifier.fillMaxSize().clipToBounds()) {
             if (!avatarUrl.isNullOrBlank()) {
                 AsyncImage(
-                    model = avatarUrl,
+                    // ImageRequest, а не просто model: нужен crossfade, иначе
+                    // фото «вщёлкивается» поверх тёмной плашки.
+                    model = ImageRequest.Builder(LocalContext.current)
+                        .data(avatarUrl)
+                        .crossfade(true)
+                        .build(),
                     contentDescription = displayName,
                     contentScale = ContentScale.Crop,
+                    // Фото растягивается под ширину экрана, и дефолтная Low
+                    // даёт на апскейле заметную ступеньку по краям.
+                    filterQuality = FilterQuality.High,
                     modifier = Modifier.fillMaxSize(),
                 )
             } else {
