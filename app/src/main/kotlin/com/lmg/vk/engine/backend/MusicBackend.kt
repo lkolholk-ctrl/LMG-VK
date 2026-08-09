@@ -1301,20 +1301,47 @@ object MusicBackend {
         var attempts = 0
         while (waveQueue.size < count && attempts < ((count + 4) / 5 + 3)) {
             attempts++
-            val loaded = activeWaveMix?.let { mix ->
-                audioApi.getStreamMixAudios(
+            val mix = activeWaveMix
+            val loaded = if (mix != null) {
+                // entity_id — это и есть «микс ВОКРУГ конкретного трека». Раньше
+                // при seed микс отключался совсем (activeWaveMix = null), и всё
+                // уходило в audio.getRecommendations без привязки к треку: он
+                // отдаёт общие рекомендации аккаунта, поэтому «Волна по треку»
+                // подбирала что угодно, кроме похожего.
+                val result = audioApi.getStreamMixAudios(
                     mixId = mix.id,
-                    entityId = null,
+                    entityId = seedTrackId,
                     append = activeWaveAppend,
-                ).requireData().also { activeWaveAppend = true }
-            } ?: audioApi.getRecommendations(
-                targetAudio = seedTrackId,
-                offset = recommendationOffset,
-                count = count.coerceIn(5, 100),
-                userId = currentUserId(),
-            ).requireData().also { recommendationOffset += it.size }
+                )
+                val tracks = when (result) {
+                    is VkResult.Success -> result.data.also { activeWaveAppend = true }
+                    is VkResult.Error -> {
+                        com.lmg.vk.debug.DebugLog.add(
+                            "WAVE микс ${mix.id} отказал (${result.code}) → рекомендации",
+                        )
+                        emptyList()
+                    }
+                }
+                // Пусто ИЛИ ошибка — микс исчерпан, дальше идём рекомендациями.
+                // Сброс здесь, а не в ветке ошибки: успешный пустой ответ иначе
+                // заставил бы цикл долбить тот же микс до конца попыток.
+                if (tracks.isEmpty()) activeWaveMix = null
+                tracks
+            } else {
+                audioApi.getRecommendations(
+                    targetAudio = seedTrackId,
+                    offset = recommendationOffset,
+                    count = count.coerceIn(5, 100),
+                    userId = currentUserId(),
+                ).requireData().also { recommendationOffset += it.size }
+            }
 
-            if (loaded.isEmpty()) break
+            if (loaded.isEmpty()) {
+                // Микс мог отдать пусто, а рекомендации ещё не пробовали —
+                // тогда продолжаем: activeWaveMix уже сброшен выше.
+                if (mix != null) continue
+                break
+            }
             cacheTracks(loaded)
             val queuedIds = waveQueue.asSequence().map(AudioTrack::fullId).toHashSet()
             loaded.filterNot { it.fullId in queuedIds }.forEach(waveQueue::addLast)
@@ -1325,16 +1352,29 @@ object MusicBackend {
         }
     }
 
+    /**
+     * Выбирает источник волны: настраиваемый микс VK либо рекомендации.
+     *
+     * ДЛЯ ТРЕКА берём микс с `is_tunable = true` — только такие принимают
+     * `entity_id`, то есть умеют строиться вокруг заданной сущности. Обычный
+     * микс на `entity_id` ответит своей лентой, и «волна по треку» ничем не
+     * отличалась бы от общей.
+     */
     private suspend fun ensureWaveSourceLocked(seedTrackId: String?) {
-        if (seedTrackId != null) {
-            activeWaveMix = null
-            return
-        }
         if (activeWaveMix != null || recommendationOffset > 0) return
-        activeWaveMix = when (val catalog = catalogApi.getAudioAuto()) {
-            is VkResult.Success -> catalog.data.audio_stream_mixes.orEmpty().firstOrNull()
-            is VkResult.Error -> null
+        val mixes = when (val catalog = catalogApi.getAudioAuto()) {
+            is VkResult.Success -> catalog.data.audio_stream_mixes.orEmpty()
+            is VkResult.Error -> emptyList()
         }
+        activeWaveMix = if (seedTrackId != null) {
+            mixes.firstOrNull { it.is_tunable == true }
+        } else {
+            mixes.firstOrNull()
+        }
+        com.lmg.vk.debug.DebugLog.add(
+            "WAVE источник: " + (activeWaveMix?.let { "микс ${it.id} \"${it.title}\"" }
+                ?: "рекомендации") + (seedTrackId?.let { " seed=$it" } ?: " (личная)"),
+        )
     }
 
     private fun resetWaveLocked() {

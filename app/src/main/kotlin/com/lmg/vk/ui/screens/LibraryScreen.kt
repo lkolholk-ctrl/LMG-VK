@@ -782,7 +782,7 @@ fun LibraryScreen(
                     PlaylistPickerSheet(
                         playlists = localPlaylists,
                         onSelect = { playlist ->
-                            val added = PlaylistManager.addTrack(playlist.id, t)
+                            val added = com.lmg.vk.engine.PlaylistManager.addTrack(playlist.id, t)
                             android.widget.Toast.makeText(
                                 context,
                                 if (added) "Добавлено в ${playlist.name}"
