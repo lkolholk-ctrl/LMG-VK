@@ -892,7 +892,12 @@ data class LibraryTrack(
     @SerialName("isCustom") val isCustom: Boolean = false,
     val source: String? = null,
     @SerialName("liked_at") val likedAt: Long? = null,
-    @SerialName("isAvailable") val isAvailable: Boolean = true
+    @SerialName("isAvailable") val isAvailable: Boolean = true,
+    /**
+     * `access_key` записи VK, сохранённый вместе с элементом библиотеки.
+     * Без него `audio.getById` может вернуть трек без URL после перезапуска.
+     */
+    @SerialName("accessKey") val accessKey: String? = null
 ) {
     /** Duration normalized to milliseconds. */
     val durationMs: Long
