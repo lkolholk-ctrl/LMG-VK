@@ -2,8 +2,6 @@ package com.lmg.vk.ui.glass
 
 import android.content.Context
 import android.graphics.BitmapFactory
-import android.net.Uri
-import androidx.core.net.toUri
 import com.lmg.vk.R
 
 /**
@@ -57,15 +55,6 @@ object TrackPlaceholderArt {
         resources[Math.floorMod(key?.hashCode() ?: 0, resources.size)]
 
     /**
-     * URI той же обложки в виде `android.resource://<package>/<id>`.
-     *
-     * Именно эту схему понимают media3 (для `artworkUri`) и Coil, поэтому
-     * уведомление и экран блокировки получают настоящую картинку, а не пустоту.
-     */
-    fun uriFor(context: Context, key: String?): Uri =
-        "android.resource://${context.packageName}/${resourceFor(key)}".toUri()
-
-    /**
      * Битмап обложки — для извлечения палитры.
      *
      * `inSampleSize = 4`: палитре хватает уменьшенной копии, а полноразмерный
@@ -79,4 +68,28 @@ object TrackPlaceholderArt {
                 BitmapFactory.Options().apply { inSampleSize = sampleSize },
             )
         }.getOrNull()
+
+    /** Кэш байтов: файл один и тот же, а метаданные строятся на каждый трек. */
+    private val bytesCache = java.util.concurrent.ConcurrentHashMap<Int, ByteArray>()
+
+    /**
+     * Сырые байты WebP-файла обложки — для `MediaMetadata.setArtworkData`.
+     *
+     * ПОЧЕМУ БАЙТЫ, А НЕ URI. `artworkUri` в media3 читает `BitmapLoader`, и
+     * дефолтный (`DataSourceBitmapLoader` поверх `DefaultDataSource`) схему
+     * `android.resource://` НЕ поддерживает — уведомление и экран блокировки
+     * оставались без картинки, хотя URI был выставлен верно. `artworkData`
+     * загрузчика не требует вовсе: media3 декодирует байты сам.
+     *
+     * Читаем файл ресурса как есть, без декода в Bitmap и повторного сжатия:
+     * WebP уже сжат (~30-180 КБ), и лишний цикл decode/compress только тратил
+     * бы время и память на каждом переключении трека.
+     */
+    fun artworkBytes(context: Context, key: String?): ByteArray? {
+        val id = resourceFor(key)
+        bytesCache[id]?.let { return it }
+        return runCatching {
+            context.resources.openRawResource(id).use { it.readBytes() }
+        }.getOrNull()?.also { bytesCache[id] = it }
+    }
 }

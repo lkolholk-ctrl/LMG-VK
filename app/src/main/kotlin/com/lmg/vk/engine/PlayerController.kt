@@ -1842,7 +1842,18 @@ object PlayerController {
                     .setArtist(artist)
                     .setAlbumArtist(artist)
                     .apply {
-                        coverUrl?.takeIf(String::isNotBlank)?.let { setArtworkUri(Uri.parse(it)) }
+                        val cover = coverUrl?.takeIf(String::isNotBlank)
+                        if (cover != null) {
+                            setArtworkUri(Uri.parse(cover))
+                        } else {
+                            // Скачанный трек без обложки: та же кастомная
+                            // картинка байтами, что и в обычном пути
+                            // (см. buildMediaItem) — иначе у скачанного в
+                            // уведомлении пусто, а в приложении картинка есть.
+                            com.lmg.vk.ui.glass.TrackPlaceholderArt
+                                .artworkBytes(context, trackId)
+                                ?.let { setArtworkData(it, MediaMetadata.PICTURE_TYPE_FRONT_COVER) }
+                        }
                         if (durationMs > 0L) setDurationMs(durationMs)
                     }
                     .build()
@@ -1920,19 +1931,27 @@ object PlayerController {
             .setTitle(track.title)
             .setArtist(track.artist)
             .setAlbumArtist(track.artist)
-            // У трека без обложки displayArtUri отдаёт albumArtUri, то есть
-            // content://media/external/audio/albumart/-1 — записи с таким id не
-            // существует, и уведомление с экраном блокировки оставались пустыми,
-            // хотя в приложении рисовалась кастомная заглушка. Подставляем ту же
-            // самую картинку (android.resource://…, media3 её читает), что видно
-            // на экране: одна обложка во всех местах.
-            .setArtworkUri(
-                track.coverUrl?.takeIf(String::isNotBlank)?.let { track.displayArtUri }
-                    ?: appContext?.let {
-                        com.lmg.vk.ui.glass.TrackPlaceholderArt.uriFor(it, track.id)
-                    }
-                    ?: track.displayArtUri,
-            )
+
+        val cover = track.coverUrl?.takeIf(String::isNotBlank)
+        if (cover != null) {
+            metaBuilder.setArtworkUri(track.displayArtUri)
+        } else {
+            // Обложки нет — отдаём БАЙТЫ кастомной заглушки.
+            //
+            // Не artworkUri: его читает BitmapLoader, а дефолтный
+            // (DataSourceBitmapLoader поверх DefaultDataSource) схему
+            // android.resource:// не поддерживает, и уведомление оставалось
+            // пустым при верно выставленном URI. artworkData загрузчика не
+            // требует — media3 декодирует байты сам.
+            //
+            // Заодно НЕ ставим artworkUri вовсе: displayArtUri у такого трека
+            // это content://…/albumart/-1, записи с таким id не существует, и
+            // загрузчик тратил бы попытку на заведомо мёртвую ссылку.
+            appContext?.let { ctx ->
+                com.lmg.vk.ui.glass.TrackPlaceholderArt.artworkBytes(ctx, track.id)
+                    ?.let { metaBuilder.setArtworkData(it, MediaMetadata.PICTURE_TYPE_FRONT_COVER) }
+            }
+        }
 
         if (track.durationMs > 0) {
             metaBuilder.setDurationMs(track.durationMs)
