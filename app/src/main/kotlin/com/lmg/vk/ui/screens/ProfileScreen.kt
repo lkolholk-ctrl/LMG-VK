@@ -2,11 +2,14 @@ package com.lmg.vk.ui.screens
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -18,18 +21,18 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ExitToApp
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
-import androidx.compose.material.icons.rounded.BarChart
 import androidx.compose.material.icons.rounded.Cake
 import androidx.compose.material.icons.rounded.Groups
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.Place
 import androidx.compose.material.icons.rounded.QueueMusic
-import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Verified
 import androidx.compose.material3.AlertDialog
@@ -45,6 +48,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -68,6 +72,7 @@ import com.lmg.vk.engine.backend.MusicAuth
 import com.lmg.vk.engine.backend.VkProfileRepository
 import com.lmg.vk.network.dto.VkFriend
 import com.lmg.vk.network.dto.VkGroup
+import com.lmg.vk.ui.components.DetailTopBar
 import com.lmg.vk.ui.glass.liquidClickable
 import com.lmg.vk.ui.theme.AppFontFamily
 import com.lmg.vk.ui.theme.LiquidMetrics
@@ -79,9 +84,6 @@ import kotlinx.coroutines.launch
 private val DestructiveRed = Color(0xFFFC3C44)
 private val OnlineGreen = Color(0xFF34C759)
 
-/** Сколько друзей/сообществ показываем в свёрнутой карточке. */
-private const val PREVIEW_ROWS = 5
-
 /**
  * VK account screen. Everything on it comes from the VK API — profile fields
  * from `users.get`, friends from `friends.get`, communities from `groups.get`,
@@ -92,7 +94,6 @@ fun ProfileScreen(
     onOpenSettings: () -> Unit = {},
     onLogout: () -> Unit = {},
     onOpenAuth: () -> Unit = {},
-    onOpenStats: () -> Unit = {},
     onOpenLibrary: () -> Unit = {},
 ) {
     val context = LocalContext.current
@@ -103,7 +104,6 @@ fun ProfileScreen(
     val fallbackName by MusicAuth.profileName.collectAsState()
     val fallbackAvatar by MusicAuth.avatarUrl.collectAsState()
     val fallbackDomain by MusicAuth.profileDomain.collectAsState()
-    val sessionExpiresAt by MusicAuth.profileSessionExpiresAt.collectAsState()
     val vk by VkProfileRepository.state.collectAsState()
     val ownerAudio by VkProfileRepository.ownerAudio.collectAsState()
 
@@ -144,7 +144,16 @@ fun ProfileScreen(
     val compact = window.useSideBySide
 
     // Подэкран чужих аудио перехватывает "назад" раньше, чем оверлей профиля.
-    BackHandler(enabled = ownerAudio != null) { VkProfileRepository.closeOwnerAudio() }
+    // «Назад» разбирает оверлеи по одному, сверху вниз: аудио владельца лежит
+    // над списком, список — над профилем. Один общий обработчик с приоритетами,
+    // а не три независимых: иначе они спорят за одно и то же нажатие.
+    BackHandler(enabled = ownerAudio != null || friendsExpanded || groupsExpanded) {
+        when {
+            ownerAudio != null -> VkProfileRepository.closeOwnerAudio()
+            friendsExpanded -> friendsExpanded = false
+            groupsExpanded -> groupsExpanded = false
+        }
+    }
 
     if (showSignOutConfirmation) {
         AlertDialog(
@@ -207,52 +216,26 @@ fun ProfileScreen(
                     item { Spacer(Modifier.height(16.dp)) }
                 }
 
+                // Факты аккаунта плитками 2-в-ряд: строками они занимали пять
+                // экранных полос ради нескольких слов на каждой.
+                //
+                // «VK session» убрана совсем: срок жизни токена — наша
+                // внутренняя механика, пользователю знать про рефреш незачем.
                 item {
-                    ProfileCard {
-                        ProfileInfoRow(
-                            icon = Icons.Rounded.Person,
-                            label = "VK ID",
-                            value = (profile?.id ?: profileId)?.toString() ?: "Loading account…",
-                            compact = compact,
-                        )
+                    val facts = buildList {
+                        add(Icons.Rounded.Person to ("VK ID" to
+                            ((profile?.id ?: profileId)?.toString() ?: "…")))
                         if (!slug.isNullOrBlank()) {
-                            ProfileDivider()
-                            ProfileInfoRow(
-                                icon = Icons.Rounded.Person,
-                                label = "Profile address",
-                                value = "vk.com/$slug",
-                                compact = compact,
-                            )
+                            add(Icons.Rounded.Person to ("Address" to "vk.com/$slug"))
                         }
-                        profile?.locationLabel?.takeIf(String::isNotBlank)?.let { location ->
-                            ProfileDivider()
-                            ProfileInfoRow(
-                                icon = Icons.Rounded.Place,
-                                label = "Location",
-                                value = location,
-                                compact = compact,
-                            )
+                        profile?.locationLabel?.takeIf(String::isNotBlank)?.let {
+                            add(Icons.Rounded.Place to ("Location" to it))
                         }
-                        profile?.bdate?.takeIf(String::isNotBlank)?.let { bdate ->
-                            ProfileDivider()
-                            ProfileInfoRow(
-                                icon = Icons.Rounded.Cake,
-                                label = "Birthday",
-                                value = formatBirthday(bdate),
-                                compact = compact,
-                            )
+                        profile?.bdate?.takeIf(String::isNotBlank)?.let {
+                            add(Icons.Rounded.Cake to ("Birthday" to formatBirthday(it)))
                         }
-                        // Строки «Presence» здесь больше нет: онлайн-статус
-                        // показывает точка на аватаре в шапке, и дублировать его
-                        // текстом означало бы сообщать одно и то же дважды.
-                        ProfileDivider()
-                        ProfileInfoRow(
-                            icon = Icons.Rounded.Refresh,
-                            label = "VK session",
-                            value = formatSessionStatus(sessionExpiresAt),
-                            compact = compact,
-                        )
                     }
+                    ProfileFactGrid(facts = facts, compact = compact)
                 }
                 item { Spacer(Modifier.height(16.dp)) }
 
@@ -282,6 +265,10 @@ fun ProfileScreen(
                 }
                 item { Spacer(Modifier.height(16.dp)) }
 
+                // SOCIAL: плитки кликабельные — тап открывает полный список.
+                // Прежние блоки FRIENDS и COMMUNITIES с превью по 5 строк
+                // удалены: они занимали два экрана прокрутки, дублируя те же
+                // числа, что стоят на плитках.
                 item {
                     ProfileCard {
                         ProfileSectionLabel("SOCIAL")
@@ -291,8 +278,13 @@ fun ProfileScreen(
                             secondValue = (vk.groupsTotal ?: vk.profile?.counters?.groups).orDash(),
                             secondLabel = "Communities",
                             compact = compact,
+                            onFirstClick = { friendsExpanded = true },
+                            onSecondClick = { groupsExpanded = true },
                         )
                         ProfileDivider()
+                        // Подписчики и подписки — счётчики без своего экрана:
+                        // VK не даёт метода для их списков этому токену, и
+                        // делать плитку кликабельной «в никуда» нельзя.
                         ProfileMetricsRow(
                             firstValue = (profile?.followersCount ?: profile?.counters?.followers).orDash(),
                             firstLabel = "Followers",
@@ -303,129 +295,16 @@ fun ProfileScreen(
                     }
                 }
                 item { Spacer(Modifier.height(16.dp)) }
-
-                // ---------------------------- Друзья ----------------------------
-                item {
-                    ProfileCard {
-                        ProfileSectionLabel(
-                            if (vk.friendsTotal != null) "FRIENDS • ${vk.friendsTotal}" else "FRIENDS",
-                        )
-                        when {
-                            vk.isLoading && vk.friends.isEmpty() -> ProfileLoadingRow()
-                            vk.friendsError != null && vk.friends.isEmpty() ->
-                                ProfileNoticeRow(vk.friendsError!!)
-                            vk.friends.isEmpty() -> ProfileNoticeRow("No friends returned by VK")
-                            else -> {
-                                val shown = if (friendsExpanded) vk.friends else vk.friends.take(PREVIEW_ROWS)
-                                shown.forEachIndexed { index, friend ->
-                                    if (index > 0) ProfileDivider()
-                                    FriendRow(
-                                        friend = friend,
-                                        compact = compact,
-                                        onClick = {
-                                            scope.launch { VkProfileRepository.openFriendAudio(friend) }
-                                        },
-                                    )
-                                }
-                                if (!friendsExpanded && vk.friends.size > PREVIEW_ROWS) {
-                                    ProfileDivider()
-                                    ProfileNavigationRow(
-                                        icon = Icons.Rounded.Person,
-                                        label = "Show all friends",
-                                        value = "${vk.friends.size} loaded",
-                                        compact = compact,
-                                        onClick = { friendsExpanded = true },
-                                    )
-                                } else if (friendsExpanded && vk.hasMoreFriends) {
-                                    ProfileDivider()
-                                    ProfileNavigationRow(
-                                        icon = Icons.Rounded.Person,
-                                        label = "Load more friends",
-                                        value = "${vk.friends.size} of ${vk.friendsTotal}",
-                                        compact = compact,
-                                        onClick = { scope.launch { VkProfileRepository.loadMoreFriends() } },
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-                item { Spacer(Modifier.height(16.dp)) }
-
-                // -------------------------- Сообщества --------------------------
-                item {
-                    ProfileCard {
-                        ProfileSectionLabel(
-                            if (vk.groupsTotal != null) "COMMUNITIES • ${vk.groupsTotal}" else "COMMUNITIES",
-                        )
-                        when {
-                            vk.isLoading && vk.groups.isEmpty() -> ProfileLoadingRow()
-                            vk.groupsError != null && vk.groups.isEmpty() ->
-                                ProfileNoticeRow(vk.groupsError!!)
-                            vk.groups.isEmpty() -> ProfileNoticeRow("No communities returned by VK")
-                            else -> {
-                                val shown = if (groupsExpanded) vk.groups else vk.groups.take(PREVIEW_ROWS)
-                                shown.forEachIndexed { index, group ->
-                                    if (index > 0) ProfileDivider()
-                                    GroupRow(
-                                        group = group,
-                                        compact = compact,
-                                        onClick = {
-                                            scope.launch { VkProfileRepository.openGroupAudio(group) }
-                                        },
-                                    )
-                                }
-                                if (!groupsExpanded && vk.groups.size > PREVIEW_ROWS) {
-                                    ProfileDivider()
-                                    ProfileNavigationRow(
-                                        icon = Icons.Rounded.Groups,
-                                        label = "Show all communities",
-                                        value = "${vk.groups.size} loaded",
-                                        compact = compact,
-                                        onClick = { groupsExpanded = true },
-                                    )
-                                } else if (groupsExpanded && vk.hasMoreGroups) {
-                                    ProfileDivider()
-                                    ProfileNavigationRow(
-                                        icon = Icons.Rounded.Groups,
-                                        label = "Load more communities",
-                                        value = "${vk.groups.size} of ${vk.groupsTotal}",
-                                        compact = compact,
-                                        onClick = { scope.launch { VkProfileRepository.loadMoreGroups() } },
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-                item { Spacer(Modifier.height(16.dp)) }
             }
 
             item {
                 ProfileCard {
                     if (isLoggedIn) {
-                        ProfileNavigationRow(
-                            icon = Icons.Rounded.Refresh,
-                            label = if (vk.isRefreshing) "Refreshing profile" else "Refresh profile",
-                            value = "Fetch current details from VK",
-                            compact = compact,
-                            enabled = !vk.isRefreshing && !vk.isLoading,
-                            loading = vk.isRefreshing || vk.isLoading,
-                            onClick = {
-                                scope.launch {
-                                    val refreshed = MusicAuth.fetchUserData()
-                                    VkProfileRepository.refresh(MusicAuth.profileId.value ?: 0L)
-                                    if (!refreshed) {
-                                        android.widget.Toast.makeText(
-                                            context,
-                                            "Couldn't refresh VK profile",
-                                            android.widget.Toast.LENGTH_SHORT,
-                                        ).show()
-                                    }
-                                }
-                            },
-                        )
-                        ProfileDivider()
+                        // «Refresh profile» убран: экран и так обновляется сам
+                        // при открытии (LaunchedEffect выше), а ручная кнопка
+                        // повторяла эту же работу.
+                        // «Listening Stats» убран по просьбе — раздел остаётся,
+                        // но вход в него не с профиля.
                         if (!slug.isNullOrBlank()) {
                             ProfileNavigationRow(
                                 icon = Icons.Rounded.Person,
@@ -450,14 +329,6 @@ fun ProfileScreen(
                             )
                             ProfileDivider()
                         }
-                        ProfileNavigationRow(
-                            icon = Icons.Rounded.BarChart,
-                            label = "Listening Stats",
-                            value = "Your top songs & artists",
-                            compact = compact,
-                            onClick = onOpenStats,
-                        )
-                        ProfileDivider()
                         ProfileNavigationRow(
                             icon = Icons.Rounded.Settings,
                             label = "Settings",
@@ -507,6 +378,55 @@ fun ProfileScreen(
             item { Spacer(Modifier.height(24.dp)) }
         }
 
+        // Списки друзей и сообществ — оверлеи по тапу на плитку SOCIAL.
+        // Порядок важен: аудио владельца рисуется ПОСЛЕ них, потому что
+        // открывается изнутри списка и должно лежать выше.
+        if (friendsExpanded) {
+            ProfileOwnerListOverlay(
+                title = "Friends",
+                total = vk.friendsTotal,
+                isLoading = vk.isLoading && vk.friends.isEmpty(),
+                error = vk.friendsError?.takeIf { vk.friends.isEmpty() },
+                emptyText = "No friends returned by VK",
+                itemCount = vk.friends.size,
+                hasMore = vk.hasMoreFriends,
+                onLoadMore = { scope.launch { VkProfileRepository.loadMoreFriends() } },
+                onBack = { friendsExpanded = false },
+                compact = compact,
+            ) { index ->
+                FriendRow(
+                    friend = vk.friends[index],
+                    compact = compact,
+                    onClick = {
+                        scope.launch { VkProfileRepository.openFriendAudio(vk.friends[index]) }
+                    },
+                )
+            }
+        }
+
+        if (groupsExpanded) {
+            ProfileOwnerListOverlay(
+                title = "Communities",
+                total = vk.groupsTotal,
+                isLoading = vk.isLoading && vk.groups.isEmpty(),
+                error = vk.groupsError?.takeIf { vk.groups.isEmpty() },
+                emptyText = "No communities returned by VK",
+                itemCount = vk.groups.size,
+                hasMore = vk.hasMoreGroups,
+                onLoadMore = { scope.launch { VkProfileRepository.loadMoreGroups() } },
+                onBack = { groupsExpanded = false },
+                compact = compact,
+            ) { index ->
+                GroupRow(
+                    group = vk.groups[index],
+                    compact = compact,
+                    onClick = {
+                        scope.launch { VkProfileRepository.openGroupAudio(vk.groups[index]) }
+                    },
+                )
+            }
+        }
+
         ownerAudio?.let { audioState ->
             OwnerAudioScreen(
                 state = audioState,
@@ -517,6 +437,120 @@ fun ProfileScreen(
 }
 
 // ------------------------------- строки списков -------------------------------
+
+/**
+ * Полный список друзей или сообществ — оверлеем поверх профиля.
+ *
+ * Раньше эти списки жили карточками НА профиле, показывая по 5 строк с кнопками
+ * «Show all» / «Load more»: два экрана прокрутки, дублирующие числа с плиток
+ * SOCIAL. Теперь профиль короткий, а список открывается по тапу на плитку.
+ *
+ * Шапка — общий [DetailTopBar], а не своя: он уже умеет статус-бар, кнопку
+ * назад и подложку при прокрутке.
+ *
+ * [row] отдаёт строку по индексу, а не готовый список: у друзей и сообществ
+ * разные DTO, и обобщать их одним типом пришлось бы дженериком ради двух
+ * вызовов.
+ */
+@Composable
+private fun ProfileOwnerListOverlay(
+    title: String,
+    total: Int?,
+    isLoading: Boolean,
+    error: String?,
+    emptyText: String,
+    itemCount: Int,
+    hasMore: Boolean,
+    onLoadMore: () -> Unit,
+    onBack: () -> Unit,
+    compact: Boolean,
+    row: @Composable (Int) -> Unit,
+) {
+    val colors = LiquidTheme.colors
+    val isDark = colors.isDark
+    val listState = rememberLazyListState()
+
+    // Догрузка, когда до конца осталось меньше экрана — как в OwnerAudioScreen.
+    LaunchedEffect(itemCount, hasMore) {
+        snapshotFlow {
+            val info = listState.layoutInfo
+            (info.visibleItemsInfo.lastOrNull()?.index ?: 0) to info.totalItemsCount
+        }.collect { (last, count) ->
+            if (hasMore && count > 0 && last >= count - 5) onLoadMore()
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(LiquidSurfaces.sheet(isDark))
+            // Свой обработчик касания: без него нажатия проходили бы сквозь
+            // оверлей в список профиля под ним.
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = {},
+            ),
+    ) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            DetailTopBar(
+                title = if (total != null) "$title • $total" else title,
+                showTitle = true,
+                isDark = isDark,
+                onBack = onBack,
+            )
+            when {
+                isLoading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = colors.iconMuted)
+                }
+                error != null -> ProfileOverlayMessage(error)
+                itemCount == 0 -> ProfileOverlayMessage(emptyText)
+                else -> LazyColumn(
+                    state = listState,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .widthIn(max = 640.dp),
+                    contentPadding = PaddingValues(bottom = 140.dp),
+                ) {
+                    items(itemCount) { index ->
+                        if (index > 0) ProfileDivider()
+                        row(index)
+                    }
+                    if (hasMore) {
+                        item {
+                            Box(
+                                Modifier.fillMaxWidth().padding(vertical = 18.dp),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(22.dp),
+                                    strokeWidth = 2.dp,
+                                    color = colors.iconMuted,
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ProfileOverlayMessage(text: String) {
+    Box(
+        modifier = Modifier.fillMaxSize().padding(horizontal = 32.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = text,
+            fontFamily = AppFontFamily,
+            color = LiquidSurfaces.textSecondary(LiquidTheme.colors.isDark),
+            fontSize = 14.sp,
+            textAlign = TextAlign.Center,
+        )
+    }
+}
 
 @Composable
 private fun FriendRow(friend: VkFriend, compact: Boolean, onClick: () -> Unit) {
@@ -961,28 +995,6 @@ private fun ProfileCard(content: @Composable ColumnScope.() -> Unit) {
         content = content,
     )
 }
-
-@Composable
-private fun ProfileInfoRow(
-    icon: ImageVector,
-    label: String,
-    value: String,
-    compact: Boolean,
-) {
-    val colors = LiquidTheme.colors
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = if (compact) 12.dp else 14.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(icon, null, tint = colors.textSecondary, modifier = Modifier.size(20.dp))
-        Spacer(Modifier.width(14.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(label, fontFamily = AppFontFamily, color = colors.textPrimary, fontSize = 15.sp, fontWeight = FontWeight.Medium)
-            Text(value, fontFamily = AppFontFamily, color = colors.textSecondary, fontSize = 12.sp)
-        }
-    }
-}
-
 @Composable
 private fun ProfileSectionLabel(text: String) {
     // Заголовок раздела — как на артисте: крупный полужирный с плотным
@@ -1010,28 +1022,6 @@ private fun ProfileNoticeRow(text: String) {
         modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 14.dp),
     )
 }
-
-@Composable
-private fun ProfileLoadingRow() {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 16.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        CircularProgressIndicator(
-            modifier = Modifier.size(16.dp),
-            strokeWidth = 2.dp,
-            color = LiquidTheme.colors.iconMuted,
-        )
-        Text(
-            text = "Loading from VK…",
-            fontFamily = AppFontFamily,
-            color = LiquidTheme.colors.textSecondary,
-            fontSize = 13.sp,
-        )
-    }
-}
-
 @Composable
 private fun ProfileMetricsRow(
     firstValue: String,
@@ -1039,14 +1029,16 @@ private fun ProfileMetricsRow(
     secondValue: String,
     secondLabel: String,
     compact: Boolean,
+    onFirstClick: (() -> Unit)? = null,
+    onSecondClick: (() -> Unit)? = null,
 ) {
     val colors = LiquidTheme.colors
     Row(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = if (compact) 10.dp else 12.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        ProfileMetric(firstValue, firstLabel, Modifier.weight(1f), colors, compact)
-        ProfileMetric(secondValue, secondLabel, Modifier.weight(1f), colors, compact)
+        ProfileMetric(firstValue, firstLabel, Modifier.weight(1f), colors, compact, onFirstClick)
+        ProfileMetric(secondValue, secondLabel, Modifier.weight(1f), colors, compact, onSecondClick)
     }
 }
 
@@ -1065,6 +1057,7 @@ private fun ProfileMetric(
     modifier: Modifier,
     colors: com.lmg.vk.ui.theme.LiquidColors,
     compact: Boolean,
+    onClick: (() -> Unit)? = null,
 ) {
     Column(
         modifier = modifier
@@ -1072,21 +1065,127 @@ private fun ProfileMetric(
             // cardPressed как «на тон отличную» поверхность: card совпал бы с
             // карточкой-родителем, и плитка не читалась бы вовсе.
             .background(LiquidSurfaces.cardPressed(colors.isDark))
+            // Кликабельна ТОЛЬКО когда есть куда вести: у «Подписчиков» и
+            // «Подписок» своего экрана нет (VK не даёт списков этому токену), и
+            // отклик на нажатие обещал бы переход, которого не будет.
+            .then(
+                if (onClick != null) {
+                    Modifier.liquidClickable(pressedScale = LiquidMotion.PressCard, onClick = onClick)
+                } else {
+                    Modifier
+                },
+            )
             .padding(horizontal = 14.dp, vertical = if (compact) 10.dp else 13.dp),
     ) {
-        Text(
-            value,
-            fontFamily = AppFontFamily,
-            color = LiquidSurfaces.textPrimary(colors.isDark),
-            fontSize = if (compact) 20.sp else 23.sp,
-            fontWeight = FontWeight.Bold,
-        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                value,
+                fontFamily = AppFontFamily,
+                color = LiquidSurfaces.textPrimary(colors.isDark),
+                fontSize = if (compact) 20.sp else 23.sp,
+                fontWeight = FontWeight.Bold,
+            )
+            // Шеврон — единственный признак, по которому видно, что плитка
+            // открывается. Без него кликабельная и мёртвая выглядят одинаково.
+            if (onClick != null) {
+                Spacer(Modifier.width(4.dp))
+                Icon(
+                    Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+                    contentDescription = null,
+                    tint = LiquidSurfaces.textTertiary(colors.isDark),
+                    modifier = Modifier.size(16.dp),
+                )
+            }
+        }
         Spacer(Modifier.height(2.dp))
         Text(
             label,
             fontFamily = AppFontFamily,
             color = LiquidSurfaces.textSecondary(colors.isDark),
             fontSize = LiquidMetrics.Caption,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+/**
+ * Факты аккаунта плитками по две в ряд.
+ *
+ * Строками (`ProfileInfoRow`) они занимали пять экранных полос ради нескольких
+ * слов в каждой — VK ID, адрес, город, дата рождения. Здесь то же самое
+ * умещается в две-три полосы.
+ *
+ * Нечётное число фактов даёт последнюю плитку на полную ширину: пустая ячейка
+ * рядом выглядела бы как потерянные данные.
+ */
+@Composable
+private fun ProfileFactGrid(
+    facts: List<Pair<ImageVector, Pair<String, String>>>,
+    compact: Boolean,
+) {
+    if (facts.isEmpty()) return
+    val colors = LiquidTheme.colors
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = LiquidMetrics.ScreenPadding),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        facts.chunked(2).forEach { row ->
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                row.forEach { (icon, pair) ->
+                    ProfileFactTile(
+                        icon = icon,
+                        label = pair.first,
+                        value = pair.second,
+                        compact = compact,
+                        colors = colors,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ProfileFactTile(
+    icon: ImageVector,
+    label: String,
+    value: String,
+    compact: Boolean,
+    colors: com.lmg.vk.ui.theme.LiquidColors,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier
+            .clip(LiquidMetrics.CardShape)
+            .background(LiquidSurfaces.card(colors.isDark))
+            .padding(horizontal = 14.dp, vertical = if (compact) 12.dp else 14.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                icon,
+                contentDescription = null,
+                tint = LiquidSurfaces.textSecondary(colors.isDark),
+                modifier = Modifier.size(15.dp),
+            )
+            Spacer(Modifier.width(6.dp))
+            Text(
+                label,
+                fontFamily = AppFontFamily,
+                color = LiquidSurfaces.textSecondary(colors.isDark),
+                fontSize = 11.5.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        Spacer(Modifier.height(4.dp))
+        Text(
+            value,
+            fontFamily = AppFontFamily,
+            color = LiquidSurfaces.textPrimary(colors.isDark),
+            fontSize = 15.sp,
+            fontWeight = FontWeight.SemiBold,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
@@ -1196,13 +1295,3 @@ private val MONTHS = listOf(
     "January", "February", "March", "April", "May", "June",
     "July", "August", "September", "October", "November", "December",
 )
-
-private fun formatSessionStatus(expiresAtSeconds: Long?): String {
-    if (expiresAtSeconds == null) return "Active • no fixed expiry"
-    val secondsLeft = expiresAtSeconds - (System.currentTimeMillis() / 1_000L)
-    return when {
-        secondsLeft <= 0L -> "Expired • refresh on next VK request"
-        secondsLeft < 3_600L -> "Active • expires in ${secondsLeft / 60}m"
-        else -> "Active • expires in ${secondsLeft / 3_600}h"
-    }
-}

@@ -123,7 +123,6 @@ fun AppRoot() {
     var tagEditTrack by remember { mutableStateOf<com.lmg.vk.engine.Track?>(null) }
     var authOpen by remember { mutableStateOf(false) }
     var profileOpen by remember { mutableStateOf(false) }
-    var statsOpen by remember { mutableStateOf(false) }
     // Поиск — полноэкранный ОВЕРЛЕЙ (как настройки/профиль), а НЕ пункт нав-графа.
     // Иначе экран поиска попадал в пер-таб бэкстек Волны и через saveState/
     // restoreState «прилипал» к вкладке — при возврате на таб вместо его старта
@@ -131,7 +130,7 @@ fun AppRoot() {
     var searchOpen by remember { mutableStateOf(false) }
 
     // Бар/сайдбар видны на вкладках и деталях; прячем под полными оверлеями.
-    val barsVisible = !settingsOpen && !authOpen && !profileOpen && !statsOpen && !searchOpen
+    val barsVisible = !settingsOpen && !authOpen && !profileOpen && !searchOpen
 
     val currentTrack by PlayerController.currentTrack.collectAsState()
     val isPlaying by PlayerController.isPlaying.collectAsState()
@@ -210,7 +209,6 @@ fun AppRoot() {
             searchOpen = false
             settingsOpen = false
             profileOpen = false
-            statsOpen = false
             animateCollapse()
             navController.navigate(route)
         }
@@ -251,12 +249,11 @@ fun AppRoot() {
     // который сам попает деталь → старт вкладки → предыдущая вкладка → выход.
     BackHandler(
         enabled = tagEditTrack != null || lrcPublishTrack != null || settingsOpen ||
-            authOpen || profileOpen || statsOpen || searchOpen || expandProgress.value > 0.5f
+            authOpen || profileOpen || searchOpen || expandProgress.value > 0.5f
     ) {
         when {
             tagEditTrack != null -> tagEditTrack = null
             lrcPublishTrack != null -> lrcPublishTrack = null
-            statsOpen -> statsOpen = false
             settingsOpen -> settingsOpen = false
             authOpen -> authOpen = false
             profileOpen -> profileOpen = false
@@ -641,27 +638,10 @@ fun AppRoot() {
                 onOpenSettings = { profileOpen = false; settingsOpen = true },
                 onLogout = { profileOpen = false },
                 onOpenAuth = { authOpen = true },
-                onOpenStats = { statsOpen = true },
                 onOpenLibrary = { profileOpen = false; switchTab(2) },
             )
         }
 
-        // ── Listening Stats Screen ──
-        AnimatedVisibility(
-            visible = statsOpen,
-            enter = slideInHorizontally(
-                initialOffsetX = { it },
-                animationSpec = tween(340, easing = com.lmg.vk.ui.theme.AppleEasings.Standard)
-            ) + fadeIn(animationSpec = tween(250)),
-            exit = slideOutHorizontally(
-                targetOffsetX = { it },
-                animationSpec = tween(300, easing = com.lmg.vk.ui.theme.AppleEasings.Standard)
-            ) + fadeOut(animationSpec = tween(200))
-        ) {
-            com.lmg.vk.ui.screens.StatsScreen(
-                onBack = { statsOpen = false }
-            )
-        }
 
         // ── Auth Screen ──
         // ДОЛЖЕН идти ПОСЛЕ ProfileScreen: экраны — соседние AnimatedVisibility
