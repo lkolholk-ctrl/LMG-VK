@@ -15,6 +15,16 @@ data class VkFriend(
     @Json(name = "last_name") val lastName: String = "",
     @Json(name = "photo_100") val photo100: String = "",
     @Json(name = "photo_200") val photo200: String = "",
+    /**
+     * Фото, которое этот токен реально отдаёт.
+     *
+     * `photo_100`/`photo_200` приходили ПУСТЫМИ (лог: «friends: 0/40 с
+     * ссылкой»), хотя запрашивались — токен официального клиента отдаёт аватар
+     * через `photo_base`. Так же поступает и VK X (в его VKProfile ровно это
+     * поле), и в нашем профиле аватар работал именно потому, что `photo_base`
+     * есть в CURRENT_PROFILE_FIELDS.
+     */
+    @Json(name = "photo_base") val photoBase: String = "",
     val domain: String = "",
     @Json(name = "screen_name") val screenName: String = "",
     val online: Int? = null,
@@ -38,10 +48,12 @@ data class VkFriend(
             .ifBlank { domain.ifBlank { "id$id" } }
 
     val avatarUrl: String
-        get() = sequenceOf(photo200, photo100).firstOrNull(String::isNotBlank).orEmpty()
+        get() = sequenceOf(photoBase, photo200, photo100)
+            .firstOrNull(String::isNotBlank)
+            .orEmpty()
 
     /**
-     * Аватар для шапки во всю ширину. У друзей VK отдаёт только photo_100/200,
+     * Аватар для шапки во всю ширину. У друзей VK отдаёт одну ссылку,
      * но в новых ссылках размер задан параметром `cs`, и его можно поднять до
      * максимума из `as` (см. [withLargestVkSize]). Без этого шапка получила бы
      * 200px, растянутые на ~1080px ширины экрана.
@@ -79,6 +91,12 @@ data class VkGroup(
     val type: String = "",
     @Json(name = "photo_100") val photo100: String = "",
     @Json(name = "photo_200") val photo200: String = "",
+    /**
+     * Аватар сообщества, который этот токен реально отдаёт — та же история, что
+     * у [VkFriend.photoBase]: `photo_100`/`photo_200` приходили пустыми (лог:
+     * «groups: 0/40 с ссылкой»).
+     */
+    @Json(name = "photo_base") val photoBase: String = "",
     @Json(name = "members_count") val membersCount: Int? = null,
     val verified: Int? = null,
     @Json(name = "is_member") val isMember: Int? = null,
@@ -123,7 +141,9 @@ data class VkGroup(
         get() = -id
 
     val avatarUrl: String
-        get() = sequenceOf(photo200, photo100).firstOrNull(String::isNotBlank).orEmpty()
+        get() = sequenceOf(photoBase, photo200, photo100)
+            .firstOrNull(String::isNotBlank)
+            .orEmpty()
 
     /**
      * Аватар для шапки: сначала самые большие варианты, затем подъём `cs` до
@@ -131,7 +151,7 @@ data class VkGroup(
      * приходит нарезкой 240px и на всю ширину экрана растягивается мылом.
      */
     val bigAvatarUrl: String
-        get() = sequenceOf(photoMaxOrig, photo400Orig, photo200, photo100)
+        get() = sequenceOf(photoMaxOrig, photo400Orig, photoBase, photo200, photo100)
             .firstOrNull { !it.isNullOrBlank() }
             .orEmpty()
             .withLargestVkSize()

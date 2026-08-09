@@ -890,7 +890,8 @@ class VkMethodsRegistry(private val client: VkApiClient) {
 
     private companion object {
         const val VKX_STORAGE_APP_ID = 52384530
-        const val PROFILE_FIELDS = "first_name,last_name,name,photo_100,photo_200"
+        const val PROFILE_FIELDS =
+            "first_name,last_name,name,photo_base,photo_100,photo_200"
 
         /**
          * Полный набор `fields` для карточки профиля. Имена сверены со строками
@@ -905,10 +906,21 @@ class VkMethodsRegistry(private val client: VkApiClient) {
             "domain,screen_name,status,bdate,city,country,followers_count,counters," +
             "online,online_info,last_seen,verified,sex"
 
+        /**
+         * `photo_base` ОБЯЗАТЕЛЕН и стоит первым: с токеном официального клиента
+         * `photo_100`/`photo_200` приходят ПУСТЫМИ (лог с устройства: «friends:
+         * 0/40 с ссылкой»), аватар отдаётся именно через `photo_base`. Так же
+         * поступает VK X, и в нашем профиле фото работало ровно потому, что это
+         * поле есть в CURRENT_PROFILE_FIELDS. Остальные оставлены как фолбэк —
+         * на других токенах приходят они.
+         */
         const val FRIEND_FIELDS =
-            "photo_100,photo_200,domain,screen_name,online,online_info,last_seen,verified,sex,can_see_audio"
+            "photo_base,photo_100,photo_200,domain,screen_name,online,online_info," +
+                "last_seen,verified,sex,can_see_audio"
 
-        const val GROUP_FIELDS = "photo_100,photo_200,members_count,verified,is_member"
+        /** `photo_base` первым — см. [FRIEND_FIELDS]: остальные поля фото пустые. */
+        const val GROUP_FIELDS =
+            "photo_base,photo_100,photo_200,members_count,verified,is_member"
 
         /**
          * `fields` для карточки сообщества. Имена НЕ выдуманы — каждое реально
@@ -926,10 +938,11 @@ class VkMethodsRegistry(private val client: VkApiClient) {
         const val GROUP_DETAIL_FIELDS = "activity,description,status,site," +
             "members_count,counters,verified,is_member,is_closed,type,deactivated," +
             "admin_level,can_post,can_message,start_date,finish_date," +
-            "screen_name,photo_100,photo_200,photo_400_orig,photo_max_orig,cover"
+            "screen_name,photo_base,photo_100,photo_200,photo_400_orig,photo_max_orig,cover"
 
         /** Участникам в списке нужны только аватар и имя — остальное лишний трафик. */
-        const val GROUP_MEMBER_FIELDS = "photo_100,photo_200,screen_name,domain,verified"
+        const val GROUP_MEMBER_FIELDS =
+            "photo_base,photo_100,photo_200,screen_name,domain,verified"
 
         const val AUDIO_PRIVACY_EXECUTE_CODE = """var settings = API.account.getPrivacySettings();
 var i = 0;
