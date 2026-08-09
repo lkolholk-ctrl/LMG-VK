@@ -10,6 +10,7 @@ import com.lmg.vk.network.dto.VkFriend
 import com.lmg.vk.network.dto.VkGroup
 import com.lmg.vk.network.dto.music.AudioPlaylist
 import com.lmg.vk.network.dto.music.AudioTrack
+import com.lmg.vk.network.dto.music.mergeAudioTracksById
 import com.lmg.vk.network.methods.VkAudioApi
 import com.lmg.vk.network.methods.VkMethodsRegistry
 import kotlinx.coroutines.async
@@ -368,7 +369,7 @@ object VkProfileRepository {
             _ownerAudio.value = when (result) {
                 is VkResult.Success -> base.copy(
                     isLoadingMore = false,
-                    tracks = (base.tracks + result.data.items).distinctBy(AudioTrack::fullId),
+                    tracks = (base.tracks + result.data.items).mergeAudioTracksById(),
                     total = result.data.count ?: base.total,
                     error = null,
                 )

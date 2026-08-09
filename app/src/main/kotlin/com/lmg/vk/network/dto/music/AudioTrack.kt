@@ -70,6 +70,9 @@ private const val VK_LEGACY_AUDIO_PLACEHOLDER =
 private fun String?.realVkCoverOrNull(): String? =
     this?.takeIf { it.isNotBlank() && !it.startsWith(VK_LEGACY_AUDIO_PLACEHOLDER) }
 
+private fun AlbumThumb?.realVkThumbOrNull(): AlbumThumb? =
+    this?.takeIf { it.bestUrl.realVkCoverOrNull() != null }
+
 /**
  * Тот же приоритет, что у `MusicTrack.Db(size)` в VK:
  * album.thumb → верхнеуровневый track.thumb → локальный fallback вызывающего.
@@ -79,6 +82,51 @@ fun AudioTrack.coverUrl(): String? =
         ?: album?.thumb?.src.realVkCoverOrNull()
         ?: thumb?.bestUrl.realVkCoverOrNull()
         ?: thumb?.src.realVkCoverOrNull()
+
+/**
+ * Сохраняет сгенерированную VK обложку при склейке одного трека из разных
+ * ответов API. Например, обычный `audio.search` может вернуть URL потока без
+ * `thumb`, а `audio.searchMain` — тот же трек с цветной обложкой.
+ */
+fun AudioTrack.withVkArtworkFallback(fallback: AudioTrack?): AudioTrack {
+    if (fallback == null || fallback.fullId != fullId) return this
+
+    val mergedAlbum = when {
+        album == null -> fallback.album
+        fallback.album == null -> album
+        else -> album.copy(
+            thumb = album.thumb.realVkThumbOrNull()
+                ?: fallback.album.thumb.realVkThumbOrNull()
+                ?: album.thumb
+                ?: fallback.album.thumb,
+            main_color = album.main_color ?: fallback.album.main_color,
+        )
+    }
+    return copy(
+        album = mergedAlbum,
+        thumb = thumb.realVkThumbOrNull()
+            ?: fallback.thumb.realVkThumbOrNull()
+            ?: thumb
+            ?: fallback.thumb,
+        main_color = main_color ?: fallback.main_color,
+    ).also { merged ->
+        // likedOverride лежит вне primary constructor, поэтому обычный copy()
+        // его не переносит.
+        merged.likedOverride = likedOverride ?: fallback.likedOverride
+    }
+}
+
+/**
+ * Убирает дубли треков, но не выбрасывает более полные `thumb/main_color` из
+ * следующего ответа. Порядок и остальные поля первого экземпляра сохраняются.
+ */
+fun Iterable<AudioTrack>.mergeAudioTracksById(): List<AudioTrack> {
+    val merged = linkedMapOf<String, AudioTrack>()
+    forEach { track ->
+        merged[track.fullId] = merged[track.fullId]?.withVkArtworkFallback(track) ?: track
+    }
+    return merged.values.toList()
+}
 
 /** Из `ua.lmg.vkapi2.objects.music.playlist.metadata.MainArtist`. */
 @JsonClass(generateAdapter = true)

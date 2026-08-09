@@ -23,6 +23,8 @@ import com.lmg.vk.network.dto.music.AudioSearchMainResponse
 import com.lmg.vk.network.dto.music.AudioStreamMix
 import com.lmg.vk.network.dto.music.AudioTrack
 import com.lmg.vk.network.dto.music.coverUrl
+import com.lmg.vk.network.dto.music.mergeAudioTracksById
+import com.lmg.vk.network.dto.music.withVkArtworkFallback
 import com.lmg.vk.network.dto.music.MainArtist
 import com.lmg.vk.network.dto.music.RadioStation
 import com.lmg.vk.network.dto.music.VkArtistDto
@@ -265,7 +267,7 @@ object MusicBackend {
             ownerId = currentUserId(),
             offset = 0,
             count = limit,
-        ).requireData().also(::cacheTracks).map { it.toSearchItem() }
+        ).requireData().map(::cacheTrack).map { it.toSearchItem() }
 
     /**
      * Поиск строго внутри аудиотеки текущего аккаунта — один execute-вызов VK X
@@ -278,10 +280,10 @@ object MusicBackend {
         val response = methodsRegistry
             .searchInProfile(ownerId = currentUserId(), query = normalizedQuery)
             .requireData()
-        cacheTracks(response.audios)
+        val tracks = response.audios.map(::cacheTrack)
         return ProfileLibrarySearch(
             query = normalizedQuery,
-            tracks = response.audios.map { it.toEngineTrack() },
+            tracks = tracks.map { it.toEngineTrack() },
             playlists = response.playlists.items.map { playlist ->
                 ProfileLibraryPlaylist(
                     id = playlist.fullId,
@@ -315,8 +317,8 @@ object MusicBackend {
                 (response.audios.items + response.own_audios.items).map { it.toAudioTrack() }
             }.orEmpty()
             val tracks = (directTracks + mainTracks)
-                .distinctBy(AudioTrack::fullId)
-                .also(::cacheTracks)
+                .mergeAudioTracksById()
+                .map(::cacheTrack)
 
             val directArtists: List<VkArtistDto> = artistResult.getOrNull()?.items.orEmpty()
             // searchArtists возвращает VkArtistDto, а searchMain — другой wire DTO,
@@ -437,7 +439,7 @@ object MusicBackend {
         val catalogBlocks = catalogPages.toHomeBlocks()
         val blocks = catalogBlocks.ifEmpty { loadHomeFallbackBlocks() }
         catalogPages.flatMap { it.audios.orEmpty() }
-            .distinctBy(AudioTrack::fullId)
+            .mergeAudioTracksById()
             .also(::cacheTracks)
         return HomeResponse(
             blocks = blocks,
@@ -466,7 +468,7 @@ object MusicBackend {
             is CatalogTabRequest.Replacement ->
                 catalogApi.replaceBlocks(listOf(request.replacementId))
         }.requireData()
-        response.audios.orEmpty().distinctBy(AudioTrack::fullId).also(::cacheTracks)
+        response.audios.orEmpty().mergeAudioTracksById().also(::cacheTracks)
         return listOf(response).toHomeBlocks()
     }
 
@@ -495,7 +497,7 @@ object MusicBackend {
         if (blockId.isBlank() || startFrom.isBlank()) return HomeBlockPage(emptyList(), null)
         val response = catalogApi.getBlockItems(blockId, startFrom).getOrNull()
             ?: return HomeBlockPage(emptyList(), null)
-        response.audios.orEmpty().distinctBy(AudioTrack::fullId).also(::cacheTracks)
+        response.audios.orEmpty().mergeAudioTracksById().also(::cacheTracks)
         // Разбираем страницу тем же путём, что и главную выдачу, а потом берём
         // элементы блока с нужным id: сущности лежат в корне ответа, и склеить их
         // с ссылками блока умеет только toHomeBlocks().
@@ -512,8 +514,12 @@ object MusicBackend {
      * Подтверждённый VK fallback для редких ответов без CatalogKit item IDs.
      * Это не локальные карточки: оба списка приходят из audio.* текущей сессии.
      */    private suspend fun loadHomeFallbackBlocks(): List<HomeBlock> = coroutineScope {
-        val recommendations = async { audioApi.getRecommendations(count = 50).getOrNull().orEmpty() }
-        val popular = async { audioApi.getPopular(count = 50).getOrNull().orEmpty() }
+        val recommendations = async {
+            audioApi.getRecommendations(count = 50).getOrNull().orEmpty().map(::cacheTrack)
+        }
+        val popular = async {
+            audioApi.getPopular(count = 50).getOrNull().orEmpty().map(::cacheTrack)
+        }
         listOfNotNull(
             recommendations.await().takeIf { it.isNotEmpty() }?.let { tracks ->
                 HomeBlock(
@@ -536,7 +542,7 @@ object MusicBackend {
 
     suspend fun loadCharts(region: String? = null): List<Chart> {
         requireInitialized()
-        val tracks = audioApi.getPopular(count = 100).requireData().also(::cacheTracks)
+        val tracks = audioApi.getPopular(count = 100).requireData().map(::cacheTrack)
         if (tracks.isEmpty()) return emptyList()
         return listOf(
             Chart(
@@ -559,7 +565,7 @@ object MusicBackend {
             playlistId = id,
             offset = 0,
             count = 6000,
-        ).requireData().also(::cacheTracks)
+        ).requireData().map(::cacheTrack)
         AlbumResponse(playlist.toAlbum(), tracks.map { it.toAlbumTrack() })
     }.getOrNull()
 
@@ -626,9 +632,9 @@ object MusicBackend {
                 .flatMap { it.await() }
         }
         val catalogPages = sectionPages + blockCatalogs
-        val tracks = catalogPages.flatMap { it.audios.orEmpty() }.distinctBy(AudioTrack::fullId).ifEmpty {
+        val tracks = catalogPages.flatMap { it.audios.orEmpty() }.ifEmpty {
             audioApi.getAudiosByArtist(normalizedId).requireData()
-        }.also(::cacheTracks)
+        }.mergeAudioTracksById().map(::cacheTrack)
         val catalogArtists = catalogPages.flatMap { it.artists.orEmpty() }
         val artist = catalogArtists.firstOrNull { it.id == normalizedId }
             ?: catalogArtists.firstOrNull()
@@ -880,12 +886,12 @@ object MusicBackend {
             mixId = resolvedMixId,
             entityId = normalizedId,
             append = false,
-        ).requireData().also(::cacheTracks).map { it.toEngineTrack() }
+        ).requireData().map(::cacheTrack).map { it.toEngineTrack() }
     }.getOrDefault(emptyList())
 
     suspend fun getArtistTopTracks(artistId: String): List<Track> =
         audioApi.getAudiosByArtist(artistId.removePrefix("vk_")).requireData()
-            .also(::cacheTracks)
+            .map(::cacheTrack)
             .map { it.toEngineTrack() }
 
     /**
@@ -897,7 +903,6 @@ object MusicBackend {
         requireInitialized()
         val normalizedId = artistId.removePrefix("vk_")
         val tracks = mutableListOf<AudioTrack>()
-        val seenTracks = HashSet<String>()
         val pageSize = 100
 
         // В оригинальном клиенте каталог артиста разделён на три типа:
@@ -922,7 +927,10 @@ object MusicBackend {
                 if (pageIds == previousPageIds) break
                 previousPageIds = pageIds
 
-                tracks += page.filter { seenTracks.add(it.fullId) }
+                // Один трек бывает сразу в main/featured/top. Оставляем все
+                // варианты до финальной склейки, чтобы не потерять `thumb` из
+                // более полного ответа следующей группы.
+                tracks += page
                 if (page.size < pageSize) break
                 offset += pageSize
             }
@@ -934,7 +942,7 @@ object MusicBackend {
         // Совместимость на случай, если конкретный сервер не понимает type.
         if (tracks.isEmpty()) loadType(null)
 
-        return tracks.also(::cacheTracks).map { it.toEngineTrack() }
+        return tracks.mergeAudioTracksById().map(::cacheTrack).map { it.toEngineTrack() }
     }
 
     /** Полная дискография исполнителя, а не только релизы из первых catalog-блоков. */
@@ -968,7 +976,7 @@ object MusicBackend {
                 ownerId = currentUserId(),
                 offset = offset,
                 count = limit.coerceIn(1, 6000),
-            ).requireData().also(::cacheTracks)
+            ).requireData().map(::cacheTrack)
             LibraryLikesResponse(
                 items = tracks.map { it.toLibraryTrack() },
                 count = tracks.size,
@@ -1023,7 +1031,7 @@ object MusicBackend {
                 offset = offset,
                 count = limit.coerceIn(1, 6000),
                 playlistId = id,
-            ).requireData().also(::cacheTracks)
+            ).requireData().map(::cacheTrack)
             val playlist = if (offset == 0) {
                 audioApi.getPlaylistById(ownerId, id).requireData().toAlbum()
             } else null
@@ -1186,8 +1194,9 @@ object MusicBackend {
         val tracks = genre.toIntOrNull()?.let { genreId ->
             audioApi.getPopular(count = requested, genreId = genreId).requireData()
         } ?: takeWaveTracks(requested + excluded.size.coerceAtMost(20))
-        cacheTracks(tracks)
-        val filtered = tracks.filterNot { it.fullId in excluded }.take(requested)
+        val filtered = tracks.map(::cacheTrack)
+            .filterNot { it.fullId in excluded }
+            .take(requested)
         WaveBatchResponse(
             sessionId = waveSessionId,
             genre = genre,
@@ -1279,8 +1288,7 @@ object MusicBackend {
         val requestId = accessKey?.let { "${id}_$it" } ?: id
         val track = audioApi.getById(listOf(requestId)).requireData().firstOrNull()
             ?: throw backendFailure(404, "Трек $id не найден")
-        trackCache[track.fullId] = track
-        return track
+        return cacheTrack(track)
     }
 
     /**
@@ -1290,26 +1298,34 @@ object MusicBackend {
      */
     fun adoptTracks(tracks: Collection<AudioTrack>): List<SearchItem> {
         if (tracks.isEmpty()) return emptyList()
-        cacheTracks(tracks)
-        return tracks.map { it.toSearchItem() }
+        return tracks.map(::cacheTrack).map { it.toSearchItem() }
     }
 
     private fun cacheTracks(tracks: Collection<AudioTrack>) {
-        tracks.forEach { track ->
-            trackCache[track.fullId] = track
-            // ВАЖНО: в stream-кэш идёт только реально играбельный URL. Раньше
-            // условием было `isNotBlank()`, и плейсхолдер VK
-            // (`audio_api_unavailable.mp3`) из выдачи поиска/каталога оседал тут
-            // как готовая ссылка. Дальше getTrackInfo отдавал его из кэша, а
-            // getTrackInfoSync — тем более (он только читает кэш), так что
-            // плеер получал URL, который физически не воспроизводится.
-            if (track.isAvailable && track.url.isPlayableStreamUrl()) {
-                streamCache[track.fullId] = CachedStream(
-                    track.toStreamInfo(streamQuality),
-                    System.currentTimeMillis(),
-                )
+        tracks.forEach(::cacheTrack)
+    }
+
+    private fun cacheTrack(track: AudioTrack): AudioTrack {
+        // Не даём короткому ответу audio.getById/audio.get затереть цветную
+        // обложку, которую раньше прислал каталог или searchMain.
+        val enriched = synchronized(trackCache) {
+            track.withVkArtworkFallback(trackCache[track.fullId]).also { merged ->
+                trackCache[merged.fullId] = merged
             }
         }
+        // ВАЖНО: в stream-кэш идёт только реально играбельный URL. Раньше
+        // условием было `isNotBlank()`, и плейсхолдер VK
+        // (`audio_api_unavailable.mp3`) из выдачи поиска/каталога оседал тут
+        // как готовая ссылка. Дальше getTrackInfo отдавал его из кэша, а
+        // getTrackInfoSync — тем более (он только читает кэш), так что
+        // плеер получал URL, который физически не воспроизводится.
+        if (enriched.isAvailable && enriched.url.isPlayableStreamUrl()) {
+            streamCache[enriched.fullId] = CachedStream(
+                enriched.toStreamInfo(streamQuality),
+                System.currentTimeMillis(),
+            )
+        }
+        return enriched
     }
 
     /**
@@ -1369,9 +1385,9 @@ object MusicBackend {
                 if (mix != null) continue
                 break
             }
-            cacheTracks(loaded)
+            val enriched = loaded.map(::cacheTrack)
             val queuedIds = waveQueue.asSequence().map(AudioTrack::fullId).toHashSet()
-            loaded.filterNot { it.fullId in queuedIds }.forEach(waveQueue::addLast)
+            enriched.filterNot { it.fullId in queuedIds }.forEach(waveQueue::addLast)
         }
 
         buildList(count.coerceAtMost(waveQueue.size)) {
@@ -2111,6 +2127,8 @@ object MusicBackend {
     private fun List<VkCatalogResponse>.toHomeBlocks(): List<HomeBlock> {
         val first = firstOrNull() ?: return emptyList()
         val audios = flatMap { it.audios.orEmpty() }
+            .mergeAudioTracksById()
+            .map(::cacheTrack)
         val playlists = flatMap { it.playlists.orEmpty() }
         val artists = flatMap { it.artists.orEmpty() }
         val artist_videos = flatMap { it.artist_videos.orEmpty() }
