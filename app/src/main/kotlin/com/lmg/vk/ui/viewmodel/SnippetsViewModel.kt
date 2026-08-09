@@ -6,6 +6,7 @@ import com.lmg.vk.network.VkApiLocator
 import com.lmg.vk.network.VkResult
 import com.lmg.vk.network.dto.music.AudioSnippetEntry
 import com.lmg.vk.network.dto.music.AudioTrack
+import com.lmg.vk.network.dto.music.coverUrl
 import com.lmg.vk.network.dto.music.SnippetPageUi
 import com.lmg.vk.network.dto.music.SnippetTrackUi
 import com.lmg.vk.network.methods.VkAudioApi
@@ -147,7 +148,7 @@ class SnippetsViewModel : ViewModel() {
             fullId = fullId,
             title = title,
             artist = artist.ifBlank { main_artists.orEmpty().joinToString(", ") { it.name } },
-            coverUrl = snippetCoverUrl(),
+            coverUrl = coverUrl(),
             directUrl = directUrl,
             fullDurationMs = duration * 1000L,
             // stream_duration — секунды, и это ЕДИНСТВЕННОЕ реальное поле про
@@ -157,19 +158,6 @@ class SnippetsViewModel : ViewModel() {
             trackCode = track_code,
         )
     }
-
-    /**
-     * Обложка сниппета. Хелпер свой, потому что `MusicBackend.coverUrl()`
-     * приватный, а заглушку VK (`audio_row_placeholder`) сюда подставлять
-     * нельзя: на полный экран она растянется в мусорную картинку — пусть
-     * лучше сработает штатный плейсхолдер `AlbumArtImage`.
-     */
-    private fun AudioTrack.snippetCoverUrl(): String? =
-        album?.thumb?.bestUrl?.takeIf(String::isNotBlank)
-            ?: album?.thumb?.src?.takeIf(String::isNotBlank)
-            ?: main_artists.orEmpty().firstNotNullOfOrNull { artist ->
-                artist.photo.orEmpty().firstOrNull { it.bestUrl.isNotBlank() }?.bestUrl
-            }
 
     private companion object {
         const val SNIPPETS_COUNT = 3

@@ -394,7 +394,6 @@ object PlayerController {
                         player.setMediaItems(allMediaItems, queueIndex, 0L)
                         player.prepare()
                         player.play()
-                        audioServiceRef?.setQueue(allMediaItems, queueIndex, 0L)
                     }
                     resetPlaybackLogging(track.durationMs)
                     prefetchAhead(context, queueIndex, depth = 3)
@@ -733,16 +732,19 @@ object PlayerController {
                         _isBuffering.value = true
 
                         val player = getPlayer(context)
-                        player?.let {
-                            it.stop()
-                            it.clearMediaItems()
-                            it.setMediaItems(mediaItems, startIndex, 0L)
-                            it.prepare()
-                            it.play()
+                        if (player != null) {
+                            player.stop()
+                            player.clearMediaItems()
+                            player.setMediaItems(mediaItems, startIndex, 0L)
+                            player.prepare()
+                            player.play()
                             resetPlaybackLogging(startTrack.durationMs)
+                        } else {
+                            // Редкий fallback до подключения MediaController.
+                            // Одновременно оба пути вызывать нельзя: это дважды
+                            // пересоздаёт весь timeline в AudioService.
+                            audioServiceRef?.setQueue(mediaItems, startIndex, 0L)
                         }
-
-                        audioServiceRef?.setQueue(mediaItems, startIndex, 0L)
                     }
                     addToRecent(startTrack)
 
@@ -1874,13 +1876,13 @@ object PlayerController {
                         if (cover != null) {
                             setArtworkUri(Uri.parse(cover))
                         } else {
-                            // Скачанный трек без обложки: та же кастомная
-                            // картинка байтами, что и в обычном пути
-                            // (см. buildMediaItem) — иначе у скачанного в
-                            // уведомлении пусто, а в приложении картинка есть.
-                            com.lmg.vk.ui.glass.TrackPlaceholderArt
-                                .artworkBytes(context, trackId)
-                                ?.let { setArtworkData(it, MediaMetadata.PICTURE_TYPE_FRONT_COVER) }
+                            // В метаданных только URI. Сырые 1080p WebP-байты
+                            // здесь раньше клонировались media3 и раздували всю
+                            // очередь; декод текущей картинки теперь ограничен
+                            // в AudioService до безопасного размера.
+                            setArtworkUri(
+                                com.lmg.vk.ui.glass.TrackPlaceholderArt.uriFor(context, trackId)
+                            )
                         }
                         if (durationMs > 0L) setDurationMs(durationMs)
                     }
@@ -1906,8 +1908,6 @@ object PlayerController {
                 player.prepare()
                 player.play()
                 resetPlaybackLogging(durationMs)
-
-                audioServiceRef?.setQueue(listOf(item), 0, 0L)
             }
         }
     }
@@ -1968,20 +1968,13 @@ object PlayerController {
         if (cover != null) {
             metaBuilder.setArtworkUri(track.displayArtUri)
         } else {
-            // Обложки нет — отдаём БАЙТЫ кастомной заглушки.
-            //
-            // Не artworkUri: его читает BitmapLoader, а дефолтный
-            // (DataSourceBitmapLoader поверх DefaultDataSource) схему
-            // android.resource:// не поддерживает, и уведомление оставалось
-            // пустым при верно выставленном URI. artworkData загрузчика не
-            // требует — media3 декодирует байты сам.
-            //
-            // Заодно НЕ ставим artworkUri вовсе: displayArtUri у такого трека
-            // это content://…/albumart/-1, записи с таким id не существует, и
-            // загрузчик тратил бы попытку на заведомо мёртвую ссылку.
+            // Обложки нет — в очередь кладём короткий URI локального ресурса.
+            // Никогда не встраиваем WebP как artworkData: MediaMetadata клонирует
+            // ByteArray для каждого элемента и передаёт его через Binder.
             appContext?.let { ctx ->
-                com.lmg.vk.ui.glass.TrackPlaceholderArt.artworkBytes(ctx, track.id)
-                    ?.let { metaBuilder.setArtworkData(it, MediaMetadata.PICTURE_TYPE_FRONT_COVER) }
+                metaBuilder.setArtworkUri(
+                    com.lmg.vk.ui.glass.TrackPlaceholderArt.uriFor(ctx, track.id)
+                )
             }
         }
 

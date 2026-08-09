@@ -41,6 +41,10 @@ data class AudioTrack(
     val stream_duration: Int = 0,
     val release_audio_id: String? = null,
     val like: Boolean? = null,
+    /** Сгенерированная VK обложка самого трека, когда album.thumb отсутствует. */
+    val thumb: AlbumThumb? = null,
+    /** Цвет, который VK присылает вместе с обложкой для оформления плеера. */
+    val main_color: String? = null,
 ) {
     /** Полный id VK: "ownerId_audioId" — используется в audio.getById/плеере. */
     val fullId: String get() = "${owner_id}_$id"
@@ -59,6 +63,22 @@ data class AudioTrack(
         get() = content_restricted == 0 &&
             !url.contains("audio_api_unavailable.mp3", ignoreCase = true)
 }
+
+private const val VK_LEGACY_AUDIO_PLACEHOLDER =
+    "https://vk.com/images/audio_row_placeholder.png"
+
+private fun String?.realVkCoverOrNull(): String? =
+    this?.takeIf { it.isNotBlank() && !it.startsWith(VK_LEGACY_AUDIO_PLACEHOLDER) }
+
+/**
+ * Тот же приоритет, что у `MusicTrack.Db(size)` в VK:
+ * album.thumb → верхнеуровневый track.thumb → локальный fallback вызывающего.
+ */
+fun AudioTrack.coverUrl(): String? =
+    album?.thumb?.bestUrl.realVkCoverOrNull()
+        ?: album?.thumb?.src.realVkCoverOrNull()
+        ?: thumb?.bestUrl.realVkCoverOrNull()
+        ?: thumb?.src.realVkCoverOrNull()
 
 /** Из `ua.lmg.vkapi2.objects.music.playlist.metadata.MainArtist`. */
 @JsonClass(generateAdapter = true)

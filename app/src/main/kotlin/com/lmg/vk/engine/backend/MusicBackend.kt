@@ -18,9 +18,11 @@ import com.lmg.vk.network.dto.music.AlbumThumb
 import com.lmg.vk.network.dto.music.AudioPlaylistDto
 import com.lmg.vk.network.dto.music.AudioAudioDto
 import com.lmg.vk.network.dto.music.AudioArtistDto
+import com.lmg.vk.network.dto.music.AudioPhotoDto
 import com.lmg.vk.network.dto.music.AudioSearchMainResponse
 import com.lmg.vk.network.dto.music.AudioStreamMix
 import com.lmg.vk.network.dto.music.AudioTrack
+import com.lmg.vk.network.dto.music.coverUrl
 import com.lmg.vk.network.dto.music.MainArtist
 import com.lmg.vk.network.dto.music.RadioStation
 import com.lmg.vk.network.dto.music.VkArtistDto
@@ -1484,16 +1486,6 @@ object MusicBackend {
         is VkResult.Error -> throw backendFailure(code, message)
     }
 
-    private const val VK_OFFICIAL_DEFAULT_COVER_URL = "https://vk.com/images/audio_row_placeholder.png"
-
-    private fun AudioTrack.coverUrl(): String? =
-        album?.thumb?.bestUrl?.takeIf(String::isNotBlank)
-            ?: album?.thumb?.src?.takeIf(String::isNotBlank)
-            ?: main_artists.orEmpty().firstNotNullOfOrNull { artist ->
-                artist.photo.orEmpty().firstOrNull { it.bestUrl.isNotBlank() }?.bestUrl
-            }
-            ?: VK_OFFICIAL_DEFAULT_COVER_URL
-
     private fun AudioTrack.toMiniArtists(): List<MiniArtist> =
         main_artists.orEmpty().map { MiniArtist(id = it.id, name = it.name) }
 
@@ -1527,6 +1519,20 @@ object MusicBackend {
         isAvailable = isAvailable,
     )
 
+    private fun AudioPhotoDto.toAlbumThumb() = AlbumThumb(
+        width = width,
+        height = height,
+        src = bestUrl.orEmpty(),
+        photo_34 = photo_34,
+        photo_68 = photo_68,
+        photo_135 = photo_135,
+        photo_270 = photo_270,
+        photo_300 = photo_300,
+        photo_600 = photo_600,
+        photo_1200 = photo_1200,
+        sizes = sizes,
+    )
+
     private fun AudioAudioDto.toAudioTrack() = AudioTrack(
         artist = artist,
         id = id,
@@ -1546,13 +1552,8 @@ object MusicBackend {
                 owner_id = value.owner_id,
                 access_key = value.access_key,
                 title = value.title,
-                thumb = value.thumb?.let { photo ->
-                    AlbumThumb(
-                        width = photo.width,
-                        height = photo.height,
-                        src = photo.bestUrl.orEmpty(),
-                    )
-                },
+                thumb = value.thumb?.toAlbumThumb(),
+                main_color = value.main_color,
             )
         },
         main_artists = main_artists.orEmpty().map {
@@ -1565,6 +1566,8 @@ object MusicBackend {
         is_focus_track = is_focus_track == true,
         has_lyrics = has_lyrics == true,
         release_audio_id = release_audio_id,
+        thumb = thumb?.toAlbumThumb(),
+        main_color = main_color,
     )
 
     /**

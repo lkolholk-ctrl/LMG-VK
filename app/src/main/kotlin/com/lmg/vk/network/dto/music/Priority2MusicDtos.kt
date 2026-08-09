@@ -20,11 +20,11 @@ data class AudioSearchMainResponse(
 )
 
 /**
- * Полный 39-польный `C18422e` / `C14729e`
+ * DTO `C18422e` / `C14729e`, включая актуальные `thumb` и `main_color`
  * (`bruhcollective.itaysonlab.vkapi.objects.audio.AudioAudioDto`).
  *
  * Обязательных ключей ровно 5 (`artist`, `id`, `owner_id`, `title`,
- * `duration`), остальные 34 опциональны. Типы сверены по
+ * `duration`), остальные 36 опциональны. Типы сверены по
  * `C18422e.java` и `C14729e.java:282-324` — угадывать здесь нельзя:
  * `no_search` это `BaseBoolIntDto` (0/1), а не `Boolean`, и один неверный
  * тип роняет парсинг каждого трека.
@@ -75,6 +75,9 @@ data class AudioAudioDto(
     val is_official: Boolean? = null,
     val podcast_info: PodcastInfo? = null,
     val audio_chart_info: AudioChartInfoDto? = null,
+    /** Track-level cover: именно здесь VK возвращает цветной fallback. */
+    val thumb: AudioPhotoDto? = null,
+    val main_color: String? = null,
 ) {
     val fullId: String get() = "${owner_id}_$id"
 
@@ -92,6 +95,7 @@ data class AudioAudioAlbumDto(
     val owner_id: Long,
     val access_key: String,
     val thumb: AudioPhotoDto? = null,
+    val main_color: String? = null,
 )
 
 /** 15 ключей C0004e/C5992e; тяжёлые социальные секции остаются opaque. */
@@ -225,8 +229,15 @@ data class AudioPhotoDto(
     val photo_1200: String? = null,
     val sizes: List<AudioPhotoSizesDto>? = null,
 ) {
-    val bestUrl: String? get() = photo_1200 ?: photo_600 ?: photo_300 ?: photo_270
-        ?: photo_135 ?: photo_68 ?: photo_34
+    val bestUrl: String? get() = listOfNotNull(
+        photo_1200,
+        photo_600,
+        photo_300,
+        photo_270,
+        photo_135,
+        photo_68,
+        photo_34,
+    ).firstOrNull { it.isNotBlank() }
         ?: sizes.orEmpty().maxByOrNull { it.width * it.height }?.src
 }
 

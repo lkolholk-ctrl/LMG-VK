@@ -29,6 +29,7 @@ import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.video.VideoRendererEventListener
 import androidx.media3.session.CommandButton
+import androidx.media3.session.CacheBitmapLoader
 import androidx.media3.session.DefaultMediaNotificationProvider
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
@@ -557,6 +558,11 @@ class AudioService : MediaSessionService() {
             .setId("liquid_music_session")
             .setSessionActivity(sessionActivityPendingIntent)
             .setCallback(SessionCallback())
+            // Любая обложка (VK CDN или локальный fallback) декодируется не
+            // больше 512px. Это не даёт SystemUI получить 1080/1200px bitmap.
+            .setBitmapLoader(
+                CacheBitmapLoader(BoundedArtworkBitmapLoader(this, maximumOutputDimension = 512))
+            )
             .build()
 
         // ── Нотификация ──
@@ -933,9 +939,10 @@ class AudioService : MediaSessionService() {
             controller: MediaSession.ControllerInfo,
             mediaItems: List<MediaItem>
         ): ListenableFuture<List<MediaItem>> {
-            // Accept and append items to our solid queue reference
+            // MediaSession сам добавит возвращённые элементы в Player. Здесь
+            // держим только solid reference; повторный addMediaItems раньше
+            // удваивал хвост очереди.
             currentQueueItems = currentQueueItems + mediaItems
-            activePlayer().addMediaItems(mediaItems)
             return Futures.immediateFuture(mediaItems)
         }
 
@@ -946,10 +953,10 @@ class AudioService : MediaSessionService() {
             startIndex: Int,
             startPositionMs: Long
         ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> {
-            // Hard timeline population: replace entire queue
+            // MediaSession применит возвращённую очередь сам. Раньше callback
+            // ставил её вручную, затем framework ставил повторно, а вызывающий
+            // код ещё раз звал AudioService.setQueue().
             currentQueueItems = mediaItems.toList()
-            activePlayer().setMediaItems(currentQueueItems, startIndex, startPositionMs)
-            player.prepare()
             return Futures.immediateFuture(
                 MediaSession.MediaItemsWithStartPosition(currentQueueItems, startIndex, startPositionMs)
             )

@@ -1,7 +1,9 @@
 package com.lmg.vk.ui.glass
 
 import android.content.Context
+import android.content.ContentResolver
 import android.graphics.BitmapFactory
+import android.net.Uri
 import com.lmg.vk.R
 
 /**
@@ -29,8 +31,9 @@ import com.lmg.vk.R
 object TrackPlaceholderArt {
 
     /**
-     * Заглушка, которую подставляет САМ VK, когда обложки у трека нет
-     * (`MusicBackend.coverUrl()` кладёт её как последний фолбэк).
+     * Legacy-заглушка, которая встречается в старых ответах/кэшах VK, когда
+     * настоящей обложки у трека нет. Новый `AudioTrack.coverUrl()` отсекает её
+     * ещё на DTO-уровне, но UI сохраняет проверку для старых сохранённых данных.
      *
      * ЭТО КОРЕНЬ ДВУХ БАГОВ. `Track.coverUrl` у трека без обложки НЕ пустой —
      * в нём лежит этот URL. Поэтому проверки вида `coverUrl != null` считали,
@@ -79,6 +82,21 @@ object TrackPlaceholderArt {
         resources[Math.floorMod(key?.hashCode() ?: 0, resources.size)]
 
     /**
+     * Лёгкая ссылка на локальную заглушку для MediaSession.
+     *
+     * В метаданные кладётся только URI, а не содержимое WebP. Поэтому полная
+     * очередь больше не содержит сотни копий по 30–180 КБ и не раздувает Binder.
+     * Декодирование выполняет ограниченный `BoundedArtworkBitmapLoader` только
+     * для текущего элемента уведомления.
+     */
+    fun uriFor(context: Context, key: String?): Uri =
+        Uri.Builder()
+            .scheme(ContentResolver.SCHEME_ANDROID_RESOURCE)
+            .authority(context.packageName)
+            .appendPath(resourceFor(key).toString())
+            .build()
+
+    /**
      * Битмап обложки — для извлечения палитры.
      *
      * `inSampleSize = 4`: палитре хватает уменьшенной копии, а полноразмерный
@@ -93,27 +111,4 @@ object TrackPlaceholderArt {
             )
         }.getOrNull()
 
-    /** Кэш байтов: файл один и тот же, а метаданные строятся на каждый трек. */
-    private val bytesCache = java.util.concurrent.ConcurrentHashMap<Int, ByteArray>()
-
-    /**
-     * Сырые байты WebP-файла обложки — для `MediaMetadata.setArtworkData`.
-     *
-     * ПОЧЕМУ БАЙТЫ, А НЕ URI. `artworkUri` в media3 читает `BitmapLoader`, и
-     * дефолтный (`DataSourceBitmapLoader` поверх `DefaultDataSource`) схему
-     * `android.resource://` НЕ поддерживает — уведомление и экран блокировки
-     * оставались без картинки, хотя URI был выставлен верно. `artworkData`
-     * загрузчика не требует вовсе: media3 декодирует байты сам.
-     *
-     * Читаем файл ресурса как есть, без декода в Bitmap и повторного сжатия:
-     * WebP уже сжат (~30-180 КБ), и лишний цикл decode/compress только тратил
-     * бы время и память на каждом переключении трека.
-     */
-    fun artworkBytes(context: Context, key: String?): ByteArray? {
-        val id = resourceFor(key)
-        bytesCache[id]?.let { return it }
-        return runCatching {
-            context.resources.openRawResource(id).use { it.readBytes() }
-        }.getOrNull()?.also { bytesCache[id] = it }
-    }
 }

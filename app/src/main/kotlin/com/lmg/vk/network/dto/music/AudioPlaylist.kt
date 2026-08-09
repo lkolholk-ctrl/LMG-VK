@@ -86,8 +86,20 @@ data class AlbumThumb(
     val photo_300: String? = null,
     val photo_600: String? = null,
     val photo_1200: String? = null,
+    val sizes: List<AudioPhotoSizesDto>? = null,
 ) {
-    val bestUrl: String get() = photo_1200 ?: photo_600 ?: photo_300 ?: photo_270 ?: photo_135 ?: photo_68 ?: photo_34 ?: src
+    val bestUrl: String
+        get() = listOfNotNull(
+            photo_1200,
+            photo_600,
+            photo_300,
+            photo_270,
+            photo_135,
+            photo_68,
+            photo_34,
+        ).firstOrNull { it.isNotBlank() }
+            ?: sizes.orEmpty().maxByOrNull { it.width * it.height }?.src
+            ?: src
 }
 
 /** Из `playlist.metadata.FollowedMetadata` / `OriginalPlaylist` / `AudioPlaylistMeta`. */
