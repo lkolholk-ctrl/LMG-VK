@@ -76,9 +76,23 @@ class VkMethodsRegistry(private val client: VkApiClient) {
         return client.execute(method)
     }
 
-    /** audio.getAudioIdsBySource — resolve id треков по источнику (пост/аттач). */
-    suspend fun getAudioIdsBySource(source: String, entityId: String): VkResult<List<String>> {
-        val method = VkMethod("audio.getAudioIdsBySource", AudioIdsParser).apply {
+    /**
+     * `audio.getIdsBySource` — id треков по источнику.
+     *
+     * ИМЯ МЕТОДА. Раньше здесь стояло `audio.getAudioIdsBySource` — метода с
+     * таким именем у VK нет, вызов возвращал ошибку. Настоящее имя сверено с
+     * официальным клиентом 8.185 (`xsna/b35.java:203-215`), вариант ровно один.
+     *
+     * [source] — не произвольная строка, а одно из значений VK:
+     * `artist`, `catalog`, `curator`, `feed`, `im`, `playlist`,
+     * `podcasts_popular`, `podcasts_recent`, `similar_track`, `wall`.
+     * `similar_track` — готовый серверный «похожие треки».
+     *
+     * Третий параметр официального клиента — `ref` (метка источника для
+     * аналитики VK). Не передаём: она нужна их статистике, а не нам.
+     */
+    suspend fun getIdsBySource(source: String, entityId: String): VkResult<List<String>> {
+        val method = VkMethod("audio.getIdsBySource", AudioIdsParser).apply {
             param("source", source); param("entity_id", entityId)
         }
         return client.execute(method)

@@ -1721,7 +1721,10 @@ private fun newLayoutLabel(layoutName: String): String = when (layoutName) {
     "triple_stacked_slider" -> "треки"
     "promo_banners_slider", "snippets_banner", "banner" -> "подборка"
     "podcast_banners_slider" -> "подкасты"
-    "smart_banner", "close_catalog_banner" -> "баннер"
+    // smart_banner и close_catalog_banner отсюда убраны: первого в VK 8.185 не
+    // существует вовсе, второй — не вёрстка блока, а ДЕЙСТВИЕ (сверено с
+    // официальным клиентом: SYNTHETIC_ACTION_CLOSE_BANNER).
+    "help_hint_banner", "assistant_banner", "small_banner_offer" -> "баннер"
     "crop_slider" -> "истории"
     "subsection_tabs" -> "разделы"
     "music_exclusive_slider" -> "эксклюзив"
@@ -1740,8 +1743,11 @@ private val NEW_HERO_LAYOUTS = setOf(
     // Батч 2: то же семейство широких баннеров, отдельной вёрстки не требуют.
     // `crop_slider` у VK — обрезанная по высоте карусель, визуально это баннер.
     "podcast_banners_slider",
-    "smart_banner",
     "crop_slider",
+    // Баннеры-подсказки и офферы из реестра 8.185 — та же широкая вёрстка.
+    "help_hint_banner",
+    "assistant_banner",
+    "small_banner_offer",
 )
 
 /**
@@ -1756,6 +1762,14 @@ private val NEW_LARGE_SLIDER_LAYOUTS = setOf(
     "recomms_slider",
     "audio_stream_mix",
     "audio_stream_mix_interactive",
+    // Из реестра официального клиента 8.185 (197 layout против 43 у VK X).
+    // Зацикленные карусели: вёрстка та же, отличие только в поведении прокрутки,
+    // которое мы всё равно не копируем.
+    "infinite_large_slider",
+    "infinite_promo_banners_slider",
+    "infinite_podcast_banners_slider",
+    "podcasts_extended_slider",
+    "artist_merch_slider",
 )
 
 /** Блоки, которые VK показывает сеткой в два ряда, а не одной строкой. */
@@ -1765,6 +1779,12 @@ private val NEW_GRID_LAYOUTS = setOf(
     "categories_list",
     "podcast_category_genre_buttons",
     "horizontal_buttons",
+    // Из реестра 8.185.
+    "vertical_grid",
+    "dynamic_grid",
+    "horizontal_buttons_with_scroll",
+    "horizontal_button_stack",
+    "chips",
 )
 
 /**
@@ -1774,8 +1794,13 @@ private val NEW_GRID_LAYOUTS = setOf(
  */
 private val NEW_SKIPPED_LAYOUTS = setOf(
     "separator",
-    "in_block_separator",
+    // separator_compact — настоящее имя в VK 8.185. Прежнее in_block_separator
+    // в официальном клиенте отсутствует (0 вхождений), то есть разделитель
+    // этого вида не отсекался и рисовался пустой карточкой.
+    "separator_compact",
     "placeholder",
+    "empty",
+    "none",
     "placeholder_big",
     "placeholder_small",
     "text",
@@ -1793,6 +1818,14 @@ private val NEW_TRACK_LIST_LAYOUTS = setOf(
     "compact_list",
     "large_list",
     "double_list",
+    // Из реестра 8.185: стопки по 2 (у нас был только triple) и списки,
+    // которые VK присылает, а мы не рисовали — блок терялся молча.
+    "double_stacked_slider",
+    "double_stacked_slider_minimalistic_card",
+    "double_stacked_list",
+    "double_stacked_list_minimalistic_card",
+    "stacked_list",
+    "featured_list",
 )
 
 /** Maps a VK home item to the common player model without a third-party resolver URI. */
