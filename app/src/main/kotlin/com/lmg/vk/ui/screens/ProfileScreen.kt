@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -768,11 +769,12 @@ private fun ProfileHeader(
     onOpenLibrary: () -> Unit,
     onOpenSettings: () -> Unit,
 ) {
-    // Ниже, чем у артиста (528dp): там под шапкой промо-кадр, здесь — аватар,
-    // и на всю его высоту растянутый портрет выглядел бы плакатом.
-    val headerHeight = if (compact) 300.dp else 380.dp
-
-    Box(modifier = Modifier.fillMaxWidth().height(headerHeight)) {
+    // Шапка КВАДРАТНАЯ, как на экране друга: аватар у VK квадратный, и при
+    // фиксированной высоте 300dp на ~410dp ширины ContentScale.Crop срезал ему
+    // верх и низ. aspectRatio(1f) считает высоту от ФАКТИЧЕСКОЙ ширины
+    // контейнера, поэтому на широком экране (список ограничен 640dp) квадрат
+    // остаётся квадратом, а не тянется во всю ширину устройства.
+    Box(modifier = Modifier.fillMaxWidth().aspectRatio(1f)) {
         Box(modifier = Modifier.fillMaxSize().clipToBounds()) {
             if (!avatarUrl.isNullOrBlank()) {
                 AsyncImage(
