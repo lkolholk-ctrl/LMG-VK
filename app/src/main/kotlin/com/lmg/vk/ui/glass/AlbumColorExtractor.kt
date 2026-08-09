@@ -106,13 +106,25 @@ private fun topAccents(palette: Palette, satMul: Float, count: Int): List<Color>
         .take(count)
         .map { vivid(Color(it.rgb), satMul = satMul, valMul = 1.05f, valFloor = 0.20f) }
 
+/**
+ * Палитра обложки.
+ *
+ * [placeholderKey] — обычно `Track.id`. Когда обложки нет, цвета берутся из
+ * КАСТОМНОЙ заглушки ([TrackPlaceholderArt]), той же, что видна на экране.
+ * Раньше в этом случае возвращался серый `AlbumColors()`, и фон плеера у трека
+ * без обложки не окрашивался вовсе, хотя картинка на экране была цветная.
+ */
 @Composable
-fun rememberAlbumColors(uri: Uri?, coverUrl: String? = null): AlbumColors {
+fun rememberAlbumColors(
+    uri: Uri?,
+    coverUrl: String? = null,
+    placeholderKey: String? = null,
+): AlbumColors {
     val context = LocalContext.current
     var colors by remember { mutableStateOf(AlbumColors()) }
 
-    LaunchedEffect(uri, coverUrl) {
-        if (uri == null && coverUrl.isNullOrBlank()) {
+    LaunchedEffect(uri, coverUrl, placeholderKey) {
+        if (uri == null && coverUrl.isNullOrBlank() && placeholderKey == null) {
             colors = AlbumColors()
             return@LaunchedEffect
         }
@@ -155,7 +167,12 @@ fun rememberAlbumColors(uri: Uri?, coverUrl: String? = null): AlbumColors {
                         }
                     }
                     else -> null
-                } ?: return@withContext AlbumColors()
+                }
+                    // Обложки нет (или не открылась) — палитру берём с заглушки.
+                    // Декод из ресурсов не может упасть по сети и всегда даёт
+                    // картинку, поэтому фон окрашивается сразу, без ожидания.
+                    ?: TrackPlaceholderArt.bitmapFor(context, placeholderKey, sampleSize = 8)
+                    ?: return@withContext AlbumColors()
 
                 // ── Palette generation OFF the Main thread ──
                 val palette = withContext(Dispatchers.Default) {

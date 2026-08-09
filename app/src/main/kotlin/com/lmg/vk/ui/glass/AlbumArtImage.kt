@@ -23,7 +23,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
-import com.lmg.vk.R
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -201,18 +200,6 @@ private const val VK_OFFICIAL_PLACEHOLDER_URL = "https://vk.com/images/audio_row
 private fun String.isVkAudioPlaceholder(): Boolean =
     startsWith(VK_OFFICIAL_PLACEHOLDER_URL)
 
-private val VK_DEFAULT_COVER_RESOURCES = intArrayOf(
-    R.drawable.default_track_cover_01,
-    R.drawable.default_track_cover_02,
-    R.drawable.default_track_cover_03,
-    R.drawable.default_track_cover_04,
-    R.drawable.default_track_cover_05,
-    R.drawable.default_track_cover_06,
-    R.drawable.default_track_cover_07,
-    R.drawable.default_track_cover_08,
-    R.drawable.default_track_cover_09,
-    R.drawable.default_track_cover_10,
-)
 
 @Composable
 private fun PlaceholderArt(
@@ -220,12 +207,10 @@ private fun PlaceholderArt(
     contentDescription: String? = null,
     placeholderKey: String? = null,
 ) {
-    // Выбор стабилен: один и тот же трек не меняет цвет между экраном,
-    // мини-плеером и очередью. Полный набор ассетов участвует в хешировании.
-    val resourceId = remember(placeholderKey) {
-        val hash = placeholderKey?.hashCode() ?: 0
-        VK_DEFAULT_COVER_RESOURCES[Math.floorMod(hash, VK_DEFAULT_COVER_RESOURCES.size)]
-    }
+    // Выбор стабилен и живёт в TrackPlaceholderArt — том же словаре, из которого
+    // заглушку берут MediaSession и экстрактор цветов. Своя копия логики здесь
+    // означала бы, что на экране одна картинка, а в уведомлении другая.
+    val resourceId = remember(placeholderKey) { TrackPlaceholderArt.resourceFor(placeholderKey) }
     Image(
         painter = painterResource(resourceId),
         contentDescription = contentDescription,

@@ -1920,7 +1920,19 @@ object PlayerController {
             .setTitle(track.title)
             .setArtist(track.artist)
             .setAlbumArtist(track.artist)
-            .setArtworkUri(track.displayArtUri)
+            // У трека без обложки displayArtUri отдаёт albumArtUri, то есть
+            // content://media/external/audio/albumart/-1 — записи с таким id не
+            // существует, и уведомление с экраном блокировки оставались пустыми,
+            // хотя в приложении рисовалась кастомная заглушка. Подставляем ту же
+            // самую картинку (android.resource://…, media3 её читает), что видно
+            // на экране: одна обложка во всех местах.
+            .setArtworkUri(
+                track.coverUrl?.takeIf(String::isNotBlank)?.let { track.displayArtUri }
+                    ?: appContext?.let {
+                        com.lmg.vk.ui.glass.TrackPlaceholderArt.uriFor(it, track.id)
+                    }
+                    ?: track.displayArtUri,
+            )
 
         if (track.durationMs > 0) {
             metaBuilder.setDurationMs(track.durationMs)

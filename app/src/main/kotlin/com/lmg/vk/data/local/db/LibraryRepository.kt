@@ -55,6 +55,26 @@ class LibraryRepository private constructor(context: Context) {
         }
     }
 
+    /**
+     * Треки, для которых `audio.add`/`audio.delete` УЖЕ отправляется прямо
+     * сейчас.
+     *
+     * ЗАЧЕМ. Жалоба «добавляется два аудио вместо одного» — это гонка двух
+     * путей отправки. [likeTrack] пишет запись с `isSynced = 0` и уходит в сеть
+     * в отдельной корутине, снимая флаг ТОЛЬКО по успеху. Если в этот промежуток
+     * (сотни миллисекунд по мобильной сети) успевает пройти [syncWithCloud], он
+     * видит ту же запись в `getPendingInserts()` (условие — ровно `isSynced=0`)
+     * и отправляет `audio.add` ВТОРОЙ раз. VK на повторный `audio.add` создаёт
+     * НОВУЮ копию, а не игнорирует запрос — отсюда два трека в «Моей музыке».
+     *
+     * Флага в БД для этого недостаточно: он не различает «ещё не отправляли» и
+     * «отправка идёт», а третий столбец завёл бы миграцию схемы ради состояния,
+     * которое живёт секунды и не должно переживать перезапуск.
+     */
+    private val inFlight = java.util.Collections.newSetFromMap(
+        java.util.concurrent.ConcurrentHashMap<String, Boolean>(),
+    )
+
     // ═══════════════════════════════════════════════════════════
     //  Two-way sync with cloud
     // ═══════════════════════════════════════════════════════════
@@ -155,19 +175,32 @@ class LibraryRepository private constructor(context: Context) {
             }
 
             // 5. Push pending local changes to cloud
+            // Пропускаем то, что прямо сейчас отправляет likeTrack/unlikeTrack:
+            // иначе один и тот же трек уходит в VK дважды, и он создаёт дубль
+            // (см. поле inFlight).
             val pendingInserts = db.getPendingInserts()
             for (insert in pendingInserts) {
-                val success = MusicBackend.likeTrack(insert.trackId)
-                if (success) {
-                    db.markSynced(insert.trackId)
+                if (!inFlight.add(insert.trackId)) continue
+                try {
+                    val success = MusicBackend.likeTrack(insert.trackId)
+                    if (success) {
+                        db.markSynced(insert.trackId)
+                    }
+                } finally {
+                    inFlight.remove(insert.trackId)
                 }
             }
 
             val pendingDeletes = db.getPendingDeletes()
             for (delete in pendingDeletes) {
-                val success = MusicBackend.unlikeTrack(delete.trackId)
-                if (success) {
-                    db.deleteByTrackId(delete.trackId)
+                if (!inFlight.add(delete.trackId)) continue
+                try {
+                    val success = MusicBackend.unlikeTrack(delete.trackId)
+                    if (success) {
+                        db.deleteByTrackId(delete.trackId)
+                    }
+                } finally {
+                    inFlight.remove(delete.trackId)
                 }
             }
 
@@ -216,6 +249,10 @@ class LibraryRepository private constructor(context: Context) {
 
             // Asynchronously push to cloud
             CoroutineScope(Dispatchers.IO).launch {
+                // inFlight занимаем ДО сети: пока запрос летит, syncWithCloud
+                // видит запись в pendingInserts и отправил бы audio.add второй
+                // раз — VK создал бы дубль (см. поле inFlight).
+                if (!inFlight.add(track.id)) return@launch
                 try {
                     val success = MusicBackend.likeTrack(track.id)
                     if (success) {
@@ -227,7 +264,10 @@ class LibraryRepository private constructor(context: Context) {
                     track.artists.firstOrNull()?.id?.let {
                         com.lmg.vk.engine.backend.WaveSignalQueue.sendFeedback("more_artist", it)
                     }
-                } catch (_: Exception) {}
+                } catch (_: Exception) {
+                } finally {
+                    inFlight.remove(track.id)
+                }
             }
 
             Result.success(Unit)
@@ -251,13 +291,20 @@ class LibraryRepository private constructor(context: Context) {
 
             // Asynchronously push delete to cloud
             CoroutineScope(Dispatchers.IO).launch {
+                // Та же защита, что у лайка: повторный audio.delete на уже
+                // удалённый трек — лишний запрос, а при гонке с очередью ещё и
+                // снос записи, которую пользователь успел вернуть.
+                if (!inFlight.add(trackId)) return@launch
                 try {
                     val success = MusicBackend.unlikeTrack(trackId)
                     if (success) {
                         db.deleteByTrackId(trackId)
                     }
                     com.lmg.vk.engine.backend.WaveSignalQueue.sendFeedback("less_track", trackId)
-                } catch (_: Exception) {}
+                } catch (_: Exception) {
+                } finally {
+                    inFlight.remove(trackId)
+                }
             }
 
             Result.success(Unit)

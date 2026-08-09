@@ -93,6 +93,8 @@ import com.lmg.vk.ui.glass.AlbumArtImage
 import com.lmg.vk.ui.glass.liquidClickable
 import com.lmg.vk.ui.components.PlaylistNameDialog
 import com.lmg.vk.ui.theme.LiquidMotion
+import com.lmg.vk.ui.components.PlaylistPickerSheet
+import com.lmg.vk.ui.components.TrackActionsSheet
 import com.lmg.vk.ui.theme.LiquidTheme
 import com.lmg.vk.ui.viewmodel.LibraryViewModel
 import kotlinx.coroutines.delay
@@ -639,6 +641,10 @@ fun LibraryScreen(
             }
 
             LibraryView.FAVORITES -> {
+                // Трек, для которого открыто меню «...» / выбор плейлиста.
+                var actionsTrack by remember { mutableStateOf<Track?>(null) }
+                var playlistPickerTrack by remember { mutableStateOf<Track?>(null) }
+
                 val matchingFavorites = remember(favorites, libraryQuery) {
                     favorites.filter {
                         libraryQuery.isBlank() ||
@@ -738,26 +744,55 @@ fun LibraryScreen(
                                     enabled = track.isAvailable,
                                     compact = win.useSideBySide,
                                     onClick = { viewModel.playTrack(context, track.trackId) },
-                                    onToggleLike = {
-                                        scope.launch {
-                                            val repo = LibraryRepository.getInstance(context)
-                                            val t = Track(
-                                                id = track.trackId,
-                                                title = track.title,
-                                                artist = track.artistName.orEmpty(),
-                                                albumName = track.albumTitle ?: "",
-                                                uri = com.lmg.vk.engine.VkAudioIdentity.playbackUri(),
-                                                durationMs = track.durationMs,
-                                                albumId = track.collectionId?.hashCode()?.toLong() ?: -1L,
-                                                coverUrl = track.imageUrl
-                                            )
-                                            repo.toggleFavorite(t)
-                                        }
-                                    }
+                                    onMore = {
+                                        actionsTrack = Track(
+                                            id = track.trackId,
+                                            title = track.title,
+                                            artist = track.artistName.orEmpty(),
+                                            albumName = track.albumTitle ?: "",
+                                            uri = com.lmg.vk.engine.VkAudioIdentity.playbackUri(),
+                                            durationMs = track.durationMs,
+                                            albumId = track.collectionId?.hashCode()?.toLong() ?: -1L,
+                                            coverUrl = track.imageUrl,
+                                        )
+                                    },
                                 )
                             }
                         }
                     }
+                }
+
+                // Меню трека и выбор плейлиста — те же компоненты, что в поиске
+                // и на экранах альбома/артиста, чтобы действия по «...» были
+                // одинаковыми во всём приложении.
+                actionsTrack?.let { t ->
+                    TrackActionsSheet(
+                        track = t,
+                        isFavorite = t.id in favoriteIds,
+                        onToggleFavorite = {
+                            scope.launch {
+                                LibraryRepository.getInstance(context).toggleFavorite(t)
+                            }
+                        },
+                        onAddToPlaylist = { playlistPickerTrack = t },
+                        onDismiss = { actionsTrack = null },
+                    )
+                }
+                playlistPickerTrack?.let { t ->
+                    PlaylistPickerSheet(
+                        playlists = localPlaylists,
+                        onSelect = { playlist ->
+                            val added = PlaylistManager.addTrack(playlist.id, t)
+                            android.widget.Toast.makeText(
+                                context,
+                                if (added) "Добавлено в ${playlist.name}"
+                                else "Уже в ${playlist.name}",
+                                android.widget.Toast.LENGTH_SHORT,
+                            ).show()
+                            playlistPickerTrack = null
+                        },
+                        onDismiss = { playlistPickerTrack = null },
+                    )
                 }
             }
 
@@ -2039,7 +2074,7 @@ private fun FavoriteTrackItem(
     isLiked: Boolean,
     enabled: Boolean = true,
     onClick: () -> Unit,
-    onToggleLike: () -> Unit,
+    onMore: () -> Unit,
     compact: Boolean = false
 ) {
     val lc = LiquidTheme.colors
@@ -2098,7 +2133,11 @@ private fun FavoriteTrackItem(
             )
         }
 
-        IconButton(onClick = onToggleLike) {
+        // «...» открывает общее меню трека, как на остальных экранах. Раньше
+        // здесь стоял onToggleLike: кнопка с подписью «Опции» молча снимала
+        // лайк, то есть УДАЛЯЛА трек из медиатеки одним нажатием, без
+        // подтверждения и без возможности что-то ещё сделать.
+        IconButton(onClick = onMore) {
             Icon(
                 imageVector = Icons.Rounded.MoreVert,
                 contentDescription = "Опции",

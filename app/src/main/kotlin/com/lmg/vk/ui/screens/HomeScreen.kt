@@ -179,7 +179,7 @@ fun HomeScreen(
     val currentTrack by PlayerController.currentTrack.collectAsState()
     val isPlaying by PlayerController.isPlaying.collectAsState()
     // Цвета для фона-ауры — из обложки текущего трека (подстраивается под трек).
-    val auraColors = rememberAlbumColors(uri = null, coverUrl = currentTrack?.coverUrl)
+    val auraColors = rememberAlbumColors(uri = null, coverUrl = currentTrack?.coverUrl, placeholderKey = currentTrack?.id)
     val favoriteIds by PlayerController.favoriteIds.collectAsState()
     val favoriteTracks = remember(allTracks, favoriteIds) {
         allTracks.filter { it.id in favoriteIds }

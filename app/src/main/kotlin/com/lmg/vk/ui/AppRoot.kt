@@ -381,7 +381,8 @@ fun AppRoot() {
             // вкладках — обычный цвет темы.
             val onWaveTab = selectedIndex == 0
             val albumColorsForBar = com.lmg.vk.ui.glass.rememberAlbumColors(
-                currentTrack?.displayArtUri, currentTrack?.coverUrl
+                currentTrack?.displayArtUri, currentTrack?.coverUrl,
+                placeholderKey = currentTrack?.id,
             )
             val waveBarColor by animateColorAsState(
                 targetValue = lerp(albumColorsForBar.darkMuted, Color.Black, 0.35f),

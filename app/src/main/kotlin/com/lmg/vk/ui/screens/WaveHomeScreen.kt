@@ -146,7 +146,7 @@ fun WaveHomeScreen(
     val waveContext by PlayerController.waveRefillContext.collectAsState()
     val activeStationName = waveContext?.name?.takeIf { it.isNotBlank() }
 
-    val albumColors = rememberAlbumColors(currentTrack?.displayArtUri, currentTrack?.coverUrl)
+    val albumColors = rememberAlbumColors(currentTrack?.displayArtUri, currentTrack?.coverUrl, placeholderKey = currentTrack?.id)
 
     val track = currentTrack
     val isFavorite = track?.id?.let { favoriteIds.contains(it) } == true

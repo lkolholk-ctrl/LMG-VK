@@ -250,7 +250,7 @@ fun FullPlayer(
     // (declared above at composition start)
 
     // ── Mood/Color from album art ──
-    val albumColors = rememberAlbumColors(albumArtUri, coverUrl)
+    val albumColors = rememberAlbumColors(albumArtUri, coverUrl, placeholderKey = trackId)
 
     // Широкое окно (телефон-альбом ИЛИ планшет): обложка слева, контролы/
     // лирика/очередь — справа (side-by-side). Компактный портрет не меняется.

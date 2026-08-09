@@ -1038,6 +1038,26 @@ object MusicBackend {
     }.getOrDefault(false)
 
     // ---------- тексты ----------
+    /**
+     * Кредиты трека — то, что VK отдаёт в `audio.getLyrics` рядом с текстом.
+     *
+     * Поле `credits` восстановлено из адаптеров APK (см. `AudioLyricsContainer`),
+     * его формат в доках не зафиксирован: у одних записей это одна строка вида
+     * «Автор музыки: … / Автор слов: …», у других пусто. Поэтому НИЧЕГО не
+     * парсим по шаблону — отдаём как есть, а разбор на строки делает UI.
+     *
+     * Возвращает null, когда у трека нет ни текста, ни кредитов: пустой лист
+     * лучше выдуманной структуры.
+     */
+    suspend fun getTrackCredits(trackId: String): String? = runCatching {
+        requireInitialized()
+        val track = resolveTrack(trackId)
+        // credits приходят В ОТВЕТЕ getLyrics, поэтому без lyrics_id спрашивать
+        // нечего — VK ответит ошибкой, а не пустым полем.
+        if (!track.has_lyrics && track.lyrics_id == null) return@runCatching null
+        audioApi.getLyrics(track.fullId).requireData().credits.takeIf { it.isNotBlank() }
+    }.getOrNull()
+
     suspend fun getLyricsResult(trackId: String): Result<LyricsParser.Lyrics?> = runCatching {
         requireInitialized()
         val track = resolveTrack(trackId)
