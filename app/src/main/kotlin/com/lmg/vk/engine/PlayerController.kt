@@ -1842,7 +1842,7 @@ object PlayerController {
                     .setArtist(artist)
                     .setAlbumArtist(artist)
                     .apply {
-                        val cover = coverUrl?.takeIf(String::isNotBlank)
+                        val cover = com.lmg.vk.ui.glass.TrackPlaceholderArt.realCoverOrNull(coverUrl)
                         if (cover != null) {
                             setArtworkUri(Uri.parse(cover))
                         } else {
@@ -1932,7 +1932,11 @@ object PlayerController {
             .setArtist(track.artist)
             .setAlbumArtist(track.artist)
 
-        val cover = track.coverUrl?.takeIf(String::isNotBlank)
+        // realCoverOrNull, а не isNotBlank: у трека без обложки coverUrl содержит
+        // ЗАГЛУШКУ VK (audio_row_placeholder.png), и простая проверка на пустоту
+        // считала её настоящей обложкой — в уведомление уходила серая картинка VK
+        // вместо нашей кастомной.
+        val cover = com.lmg.vk.ui.glass.TrackPlaceholderArt.realCoverOrNull(track.coverUrl)
         if (cover != null) {
             metaBuilder.setArtworkUri(track.displayArtUri)
         } else {

@@ -195,10 +195,11 @@ private fun decodeSampledByteArray(bytes: ByteArray, maxSide: Int): Bitmap? {
     return BitmapFactory.decodeByteArray(bytes, 0, bytes.size, opts)
 }
 
-private const val VK_OFFICIAL_PLACEHOLDER_URL = "https://vk.com/images/audio_row_placeholder.png"
-
+// Проверка заглушки VK переехала в TrackPlaceholderArt: она нужна не только
+// здесь, но и в MediaSession с экстрактором цветов, а две копии одной константы
+// уже привели к тому, что про заглушку знал ТОЛЬКО этот файл.
 private fun String.isVkAudioPlaceholder(): Boolean =
-    startsWith(VK_OFFICIAL_PLACEHOLDER_URL)
+    TrackPlaceholderArt.isVkPlaceholder(this)
 
 
 @Composable

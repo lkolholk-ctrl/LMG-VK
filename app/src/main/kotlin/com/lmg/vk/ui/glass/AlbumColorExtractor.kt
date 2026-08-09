@@ -124,7 +124,14 @@ fun rememberAlbumColors(
     var colors by remember { mutableStateOf(AlbumColors()) }
 
     LaunchedEffect(uri, coverUrl, placeholderKey) {
-        if (uri == null && coverUrl.isNullOrBlank() && placeholderKey == null) {
+        // Заглушку VK (audio_row_placeholder.png) отсекаем СРАЗУ: MusicBackend
+        // подставляет её в coverUrl, когда обложки нет, поэтому extractor честно
+        // качал серую картинку VK и отдавал серую палитру — «цвета не
+        // извлекаются из кастомных обложек». Своя картинка при этом лежала рядом
+        // и не использовалась.
+        @Suppress("NAME_SHADOWING")
+        val coverUrl = TrackPlaceholderArt.realCoverOrNull(coverUrl)
+        if (uri == null && coverUrl == null && placeholderKey == null) {
             colors = AlbumColors()
             return@LaunchedEffect
         }

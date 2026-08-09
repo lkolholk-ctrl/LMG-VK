@@ -29,6 +29,30 @@ import com.lmg.vk.R
 object TrackPlaceholderArt {
 
     /**
+     * Заглушка, которую подставляет САМ VK, когда обложки у трека нет
+     * (`MusicBackend.coverUrl()` кладёт её как последний фолбэк).
+     *
+     * ЭТО КОРЕНЬ ДВУХ БАГОВ. `Track.coverUrl` у трека без обложки НЕ пустой —
+     * в нём лежит этот URL. Поэтому проверки вида `coverUrl != null` считали,
+     * что обложка есть:
+     *  - MediaSession ставил artworkUri на эту серую картинку VK вместо нашей;
+     *  - экстрактор цветов честно качал её и получал серую палитру.
+     * На экранах всё выглядело правильно только потому, что `AlbumArtImage`
+     * знал про заглушку и отдельно её отсекал.
+     *
+     * Проверять этим методом ОБЯЗАНЫ все, кто решает «есть ли обложка».
+     */
+    private const val VK_PLACEHOLDER_URL = "https://vk.com/images/audio_row_placeholder.png"
+
+    /** true — обложки на самом деле нет, это заглушка VK. */
+    fun isVkPlaceholder(url: String?): Boolean =
+        url != null && url.startsWith(VK_PLACEHOLDER_URL)
+
+    /** Настоящая обложка: непустая и не заглушка VK. Иначе null. */
+    fun realCoverOrNull(url: String?): String? =
+        url?.takeIf { it.isNotBlank() && !isVkPlaceholder(it) }
+
+    /**
      * Набор готовых обложек VK. Порядок менять НЕЛЬЗЯ: индекс считается от
      * хеша, и перестановка сменила бы картинки у всех треков разом.
      */
