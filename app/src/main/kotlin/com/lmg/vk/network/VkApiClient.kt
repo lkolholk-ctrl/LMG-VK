@@ -157,7 +157,31 @@ class VkApiClient(
             throw e
         } catch (e: Exception) {
             e.printStackTrace()
-            VkResult.Error(0, e.message ?: "")
+            // Код 0 у нас означает «нет сети» и так и показывается пользователю
+            // («Нет подключения к интернету»). Но сюда попадало ЛЮБОЕ исключение —
+            // ошибка разбора JSON, NPE, битый ответ, — и настоящая причина
+            // подменялась ложным диагнозом: пользователь искал проблему в сети,
+            // которой нет.
+            //
+            // Теперь 0 остаётся только за реальными сетевыми сбоями, всё
+            // остальное получает свой код и своё сообщение, а тип исключения
+            // пишется в лог — по нему видно, что случилось.
+            val isNetwork = e is java.net.UnknownHostException ||
+                e is java.net.SocketTimeoutException ||
+                e is java.net.ConnectException ||
+                e is java.net.NoRouteToHostException ||
+                e is javax.net.ssl.SSLException ||
+                e is java.io.IOException
+            val label = e.javaClass.simpleName
+            com.lmg.vk.debug.DebugLog.add(
+                "API ${method.name} упал: $label: ${e.message ?: "без сообщения"}",
+            )
+            if (isNetwork) {
+                VkResult.Error(0, e.message ?: "Сеть недоступна")
+            } else {
+                // -1: «локальный сбой обработки ответа», не сетевой.
+                VkResult.Error(-1, "$label: ${e.message ?: "неизвестная ошибка"}")
+            }
         }
     }
 
