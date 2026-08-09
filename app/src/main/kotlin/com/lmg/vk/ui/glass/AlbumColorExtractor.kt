@@ -142,8 +142,12 @@ fun rememberAlbumColors(
                         }
                         BitmapFactory.decodeFile(path, options)
                     }
-                    // Online cover: download via HTTP
-                    !coverUrl.isNullOrBlank() -> {
+                    // Online cover: download via HTTP.
+                    // runCatching по той же причине, что и у ContentResolver:
+                    // упавшая сеть (таймаут, 403 от CDN) не должна съедать
+                    // фолбэк на заглушку — иначе у трека с НЕДОСТУПНОЙ обложкой
+                    // фон остаётся серым, хотя картинка на экране цветная.
+                    !coverUrl.isNullOrBlank() -> runCatching {
                         val connection = java.net.URL(coverUrl)
                             .openConnection() as java.net.HttpURLConnection
                         // Некоторые обложечные CDN режут дефолтный Java-UA
@@ -156,16 +160,23 @@ fun rememberAlbumColors(
                             }
                             BitmapFactory.decodeStream(stream, null, options)
                         }
-                    }
-                    // Local album art via ContentResolver
-                    uri != null -> {
+                    }.getOrNull()
+                    // Local album art via ContentResolver.
+                    // runCatching ОБЯЗАТЕЛЕН: Track.albumArtUri никогда не null —
+                    // это всегда content://media/external/audio/albumart/<albumId>,
+                    // и у VK-треков albumId = -1, записи с таким id не существует.
+                    // openInputStream на неё БРОСАЕТ исключение, оно улетало во
+                    // внешний catch и возвращало серый AlbumColors(), минуя
+                    // фолбэк на кастомную заглушку ниже. Отсюда и «цвета не
+                    // извлекаются из моих обложек».
+                    uri != null -> runCatching {
                         context.contentResolver.openInputStream(uri)?.use { stream ->
                             val options = BitmapFactory.Options().apply {
                                 inSampleSize = 8
                             }
                             BitmapFactory.decodeStream(stream, null, options)
                         }
-                    }
+                    }.getOrNull()
                     else -> null
                 }
                     // Обложки нет (или не открылась) — палитру берём с заглушки.
