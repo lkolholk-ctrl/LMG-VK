@@ -758,9 +758,13 @@ object PlayerController {
                 }
                 is StreamResult.Error -> {
                     android.util.Log.e("PlayerController", "Stream error for ${startTrack.id}: ${startStreamResult.code}")
+                    DebugLog.add(
+                        "PC.stream ОШИБКА ${startTrack.id}: ${startStreamResult.code}" +
+                            (startStreamResult.message?.let { " ($it)" } ?: ""),
+                    )
                     withContext(Dispatchers.Main) {
                         _isBuffering.value = false
-                        val msg = com.lmg.vk.engine.backend.backendUserMessage(0, startStreamResult.code.toIntOrNull() ?: 0)
+                        val msg = streamErrorMessage(startStreamResult)
                         android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_SHORT).show()
                     }
                 }
@@ -1415,6 +1419,30 @@ object PlayerController {
     private sealed class StreamResult {
         data class Success(val uri: Uri) : StreamResult()
         data class Error(val code: String, val message: String?) : StreamResult()
+    }
+
+    /**
+     * Текст ошибки резолва стрима для пользователя.
+     *
+     * ПОЧЕМУ ОТДЕЛЬНАЯ ФУНКЦИЯ. Раньше здесь звался
+     * `backendUserMessage(0, code.toIntOrNull() ?: 0)`, но `StreamResult.Error.code`
+     * — СТРОКА («region_unavailable», «track_not_found», «network_error»…), и
+     * `toIntOrNull()` на ней ВСЕГДА даёт null. То есть подставлялся код 0, а он
+     * означает «нет сети» — пользователь при любой причине видел «Нет
+     * подключения к интернету», даже когда интернет есть. Ровно эта жалоба и
+     * пришла с устройства.
+     */
+    private fun streamErrorMessage(error: StreamResult.Error): String = when (error.code) {
+        "region_unavailable" -> "Трек недоступен в вашем регионе"
+        "source_not_allowed" -> "VK не даёт доступ к этой записи"
+        "track_not_found" -> "Трек не найден у VK"
+        "early_access" -> "Трек ещё не вышел — ранний доступ"
+        "unsupported_source" -> "Этот трек не из VK, воспроизведение недоступно"
+        "network_error" -> "Нет подключения к интернету или сеть недоступна"
+        // Не выдумываем причину: показываем то, что вернул VK, а если он молчит —
+        // говорим прямо, что причина неизвестна.
+        else -> error.message?.takeIf { it.isNotBlank() }
+            ?: "Не удалось получить ссылку на трек (${error.code})"
     }
 
     // Коды резолва стрима, при которых повтор бесполезен — трек не появится.
