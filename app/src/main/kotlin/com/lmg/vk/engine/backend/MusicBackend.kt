@@ -108,6 +108,17 @@ object MusicBackend {
     private val waveQueue = ArrayDeque<AudioTrack>()
     private var activeWaveMix: AudioStreamMix? = null
     private var activeWaveAppend = false
+
+    /**
+     * Источник волны уже выбран в этой сессии.
+     *
+     * Без флага ensureWaveSourceLocked уходил в сеть на КАЖДЫЙ вызов, когда
+     * подходящего микса нет: activeWaveMix остаётся null, recommendationOffset
+     * ещё 0 — условие раннего выхода не срабатывает. А takeWaveTracks зовётся на
+     * каждом переходе трека и каждом рефилле очереди, то есть тяжёлый
+     * catalog.getAudioAuto() повторялся без конца.
+     */
+    private var waveSourceResolved = false
     private var waveSessionId: String? = null
     private var recommendationOffset = 0
 
@@ -1363,9 +1374,18 @@ object MusicBackend {
      * `entity_id`, то есть умеют строиться вокруг заданной сущности. Обычный
      * микс на `entity_id` ответит своей лентой, и «волна по треку» ничем не
      * отличалась бы от общей.
+     *
+     * ЗАПРОС ДЕЛАЕТСЯ ОДИН РАЗ на сессию волны. Без флага [waveSourceResolved]
+     * получалось так: если подходящего микса нет (или каталог ответил ошибкой),
+     * `activeWaveMix` остаётся null, `recommendationOffset` ещё 0 — и условие
+     * выхода в начале не срабатывает. А `takeWaveTracks` зовётся на КАЖДОМ
+     * переходе трека и на каждом рефилле очереди, то есть тяжёлый
+     * `catalog.getAudioAuto()` уходил в сеть снова и снова. Именно это и вешало
+     * приложение вместе с телефоном.
      */
     private suspend fun ensureWaveSourceLocked(seedTrackId: String?) {
-        if (activeWaveMix != null || recommendationOffset > 0) return
+        if (activeWaveMix != null || recommendationOffset > 0 || waveSourceResolved) return
+        waveSourceResolved = true
         val mixes = when (val catalog = catalogApi.getAudioAuto()) {
             is VkResult.Success -> catalog.data.audio_stream_mixes.orEmpty()
             is VkResult.Error -> emptyList()
@@ -1385,6 +1405,9 @@ object MusicBackend {
         waveQueue.clear()
         activeWaveMix = null
         activeWaveAppend = false
+        // Новая волна — заново выбираем источник (у станции по треку он другой,
+        // чем у личной волны).
+        waveSourceResolved = false
         recommendationOffset = 0
         waveSessionId = null
     }

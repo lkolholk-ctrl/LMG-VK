@@ -114,6 +114,46 @@ private fun topAccents(palette: Palette, satMul: Float, count: Int): List<Color>
  * Раньше в этом случае возвращался серый `AlbumColors()`, и фон плеера у трека
  * без обложки не окрашивался вовсе, хотя картинка на экране была цветная.
  */
+/**
+ * Годится ли `content://media/.../albumart/<id>` для чтения.
+ *
+ * У локальных треков из MediaStore albumId настоящий. У VK-треков он
+ * ВЫЧИСЛЯЕТСЯ из хеша названия альбома или id (см. BackendModels.toTrack), то
+ * есть указывает в пустоту: записи с таким id в MediaStore нет. Попытка открыть
+ * такую ссылку не возвращает null, а бросает исключение — и делала это на каждый
+ * трек в каждом месте, где считается палитра.
+ *
+ * Отрицательные и нулевые id отбрасываем сразу. Положительные, полученные из
+ * хеша, отличить от настоящих нельзя — их по-прежнему пробуем, но уже под
+ * runCatching, без стектрейса в лог.
+ */
+private fun isMediaStoreArtworkUsable(uri: Uri): Boolean {
+    if (uri.scheme != "content") return true
+    val last = uri.lastPathSegment?.toLongOrNull() ?: return true
+    return last > 0L
+}
+
+/**
+ * Кэш палитр по ключу источника.
+ *
+ * Палитру одного и того же трека одновременно считают до шести мест (мини-плеер,
+ * полный плеер, лирика, волна, домашний экран, бар навигации). Без кэша каждое
+ * декодировало картинку и гоняло Palette заново — на смене трека это шесть
+ * декодов WebP 1080x1080 подряд.
+ *
+ * LinkedHashMap с ограничением: обложек за сессию много, а держать все палитры
+ * незачем — 64 хватает на любую видимую очередь.
+ */
+private val paletteCache = object : LinkedHashMap<String, AlbumColors>(16, 0.75f, true) {
+    override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, AlbumColors>) = size > 64
+}
+
+private fun cachedPalette(key: String): AlbumColors? = synchronized(paletteCache) { paletteCache[key] }
+
+private fun putPalette(key: String, colors: AlbumColors) {
+    synchronized(paletteCache) { paletteCache[key] = colors }
+}
+
 @Composable
 fun rememberAlbumColors(
     uri: Uri?,
@@ -135,6 +175,16 @@ fun rememberAlbumColors(
             colors = AlbumColors()
             return@LaunchedEffect
         }
+
+        // Ключ кэша — то, ИЗ ЧЕГО считается палитра. Одинаковый источник у
+        // разных экранов даёт одну запись, поэтому шесть одновременных
+        // потребителей декодируют картинку один раз, а не шесть.
+        val cacheKey = coverUrl ?: placeholderKey?.let { "ph:$it" } ?: uri.toString()
+        cachedPalette(cacheKey)?.let {
+            colors = it
+            return@LaunchedEffect
+        }
+
         colors = withContext(Dispatchers.IO) {
             try {
                 val bitmap = when {
@@ -169,14 +219,17 @@ fun rememberAlbumColors(
                         }
                     }.getOrNull()
                     // Local album art via ContentResolver.
-                    // runCatching ОБЯЗАТЕЛЕН: Track.albumArtUri никогда не null —
-                    // это всегда content://media/external/audio/albumart/<albumId>,
-                    // и у VK-треков albumId = -1, записи с таким id не существует.
-                    // openInputStream на неё БРОСАЕТ исключение, оно улетало во
-                    // внешний catch и возвращало серый AlbumColors(), минуя
-                    // фолбэк на кастомную заглушку ниже. Отсюда и «цвета не
-                    // извлекаются из моих обложек».
-                    uri != null -> runCatching {
+                    //
+                    // isMediaStoreArtworkUsable отсекает мёртвые ссылки ДО
+                    // обращения к ContentResolver. Это не оптимизация, а
+                    // исправление зависаний: у VK-треков albumId вычисляется из
+                    // хеша, записи с таким id в MediaStore нет, и
+                    // openInputStream БРОСАЛ исключение — на каждый трек, в
+                    // каждом из шести мест, где считается палитра. Каждое
+                    // исключение это ещё и printStackTrace внутри, то есть
+                    // работа с файловой системой на главном пути. Приложение
+                    // вместе с телефоном вставало именно на этом.
+                    uri != null && isMediaStoreArtworkUsable(uri) -> runCatching {
                         context.contentResolver.openInputStream(uri)?.use { stream ->
                             val options = BitmapFactory.Options().apply {
                                 inSampleSize = 8

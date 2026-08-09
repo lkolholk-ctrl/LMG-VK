@@ -40,7 +40,6 @@ fun AnimatedPlayerBackground(
 ) {
     val baseVibrant = rememberSaturationBoost(albumColors.vibrant)
     val baseDominant = rememberSaturationBoost(albumColors.dominant)
-    val baseMuted = rememberSaturationBoost(albumColors.muted)
     val baseLightVibrant = rememberSaturationBoost(albumColors.lightVibrant)
 
     val boostedVibrant by animateColorAsState(
@@ -53,11 +52,9 @@ fun AnimatedPlayerBackground(
         animationSpec = tween(durationMillis = 1000),
         label = "boostedDominant"
     )
-    val boostedMuted by animateColorAsState(
-        targetValue = baseMuted,
-        animationSpec = tween(durationMillis = 1000),
-        label = "boostedMuted"
-    )
+    // muted (и его boosted/base пара) убран целиком: он больше не участвует в
+    // фоне, а живая animateColorAsState на 1000 мс ради нечитаемого значения —
+    // лишняя работа на каждой смене трека.
     val boostedLightVibrant by animateColorAsState(
         targetValue = baseLightVibrant,
         animationSpec = tween(durationMillis = 1000),
@@ -92,6 +89,14 @@ fun AnimatedPlayerBackground(
         )
 
         // ── Saturation boost — цветной слой от palette ──
+        // Середина строится из ТЕХ ЖЕ dominant/vibrant, а не из muted.
+        //
+        // muted у Palette — это «приглушённый» свотч, и на одноцветной обложке
+        // (розовой, синей, зелёной) он выходит серым или сильно
+        // десатурированным. На позиции 0.65f это давало ровно то грязно-серое
+        // пятно в середине-низу, которого в самой обложке нет. Фиксированный
+        // Gray здесь тоже нельзя: цвет обязан приходить из обложки.
+        val middleColor = lerp(boostedDominant, boostedVibrant, 0.35f)
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -100,7 +105,7 @@ fun AnimatedPlayerBackground(
                         colorStops = arrayOf(
                             0.00f to boostedVibrant.copy(alpha = 0.88f),
                             0.35f to boostedDominant.copy(alpha = 0.72f),
-                            0.65f to boostedMuted.copy(alpha = 0.85f),
+                            0.65f to middleColor.copy(alpha = 0.82f),
                             1.00f to boostedVibrant.copy(alpha = 0.72f)
                         )
                     )
@@ -125,6 +130,11 @@ fun AnimatedPlayerBackground(
         // ── Dark overlay for readability ──
         // Верх/середину почти не затемняем (фон должен светиться), низ держим
         // потемнее — под ним лежат контролы и текст, читаемость важнее.
+        //
+        // Заметное затемнение сдвинуто с 0.65f на 0.78f: раньше оно начиналось
+        // ровно там, где стоял серый muted, и складывалось с ним — пятно в
+        // середине получалось вдвойне заметным. Низ затемнён как прежде, поэтому
+        // контролы не теряют контраст.
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -132,9 +142,9 @@ fun AnimatedPlayerBackground(
                     Brush.verticalGradient(
                         colorStops = arrayOf(
                             0.00f to Color.Black.copy(alpha = 0.02f),
-                            0.40f to Color.Transparent,
-                            0.65f to Color.Black.copy(alpha = 0.12f),
-                            1.00f to Color.Black.copy(alpha = 0.42f)
+                            0.55f to Color.Transparent,
+                            0.78f to Color.Black.copy(alpha = 0.10f),
+                            1.00f to Color.Black.copy(alpha = 0.38f)
                         )
                     )
                 )
