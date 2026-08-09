@@ -49,7 +49,30 @@ data class AudioPlaylist(
     data class AlbumMeta(
         val id: String? = null,
         val title: String? = null,
-    )
+        /**
+         * Вид релиза: `album`, `collection`, `ep`, `single`.
+         *
+         * Сверено с официальным клиентом 8.185 (`AudioPlaylistAlbumItemDto`).
+         * Без него сингл и EP подписывались как «Плейлист» — VK эту разницу
+         * присылает, а мы её теряли.
+         */
+        val type: String? = null,
+        /** Как VK показывает релиз: `collection`, `main_feat`, `main_only`, `playlist`. */
+        val view: String? = null,
+    ) {
+        /**
+         * Подпись для UI по [type]. `null` — VK вида не прислал, и подставлять
+         * «Альбом» наугад нельзя: у сборников и участий это было бы неверно.
+         */
+        val typeLabel: String?
+            get() = when (type) {
+                "single" -> "Сингл"
+                "ep" -> "EP"
+                "album" -> "Альбом"
+                "collection" -> "Сборник"
+                else -> null
+            }
+    }
 }
 
 /** Из `ua.lmg.vkapi2.objects.music.playlist.AudioPlaylistPermissions`. */
@@ -88,18 +111,55 @@ data class AlbumThumb(
     val photo_1200: String? = null,
     val sizes: List<AudioPhotoSizesDto>? = null,
 ) {
+    /**
+     * Ссылка на обложку для КРУПНЫХ мест: полноэкранный плеер, шапка альбома.
+     *
+     * `sizes` проверяется ПЕРВЫМ, а не последним: фиксированные `photo_*`
+     * обрываются на 1200px, тогда как в `sizes` VK кладёт варианты крупнее
+     * (у обложек это `w`/`z` до 2560px) и в WebP. Прежний порядок брал
+     * `photo_1200` всегда, даже когда рядом лежал вариант вдвое больше.
+     *
+     * Сравнение по ПЛОЩАДИ, а не по буквенному `type`: у VK порядок букв
+     * (`s m x o p q r y z w`) не совпадает с порядком величины, и новый тип
+     * сломал бы сортировку по алфавиту.
+     *
+     * ДЛЯ СПИСКОВ использовать [thumbUrlFor]: тянуть 2560px в строку на 48dp —
+     * лишний трафик и память. Виджет для этого имеет свой `widgetThumbUrl()`
+     * (там ограничение биндера, см. VkWidgetModels).
+     */
     val bestUrl: String
-        get() = listOfNotNull(
-            photo_1200,
-            photo_600,
-            photo_300,
-            photo_270,
-            photo_135,
-            photo_68,
-            photo_34,
-        ).firstOrNull { it.isNotBlank() }
-            ?: sizes.orEmpty().maxByOrNull { it.width * it.height }?.src
+        get() = sizes.orEmpty()
+            .filter { it.src.isNotBlank() }
+            .maxByOrNull { it.width.toLong() * it.height.toLong() }
+            ?.src
+            ?: fixedPhotoUrl()
             ?: src
+
+    /**
+     * Наименьшая ссылка, которая покрывает [minSidePx] по меньшей стороне.
+     *
+     * Нужна там, где обложка мелкая: строка списка, карточка карусели. Берём не
+     * максимум и не минимум, а первый достаточный вариант — картинка не мылит и
+     * не тащит лишние мегабайты.
+     */
+    fun thumbUrlFor(minSidePx: Int): String {
+        val candidates = sizes.orEmpty().filter { it.src.isNotBlank() }
+        if (candidates.isEmpty()) return fixedPhotoUrl() ?: src
+        val sorted = candidates.sortedBy { minOf(it.width, it.height) }
+        return sorted.firstOrNull { minOf(it.width, it.height) >= minSidePx }?.src
+            // Всё меньше запрошенного — отдаём самый крупный, что есть.
+            ?: sorted.last().src
+    }
+
+    private fun fixedPhotoUrl(): String? = listOfNotNull(
+        photo_1200,
+        photo_600,
+        photo_300,
+        photo_270,
+        photo_135,
+        photo_68,
+        photo_34,
+    ).firstOrNull { it.isNotBlank() }
 }
 
 /** Из `playlist.metadata.FollowedMetadata` / `OriginalPlaylist` / `AudioPlaylistMeta`. */
