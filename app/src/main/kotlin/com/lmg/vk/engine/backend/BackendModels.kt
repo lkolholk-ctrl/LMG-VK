@@ -154,7 +154,13 @@ data class SearchItem(
     val duration: Long? = null,
     val source: String? = null,
     @SerialName("trackId") val trackId: String? = null,
-    @SerialName("isAvailable") val isAvailable: Boolean = true
+    @SerialName("isAvailable") val isAvailable: Boolean = true,
+    /**
+     * `access_key` записи VK. Нужен, чтобы `audio.getById` вернул трек ВМЕСТЕ с
+     * полем `url`: без ключа ограниченные записи приходят без ссылки, и трек
+     * выглядит «не найденным».
+     */
+    @SerialName("accessKey") val accessKey: String? = null
 ) {
     /**
      * Пусто, если исполнителя нет: у плейлистов и сборников VK его действительно

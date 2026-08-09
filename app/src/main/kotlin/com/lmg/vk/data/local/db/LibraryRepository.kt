@@ -129,6 +129,9 @@ class LibraryRepository private constructor(context: Context) {
                             isExplicit = cloudTrack.isExplicit,
                             source = cloudTrack.source,
                             isAvailable = cloudTrack.isAvailable,
+                            // Ключ доступа — из выдачи audio.get; без него
+                            // audio.getById не отдаст url при воспроизведении.
+                            accessKey = cloudTrack.accessKey,
                             likedAt = cloudTrack.likedAt ?: System.currentTimeMillis(),
                             isSynced = true,
                             pendingDelete = false
@@ -152,6 +155,9 @@ class LibraryRepository private constructor(context: Context) {
                             source = cloudTrack.source,
                             likedAt = cloudTrack.likedAt ?: existing.likedAt,
                             isAvailable = cloudTrack.isAvailable,
+                            // Ключ мог появиться позже (у старых записей он NULL)
+                            // либо смениться — VK их периодически перевыпускает.
+                            accessKey = cloudTrack.accessKey ?: existing.accessKey,
                             isSynced = true,
                         )
                     )
@@ -215,19 +221,30 @@ class LibraryRepository private constructor(context: Context) {
      */
     suspend fun likeTrack(track: Track): Result<Unit> = withContext(Dispatchers.IO) {
         try {
-            val existing = db.getByTrackId(track.id)
+            // Track.id может нести access_key третьим сегментом (owner_audio_key).
+            // Разбираем ДО поиска в БД: там trackId хранится БЕЗ ключа, и поиск
+            // по полному id не нашёл бы существующую запись — трек задвоился бы.
+            val parts = track.id.split('_')
+            val bareId = if (parts.size >= 3) "${parts[0]}_${parts[1]}" else track.id
+            val keyFromId = parts.getOrNull(2)?.takeIf { it.isNotBlank() }
+
+            val existing = db.getByTrackId(bareId)
             if (existing != null) {
                 if (existing.pendingDelete) {
                     // Was pending delete, restore it
                     db.insert(existing.copy(pendingDelete = false, isSynced = false))
                 }
-                // Already liked
+                // Уже лайкнут. Ключ всё же обновим, если он появился только
+                // сейчас: у записей, добавленных до v6, колонка пустая.
+                if (keyFromId != null && existing.accessKey.isNullOrBlank()) {
+                    db.update(existing.copy(accessKey = keyFromId))
+                }
                 return@withContext Result.success(Unit)
             }
 
             db.insert(
                 FavoriteTrackEntity(
-                    trackId = track.id,
+                    trackId = bareId,
                     title = track.title,
                     artistName = track.artist,
                     albumTitle = track.albumName.takeIf { it.isNotBlank() },
@@ -239,6 +256,7 @@ class LibraryRepository private constructor(context: Context) {
                     isExplicit = track.isExplicit,
                     source = track.source,
                     isAvailable = track.isAvailable,
+                    accessKey = keyFromId,
                     isSynced = false,
                     pendingDelete = false
                 )
@@ -362,7 +380,15 @@ class LibraryRepository private constructor(context: Context) {
      */
     private fun FavoriteTrackEntity.toTrack(): Track {
         return Track(
-            id = trackId,
+            // access_key дописываем третьим сегментом id — ровно в той форме,
+            // которую ждёт MusicBackend.resolveTrack (как AudioFile.asIdWithKey()
+            // в VK MP3 Mod). Без ключа audio.getById возвращает трек БЕЗ поля
+            // url, и библиотека отвечала «трек не найден», хотя трек есть.
+            // Раньше ключ жил только в trackCache в памяти, поэтому музыка из
+            // библиотеки играла лишь до перезапуска приложения.
+            id = accessKey?.takeIf { it.isNotBlank() && !trackId.contains("_$it") }
+                ?.let { "${trackId}_$it" }
+                ?: trackId,
             title = title,
             artist = artistName.orEmpty(),
             albumName = albumTitle ?: "",

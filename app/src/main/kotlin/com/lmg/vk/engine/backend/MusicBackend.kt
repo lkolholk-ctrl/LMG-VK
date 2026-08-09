@@ -153,7 +153,12 @@ object MusicBackend {
         }
         val track = resolveTrack(trackId, forceNetwork = true)
         if (!track.isAvailable) throw backendFailure(451, "Аудиозапись недоступна")
-        if (track.url.isBlank()) throw backendFailure(404, "VK не вернул URL трека")
+        // 451, а не 404: трек НАЙДЕН, просто VK не дал ссылку (чаще всего нет
+        // access_key либо запись ограничена). Код 404 превращался в «Трек не
+        // найден у VK» — сообщение врало, и пользователь искал причину не там.
+        if (track.url.isBlank()) {
+            throw backendFailure(451, "VK не дал ссылку на трек (нет access_key или доступ закрыт)")
+        }
         // Плейсхолдер отличается от пустого url: VK ответил успехом и отдал строку,
         // поэтому без явной проверки ошибка выглядела бы как успешный резолв.
         if (!track.url.isPlayableStreamUrl()) {
@@ -202,7 +207,12 @@ object MusicBackend {
                         "url=${if (track.url.isBlank()) "ПУСТО" else track.url.take(60)}"
                 )
                 if (!track.isAvailable) throw backendFailure(451, "Аудиозапись недоступна")
-                if (track.url.isBlank()) throw backendFailure(404, "VK не вернул URL трека")
+                // 451, а не 404: трек НАЙДЕН, просто VK не дал ссылку (чаще всего нет
+        // access_key либо запись ограничена). Код 404 превращался в «Трек не
+        // найден у VK» — сообщение врало, и пользователь искал причину не там.
+        if (track.url.isBlank()) {
+            throw backendFailure(451, "VK не дал ссылку на трек (нет access_key или доступ закрыт)")
+        }
                 if (!track.url.isPlayableStreamUrl()) {
                     throw backendFailure(451, "VK отдал audio_api_unavailable вместо ссылки")
                 }
@@ -1916,6 +1926,10 @@ object MusicBackend {
         source = "vk",
         likedAt = date.takeIf { it > 0 }?.times(1000L),
         isAvailable = isAvailable,
+        // Ключ доступа сохраняем вместе с треком: он приходит в выдаче audio.get
+        // и нужен потом при резолве ссылки. Раньше он жил только в trackCache в
+        // памяти и терялся при перезапуске приложения.
+        accessKey = access_key?.takeIf { it.isNotBlank() },
     )
 
     private fun AudioTrack.toPlaylistTrack() = PlaylistTrack(

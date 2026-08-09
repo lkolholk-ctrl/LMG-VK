@@ -72,6 +72,7 @@ class FavoriteTrackDatabase private constructor(context: Context) : SQLiteOpenHe
                 isExplicit INTEGER DEFAULT 0,
                 source TEXT,
                 isAvailable INTEGER DEFAULT 1,
+                accessKey TEXT,
                 likedAt INTEGER DEFAULT 0,
                 isSynced INTEGER DEFAULT 0,
                 pendingDelete INTEGER DEFAULT 0
@@ -131,6 +132,13 @@ class FavoriteTrackDatabase private constructor(context: Context) : SQLiteOpenHe
         }
         if (oldVersion < 5 && !db.hasColumn("favorite_tracks", "isAvailable")) {
             db.execSQL("ALTER TABLE favorite_tracks ADD COLUMN isAvailable INTEGER DEFAULT 1")
+        }
+        // v6: accessKey. Без него audio.getById отдаёт трек без поля url, и
+        // музыка из библиотеки играла только пока трек лежал в памяти после
+        // поиска/каталога. У существующих записей колонка останется NULL —
+        // ключ подставится при первом успешном резолве (см. LibraryRepository).
+        if (oldVersion < 6 && !db.hasColumn("favorite_tracks", "accessKey")) {
+            db.execSQL("ALTER TABLE favorite_tracks ADD COLUMN accessKey TEXT")
         }
     }
 
@@ -250,6 +258,7 @@ class FavoriteTrackDatabase private constructor(context: Context) : SQLiteOpenHe
             put("isExplicit", if (entity.isExplicit) 1 else 0)
             put("source", entity.source)
             put("isAvailable", if (entity.isAvailable) 1 else 0)
+            put("accessKey", entity.accessKey)
             put("likedAt", entity.likedAt)
             put("isSynced", if (entity.isSynced) 1 else 0)
             put("pendingDelete", if (entity.pendingDelete) 1 else 0)
@@ -287,6 +296,7 @@ class FavoriteTrackDatabase private constructor(context: Context) : SQLiteOpenHe
             put("isExplicit", if (entity.isExplicit) 1 else 0)
             put("source", entity.source)
             put("isAvailable", if (entity.isAvailable) 1 else 0)
+            put("accessKey", entity.accessKey)
             put("likedAt", entity.likedAt)
             put("isSynced", if (entity.isSynced) 1 else 0)
             put("pendingDelete", if (entity.pendingDelete) 1 else 0)
@@ -464,6 +474,9 @@ class FavoriteTrackDatabase private constructor(context: Context) : SQLiteOpenHe
             isExplicit = cursor.getInt(cursor.getColumnIndexOrThrow("isExplicit")) == 1,
             source = cursor.getString(cursor.getColumnIndexOrThrow("source")),
             isAvailable = cursor.getInt(cursor.getColumnIndexOrThrow("isAvailable")) == 1,
+            accessKey = cursor.getColumnIndex("accessKey")
+                .takeIf { it >= 0 }
+                ?.let(cursor::getString),
             likedAt = cursor.getLong(cursor.getColumnIndexOrThrow("likedAt")),
             isSynced = cursor.getInt(cursor.getColumnIndexOrThrow("isSynced")) == 1,
             pendingDelete = cursor.getInt(cursor.getColumnIndexOrThrow("pendingDelete")) == 1
@@ -488,7 +501,7 @@ class FavoriteTrackDatabase private constructor(context: Context) : SQLiteOpenHe
 
     companion object {
         private const val DB_NAME = "favorite_tracks.db"
-        private const val DB_VERSION = 5
+        private const val DB_VERSION = 6
 
         @Volatile
         private var INSTANCE: FavoriteTrackDatabase? = null
