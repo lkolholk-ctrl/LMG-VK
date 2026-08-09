@@ -41,8 +41,31 @@ data class AudioPlaylist(
     val restriction: MusicDynamicRestriction? = null,
     val permissions: AudioPlaylistPermissions? = null,
     val main_color: String? = null,
+    /**
+     * Суммарная длительность плейлиста в СЕКУНДАХ, если VK её прислал.
+     *
+     * ВАЖНО: `duration` НЕ входит в допустимые `extra_fields` (проверено по
+     * AudioGetPlaylistByIdExtraFieldsDto в декомпиле 8.185 — там только
+     * album_parts_first_audios, audio_ids, extra_recommendations_section_id,
+     * owner). Поле объявлено на случай, если VK отдаёт его по умолчанию;
+     * запрашивать его через extra_fields бессмысленно.
+     */
+    val duration: Int? = null,
+    /**
+     * Список id треков плейлиста без полных объектов.
+     *
+     * Приходит только при `extra_fields=audio_ids`. Дешевле полной выдачи, когда
+     * нужен лишь порядок и состав — например, для построения очереди.
+     */
+    val audio_ids: List<String>? = null,
 ) {
     val fullId: String get() = "${owner_id}_$id"
+
+    /**
+     * Длительность в миллисекундах — в единицах, которыми оперирует плеер.
+     * `null`, если VK поле не присылал (не запрошено или пустой плейлист).
+     */
+    val durationMs: Long? get() = duration?.takeIf { it > 0 }?.times(1000L)
 
     /** Из вложенного `AudioPlaylist.AlbumMeta`. */
     @JsonClass(generateAdapter = true)

@@ -604,13 +604,37 @@ class VkAudioApi(
     // ---------------------------------------------------------------
     // audio.getPlaylistById (C4271e)
     // ---------------------------------------------------------------
+    /**
+     * `audio.getPlaylistById`.
+     *
+     * [extraFields] — набор дополнительных полей ответа. Допустимые значения
+     * сверены с декомпилом 8.185 (`AudioGetPlaylistByIdExtraFieldsDto`), их
+     * ровно четыре: `album_parts_first_audios`, `audio_ids`,
+     * `extra_recommendations_section_id`, `owner`.
+     *
+     * Практический смысл:
+     *  - `audio_ids` — лёгкий список id без полных объектов треков, дешевле для
+     *    построения очереди;
+     *  - `album_parts_first_audios` — первый трек каждой части многодискового
+     *    альбома, даёт заголовки «Диск 1 / Диск 2».
+     *
+     * `duration` в этот список НЕ входит, хотя в первичном отчёте по декомпилу
+     * он упоминался — проверка по самому DTO это не подтвердила.
+     *
+     * `access_key` и `extended` СОЗНАТЕЛЬНО не добавлены: официальный клиент их
+     * шлёт, но это путь доступа к трекам — зона, менять которую в этом проекте
+     * запрещено владельцем.
+     */
     suspend fun getPlaylistById(
         ownerId: Long,
         playlistId: Int,
+        extraFields: List<String> = emptyList(),
     ): VkResult<AudioPlaylist> {
         val method = VkMethod("audio.getPlaylistById", PlaylistParser).apply {
             param("playlist_id", playlistId)
             param("owner_id", ownerId)
+            extraFields.takeIf { it.isNotEmpty() }
+                ?.let { param("extra_fields", it.joinToString(",")) }
         }
         return client.execute(method)
     }
