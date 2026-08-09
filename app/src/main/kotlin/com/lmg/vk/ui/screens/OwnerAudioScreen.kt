@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -295,7 +296,14 @@ private fun OwnerAudioHeader(
     onShuffle: () -> Unit,
 ) {
     Box(modifier = Modifier.fillMaxWidth()) {
-        Box(modifier = Modifier.fillMaxWidth().height(if (compact) 300.dp else 380.dp)) {
+        // Шапка КВАДРАТНАЯ, а не прямоугольная фиксированной высоты: аватар у
+        // VK квадратный, и при 300dp на ~410dp ширины ContentScale.Crop срезал
+        // ему верх и низ. aspectRatio(1f) считает высоту от ФАКТИЧЕСКОЙ ширины
+        // контейнера, поэтому на широком экране (список ограничен 640dp) квадрат
+        // тоже остаётся квадратом, а не тянется во всю ширину устройства.
+        //
+        // compact здесь больше не нужен для высоты — только для размера текста.
+        Box(modifier = Modifier.fillMaxWidth().aspectRatio(1f)) {
             Box(modifier = Modifier.fillMaxSize().clipToBounds()) {
                 if (avatarUrl.isNotBlank()) {
                     AsyncImage(
