@@ -256,6 +256,14 @@ data class Album(
     @SerialName("canFollow") val canFollow: Boolean = false,
     @SerialName("isOwned") val isOwned: Boolean = false,
     val artists: List<MiniArtist> = emptyList(),
+    /**
+     * Цвет обложки, посчитанный самим VK (`main_color`, hex без `#`).
+     *
+     * Нужен, чтобы шапка не была серой в первые секунды: обложка ещё грузится, а
+     * палитру из неё считать пока не из чего. Как только Coil отдаст bitmap,
+     * своя палитра точнее — VK присылает один усреднённый тон.
+     */
+    @SerialName("mainColor") val mainColor: String? = null,
 )
 
 @Serializable
@@ -271,6 +279,13 @@ data class AlbumTrack(
     @SerialName("isCustom") val isCustom: Boolean = false,
     val region: String? = null,
     @SerialName("trackNumber") val trackNumber: Int? = null,
+    /**
+     * Номер части многодискового релиза (`album_part_number` у VK).
+     *
+     * Без него двойник выглядел как один сплошной список из 30 треков, где
+     * нумерация зачем-то доходит до 30, хотя на каждом диске своя с единицы.
+     */
+    @SerialName("discNumber") val discNumber: Int? = null,
     val duration: Long? = null,
     val source: String? = null,
     @SerialName("isAvailable") val isAvailable: Boolean = true

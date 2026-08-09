@@ -68,6 +68,7 @@ import com.lmg.vk.ui.components.PlaylistNameDialog
 import com.lmg.vk.ui.components.PlaylistPickerSheet
 import com.lmg.vk.ui.components.formatTotalDuration
 import com.lmg.vk.ui.components.toDetailThumb
+import com.lmg.vk.ui.components.vkMainColor
 import com.lmg.vk.ui.theme.LiquidSurfaces
 import com.lmg.vk.ui.glass.liquidClickable
 import com.lmg.vk.ui.theme.LiquidMotion
@@ -322,7 +323,8 @@ fun PlaylistDetailScreen(
                                 if (playableTracks.isNotEmpty()) {
                                     PlayerController.play(context, playableTracks.shuffled(), 0)
                                 }
-                            }
+                            },
+                            mainColor = vkMainColor(playlistInfo?.mainColor),
                         )
                     }
 

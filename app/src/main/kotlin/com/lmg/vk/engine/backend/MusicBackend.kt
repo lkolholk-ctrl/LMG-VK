@@ -1888,6 +1888,7 @@ object MusicBackend {
         duration = duration.toLong(),
         source = "vk",
         isAvailable = isAvailable,
+        discNumber = album_part_number?.takeIf { it > 0 },
     )
 
     private fun AudioTrack.toArtistSong() = ArtistSong(
@@ -1982,7 +1983,7 @@ object MusicBackend {
         artists = main_artists.orEmpty().map { MiniArtist(id = it.id, name = it.name) },
         cover = photo?.bestUrl ?: photo?.src ?: thumbs?.firstOrNull()?.bestUrl ?: thumbs?.firstOrNull()?.src.orEmpty(),
         year = year.takeIf { it > 0 }?.toString() ?: create_time.takeIf { it > 0 }?.let { (it / 31536000 + 1970).toString() },
-        type = type,
+        type = releaseType(),
         genre = genres.orEmpty().joinToString(", ") { it.name }.takeIf(String::isNotBlank),
         description = description,
         trackCount = count,
@@ -1993,7 +1994,21 @@ object MusicBackend {
         isFollowing = is_following == true,
         canFollow = permissions?.follow == true,
         isOwned = permissions?.edit == true || permissions?.delete == true,
+        mainColor = main_color?.takeIf { it.isNotBlank() },
     )
+
+    /**
+     * Вид релиза: `album`, `collection`, `ep`, `single`.
+     *
+     * Берём из вложенного `album`, а НЕ из `AudioPlaylist.type`: у плейлиста
+     * верхний `type` — это его сорт («плейлист»/«альбом»), из него нельзя узнать,
+     * сингл перед нами или сборник. Именно поэтому сингл и EP подписывались как
+     * «Playlist», а фильтр дискографии по `single`/`ep` в ArtistDetailScreen
+     * никогда не срабатывал. Верхний `type` остаётся запасным вариантом — на
+     * случай выдачи, где вложенного `album` нет вовсе.
+     */
+    private fun AudioPlaylist.releaseType(): String? =
+        album?.type?.takeIf { it.isNotBlank() } ?: type?.takeIf { it.isNotBlank() }
 
     private fun AudioPlaylist.toArtistAlbum() = ArtistAlbum(
         id = fullId,
@@ -2002,7 +2017,7 @@ object MusicBackend {
         artists = main_artists.orEmpty().map { MiniArtist(it.id, it.name) },
         year = year.takeIf { it > 0 }?.toString() ?: create_time.takeIf { it > 0 }?.let { (it / 31536000 + 1970).toString() },
         cover = photo?.bestUrl ?: photo?.src ?: thumbs?.firstOrNull()?.bestUrl ?: thumbs?.firstOrNull()?.src.orEmpty(),
-        type = type,
+        type = releaseType(),
         isAlbum = true,
         timestamp = update_time?.takeIf { it > 0 } ?: create_time.takeIf { it > 0 },
     )

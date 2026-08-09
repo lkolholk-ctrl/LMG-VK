@@ -82,20 +82,7 @@ data class AudioPlaylist(
         val type: String? = null,
         /** Как VK показывает релиз: `collection`, `main_feat`, `main_only`, `playlist`. */
         val view: String? = null,
-    ) {
-        /**
-         * Подпись для UI по [type]. `null` — VK вида не прислал, и подставлять
-         * «Альбом» наугад нельзя: у сборников и участий это было бы неверно.
-         */
-        val typeLabel: String?
-            get() = when (type) {
-                "single" -> "Сингл"
-                "ep" -> "EP"
-                "album" -> "Альбом"
-                "collection" -> "Сборник"
-                else -> null
-            }
-    }
+    )
 }
 
 /** Из `ua.lmg.vkapi2.objects.music.playlist.AudioPlaylistPermissions`. */

@@ -64,6 +64,39 @@ fun String?.toDetailThumb(): String? = this
     ?.replace("300x300", "600x600")
 
 /**
+ * Вид релиза словами для шапки: `single`/`ep`/`album`/`collection` от VK.
+ *
+ * `null` при неизвестном значении — и это важнее, чем кажется. Раньше в шапке
+ * стояло сырое `type` плейлиста, поэтому сингл подписывался «playlist». Врать
+ * «Album» по умолчанию тоже нельзя: у сборника и у участия это неверно, лучше
+ * не показать строку вовсе.
+ */
+fun releaseTypeLabel(type: String?): String? {
+    val value = type?.trim()?.lowercase()?.takeIf { it.isNotEmpty() } ?: return null
+    return when {
+        value == "ep" || value.contains("extended_play") -> "EP"
+        value.contains("single") -> "Single"
+        value.contains("collection") || value.contains("compilation") -> "Compilation"
+        value.contains("album") -> "Album"
+        else -> null
+    }
+}
+
+/**
+ * `main_color` VK → [Color]. VK присылает hex БЕЗ решётки (`"1c2a3b"`), иногда с ней.
+ *
+ * Служит только подложкой на время загрузки обложки: это один усреднённый тон, и
+ * подменять им нашу палитру из bitmap нельзя — она точнее.
+ */
+fun vkMainColor(hex: String?): Color? {
+    val cleaned = hex?.trim()?.removePrefix("#")?.takeIf { it.length == 6 || it.length == 8 } ?: return null
+    if (!cleaned.all { it.isDigit() || it.lowercaseChar() in 'a'..'f' }) return null
+    val value = cleaned.toLongOrNull(16) ?: return null
+    // 6 символов — без альфы, добавляем непрозрачность сами.
+    return Color(if (cleaned.length == 6) (value or 0xFF000000L).toInt() else value.toInt())
+}
+
+/**
  * Шапка подборки: обложка во всю ширину, поверх неё название и кнопки.
  *
  * Занимает примерно половину экрана и считается от его высоты, а не задана
@@ -84,6 +117,11 @@ fun DetailHeader(
     onPlay: () -> Unit,
     onShuffle: () -> Unit,
     canPlay: Boolean = true,
+    /**
+     * `main_color` от VK. Лежит ПОД обложкой, пока та грузится: иначе полэкрана
+     * секунду-две остаётся серым прямоугольником, что читается как ошибка.
+     */
+    mainColor: Color? = null,
 ) {
     val screenHeight = LocalConfiguration.current.screenHeightDp.dp
     val headerHeight = (screenHeight * 0.52f).coerceIn(360.dp, 560.dp)
@@ -91,6 +129,9 @@ fun DetailHeader(
     Box(modifier = Modifier.fillMaxWidth()) {
         Box(modifier = Modifier.fillMaxWidth().height(headerHeight)) {
             Box(modifier = Modifier.fillMaxSize().clipToBounds()) {
+                if (mainColor != null) {
+                    Box(modifier = Modifier.fillMaxSize().background(mainColor))
+                }
                 AlbumArtImage(
                     uri = null,
                     coverUrl = coverUrl,

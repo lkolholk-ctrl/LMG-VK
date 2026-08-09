@@ -88,6 +88,7 @@ import com.lmg.vk.engine.backend.MusicBackend
 import com.lmg.vk.engine.backend.toTrack
 import com.lmg.vk.data.local.db.AppDatabase
 import com.lmg.vk.engine.PlayerController
+import com.lmg.vk.ui.components.releaseTypeLabel
 import com.lmg.vk.ui.glass.AlbumArtImage
 import com.lmg.vk.ui.glass.liquidClickable
 import com.lmg.vk.ui.theme.LiquidMetrics
@@ -237,7 +238,13 @@ fun ArtistDetailScreen(
             ).distinctBy { it.id }
     }
     val compilations = remember(allReleases) {
-        allReleases.filter { it.type?.contains("compilation", ignoreCase = true) == true }
+        // VK называет сборник `collection`; `compilation` — написание Apple-каталога.
+        // Проверяем оба: теперь в `type` доезжает настоящий вид релиза от VK, и по
+        // одному лишь `compilation` секция всегда оставалась бы пустой.
+        allReleases.filter {
+            it.type?.contains("compilation", ignoreCase = true) == true ||
+                it.type?.contains("collection", ignoreCase = true) == true
+        }
     }
     val liveAlbums = remember(allReleases) {
         allReleases.filter {
@@ -1844,7 +1851,7 @@ private fun LatestReleaseCard(
                 overflow = TextOverflow.Ellipsis
             )
             Text(
-                text = listOfNotNull(album.type, album.year).joinToString(" · "),
+                text = listOfNotNull(releaseTypeLabel(album.type), album.year).joinToString(" · "),
                 color = textSecondary,
                 fontSize = 13.sp,
                 modifier = Modifier.padding(top = 4.dp)

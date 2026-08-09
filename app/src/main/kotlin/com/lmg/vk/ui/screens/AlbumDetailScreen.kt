@@ -67,7 +67,9 @@ import com.lmg.vk.ui.components.DetailTrackRow
 import com.lmg.vk.ui.components.TrackActionsSheet
 import com.lmg.vk.ui.components.PlaylistPickerSheet
 import com.lmg.vk.ui.components.formatTotalDuration
+import com.lmg.vk.ui.components.releaseTypeLabel
 import com.lmg.vk.ui.components.toDetailThumb
+import com.lmg.vk.ui.components.vkMainColor
 import com.lmg.vk.ui.theme.LiquidSurfaces
 import com.lmg.vk.ui.glass.liquidClickable
 import com.lmg.vk.ui.theme.LiquidMotion
@@ -132,6 +134,44 @@ fun AlbumDetailScreen(
         album?.tracks?.map { it.toTrack() }?.distinctBy { it.id } ?: emptyList()
     }
     val playableTracks = remember(albumTracks) { albumTracks.filter { it.isAvailable } }
+
+    /**
+     * Строки списка треков: у многодискового релиза между дисками стоит заголовок.
+     *
+     * Нумерация внутри каждого диска своя, с единицы, — как на самом релизе. До
+     * этого двойной альбом выглядел одним списком, где номера доходили до 30, хотя
+     * на обороте у обоих дисков нумерация начинается заново.
+     *
+     * `discNumber` живёт в модели каталога `AlbumTrack`, а не в [Track], поэтому по
+     * дискам группируем ДО преобразования: у Track такого поля нет и плееру оно не
+     * нужно — там важен только порядок.
+     */
+    val trackRows = remember(album, albumTracks) {
+        val discById = album?.tracks.orEmpty()
+            .mapNotNull { source -> source.discNumber?.let { source.id to it } }
+            .toMap()
+        val discs = albumTracks.mapNotNull { discById[it.id] }.distinct()
+        if (discs.size < 2) {
+            albumTracks.mapIndexed { index, track -> AlbumTrackRow(track, index + 1, null) }
+        } else {
+            var lastDisc = 0
+            var position = 0
+            albumTracks.map { track ->
+                // Трек без номера части считаем продолжением предыдущего диска:
+                // обрывать нумерацию из-за одного пропуска хуже, чем продолжить.
+                val disc = discById[track.id] ?: lastDisc
+                val header = if (disc != lastDisc) {
+                    lastDisc = disc
+                    position = 0
+                    disc
+                } else {
+                    null
+                }
+                position++
+                AlbumTrackRow(track, position, header)
+            }
+        }
+    }
     val albumArtists = remember(album) {
         val info = album?.album
         info?.artists.orEmpty()
@@ -251,6 +291,9 @@ fun AlbumDetailScreen(
                             title = info?.title.orEmpty(),
                             subtitle = info?.artist.orEmpty(),
                             facts = buildList {
+                                // Вид релиза первым: «Single · 2024» читается сразу,
+                                // а раньше сингл вообще подписывался как плейлист.
+                                releaseTypeLabel(info?.type)?.let(::add)
                                 info?.genre?.takeIf { it.isNotBlank() }?.let(::add)
                                 info?.year?.takeIf { it.isNotBlank() }?.let(::add)
                                 if (albumTracks.isNotEmpty()) add("${albumTracks.size} songs")
@@ -273,6 +316,7 @@ fun AlbumDetailScreen(
                                 }
                             },
                             canPlay = playableTracks.isNotEmpty(),
+                            mainColor = vkMainColor(info?.mainColor),
                         )
                     }
 
@@ -387,16 +431,34 @@ fun AlbumDetailScreen(
                         }
                     }
 
-                    itemsIndexed(albumTracks, key = { _, track -> track.id }) { index, track ->
+                    itemsIndexed(trackRows, key = { _, row -> row.track.id }) { index, row ->
+                        row.discHeader?.let { disc ->
+                            Text(
+                                text = "Disc $disc",
+                                color = LiquidSurfaces.textSecondary(isDark),
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier.padding(
+                                    start = 20.dp,
+                                    end = 20.dp,
+                                    top = if (index == 0) 4.dp else 18.dp,
+                                    bottom = 6.dp,
+                                ),
+                            )
+                        }
+                        val track = row.track
                         DetailTrackRow(
-                            position = index + 1,
+                            position = row.position,
                             title = track.title,
                             subtitle = null,
                             durationMs = track.durationMs,
                             // Обложка здесь одна на все треки — номер полезнее.
                             coverUrl = null,
                             isDark = isDark,
-                            showDivider = index < albumTracks.lastIndex,
+                            // Перед заголовком следующего диска разделитель лишний:
+                            // границу и без него видно, а вместе они дают двойную линию.
+                            showDivider = index < trackRows.lastIndex &&
+                                trackRows[index + 1].discHeader == null,
                             enabled = track.isAvailable,
                             onMore = if (track.isAvailable) {
                                 { actionsTrack = track }
@@ -488,6 +550,20 @@ fun AlbumDetailScreen(
         }
     }
 }
+
+/**
+ * Строка списка треков альбома: сам трек, его номер и — только у первого трека
+ * диска — заголовок «Disc N».
+ *
+ * Номер держим здесь, а не берём индексом в списке: у двойника нумерация на
+ * каждом диске начинается заново, и индекс дал бы 16-й трек там, где на релизе
+ * первый трек второго диска.
+ */
+private data class AlbumTrackRow(
+    val track: Track,
+    val position: Int,
+    val discHeader: Int?,
+)
 
 @Composable
 private fun AlbumActionsRow(
