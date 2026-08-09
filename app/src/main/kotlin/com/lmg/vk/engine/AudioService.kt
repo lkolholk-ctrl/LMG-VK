@@ -349,6 +349,15 @@ class AudioService : MediaSessionService() {
             // элемент с APPLICATION_M3U8 и выходим. Повтор на трек однократный —
             // защита от цикла внутри PlayerController.
             if (error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED) {
+                // Кэш чистим ЗДЕСЬ, а не в ветке isDamagedCache ниже: этот код
+                // перечислен и там, но `return` на две строки ниже до неё не
+                // доходит, и чистка не выполнялась никогда. Без неё повторная
+                // подготовка читает из кэша тот же неразобранный кусок и падает
+                // с той же ошибкой, а второй раз evictedTrackId её уже не пустит.
+                if (currentTrackId != null && currentTrackId != evictedTrackId) {
+                    evictedTrackId = currentTrackId
+                    MediaCacheManager.evictTrack(currentTrackId)
+                }
                 PlayerController.onPlaybackError(error.errorCodeName)
                 return
             }
@@ -375,8 +384,11 @@ class AudioService : MediaSessionService() {
             val isDamagedCache = when (error.errorCode) {
                 androidx.media3.common.PlaybackException.ERROR_CODE_IO_READ_POSITION_OUT_OF_RANGE,
                 androidx.media3.common.PlaybackException.ERROR_CODE_IO_FILE_NOT_FOUND,
-                androidx.media3.common.PlaybackException.ERROR_CODE_PARSING_CONTAINER_MALFORMED,
-                androidx.media3.common.PlaybackException.ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED -> true
+                androidx.media3.common.PlaybackException.ERROR_CODE_PARSING_CONTAINER_MALFORMED -> true
+                // ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED здесь БЫЛ, но ветка
+                // недостижима: HLS-случай выше завершается `return`. Чистка кэша
+                // для него перенесена туда, а тут строка убрана, чтобы список не
+                // обещал обработку, которой не происходит.
                 else -> false
             }
             if (isDamagedCache && currentTrackId != null && currentTrackId != evictedTrackId) {
