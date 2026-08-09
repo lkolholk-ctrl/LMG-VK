@@ -150,10 +150,6 @@ fun LyricsSheet(
     ) {
         // ── Background: blurred album art ──
         AnimatedPlayerBackground(
-            albumArtUri = albumArtUri,
-            coverUrl = coverUrl,
-            audioFileUri = audioFileUri,
-            albumId = albumId,
             albumColors = albumColors,
             modifier = Modifier.fillMaxSize()
         )

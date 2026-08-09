@@ -127,11 +127,14 @@ import com.kyant.backdrop.shadow.InnerShadow
 import com.kyant.backdrop.shadow.Shadow
 import com.lmg.vk.engine.PlayerController
 import com.lmg.vk.engine.UiLogger
+import com.lmg.vk.debug.DebugLog
 import com.lmg.vk.engine.backend.WaveSignalQueue
 import com.lmg.vk.ui.glass.GlassKit
 import com.lmg.vk.ui.glass.GlassDialog
 import com.lmg.vk.ui.glass.GlassDialogButton
 import com.lmg.vk.ui.glass.AlbumArtImage
+import com.lmg.vk.ui.glass.ArtworkSourceResolver
+import com.lmg.vk.ui.glass.ResolvedArtworkSource
 import com.lmg.vk.ui.glass.pressScale
 import com.lmg.vk.ui.glass.rememberAlbumColors
 import com.lmg.vk.ui.liquid.LiquidSlider
@@ -249,8 +252,20 @@ fun FullPlayer(
     // isFavorite is now reactive from Room DB via LibraryRepository Flow
     // (declared above at composition start)
 
-    // ── Mood/Color from album art ──
-    val albumColors = rememberAlbumColors(albumArtUri, coverUrl, placeholderKey = trackId)
+    // Один resolved source передаётся и в AsyncImage, и в Palette. В частности,
+    // VK-generated thumb больше не может отображаться одним загрузчиком, пока
+    // extractor анализирует другой URL или локальную заглушку.
+    val resolvedArtwork = remember(albumArtUri, coverUrl) {
+        ArtworkSourceResolver.resolve(albumArtUri, coverUrl)
+    }
+    val resolvedCoverUrl = resolvedArtwork?.coverUrl
+    LaunchedEffect(trackId, resolvedArtwork?.cacheKey) {
+        DebugLog.add(
+            "ART UI FullPlayer track=$trackId rawCover=$coverUrl " +
+                "resolvedKind=${resolvedArtwork?.kind} resolved=${resolvedArtwork?.model}",
+        )
+    }
+    val albumColors = rememberAlbumColors(resolvedArtwork)
 
     // Широкое окно (телефон-альбом ИЛИ планшет): обложка слева, контролы/
     // лирика/очередь — справа (side-by-side). Компактный портрет не меняется.
@@ -363,10 +378,6 @@ fun FullPlayer(
                 Box(modifier = Modifier.fillMaxSize().background(Color.Black))
             } else {
                 AnimatedPlayerBackground(
-                    albumArtUri = albumArtUri,
-                    coverUrl = coverUrl,
-                    audioFileUri = audioFileUri,
-                    albumId = albumId,
                     albumColors = albumColors,
                     modifier = Modifier.fillMaxSize()
                 )
@@ -479,16 +490,22 @@ fun FullPlayer(
                 // Кроссфейд обложек: при смене трека (авто или скип) старая
                 // растворяется, новая проявляется — вместо мгновенной подмены.
                 androidx.compose.animation.Crossfade(
-                    targetState = ArtCrossfadeKey(albumArtUri, coverUrl, audioFileUri, albumId),
+                    targetState = ArtCrossfadeKey(
+                        albumArtUri,
+                        resolvedCoverUrl,
+                        audioFileUri,
+                        albumId,
+                        resolvedArtwork,
+                    ),
                     animationSpec = tween(450),
                     label = "artCrossfade"
                 ) { art ->
                     AlbumArtImage(
                         uri = art.uri,
                         coverUrl = art.coverUrl,
+                        resolvedArtwork = art.resolvedArtwork,
                         audioFileUri = art.audioFileUri,
                         albumId = art.albumId,
-                        placeholderKey = "$trackTitle\u0000$artistName",
                         contentDescription = null,
                         contentScale = ContentScale.Crop,
                         modifier = Modifier.fillMaxSize()
@@ -585,7 +602,7 @@ fun FullPlayer(
                 trackArtist = artistName,
                 trackDurationMs = durationMs,
                 albumArtUri = albumArtUri,
-                coverUrl = coverUrl,
+                coverUrl = resolvedCoverUrl,
                 albumId = albumId,
                 trackId = currentTrackObj?.id,
                 albumColors = albumColors,
@@ -600,7 +617,7 @@ fun FullPlayer(
             visible = showQueue,
             onDismiss = { showQueue = false },
             albumArtUri = albumArtUri,
-            coverUrl = coverUrl,
+            coverUrl = resolvedCoverUrl,
             audioFileUri = audioFileUri,
             albumId = albumId,
             albumColors = albumColors,
@@ -1784,5 +1801,6 @@ private data class ArtCrossfadeKey(
     val uri: Uri?,
     val coverUrl: String?,
     val audioFileUri: Uri?,
-    val albumId: Long
+    val albumId: Long,
+    val resolvedArtwork: ResolvedArtworkSource?,
 )

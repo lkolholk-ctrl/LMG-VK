@@ -374,7 +374,6 @@ private fun ArtistPickCard(
             AlbumArtImage(
                 uri = null,
                 coverUrl = artist.coverUrl,
-                placeholderKey = artist.id,
                 modifier = Modifier
                     .fillMaxSize()
                     .clip(RoundedCornerShape(12.dp)),

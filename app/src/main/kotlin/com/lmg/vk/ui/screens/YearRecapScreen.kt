@@ -229,7 +229,6 @@ private fun RecapBlockCard(block: YearRecapBlock, compact: Boolean) {
             AlbumArtImage(
                 uri = null,
                 coverUrl = cover,
-                placeholderKey = block.key,
                 modifier = Modifier
                     .fillMaxWidth()
                     .aspectRatio(if (compact) 2.4f else 1.9f)
@@ -271,7 +270,6 @@ private fun RecapBlockCard(block: YearRecapBlock, compact: Boolean) {
                     AlbumArtImage(
                         uri = null,
                         coverUrl = url,
-                        placeholderKey = url,
                         modifier = Modifier
                             .size(if (compact) 64.dp else 78.dp)
                             .clip(RoundedCornerShape(10.dp)),
@@ -290,7 +288,6 @@ private fun RecapBlockCard(block: YearRecapBlock, compact: Boolean) {
                     AlbumArtImage(
                         uri = null,
                         coverUrl = playlistCover,
-                        placeholderKey = playlistTitle,
                         modifier = Modifier
                             .size(if (compact) 40.dp else 48.dp)
                             .clip(RoundedCornerShape(8.dp)),
@@ -359,7 +356,6 @@ private fun RecapMetricRow(line: YearRecapLine, compact: Boolean) {
             AlbumArtImage(
                 uri = null,
                 coverUrl = cover,
-                placeholderKey = cover,
                 modifier = Modifier
                     .size(if (compact) 36.dp else 44.dp)
                     .clip(RoundedCornerShape(8.dp)),

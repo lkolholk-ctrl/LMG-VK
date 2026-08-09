@@ -95,7 +95,6 @@ fun TrackActionsSheet(
                     uri = track.albumArtUri,
                     contentDescription = null,
                     coverUrl = track.coverUrl,
-                    placeholderKey = "${track.id}\u0000${track.title}\u0000${track.artist}",
                     contentScale = ContentScale.Crop,
                     modifier = Modifier
                         .size(52.dp)

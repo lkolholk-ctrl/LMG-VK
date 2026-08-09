@@ -458,9 +458,6 @@ private fun DownloadedRow(
             coverUrl = item.coverUrl,
             contentDescription = item.title,
             contentScale = ContentScale.Crop,
-            // placeholderKey — чтобы у трека без обложки цвет заглушки был
-            // стабильным между перерисовками; разделитель полей — как в TrackActionsSheet.
-            placeholderKey = "${item.trackId}\u0000${item.title}\u0000${item.artist}",
             modifier = Modifier
                 .size(if (compact) 40.dp else 52.dp)
                 .clip(RoundedCornerShape(if (compact) 8.dp else 10.dp))

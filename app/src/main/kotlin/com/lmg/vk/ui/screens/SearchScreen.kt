@@ -9,7 +9,6 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
@@ -54,7 +53,6 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.TextStyle
@@ -521,7 +519,6 @@ fun SearchScreen(
                                                 enabled = item.isAvailable,
                                                 compact = compact,
                                                 durationMs = item.durationMs,
-                                                placeholderKey = item.id,
                                                 onClick = {
                                                     hideKeyboard()
                                                     val startIdx = playableTracks.indexOfFirst { it.id == item.id }
@@ -830,14 +827,6 @@ private fun SearchResultRow(
     enabled: Boolean = true,
     compact: Boolean = false,
     durationMs: Long = 0L,
-    /**
-     * Ключ кастомной обложки (обычно `Track.id`). Задан — у трека без обложки
-     * рисуется та же картинка из [com.lmg.vk.ui.glass.TrackPlaceholderArt], что в
-     * остальном приложении; раньше в поиске на её месте был серый квадрат с
-     * иконкой. Для артистов и плейлистов НЕ задаётся: у них своя круглая
-     * заглушка, и трековая картинка там читалась бы как обложка альбома.
-     */
-    placeholderKey: String? = null,
     onClick: () -> Unit,
     onLongClick: (() -> Unit)? = null
 ) {
@@ -866,18 +855,6 @@ private fun SearchResultRow(
                     .data(coverUrl)
                     .crossfade(true)
                     .build(),
-                contentDescription = title,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .size(artSize)
-                    .clip(RoundedCornerShape(6.dp))
-            )
-        } else if (placeholderKey != null) {
-            // Кастомная обложка трека — та же, что в библиотеке и очереди.
-            Image(
-                painter = painterResource(
-                    com.lmg.vk.ui.glass.TrackPlaceholderArt.resourceFor(placeholderKey),
-                ),
                 contentDescription = title,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier

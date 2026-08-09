@@ -1996,7 +1996,6 @@ private fun LibraryTrackPreview(track: FavoriteTrackEntity, onClick: () -> Unit)
             uri = null,
             contentDescription = null,
             coverUrl = track.imageUrl,
-            placeholderKey = "${track.title}\u0000${track.artistName.orEmpty()}",
             modifier = Modifier.size(50.dp).clip(RoundedCornerShape(8.dp)),
             contentScale = ContentScale.Crop,
         )
@@ -2040,7 +2039,6 @@ private fun RecentTrackItem(track: Track, onClick: () -> Unit) {
             uri = null,
             contentDescription = null,
             coverUrl = track.coverUrl,
-            placeholderKey = "${track.title}\u0000${track.artist}",
             modifier = Modifier.size(54.dp).clip(RoundedCornerShape(8.dp)),
             contentScale = ContentScale.Crop,
         )
@@ -2093,7 +2091,6 @@ private fun FavoriteTrackItem(
             uri = null,
             contentDescription = null,
             coverUrl = coverToDisplay,
-            placeholderKey = "${track.title}\u0000${track.artistName.orEmpty()}",
             modifier = Modifier
                 .size(itemArtSize)
                 .clip(RoundedCornerShape(6.dp)),
@@ -2179,7 +2176,6 @@ private fun DownloadedTrackItem(
             uri = null,
             contentDescription = null,
             coverUrl = coverToLoad,
-            placeholderKey = "${track.title}\u0000${track.artistName.orEmpty()}",
             modifier = Modifier
                 .size(itemArtSize)
                 .clip(RoundedCornerShape(6.dp)),

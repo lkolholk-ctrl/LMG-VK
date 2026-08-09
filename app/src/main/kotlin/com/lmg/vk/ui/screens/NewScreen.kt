@@ -1001,7 +1001,6 @@ private fun NewTrackCard(
                 uri = null,
                 contentDescription = title,
                 coverUrl = coverUrl,
-                placeholderKey = "$title\u0000$subtitle",
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.size(cardSize).clip(RoundedCornerShape(12.dp)),
             )
@@ -1056,7 +1055,6 @@ private fun NewHeroBanner(
             uri = null,
             contentDescription = item.title,
             coverUrl = item.cover,
-            placeholderKey = "${item.title}\u0000${item.subtitle.orEmpty()}",
             contentScale = ContentScale.Crop,
             modifier = Modifier
                 .fillMaxWidth()
@@ -1147,7 +1145,6 @@ private fun NewTrackRow(
             uri = null,
             contentDescription = item.title,
             coverUrl = item.cover,
-            placeholderKey = "${item.title}\u0000${item.displayArtist}",
             contentScale = ContentScale.Crop,
             modifier = Modifier.size(imageSize).clip(RoundedCornerShape(10.dp)),
         )
@@ -1215,7 +1212,6 @@ private fun NewLargeCard(
                 uri = null,
                 contentDescription = item.title,
                 coverUrl = item.cover,
-                placeholderKey = "${item.title}\u0000${item.subtitle.orEmpty()}",
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
                     .width(cardWidth)
@@ -1289,7 +1285,6 @@ private fun NewExtendedCard(
             uri = null,
             contentDescription = item.title,
             coverUrl = item.cover,
-            placeholderKey = "${item.title}\u0000${item.subtitle.orEmpty()}",
             contentScale = ContentScale.Crop,
             modifier = Modifier.size(cardWidth).clip(RoundedCornerShape(14.dp)),
         )
@@ -1371,7 +1366,6 @@ private fun NewGridTile(
             uri = null,
             contentDescription = item.title,
             coverUrl = item.cover,
-            placeholderKey = "${item.title}\u0000${item.subtitle.orEmpty()}",
             contentScale = ContentScale.Crop,
             modifier = Modifier.size(artSize).clip(RoundedCornerShape(10.dp)),
         )
@@ -1434,7 +1428,6 @@ private fun NewBannerRow(
                     uri = null,
                     contentDescription = item.title,
                     coverUrl = item.cover,
-                    placeholderKey = "${item.title}\u0000${item.subtitle.orEmpty()}",
                     contentScale = ContentScale.Crop,
                     modifier = Modifier
                         .width(bannerWidth)
@@ -1489,7 +1482,6 @@ private fun NewCloseableBanner(
                 uri = null,
                 contentDescription = item.title,
                 coverUrl = item.cover,
-                placeholderKey = "${item.title}\u0000${item.subtitle.orEmpty()}",
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
                     .fillMaxWidth()
@@ -1680,7 +1672,6 @@ private fun NewCuratorCard(title: String, coverUrl: String?, compact: Boolean) {
             uri = null,
             contentDescription = title,
             coverUrl = coverUrl,
-            placeholderKey = title,
             contentScale = ContentScale.Crop,
             modifier = Modifier.size(size).clip(RoundedCornerShape(50)),
         )

@@ -8,26 +8,33 @@ import android.net.Uri
 import android.provider.MediaStore
 import android.util.Size
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.MusicNote
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.lmg.vk.debug.DebugLog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-/** Минимальный размер стороны чтобы считать обложку HQ */
-private const val MIN_HQ_SIZE = 500
 /** Верхняя граница декода: FullPlayer не должен поднимать 2048+ bitmap и выбивать RAM. */
 private const val MAX_ART_SIZE = 1024
 
@@ -36,7 +43,7 @@ private const val MAX_ART_SIZE = 1024
  * Поддерживает:
  * - Локальные треки (MediaStore album art, embedded art)
  * - Онлайн треки (coverUrl из backend API через Coil)
- * - Цветная VK-заглушка с нотой, когда обложки нет или CDN её не отдал
+ * - Нейтральное состояние без artwork, без локальных псевдообложек
  */
 @Composable
 fun AlbumArtImage(
@@ -46,28 +53,49 @@ fun AlbumArtImage(
     contentScale: ContentScale = ContentScale.Crop,
     audioFileUri: Uri? = null,
     albumId: Long = -1L,
-    placeholderKey: String? = null,
-    coverUrl: String? = null
+    coverUrl: String? = null,
+    resolvedArtwork: ResolvedArtworkSource? = null,
 ) {
-    // URL старой маленькой заглушки VK означает отсутствие обложки, а не картинку.
-    if (!coverUrl.isNullOrBlank() && !coverUrl.isVkAudioPlaceholder()) {
-        var coverLoadFailed by remember(coverUrl) { mutableStateOf(false) }
+    val artwork = resolvedArtwork
+        ?: remember(uri, coverUrl) { ArtworkSourceResolver.resolve(uri, coverUrl) }
+    val coverArtwork = artwork?.takeIf { it.coverUrl != null }
+
+    if (coverArtwork != null) {
+        var coverLoadFailed by remember(coverArtwork.cacheKey) { mutableStateOf(false) }
         if (coverLoadFailed) {
-            PlaceholderArt(
+            MissingArtwork(
                 modifier = modifier,
                 contentDescription = contentDescription,
-                placeholderKey = placeholderKey ?: coverUrl,
             )
         } else {
             AsyncImage(
                 model = ImageRequest.Builder(LocalContext.current)
-                    .data(coverUrl)
+                    .data(coverArtwork.model)
                     .crossfade(true)
                     .build(),
                 contentDescription = contentDescription,
                 modifier = modifier,
                 contentScale = contentScale,
-                onError = { coverLoadFailed = true },
+                onSuccess = { state ->
+                    if (resolvedArtwork != null) {
+                        val drawable = state.result.drawable
+                        DebugLog.add(
+                            "ART UI bitmap success source=${coverArtwork.model} " +
+                                "size=${drawable.intrinsicWidth}x${drawable.intrinsicHeight} " +
+                                "dataSource=${state.result.dataSource}",
+                        )
+                    }
+                },
+                onError = { state ->
+                    if (resolvedArtwork != null) {
+                        DebugLog.add(
+                            "ART UI bitmap error source=${coverArtwork.model} " +
+                                "error=${state.result.throwable.javaClass.simpleName}:" +
+                                state.result.throwable.message,
+                        )
+                    }
+                    coverLoadFailed = true
+                },
             )
         }
         return
@@ -172,10 +200,9 @@ fun AlbumArtImage(
             filterQuality = FilterQuality.High
         )
     } else if (loadFailed) {
-        PlaceholderArt(
+        MissingArtwork(
             modifier = modifier,
             contentDescription = contentDescription,
-            placeholderKey = placeholderKey ?: uri?.toString() ?: audioFileUri?.toString(),
         )
     }
 }
@@ -195,27 +222,20 @@ private fun decodeSampledByteArray(bytes: ByteArray, maxSide: Int): Bitmap? {
     return BitmapFactory.decodeByteArray(bytes, 0, bytes.size, opts)
 }
 
-// Проверка заглушки VK переехала в TrackPlaceholderArt: она нужна не только
-// здесь, но и в MediaSession с экстрактором цветов, а две копии одной константы
-// уже привели к тому, что про заглушку знал ТОЛЬКО этот файл.
-private fun String.isVkAudioPlaceholder(): Boolean =
-    TrackPlaceholderArt.isVkPlaceholder(this)
-
-
 @Composable
-private fun PlaceholderArt(
+private fun MissingArtwork(
     modifier: Modifier = Modifier,
     contentDescription: String? = null,
-    placeholderKey: String? = null,
 ) {
-    // Выбор стабилен и живёт в TrackPlaceholderArt — том же словаре, из которого
-    // заглушку берут MediaSession и экстрактор цветов. Своя копия логики здесь
-    // означала бы, что на экране одна картинка, а в уведомлении другая.
-    val resourceId = remember(placeholderKey) { TrackPlaceholderArt.resourceFor(placeholderKey) }
-    Image(
-        painter = painterResource(resourceId),
-        contentDescription = contentDescription,
-        modifier = modifier,
-        contentScale = ContentScale.Crop,
-    )
+    Box(
+        modifier = modifier.background(MaterialTheme.colorScheme.surfaceVariant),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = Icons.Rounded.MusicNote,
+            contentDescription = contentDescription,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
+            modifier = Modifier.size(44.dp),
+        )
+    }
 }

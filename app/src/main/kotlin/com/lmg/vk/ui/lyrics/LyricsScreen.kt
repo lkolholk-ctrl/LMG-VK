@@ -115,7 +115,7 @@ fun LyricsScreen(
     splitMode: Boolean = false
 ) {
     val context = LocalContext.current
-    val resolvedColors = albumColors ?: rememberAlbumColors(albumArtUri, coverUrl, placeholderKey = trackId)
+    val resolvedColors = albumColors ?: rememberAlbumColors(albumArtUri, coverUrl)
 
     val resolvedTrackId = remember(trackId, audioFileUri) {
         trackId ?: com.lmg.vk.engine.VkAudioIdentity.trackIdFromUri(audioFileUri).orEmpty()
@@ -845,4 +845,3 @@ internal fun LyricLineSweep(
         }
     }
 }
-

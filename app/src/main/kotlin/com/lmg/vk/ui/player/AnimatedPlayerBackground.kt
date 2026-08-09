@@ -1,10 +1,10 @@
 package com.lmg.vk.ui.player
 
-import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
@@ -18,6 +18,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.runtime.getValue
 
 import androidx.compose.ui.graphics.toArgb
+import com.lmg.vk.debug.DebugLog
 
 /**
  * Apple Music стиль — статичный градиентный фон из палитры обложки.
@@ -29,18 +30,25 @@ import androidx.compose.ui.graphics.toArgb
  * и приводило к ANR, а аудио в это время циклично повторяло последний блок.
  */
 @Composable
-@Suppress("UNUSED_PARAMETER")
 fun AnimatedPlayerBackground(
-    albumArtUri: Uri?,
-    coverUrl: String? = null,
-    audioFileUri: Uri? = null,
-    albumId: Long = -1L,
     albumColors: AlbumColors,
     modifier: Modifier = Modifier
 ) {
     val baseVibrant = rememberSaturationBoost(albumColors.vibrant)
     val baseDominant = rememberSaturationBoost(albumColors.dominant)
     val baseLightVibrant = rememberSaturationBoost(albumColors.lightVibrant)
+
+    LaunchedEffect(albumColors) {
+        DebugLog.add(
+            "ART BG input dominant=${albumColors.dominant.toArgb().hex()} " +
+                "vibrant=${albumColors.vibrant.toArgb().hex()} " +
+                "lightVibrant=${albumColors.lightVibrant.toArgb().hex()} " +
+                "muted=${albumColors.muted.toArgb().hex()} " +
+                "targets(dominant=${baseDominant.toArgb().hex()}," +
+                "vibrant=${baseVibrant.toArgb().hex()}," +
+                "lightVibrant=${baseLightVibrant.toArgb().hex()})",
+        )
+    }
 
     val boostedVibrant by animateColorAsState(
         targetValue = baseVibrant,
@@ -176,3 +184,5 @@ private fun rememberSaturationBoost(
         androidx.compose.ui.graphics.Color(android.graphics.Color.HSVToColor(hsv))
     }
 }
+
+private fun Int.hex(): String = "#%08X".format(this)

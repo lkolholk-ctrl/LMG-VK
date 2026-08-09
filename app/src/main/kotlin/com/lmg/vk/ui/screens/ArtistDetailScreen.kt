@@ -1556,7 +1556,6 @@ private fun ArtistCommunityRow(
             uri = null,
             coverUrl = community.cover.toThumb(),
             contentDescription = community.name,
-            placeholderKey = community.name,
             modifier = Modifier.size(52.dp).clip(CircleShape),
             contentScale = ContentScale.Crop,
         )
@@ -1614,7 +1613,6 @@ private fun ArtistCommunityCarousel(
                     uri = null,
                     coverUrl = community.cover.toThumb(),
                     contentDescription = community.name,
-                    placeholderKey = community.name,
                     modifier = Modifier
                         .size(size)
                         .clip(CircleShape)

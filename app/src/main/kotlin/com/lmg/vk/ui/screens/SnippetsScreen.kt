@@ -260,7 +260,6 @@ private fun SnippetCard(
             uri = null,
             contentDescription = track.title,
             coverUrl = track.coverUrl ?: page.imageUrl,
-            placeholderKey = "${track.fullId}\u0000${track.title}",
             contentScale = ContentScale.Crop,
             modifier = Modifier.fillMaxSize(),
         )

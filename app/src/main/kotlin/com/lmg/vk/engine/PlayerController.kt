@@ -1872,17 +1872,9 @@ object PlayerController {
                     .setArtist(artist)
                     .setAlbumArtist(artist)
                     .apply {
-                        val cover = com.lmg.vk.ui.glass.TrackPlaceholderArt.realCoverOrNull(coverUrl)
+                        val cover = com.lmg.vk.ui.glass.ArtworkSourceResolver.realCoverOrNull(coverUrl)
                         if (cover != null) {
                             setArtworkUri(Uri.parse(cover))
-                        } else {
-                            // В метаданных только URI. Сырые 1080p WebP-байты
-                            // здесь раньше клонировались media3 и раздували всю
-                            // очередь; декод текущей картинки теперь ограничен
-                            // в AudioService до безопасного размера.
-                            setArtworkUri(
-                                com.lmg.vk.ui.glass.TrackPlaceholderArt.uriFor(context, trackId)
-                            )
                         }
                         if (durationMs > 0L) setDurationMs(durationMs)
                     }
@@ -1960,22 +1952,11 @@ object PlayerController {
             .setArtist(track.artist)
             .setAlbumArtist(track.artist)
 
-        // realCoverOrNull, а не isNotBlank: у трека без обложки coverUrl содержит
-        // ЗАГЛУШКУ VK (audio_row_placeholder.png), и простая проверка на пустоту
-        // считала её настоящей обложкой — в уведомление уходила серая картинка VK
-        // вместо нашей кастомной.
-        val cover = com.lmg.vk.ui.glass.TrackPlaceholderArt.realCoverOrNull(track.coverUrl)
+        // Stock-placeholder VK не является artwork. VK-generated thumb имеет
+        // другой CDN URL и проходит эту проверку как полноценная обложка.
+        val cover = com.lmg.vk.ui.glass.ArtworkSourceResolver.realCoverOrNull(track.coverUrl)
         if (cover != null) {
             metaBuilder.setArtworkUri(track.displayArtUri)
-        } else {
-            // Обложки нет — в очередь кладём короткий URI локального ресурса.
-            // Никогда не встраиваем WebP как artworkData: MediaMetadata клонирует
-            // ByteArray для каждого элемента и передаёт его через Binder.
-            appContext?.let { ctx ->
-                metaBuilder.setArtworkUri(
-                    com.lmg.vk.ui.glass.TrackPlaceholderArt.uriFor(ctx, track.id)
-                )
-            }
         }
 
         if (track.durationMs > 0) {
