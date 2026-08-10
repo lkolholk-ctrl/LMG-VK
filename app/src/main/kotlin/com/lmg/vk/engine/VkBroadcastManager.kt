@@ -85,14 +85,15 @@ object VkBroadcastManager {
      * с PodcastInfo, `appmetrica() == 2`) там СНИМАЮТ статус вместо установки.
      * ОТСТУПЛЕНИЕ ОТ VK X: в модели [Track] признака подкаста нет, поэтому
      * подкасты здесь отфильтровать нечем — фильтруем по тому, что есть: трек
-     * должен быть онлайновым VK-треком с валидным `owner_id_audio_id`.
+     * должен быть онлайновым VK-треком с валидным
+     * `owner_id_audio_id[_access_key]`.
      * Локальные файлы и видеоклипы (`clip_<id>`) id-проверку не проходят.
      */
     private fun broadcastableId(track: Track?): String? {
         val id = track?.id ?: return null
-        val fullId = VkAudioIdentity.normalizeFullId(id)
-        if (!VkAudioIdentity.isFullId(fullId)) return null
-        return fullId
+        // access_key нужен только для получения потока. В статус отправляется
+        // стабильный двухсегментный id, без раскрытия ключа доступа.
+        return VkAudioIdentity.bareFullId(id)
     }
 
     /**
