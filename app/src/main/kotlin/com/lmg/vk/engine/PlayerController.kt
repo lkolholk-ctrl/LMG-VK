@@ -45,7 +45,10 @@ sealed class PlaybackContext {
     data class Playlist(val id: String) : PlaybackContext()
     data class Album(val id: String) : PlaybackContext()
     data class Artist(val id: String) : PlaybackContext()
-    data class VkMix(val mixId: String, val entityId: String?) : PlaybackContext()
+    data class VkMix(val session: VkMixSession) : PlaybackContext() {
+        val mixId: String get() = session.mixId
+        val entityId: String? get() = session.entityId
+    }
     object Global : PlaybackContext()
 }
 
@@ -2143,8 +2146,6 @@ object PlayerController {
                 com.lmg.vk.data.local.db.LibraryRepository.getInstance(it)
             } ?: return@launch
             val track = _currentTrack.value
-            // Wave-фидбек (more_track/more_artist) шлёт сам LibraryRepository
-            // внутри likeTrack/unlikeTrack — здесь не дублируем.
             if (track != null && track.id == trackId) {
                 repo.toggleFavorite(track)
             } else {

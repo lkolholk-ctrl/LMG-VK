@@ -29,6 +29,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
@@ -41,10 +42,14 @@ import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.ThumbDown
-import androidx.compose.material.icons.rounded.Whatshot
+import androidx.compose.material.icons.rounded.Tune
+import androidx.compose.material.icons.rounded.Undo
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -83,8 +88,10 @@ import com.lmg.vk.engine.backend.toTrack
 import com.lmg.vk.engine.AudioReactor
 import com.lmg.vk.engine.LyricsParser
 import com.lmg.vk.engine.PlaybackBackend
+import com.lmg.vk.engine.PlaybackContext
 import com.lmg.vk.engine.PlayerController
 import com.lmg.vk.engine.Track
+import com.lmg.vk.engine.VkMixCategoryType
 import com.lmg.vk.ui.glass.AlbumArtImage
 import com.lmg.vk.ui.glass.liquidClickable
 import com.lmg.vk.ui.glass.rememberAlbumColors
@@ -92,6 +99,8 @@ import com.lmg.vk.ui.player.AuraBackground
 import com.lmg.vk.ui.theme.AppFontFamily
 import com.lmg.vk.ui.theme.LiquidMotion
 import com.lmg.vk.ui.viewmodel.HomeViewModel
+import com.lmg.vk.ui.viewmodel.VkMixFeedbackState
+import com.lmg.vk.ui.viewmodel.VkMixUiState
 import java.util.Calendar
 import kotlin.math.PI
 import kotlin.math.abs
@@ -114,6 +123,7 @@ import kotlinx.coroutines.withContext
  * and the background is a single animated aura Canvas. Tapping the cover or the
  * title panel opens the full-screen player via [onOpenPlayer].
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun WaveHomeScreen(
     viewModel: HomeViewModel,
@@ -139,7 +149,11 @@ fun WaveHomeScreen(
     val isBuffering by PlayerController.isBuffering.collectAsState()
     val favoriteIds by PlayerController.favoriteIds.collectAsState()
     val isBuildingWave by viewModel.isBuildingWave.collectAsState()
+    val mixState by viewModel.vkMixState.collectAsState()
+    val mixFeedback by viewModel.vkMixFeedback.collectAsState()
     val isLoggedIn by com.lmg.vk.engine.backend.MusicAuth.isLoggedIn.collectAsState()
+    var showMixSettings by remember { mutableStateOf(false) }
+    val mixSettingsSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     fun startAuraMix() {
         if (isLoggedIn) viewModel.startAuraMix(context) else onOpenAuth()
@@ -158,6 +172,10 @@ fun WaveHomeScreen(
     val scope = rememberCoroutineScope()
     val backend by PlayerController.playbackBackend.collectAsState()
     val queueList by PlayerController.queueFlow.collectAsState()
+
+    LaunchedEffect(track?.id) {
+        viewModel.onAuraTrackChanged(track?.id)
+    }
 
     // Сглаженный бас 0..1 — пульс обложки и кромок мудкарточек. Питается только
     // от стриминга (BassAudioProcessor в цепочке ExoPlayer); у локального JUCE
@@ -185,11 +203,17 @@ fun WaveHomeScreen(
         else (idx + 1 until minOf(idx + 4, queueList.size)).map { it to queueList[it] }
     }
 
-    // Фидбек волны — только backend-стриминг с активным wave-контекстом
-    // (для локальных файлов на JUCE он бессмыслен).
+    // Official dislike belongs only to an active VK Mix streaming source.
     val showWaveFeedback = track != null &&
-        waveContext != null &&
+        PlayerController.playbackContext is PlaybackContext.VkMix &&
         backend == PlaybackBackend.EXO_STREAMING
+
+    val mixSession = when (val state = mixState) {
+        is VkMixUiState.Ready -> state.session
+        is VkMixUiState.Empty -> state.session
+        is VkMixUiState.Error -> state.session
+        else -> null
+    }
 
     // Широкое окно (телефон-альбом / планшет): вместо полноэкранной Волны с
     // дымом — медиатечный двухколоночный layout (референс). return ПОСЛЕ всех
@@ -223,7 +247,18 @@ fun WaveHomeScreen(
                 .fillMaxSize()
                 .statusBarsPadding()
         ) {
-            WaveTopBar(onSearch = onNavigateToSearch, onOpenProfile = onOpenProfile)
+            WaveTopBar(
+                onSearch = onNavigateToSearch,
+                onOpenProfile = onOpenProfile,
+                onTune = if (isLoggedIn && mixSession?.isTunable != false) {
+                    {
+                        showMixSettings = true
+                        viewModel.prepareVkMixSettings()
+                    }
+                } else {
+                    null
+                },
+            )
 
             // ── Индикатор активной волны (по муду/треку/артисту) + сброс на «Мою волну» ──
             if (activeStationName != null) {
@@ -274,9 +309,14 @@ fun WaveHomeScreen(
                             fontFamily = AppFontFamily,
                             textAlign = TextAlign.Center
                         )
+                        VkMixInlineStatus(
+                            state = mixState,
+                            onRetry = { viewModel.retryVkMix(context) },
+                            onAuth = onOpenAuth,
+                        )
                         Spacer(Modifier.height(40.dp))
                         BigPlayButton(
-                            loading = isBuildingWave,
+                            loading = isBuildingWave || mixState is VkMixUiState.Loading,
                             accent = accent,
                             onClick = ::startAuraMix,
                         )
@@ -485,58 +525,66 @@ fun WaveHomeScreen(
                             }
                         }
 
-                        // ── Быстрый фидбек VK Mix. Визуал сохранён без изменений;
-                        // сетевую отправку подключим к восстановленной логике VK Mix отдельно. ──
+                        // Official VK negative feedback with a short undo window.
                         if (showWaveFeedback) {
                             Spacer(Modifier.height(14.dp))
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(10.dp)
-                            ) {
-                                WaveFeedbackChip(
-                                    icon = Icons.Rounded.Whatshot,
-                                    label = "More like this",
-                                    tint = accent
-                                ) {
-                                    recordPendingVkMixFeedback("more_track", track.id)
+                            val feedbackForTrack = mixFeedback.takeIf { state ->
+                                when (state) {
+                                    is VkMixFeedbackState.Submitting -> state.trackId == track.id
+                                    is VkMixFeedbackState.UndoAvailable -> state.trackId == track.id
+                                    is VkMixFeedbackState.Undoing -> state.trackId == track.id
+                                    is VkMixFeedbackState.Error -> state.trackId == track.id
+                                    VkMixFeedbackState.Idle -> true
                                 }
-                                WaveFeedbackChip(
-                                    icon = Icons.Rounded.ThumbDown,
-                                    label = "Less",
-                                    tint = Color.White.copy(alpha = 0.75f)
-                                ) {
-                                    recordPendingVkMixFeedback("less_track", track.id)
-                                    PlayerController.skipNext(context)
-                                }
-                            }
-                            Spacer(Modifier.height(8.dp))
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(10.dp)
-                            ) {
-                                fun sendGenreFeedback(type: String) {
-                                    val genre = track.genre
-                                    if (genre.isNullOrBlank()) {
-                                        android.widget.Toast.makeText(
-                                            context,
-                                            "Genre unknown for this track",
-                                            android.widget.Toast.LENGTH_SHORT
-                                        ).show()
+                            } ?: VkMixFeedbackState.Idle
+                            val undoAction = feedbackForTrack is VkMixFeedbackState.UndoAvailable ||
+                                (feedbackForTrack is VkMixFeedbackState.Error && feedbackForTrack.retryUndo)
+                            WaveFeedbackChip(
+                                icon = if (undoAction) Icons.Rounded.Undo else Icons.Rounded.ThumbDown,
+                                label = when (feedbackForTrack) {
+                                    is VkMixFeedbackState.Submitting -> "Sending…"
+                                    is VkMixFeedbackState.UndoAvailable -> "Undo"
+                                    is VkMixFeedbackState.Undoing -> "Undoing…"
+                                    is VkMixFeedbackState.Error -> if (feedbackForTrack.retryUndo) {
+                                        "Retry undo"
                                     } else {
-                                        recordPendingVkMixFeedback(type, genre)
+                                        "Try again"
                                     }
+                                    VkMixFeedbackState.Idle -> "Less"
+                                },
+                                tint = Color.White.copy(alpha = 0.78f),
+                                enabled = feedbackForTrack !is VkMixFeedbackState.Submitting &&
+                                    feedbackForTrack !is VkMixFeedbackState.Undoing,
+                            ) {
+                                when (feedbackForTrack) {
+                                    is VkMixFeedbackState.UndoAvailable ->
+                                        viewModel.undoAuraDislike(track.id)
+                                    is VkMixFeedbackState.Error ->
+                                        viewModel.retryVkMixFeedback(context)
+                                    VkMixFeedbackState.Idle ->
+                                        viewModel.dislikeAuraTrack(context, track.id)
+                                    else -> Unit
                                 }
-                                WaveFeedbackChip(
-                                    icon = Icons.Rounded.Whatshot,
-                                    label = "More genre",
-                                    tint = accent.copy(alpha = 0.85f)
-                                ) { sendGenreFeedback("more_genre") }
-                                WaveFeedbackChip(
-                                    icon = Icons.Rounded.ThumbDown,
-                                    label = "Less genre",
-                                    tint = Color.White.copy(alpha = 0.6f)
-                                ) { sendGenreFeedback("less_genre") }
                             }
+                            (feedbackForTrack as? VkMixFeedbackState.Error)?.let { error ->
+                                Spacer(Modifier.height(7.dp))
+                                Text(
+                                    text = error.message,
+                                    color = Color.White.copy(alpha = 0.76f),
+                                    fontSize = 12.sp,
+                                    fontFamily = AppFontFamily,
+                                    textAlign = TextAlign.Center,
+                                    modifier = Modifier.padding(horizontal = 24.dp),
+                                )
+                            }
+                        }
+
+                        if (mixState is VkMixUiState.Empty || mixState is VkMixUiState.Error) {
+                            VkMixInlineStatus(
+                                state = mixState,
+                                onRetry = { viewModel.retryVkMix(context) },
+                                onAuth = onOpenAuth,
+                            )
                         }
 
                         // ── «Дальше в волне»: следующие обложки, тап — перескок ──
@@ -556,14 +604,29 @@ fun WaveHomeScreen(
         }
 
     }
-}
 
-/**
- * VK Mix feedback endpoint is restored separately from the screen.
- * Keep taps local for now so the original UI is preserved without reviving ICM calls.
- */
-private fun recordPendingVkMixFeedback(type: String, value: String) {
-    android.util.Log.d("VkMix", "feedback pending: $type=$value")
+    if (showMixSettings) {
+        ModalBottomSheet(
+            onDismissRequest = { showMixSettings = false },
+            sheetState = mixSettingsSheetState,
+            containerColor = Color(0xFF151718),
+            contentColor = Color.White,
+            dragHandle = null,
+        ) {
+            VkMixSettingsSheet(
+                state = mixState,
+                accent = accent,
+                onToggle = viewModel::toggleVkMixOption,
+                onReset = viewModel::resetVkMixOptions,
+                onApply = { viewModel.applyVkMixSettings(context) },
+                onRetry = { viewModel.retryVkMix(context) },
+                onAuth = {
+                    showMixSettings = false
+                    onOpenAuth()
+                },
+            )
+        }
+    }
 }
 
 internal fun HomeItem.toWaveTrack(): Track = Track(
@@ -585,6 +648,345 @@ internal fun HomeItem.toWaveTrack(): Track = Track(
     source = source,
     genre = genre
 )
+
+@Composable
+private fun VkMixInlineStatus(
+    state: VkMixUiState,
+    onRetry: () -> Unit,
+    onAuth: () -> Unit,
+) {
+    val message = when (state) {
+        is VkMixUiState.Empty -> "VK Mix did not return any tracks"
+        is VkMixUiState.Error -> state.message
+        else -> null
+    } ?: return
+
+    Spacer(Modifier.height(16.dp))
+    Text(
+        text = message,
+        color = Color.White.copy(alpha = 0.72f),
+        fontSize = 14.sp,
+        lineHeight = 19.sp,
+        fontFamily = AppFontFamily,
+        textAlign = TextAlign.Center,
+        modifier = Modifier.padding(horizontal = 28.dp),
+    )
+    Spacer(Modifier.height(12.dp))
+    Box(
+        modifier = Modifier
+            .clip(CircleShape)
+            .background(Color.White.copy(alpha = 0.13f))
+            .liquidClickable(pressedScale = LiquidMotion.PressButton) {
+                if (state is VkMixUiState.Error && state.sessionExpired) onAuth() else onRetry()
+            }
+            .padding(horizontal = 18.dp, vertical = 10.dp),
+    ) {
+        Text(
+            text = if (state is VkMixUiState.Error && state.sessionExpired) "Sign in" else "Retry",
+            color = Color.White,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.SemiBold,
+            fontFamily = AppFontFamily,
+        )
+    }
+}
+
+@Composable
+private fun VkMixSettingsSheet(
+    state: VkMixUiState,
+    accent: Color,
+    onToggle: (String, String) -> Unit,
+    onReset: () -> Unit,
+    onApply: () -> Unit,
+    onRetry: () -> Unit,
+    onAuth: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .navigationBarsPadding()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 20.dp, vertical = 24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        when (state) {
+            VkMixUiState.Idle,
+            VkMixUiState.Loading -> {
+                CircularProgressIndicator(color = accent, strokeWidth = 3.dp)
+                Spacer(Modifier.height(18.dp))
+                Text(
+                    text = "Loading VK Mix settings…",
+                    color = Color.White.copy(alpha = 0.72f),
+                    fontFamily = AppFontFamily,
+                )
+            }
+
+            is VkMixUiState.Empty -> {
+                VkMixSheetMessage(
+                    title = "VK Mix is empty",
+                    message = "VK did not return tracks for these settings.",
+                    action = "Retry",
+                    onAction = onRetry,
+                )
+            }
+
+            is VkMixUiState.Error -> {
+                VkMixSheetMessage(
+                    title = if (state.sessionExpired) "VK session expired" else "Couldn't load VK Mix",
+                    message = state.message,
+                    action = if (state.sessionExpired) "Sign in" else "Retry",
+                    onAction = if (state.sessionExpired) onAuth else onRetry,
+                )
+            }
+
+            is VkMixUiState.Ready -> {
+                val settings = state.draft
+                Text(
+                    text = settings?.title?.takeIf(String::isNotBlank) ?: state.session.title.ifBlank {
+                        "Tune VK Mix"
+                    },
+                    color = Color.White,
+                    fontSize = 25.sp,
+                    lineHeight = 30.sp,
+                    fontWeight = FontWeight.Black,
+                    fontFamily = AppFontFamily,
+                    textAlign = TextAlign.Center,
+                )
+                settings?.subtitle?.takeIf(String::isNotBlank)?.let { subtitle ->
+                    Spacer(Modifier.height(7.dp))
+                    Text(
+                        text = subtitle,
+                        color = Color.White.copy(alpha = 0.62f),
+                        fontSize = 14.sp,
+                        lineHeight = 19.sp,
+                        fontFamily = AppFontFamily,
+                        textAlign = TextAlign.Center,
+                    )
+                }
+
+                when {
+                    !state.session.isTunable -> {
+                        Spacer(Modifier.height(24.dp))
+                        Text(
+                            text = "VK does not allow tuning this Mix.",
+                            color = Color.White.copy(alpha = 0.68f),
+                            fontFamily = AppFontFamily,
+                            textAlign = TextAlign.Center,
+                        )
+                    }
+
+                    settings == null -> {
+                        Spacer(Modifier.height(24.dp))
+                        Text(
+                            text = "VK did not provide settings for this Mix.",
+                            color = Color.White.copy(alpha = 0.68f),
+                            fontFamily = AppFontFamily,
+                            textAlign = TextAlign.Center,
+                        )
+                    }
+
+                    else -> {
+                        val visibleCategories = settings.categories.filter {
+                            it.type != VkMixCategoryType.HIDDEN
+                        }
+                        visibleCategories.forEach { category ->
+                            Spacer(Modifier.height(26.dp))
+                            Text(
+                                text = category.title,
+                                color = Color.White,
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                fontFamily = AppFontFamily,
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                            Spacer(Modifier.height(11.dp))
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            ) {
+                                category.options.forEach { option ->
+                                    VkMixOptionChip(
+                                        option = option,
+                                        pictured = category.type == VkMixCategoryType.ICONS,
+                                        accent = accent,
+                                        enabled = !state.applying,
+                                        onClick = { onToggle(category.id, option.id) },
+                                    )
+                                }
+                            }
+                        }
+
+                        Spacer(Modifier.height(30.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        ) {
+                            VkMixSheetAction(
+                                label = "Reset",
+                                enabled = settings.hasVisibleSelection() && !state.applying,
+                                filled = false,
+                                accent = accent,
+                                onClick = onReset,
+                                modifier = Modifier.weight(1f),
+                            )
+                            VkMixSheetAction(
+                                label = if (state.applying) "Applying…" else "Apply",
+                                enabled = state.hasChanges && !state.applying,
+                                filled = true,
+                                accent = accent,
+                                onClick = onApply,
+                                modifier = Modifier.weight(1f),
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun VkMixOptionChip(
+    option: com.lmg.vk.engine.VkMixOption,
+    pictured: Boolean,
+    accent: Color,
+    enabled: Boolean,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(if (pictured) 20.dp else 50.dp))
+            .background(
+                if (option.isSelected) accent.copy(alpha = 0.82f)
+                else Color.White.copy(alpha = 0.10f),
+            )
+            .liquidClickable(
+                enabled = enabled,
+                pressedScale = LiquidMotion.PressButton,
+                onClick = onClick,
+            )
+            .padding(
+                horizontal = if (pictured) 14.dp else 16.dp,
+                vertical = if (pictured) 13.dp else 10.dp,
+            ),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (pictured && option.icon.isNotBlank()) {
+            if (option.icon.startsWith("http", ignoreCase = true)) {
+                AsyncImage(
+                    model = option.icon,
+                    contentDescription = null,
+                    modifier = Modifier.size(28.dp),
+                )
+            } else {
+                Text(
+                    text = option.icon,
+                    color = Color.White,
+                    fontSize = 20.sp,
+                    fontFamily = AppFontFamily,
+                )
+            }
+            Spacer(Modifier.width(8.dp))
+        }
+        Text(
+            text = option.title,
+            color = Color.White.copy(alpha = if (enabled) 1f else 0.55f),
+            fontSize = 14.sp,
+            fontWeight = if (option.isSelected) FontWeight.Bold else FontWeight.Medium,
+            fontFamily = AppFontFamily,
+            maxLines = 1,
+        )
+        option.badgeIconUrl
+            ?.takeIf { it.startsWith("http", ignoreCase = true) }
+            ?.let { badge ->
+                Spacer(Modifier.width(6.dp))
+                AsyncImage(
+                    model = badge,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                )
+            }
+    }
+}
+
+@Composable
+private fun VkMixSheetAction(
+    label: String,
+    enabled: Boolean,
+    filled: Boolean,
+    accent: Color,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier
+            .height(50.dp)
+            .clip(CircleShape)
+            .background(
+                when {
+                    !enabled -> Color.White.copy(alpha = 0.06f)
+                    filled -> accent.copy(alpha = 0.88f)
+                    else -> Color.White.copy(alpha = 0.12f)
+                },
+            )
+            .liquidClickable(
+                enabled = enabled,
+                pressedScale = LiquidMotion.PressButton,
+                onClick = onClick,
+            ),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = label,
+            color = Color.White.copy(alpha = if (enabled) 1f else 0.38f),
+            fontWeight = FontWeight.Bold,
+            fontFamily = AppFontFamily,
+        )
+    }
+}
+
+@Composable
+private fun VkMixSheetMessage(
+    title: String,
+    message: String,
+    action: String,
+    onAction: () -> Unit,
+) {
+    Text(
+        text = title,
+        color = Color.White,
+        fontSize = 23.sp,
+        fontWeight = FontWeight.Black,
+        fontFamily = AppFontFamily,
+        textAlign = TextAlign.Center,
+    )
+    Spacer(Modifier.height(9.dp))
+    Text(
+        text = message,
+        color = Color.White.copy(alpha = 0.65f),
+        fontSize = 14.sp,
+        lineHeight = 19.sp,
+        fontFamily = AppFontFamily,
+        textAlign = TextAlign.Center,
+    )
+    Spacer(Modifier.height(22.dp))
+    Box(
+        modifier = Modifier
+            .clip(CircleShape)
+            .background(Color.White.copy(alpha = 0.13f))
+            .liquidClickable(pressedScale = LiquidMotion.PressButton, onClick = onAction)
+            .padding(horizontal = 22.dp, vertical = 11.dp),
+    ) {
+        Text(
+            text = action,
+            color = Color.White,
+            fontWeight = FontWeight.Bold,
+            fontFamily = AppFontFamily,
+        )
+    }
+}
 
 @Composable
 private fun WaveSectionHeader(title: String) {
@@ -769,7 +1171,11 @@ private fun WaveStationIndicator(name: String, onClear: () -> Unit) {
 }
 
 @Composable
-private fun WaveTopBar(onSearch: () -> Unit, onOpenProfile: () -> Unit) {
+private fun WaveTopBar(
+    onSearch: () -> Unit,
+    onOpenProfile: () -> Unit,
+    onTune: (() -> Unit)?,
+) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -815,15 +1221,32 @@ private fun WaveTopBar(onSearch: () -> Unit, onOpenProfile: () -> Unit) {
             modifier = Modifier.align(Alignment.Center)
         )
 
-        Icon(
-            imageVector = Icons.Rounded.Search,
-            contentDescription = "Search",
-            tint = Color.White,
+        Row(
             modifier = Modifier
                 .align(Alignment.CenterEnd)
-                .size(26.dp)
-                .liquidClickable(pressedScale = LiquidMotion.PressIcon) { onSearch() }
-        )
+                .height(40.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            onTune?.let { tune ->
+                Icon(
+                    imageVector = Icons.Rounded.Tune,
+                    contentDescription = "Tune VK Mix",
+                    tint = Color.White,
+                    modifier = Modifier
+                        .size(25.dp)
+                        .liquidClickable(pressedScale = LiquidMotion.PressIcon, onClick = tune),
+                )
+            }
+            Icon(
+                imageVector = Icons.Rounded.Search,
+                contentDescription = "Search",
+                tint = Color.White,
+                modifier = Modifier
+                    .size(26.dp)
+                    .liquidClickable(pressedScale = LiquidMotion.PressIcon) { onSearch() },
+            )
+        }
     }
 }
 
@@ -958,36 +1381,37 @@ private fun CurrentLyricLine(track: Track) {
     }
 }
 
-/** Чип быстрого фидбека волны («ещё такого» / «меньше такого»). */
+/** Official VK Mix dislike/undo chip. */
 @Composable
 private fun WaveFeedbackChip(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     label: String,
     tint: Color,
+    enabled: Boolean = true,
     onClick: () -> Unit
 ) {
-    var pressedOnce by remember { mutableStateOf(false) }
     Row(
         modifier = Modifier
             .clip(CircleShape)
-            .background(Color.White.copy(alpha = if (pressedOnce) 0.22f else 0.12f))
-            .liquidClickable(pressedScale = LiquidMotion.PressButton) {
-                pressedOnce = true
-                onClick()
-            }
+            .background(Color.White.copy(alpha = 0.12f))
+            .liquidClickable(
+                enabled = enabled,
+                pressedScale = LiquidMotion.PressButton,
+                onClick = onClick,
+            )
             .padding(horizontal = 14.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(
             imageVector = icon,
             contentDescription = label,
-            tint = tint,
+            tint = tint.copy(alpha = if (enabled) 1f else 0.45f),
             modifier = Modifier.size(16.dp)
         )
         Spacer(Modifier.width(6.dp))
         Text(
             text = label,
-            color = Color.White,
+            color = Color.White.copy(alpha = if (enabled) 1f else 0.45f),
             fontSize = 12.sp,
             fontWeight = FontWeight.SemiBold,
             fontFamily = AppFontFamily

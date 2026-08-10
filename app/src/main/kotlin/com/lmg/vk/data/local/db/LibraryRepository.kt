@@ -278,10 +278,6 @@ class LibraryRepository private constructor(context: Context) {
                         // повторно отправит уже применённое изменение.
                         db.markSynced(track.id)
                     }
-                    com.lmg.vk.engine.backend.WaveSignalQueue.sendFeedback("more_track", track.id)
-                    track.artists.firstOrNull()?.id?.let {
-                        com.lmg.vk.engine.backend.WaveSignalQueue.sendFeedback("more_artist", it)
-                    }
                 } catch (_: Exception) {
                 } finally {
                     inFlight.remove(track.id)
@@ -318,7 +314,6 @@ class LibraryRepository private constructor(context: Context) {
                     if (success) {
                         db.deleteByTrackId(trackId)
                     }
-                    com.lmg.vk.engine.backend.WaveSignalQueue.sendFeedback("less_track", trackId)
                 } catch (_: Exception) {
                 } finally {
                     inFlight.remove(trackId)

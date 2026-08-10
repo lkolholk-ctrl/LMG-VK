@@ -10,11 +10,16 @@ import com.lmg.vk.engine.backend.Chart
 import com.lmg.vk.engine.backend.HomeBlock
 import com.lmg.vk.engine.backend.HomeResponse
 import com.lmg.vk.engine.backend.MusicBackend
+import com.lmg.vk.engine.backend.BackendException
 import com.lmg.vk.data.local.HomeCacheManager
 import com.lmg.vk.data.local.WaveRepository
 import com.lmg.vk.data.wave.WaveMode
+import com.lmg.vk.engine.PlaybackBackend
+import com.lmg.vk.engine.PlaybackContext
 import com.lmg.vk.engine.PlayerController
 import com.lmg.vk.engine.Track
+import com.lmg.vk.engine.VkMixSession
+import com.lmg.vk.engine.VkMixSettings
 import android.util.Log
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
@@ -22,6 +27,47 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import kotlin.random.Random
+
+enum class VkMixOperation { LOAD_SETTINGS, START, APPLY }
+
+sealed interface VkMixUiState {
+    data object Idle : VkMixUiState
+    data object Loading : VkMixUiState
+
+    data class Ready(
+        val session: VkMixSession,
+        val original: VkMixSettings?,
+        val draft: VkMixSettings?,
+        val applying: Boolean = false,
+        val settingsLoaded: Boolean = false,
+    ) : VkMixUiState {
+        val hasChanges: Boolean get() = draft != null && draft != original
+    }
+
+    data class Empty(val session: VkMixSession? = null) : VkMixUiState
+
+    data class Error(
+        val message: String,
+        val sessionExpired: Boolean,
+        val operation: VkMixOperation,
+        val session: VkMixSession? = null,
+        val original: VkMixSettings? = session?.settings,
+        val draft: VkMixSettings? = original,
+    ) : VkMixUiState
+}
+
+sealed interface VkMixFeedbackState {
+    data object Idle : VkMixFeedbackState
+    data class Submitting(val trackId: String) : VkMixFeedbackState
+    data class UndoAvailable(val trackId: String) : VkMixFeedbackState
+    data class Undoing(val trackId: String) : VkMixFeedbackState
+    data class Error(
+        val trackId: String,
+        val message: String,
+        val retryUndo: Boolean,
+    ) : VkMixFeedbackState
+}
 
 /**
  * ViewModel for the Home (Listen Now) screen.
@@ -36,12 +82,34 @@ class HomeViewModel : ViewModel() {
     private var chartsLoadJob: Job? = null
     private var genresLoadJob: Job? = null
     private var waveLoadJob: Job? = null
+    private var mixSettingsJob: Job? = null
+    private var feedbackJob: Job? = null
+    private var pendingDislikeSkipJob: Job? = null
+
+    private val restoredMixSession =
+        (PlayerController.playbackContext as? PlaybackContext.VkMix)?.session
+    private val _vkMixState = MutableStateFlow<VkMixUiState>(
+        restoredMixSession?.let { session ->
+            VkMixUiState.Ready(
+                session,
+                session.settings,
+                session.settings,
+                settingsLoaded = session.mixOptionsId != null,
+            )
+        } ?: VkMixUiState.Idle,
+    )
+    val vkMixState: StateFlow<VkMixUiState> = _vkMixState
+
+    private val _vkMixFeedback = MutableStateFlow<VkMixFeedbackState>(VkMixFeedbackState.Idle)
+    val vkMixFeedback: StateFlow<VkMixFeedbackState> = _vkMixFeedback
 
     /** Когда /home успешно загружен из сети (для TTL в loadHomeContent). */
     private var homeLoadedAtMs = 0L
 
     private companion object {
         const val HOME_TTL_MS = 5 * 60_000L
+        const val VK_MIX_OPTIONS_ID_BOUND = 9_999_999_999_999L
+        const val VK_MIX_DISLIKE_UNDO_MS = 2_000L
     }
 
     init {
@@ -386,39 +454,144 @@ class HomeViewModel : ViewModel() {
         }
     }
 
+    /** Resolve the tunable source without starting playback. */
+    fun prepareVkMixSettings() {
+        val current = _vkMixState.value
+        if (current is VkMixUiState.Ready &&
+            (!current.session.isTunable || current.settingsLoaded)
+        ) {
+            return
+        }
+        if (mixSettingsJob?.isActive == true || waveLoadJob?.isActive == true) return
+
+        val retainedSession = when (current) {
+            is VkMixUiState.Ready -> current.session
+            is VkMixUiState.Empty -> current.session
+            is VkMixUiState.Error -> current.session
+            else -> null
+        } ?: (PlayerController.playbackContext as? PlaybackContext.VkMix)?.session
+
+        _vkMixState.value = VkMixUiState.Loading
+        mixSettingsJob = viewModelScope.launch {
+            try {
+                val session = retainedSession ?: MusicBackend.resolvePersonalMixSession()
+                val settings = if (session.isTunable) {
+                    MusicBackend.getVkMixSettings(session)
+                } else {
+                    session.settings
+                }
+                val hydrated = session.copy(
+                    settings = settings,
+                    // A freshly resolved source with settings supplied by the
+                    // dedicated endpoint starts from those server selections.
+                    options = if (session.settings == null && session.mixOptionsId == null) {
+                        settings?.selectedOptions().orEmpty()
+                    } else {
+                        session.options
+                    },
+                )
+                _vkMixState.value = VkMixUiState.Ready(
+                    hydrated,
+                    settings,
+                    settings,
+                    settingsLoaded = true,
+                )
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _vkMixState.value = e.toVkMixError(
+                    operation = VkMixOperation.LOAD_SETTINGS,
+                    session = retainedSession,
+                )
+            } finally {
+                if (mixSettingsJob === coroutineContext[Job]) mixSettingsJob = null
+            }
+        }
+    }
+
+    fun toggleVkMixOption(categoryId: String, optionId: String) {
+        val ready = _vkMixState.value as? VkMixUiState.Ready ?: return
+        val draft = ready.draft ?: return
+        if (ready.applying) return
+        _vkMixState.value = ready.copy(draft = draft.toggle(categoryId, optionId))
+    }
+
+    fun resetVkMixOptions() {
+        val ready = _vkMixState.value as? VkMixUiState.Ready ?: return
+        val draft = ready.draft ?: return
+        if (ready.applying) return
+        _vkMixState.value = ready.copy(draft = draft.clearVisibleSelections())
+    }
+
+    /**
+     * Apply is atomic from the player's point of view: the old queue remains
+     * active until VK has returned a non-empty `append=false` batch.
+     */
+    fun applyVkMixSettings(context: Context) {
+        val ready = _vkMixState.value as? VkMixUiState.Ready ?: return
+        val draft = ready.draft ?: return
+        if (!ready.hasChanges || ready.applying || waveLoadJob?.isActive == true) return
+
+        val preparedSession = ready.session.copy(
+            settings = draft,
+            options = draft.selectedOptions(),
+            mixOptionsId = Random.nextLong(VK_MIX_OPTIONS_ID_BOUND),
+        )
+        _vkMixState.value = ready.copy(applying = true)
+        startKnownVkMix(
+            context = context,
+            session = preparedSession,
+            operation = VkMixOperation.APPLY,
+            original = ready.original,
+            draft = draft,
+        )
+    }
+
     /**
      * Starts the official personal VK Mix inside LMG's Aura presentation.
      * The Aura remains the whole screen; VK supplies only the playback source.
      */
     fun startAuraMix(context: Context) {
         if (waveLoadJob?.isActive == true) return
+        mixSettingsJob?.cancel()
+        mixSettingsJob = null
         _error.value = null
         _isBuildingWave.value = true
+        _vkMixState.value = VkMixUiState.Loading
 
         waveLoadJob = viewModelScope.launch {
+            var session: VkMixSession? = null
             try {
-                val mixSource = MusicBackend.getPersonalMixSource()
-                val tracks = mixSource?.tracks.orEmpty().filter { it.isAvailable }
+                session = MusicBackend.resolvePersonalMixSession()
+                val mixSource = MusicBackend.startVkMix(session)
+                val tracks = mixSource.tracks.filter { it.isAvailable }
                 android.util.Log.d("VkMix", "startAuraMix -> ${tracks.size} tracks")
 
-                if (mixSource != null && tracks.isNotEmpty()) {
+                if (tracks.isNotEmpty()) {
                     _waveTracks.value = tracks
                     PlayerController.playFromList(
                         context = context,
                         tracks = tracks,
                         startIndex = 0,
-                        playbackContext = com.lmg.vk.engine.PlaybackContext.VkMix(
-                            mixId = mixSource.mixId,
-                            entityId = mixSource.entityId,
-                        ),
+                        playbackContext = com.lmg.vk.engine.PlaybackContext.VkMix(mixSource.session),
+                    )
+                    _vkMixState.value = VkMixUiState.Ready(
+                        session = mixSource.session,
+                        original = mixSource.session.settings,
+                        draft = mixSource.session.settings,
                     )
                 } else {
+                    _vkMixState.value = VkMixUiState.Empty(session)
                     _error.value = "VK Mix недоступен"
                 }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
                 _error.value = com.lmg.vk.engine.backend.backendUserMessage(e)
+                _vkMixState.value = e.toVkMixError(
+                    operation = VkMixOperation.START,
+                    session = session,
+                )
             } finally {
                 if (waveLoadJob === coroutineContext[Job]) {
                     _isBuildingWave.value = false
@@ -427,6 +600,204 @@ class HomeViewModel : ViewModel() {
             }
         }
     }
+
+    private fun startKnownVkMix(
+        context: Context,
+        session: VkMixSession,
+        operation: VkMixOperation,
+        original: VkMixSettings? = session.settings,
+        draft: VkMixSettings? = session.settings,
+    ) {
+        if (waveLoadJob?.isActive == true) return
+        _isBuildingWave.value = true
+        _vkMixState.value = if (operation == VkMixOperation.APPLY) {
+            VkMixUiState.Ready(session, original, draft, applying = true)
+        } else {
+            VkMixUiState.Loading
+        }
+        waveLoadJob = viewModelScope.launch {
+            try {
+                val source = MusicBackend.startVkMix(session)
+                val tracks = source.tracks.filter { it.isAvailable }
+                if (tracks.isEmpty()) {
+                    _vkMixState.value = VkMixUiState.Empty(session)
+                    return@launch
+                }
+                _waveTracks.value = tracks
+                PlayerController.playFromList(
+                    context = context,
+                    tracks = tracks,
+                    startIndex = 0,
+                    playbackContext = PlaybackContext.VkMix(session),
+                )
+                val accepted = draft ?: session.settings
+                _vkMixState.value = VkMixUiState.Ready(
+                    session,
+                    accepted,
+                    accepted,
+                    settingsLoaded = operation == VkMixOperation.APPLY || session.mixOptionsId != null,
+                )
+                _error.value = null
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _vkMixState.value = e.toVkMixError(
+                    operation = operation,
+                    session = session,
+                    original = original,
+                    draft = draft,
+                )
+            } finally {
+                if (waveLoadJob === coroutineContext[Job]) {
+                    _isBuildingWave.value = false
+                    waveLoadJob = null
+                }
+            }
+        }
+    }
+
+    fun retryVkMix(context: Context) {
+        when (val state = _vkMixState.value) {
+            is VkMixUiState.Error -> when {
+                state.operation == VkMixOperation.LOAD_SETTINGS -> prepareVkMixSettings()
+                state.session != null -> startKnownVkMix(
+                    context = context,
+                    session = state.session,
+                    operation = state.operation,
+                    original = state.original,
+                    draft = state.draft,
+                )
+                else -> startAuraMix(context)
+            }
+            is VkMixUiState.Empty -> state.session?.let { session ->
+                startKnownVkMix(context, session, VkMixOperation.START)
+            } ?: startAuraMix(context)
+            else -> Unit
+        }
+    }
+
+    fun dislikeAuraTrack(context: Context, trackId: String) {
+        val activeMix = PlayerController.playbackContext is PlaybackContext.VkMix
+        if (!activeMix || PlayerController.playbackBackend.value != PlaybackBackend.EXO_STREAMING) return
+        if (_vkMixFeedback.value is VkMixFeedbackState.Submitting ||
+            _vkMixFeedback.value is VkMixFeedbackState.Undoing
+        ) return
+
+        pendingDislikeSkipJob?.cancel()
+        feedbackJob?.cancel()
+        _vkMixFeedback.value = VkMixFeedbackState.Submitting(trackId)
+        feedbackJob = viewModelScope.launch {
+            try {
+                MusicBackend.dislikeTrack(trackId)
+                _vkMixFeedback.value = VkMixFeedbackState.UndoAvailable(trackId)
+                pendingDislikeSkipJob = viewModelScope.launch {
+                    delay(VK_MIX_DISLIKE_UNDO_MS)
+                    val state = _vkMixFeedback.value
+                    if (state is VkMixFeedbackState.UndoAvailable &&
+                        state.trackId == trackId &&
+                        PlayerController.currentTrack.value?.id == trackId
+                    ) {
+                        PlayerController.skipNext(context)
+                    }
+                    if ((_vkMixFeedback.value as? VkMixFeedbackState.UndoAvailable)?.trackId == trackId) {
+                        _vkMixFeedback.value = VkMixFeedbackState.Idle
+                    }
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _vkMixFeedback.value = VkMixFeedbackState.Error(
+                    trackId = trackId,
+                    message = com.lmg.vk.engine.backend.backendUserMessage(e),
+                    retryUndo = false,
+                )
+            } finally {
+                if (feedbackJob === coroutineContext[Job]) feedbackJob = null
+            }
+        }
+    }
+
+    fun undoAuraDislike(trackId: String) {
+        val canUndo = when (val state = _vkMixFeedback.value) {
+            is VkMixFeedbackState.UndoAvailable -> state.trackId == trackId
+            is VkMixFeedbackState.Error -> state.trackId == trackId && state.retryUndo
+            else -> false
+        }
+        if (!canUndo) return
+
+        pendingDislikeSkipJob?.cancel()
+        feedbackJob?.cancel()
+        _vkMixFeedback.value = VkMixFeedbackState.Undoing(trackId)
+        feedbackJob = viewModelScope.launch {
+            try {
+                MusicBackend.removeTrackDislike(trackId)
+                _vkMixFeedback.value = VkMixFeedbackState.Idle
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _vkMixFeedback.value = VkMixFeedbackState.Error(
+                    trackId = trackId,
+                    message = com.lmg.vk.engine.backend.backendUserMessage(e),
+                    retryUndo = true,
+                )
+            } finally {
+                if (feedbackJob === coroutineContext[Job]) feedbackJob = null
+            }
+        }
+    }
+
+    fun retryVkMixFeedback(context: Context) {
+        val error = _vkMixFeedback.value as? VkMixFeedbackState.Error ?: return
+        if (error.retryUndo) undoAuraDislike(error.trackId)
+        else dislikeAuraTrack(context, error.trackId)
+    }
+
+    fun onAuraTrackChanged(trackId: String?) {
+        val activeSession = (PlayerController.playbackContext as? PlaybackContext.VkMix)?.session
+        val stateSession = when (val state = _vkMixState.value) {
+            is VkMixUiState.Ready -> state.session
+            is VkMixUiState.Empty -> state.session
+            is VkMixUiState.Error -> state.session
+            else -> null
+        }
+        val stateIsBusy = _vkMixState.value is VkMixUiState.Loading ||
+            (_vkMixState.value as? VkMixUiState.Ready)?.applying == true
+        if (activeSession != null && activeSession != stateSession && !stateIsBusy) {
+            _vkMixState.value = VkMixUiState.Ready(
+                activeSession,
+                activeSession.settings,
+                activeSession.settings,
+                settingsLoaded = activeSession.mixOptionsId != null,
+            )
+        }
+
+        val feedbackTrackId = when (val state = _vkMixFeedback.value) {
+            is VkMixFeedbackState.Submitting -> state.trackId
+            is VkMixFeedbackState.UndoAvailable -> state.trackId
+            is VkMixFeedbackState.Undoing -> state.trackId
+            is VkMixFeedbackState.Error -> state.trackId
+            VkMixFeedbackState.Idle -> null
+        }
+        if (feedbackTrackId != null && feedbackTrackId != trackId) {
+            feedbackJob?.cancel()
+            pendingDislikeSkipJob?.cancel()
+            _vkMixFeedback.value = VkMixFeedbackState.Idle
+        }
+    }
+
+    private fun Exception.toVkMixError(
+        operation: VkMixOperation,
+        session: VkMixSession? = null,
+        original: VkMixSettings? = session?.settings,
+        draft: VkMixSettings? = original,
+    ) = VkMixUiState.Error(
+        message = com.lmg.vk.engine.backend.backendUserMessage(this),
+        sessionExpired = (this as? BackendException)?.code?.let { it == 401 || it == 1117 } == true,
+        operation = operation,
+        session = session,
+        original = original,
+        draft = draft,
+    )
 
     /**
      * Builds an expanded mood wave through /wave/mood/{mood}.

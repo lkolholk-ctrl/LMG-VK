@@ -314,8 +314,10 @@ VK X всегда шлёт `Collections.singletonList(...)`, то есть ро�
 
 ### Расхождение с кодом LMG-VK
 
-`VkAudioApi.addDislike()` использует `UnitParser` — параметр верный, но возвращаемый трек
-теряется. Если нужен ответ — второй метод по образцу `restoreDetailed`.
+Расхождение устранено: `VkAudioApi.addDislike()` разбирает подтверждённый
+`AudioAudioDto`, а backend обновляет этим ответом кэш трека. В Aura действие
+доступно только для активного `PlaybackContext.VkMix`; после успеха показывается
+двухсекундное окно Undo через `audio.removeDislike`.
 
 ---
 
@@ -588,19 +590,25 @@ data class AudioRelatedArtistsResponse(
 
 ### Форма ответа
 
-Все ключи **обязательные** (`advert(…, false)` во всех четырёх дескрипторах):
+Старый контракт VK X делал исходные ключи обязательными. Проверка актуального
+официального VK 8.185 уточнила расширенный контракт: `multi_select`, `selected`
+и `icon_badge` nullable. `mix_categories` и `options` остаются обязательными по
+конструкторам/parcel generated DTO. Поэтому утверждение «все поля обязательны»
+к текущему ответу неприменимо.
 
 ```
 {
   "settings": {                                   // SRC C12924e.java:9-10
     "title": String,
     "subtitle": String,
+    "multi_select": Boolean?,
     "mix_categories": [                           // SRC C18102e.java:11-14
       {
         "id": String, "title": String, "type": String,   // SRC C14713e.java:11-15
         "options": [
           { "id": String, "icon": String,               // SRC C15663e.java:9-13
-            "selected": Boolean, "title": String }
+            "icon_badge": String?,
+            "selected": Boolean?, "title": String }
         ]
       }
     ]
@@ -616,10 +624,30 @@ FQN: `…objects.audio.AudioGetStreamMixSettingsResponseDto` / `AudioStreamMixSe
 
 ### DTO
 
-Новых не нужно. Уже совпадают ключ в ключ:
+Модели расширены по VK 8.185:
 `AudioStreamMixSettingsResponse`, `AudioStreamMixSettings`, `AudioStreamMixSettingsCategory`,
 `AudioStreamMixSettingsOption` в
 `/root/LMG-VK/app/src/main/kotlin/com/lmg/vk/network/dto/music/Priority1MusicDtos.kt`.
+
+### Связанный поток `audio.getStreamMixAudios` в VK 8.185
+
+При старте отправляется `append=false`, при продолжении этой же очереди —
+`append=true`. Оба запроса обязаны нести одинаковые `mix_id`, `entity_id`,
+`ref=vk_mix`, `options` и сгенерированный при изменении настроек `mixOptionsId`.
+Дополнительно метод поддерживает подтверждённый `prompt_events`.
+
+`options` — JSON-объект, а не Moshi DTO:
+
+```json
+{
+  "id": "123456789",
+  "category_id": ["selected_option_id"]
+}
+```
+
+Пустые категории из JSON удаляются. В одной категории выбирается максимум один
+option. При `multi_select=false` новый выбор очищает остальные видимые
+категории; hidden-категории редактор не показывает и не изменяет.
 
 ### Расхождение с кодом LMG-VK
 
@@ -727,13 +755,13 @@ FQN: `…objects.audio.AudioGetStreamMixSettingsResponseDto` / `AudioStreamMixSe
 | 1 | `audio.add` | подтверждено | не найдено в доках | — (`Unit`) | готов; уже в коде, совпадает |
 | 2 | `audio.delete` | подтверждено | не найдено в доках | — (`Unit`) | готов; уже в коде, совпадает |
 | 3 | `audio.restore` | подтверждено | подтверждено: `AudioAudioDto` (39 ключей) | расширить `AudioAudioDto` (+19 полей) | готов; в коде есть оба варианта |
-| 4 | `audio.addDislike` | подтверждено | подтверждено: `AudioAudioDto` | переиспользовать `AudioAudioDto` | готов; в коде парсится как `Unit` |
+| 4 | `audio.addDislike` | подтверждено | подтверждено: `AudioAudioDto` | переиспользовать `AudioAudioDto` | готов; ответ парсится и используется |
 | 5 | `audio.removeDislike` | подтверждено | не найдено в доках | — (`Unit`) | готов; уже в коде, совпадает |
 | 6 | `audio.reorderInPlaylist` | подтверждено (`playlist_id`, `owner_id`, `actions`) | частично (парсить `Unit`) | `AudioPlaylistReorderAction` (не JSON-DTO, позиционный массив) | **в коде неполно — нет `actions`** |
 | 7 | `audio.searchMain` | подтверждено | подтверждено: 7 секций `{count, items}` | — (всё есть) | готов; уже в коде, совпадает |
 | 8 | `audio.searchArtists` | подтверждено | подтверждено: `{count, items}` = `VkItems<AudioArtistDto>` | — (заменить `VkArtistDto` → `AudioArtistDto`) | готов; уже в коде |
 | 9 | `audio.getRelatedArtistsById` | подтверждено | подтверждено: `{artists: [...]}` | — (уточнить элемент `AudioRelatedArtistsResponse`) | готов; уже в коде |
-| 10 | `audio.getStreamMixSettings` | подтверждено | подтверждено (4 уровня, все поля обязательны) | — (всё есть) | готов; уже в коде, совпадает |
+| 10 | `audio.getStreamMixSettings` | подтверждено | подтверждено (4 уровня; `multi_select`, `selected`, `icon_badge` nullable в VK 8.185) | — (всё есть) | готов; UI/options/session реализованы |
 | 11 | `audio.recommendationsOnboarding` | подтверждено (параметров нет) | частично | — (вероятно `VkItems<AudioArtistDto>`) | **в коде отсутствует** |
 | 12 | `audio.getAudioIdsBySource` | подтверждено (+ enum `source`) | подтверждено: `{audios:[{audio_id, track_code}]}` | — (всё есть) | готов; уже в коде, совпадает |
 

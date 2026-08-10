@@ -137,7 +137,10 @@ class VkAudioApi(
         mixId: String,
         entityId: String? = null,
         append: Boolean = false,
-        options: Map<String, String> = emptyMap(),
+        options: Map<String, List<String>> = emptyMap(),
+        mixOptionsId: Long? = null,
+        sourceRef: String? = null,
+        promptEvents: String? = null,
     ): VkResult<List<AudioTrack>> {
         val listType = Types.newParameterizedType(List::class.java, AudioTrack::class.java)
         val method = VkMethod(
@@ -148,11 +151,22 @@ class VkAudioApi(
             param("entity_id", entityId)
             param("count", 5)
             param("append", append)
-            if (options.isNotEmpty()) {
+            if (options.isNotEmpty() || mixOptionsId != null) {
                 val json = JSONObject()
-                options.forEach { (key, value) -> json.put(key, JSONArray().put(value)) }
+                // Official VK adds the generated settings-session id first,
+                // then `category_id -> [selected_option_id]` entries.
+                mixOptionsId?.let { json.put("id", it.toString()) }
+                options.forEach { (key, values) ->
+                    if (values.isNotEmpty()) {
+                        val selected = JSONArray()
+                        values.forEach { selected.put(it) }
+                        json.put(key, selected)
+                    }
+                }
                 param("options", json.toString())
             }
+            param("prompt_events", promptEvents)
+            param("ref", sourceRef)
         }
         return client.execute(method)
     }
@@ -656,8 +670,15 @@ class VkAudioApi(
     // ---------------------------------------------------------------
     // Лайки/дизлайки (C2193e): audio_ids = csv полных id ("owner_audio")
     // ---------------------------------------------------------------
-    suspend fun addDislike(audioFullId: String): VkResult<Unit> =
-        executeSimpleList("audio.addDislike", audioFullId)
+    suspend fun addDislike(audioFullId: String): VkResult<AudioAudioDto> {
+        val method = VkMethod(
+            "audio.addDislike",
+            MoshiEnvelopeParser<AudioAudioDto>(AudioAudioDto::class.java),
+        ).apply {
+            param("audio_ids", listOf(audioFullId).joinToString(","))
+        }
+        return client.execute(method)
+    }
 
     suspend fun removeDislike(audioFullId: String): VkResult<Unit> =
         executeSimpleList("audio.removeDislike", audioFullId)

@@ -98,9 +98,19 @@ media3**, функционал будет новый, но старый код �
 - открытие Aura больше не загружает полную каталожную витрину ради невидимых
   карточек;
 - «UI наш» — значит не копировать вид VK, а сделать в дизайн-системе Liquid.
+- редактор `audio.getStreamMixSettings` встроен в нижнюю шторку самой Aura;
+- `button_horizontal_group` и `pictured_button_horizontal_group` отображаются,
+  `hidden_button_horizontal_group` не показывается и сохраняется при Reset;
+- Apply генерирует официальный `mixOptionsId`, запускает атомарную новую очередь
+  с `append=false`, а все последующие `append=true` используют ту же полную
+  `VkMixSession`, тот же `options` и тот же `mixOptionsId`;
+- реализованы loading, empty, error, session-expired и retry; поздний refill
+  предыдущей сессии не может подмешаться после изменения настроек;
+- неподтверждённые действия `more_track/more_genre/less_genre` удалены. Для
+  отрицательного отзыва используется официальный `audio.addDislike`, в течение
+  двух секунд доступен Undo через `audio.removeDislike`.
 
-Осталось: подключить `audio.getStreamMixSettings` к управлению внутри Aura без
-карточек на главном экране и точно перенести выбор `MixSettingsEntity`/options.
+Функциональный батч завершён в коде; остаётся проверка на живом аккаунте/устройстве.
 
 ### 2. Полноценные сообщества
 

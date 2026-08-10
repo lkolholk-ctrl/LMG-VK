@@ -373,10 +373,7 @@ fun ArtistDetailScreen(
                                                 context,
                                                 mix,
                                                 0,
-                                                playbackContext = PlaybackContext.VkMix(
-                                                    mixId = mixSource.mixId,
-                                                    entityId = mixSource.entityId,
-                                                ),
+                                                playbackContext = PlaybackContext.VkMix(mixSource.session),
                                             )
                                         } else {
                                             Toast.makeText(context, "Artist mix is unavailable", Toast.LENGTH_SHORT).show()

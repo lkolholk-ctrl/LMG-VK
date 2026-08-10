@@ -165,15 +165,17 @@ class EndlessPlaybackEngine(
             lastRefillTime.set(now)
             android.util.Log.d("EndlessEngine", "Starting background queue refill...")
 
+            // Capture the full source before the network call. A settings apply
+            // starts a new mix session even when mix_id stays `common`.
+            val requestedPlaybackContext = PlayerController.playbackContext
             val newTracks = withContext(Dispatchers.IO) {
                 val ctx = PlayerController.context
                 if (ctx != null) {
                     val refillCtx = _refillContext.value
-                    val playbackContext = PlayerController.playbackContext
+                    val playbackContext = requestedPlaybackContext
                     if (playbackContext is PlaybackContext.VkMix) {
                         return@withContext com.lmg.vk.engine.backend.MusicBackend.appendVkMix(
-                            mixId = playbackContext.mixId,
-                            entityId = playbackContext.entityId,
+                            playbackContext.session,
                         )
                     }
                     val isGlobal = playbackContext is PlaybackContext.Global
@@ -402,7 +404,12 @@ class EndlessPlaybackEngine(
                 }
             }
 
-            if (newTracks.isNotEmpty()) {
+            // Do not append a response from the previous options/session after
+            // the user has retuned Aura or started another queue meanwhile.
+            if (PlayerController.playbackContext != requestedPlaybackContext) {
+                android.util.Log.d("EndlessEngine", "Playback source changed during refill; stale batch discarded")
+                false
+            } else if (newTracks.isNotEmpty()) {
                 withContext(Dispatchers.Main) {
                     PlayerController.addTracksToQueue(newTracks)
                 }

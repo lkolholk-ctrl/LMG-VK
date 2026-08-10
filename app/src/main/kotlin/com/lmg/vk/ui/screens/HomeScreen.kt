@@ -39,7 +39,6 @@ import com.lmg.vk.engine.backend.MusicAuth
 import com.lmg.vk.engine.backend.HomeBlock
 import com.lmg.vk.engine.backend.HomeItem
 import com.lmg.vk.engine.backend.MusicBackend
-import com.lmg.vk.engine.backend.WaveSignalQueue
 import com.lmg.vk.engine.backend.toTrack
 import com.lmg.vk.data.local.WaveRepository
 import com.lmg.vk.data.wave.WaveMode
@@ -312,10 +311,6 @@ fun HomeScreen(
                 }
             }
         }
-    }
-
-    fun sendWaveFeedback(feedbackType: String, value: String) {
-        scope.launch { WaveSignalQueue.sendFeedback(feedbackType, value) }
     }
 
     Box(modifier = Modifier.fillMaxSize().background(LiquidTheme.colors.settingsBackground)) {

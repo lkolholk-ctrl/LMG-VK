@@ -88,13 +88,15 @@ result = base64_std( input[i] XOR "THETRUTHLIES"[i % 12] )
 - **Silent auth**: `apps.get(app_id=51931326)` → код → `LmgNative.getSilentAuthorizationEnvironment` → `"code"`
 
 ### Методы (реестр 50+ эндпоинтов, `methods/VkMethodsRegistry.kt`)
-`audio.*` (get, search, getPlaylists, getPlaylistById, add/delete/restore, addDislike/removeDislike, getAudioIdsBySource, getAudioPreviewUrl, getRelatedArtists, getStreamMixSettings, reorderInPlaylist, followRadioStation/unfollow, searchArtists, searchMain), `audioBooks.*`, `podcasts.subscribe/unfollow`, `users.get`, `utils.resolveScreenName`, `storage.get/set`, `stats.trackEvents`, `musicStatResults.*`, `studio.getArtistYearRecapData`, полный **auth-флоу** (`validateAccount`, `processAuthCode(Multi)`, `ecosystem.*` OTP, `get_anonym_token`, OAuth `token` grant_type=password).
+`audio.*` (get, search, getPlaylists, getPlaylistById, add/delete/restore, addDislike/removeDislike, getAudioIdsBySource, getAudioPreviewUrl, getRelatedArtists, getStreamMixAudios/getStreamMixSettings, reorderInPlaylist, followRadioStation/unfollow, searchArtists, searchMain), `audioBooks.*`, `podcasts.subscribe/unfollow`, `users.get`, `utils.resolveScreenName`, `storage.get/set`, `stats.trackEvents`, `musicStatResults.*`, `studio.getArtistYearRecapData`, полный **auth-флоу** (`validateAccount`, `processAuthCode(Multi)`, `ecosystem.*` OTP, `get_anonym_token`, OAuth `token` grant_type=password).
 
 Priority 2 добавил точный ответ `audio.searchMain` с 7 секциями
 (`albums/audios/artists/playlists/own_*`) и полный 43-key контракт
 `AudioPlaylistDto` из C9885e/C1471e. Число 41 в отчёте P2 было неточным:
-дескриптор C1471e явно объявляет 43 ключа. StreamMix и related artists совпали
-с DTO Priority 1. Старое `ua.lmg...AudioPlaylist` сохранено отдельным классом.
+дескриптор C1471e явно объявляет 43 ключа. Базовый StreamMix из VK X совпал с
+DTO Priority 1, но официальный VK 8.185 добавил nullable `multi_select`,
+`selected` и `icon_badge`; актуальная wire-модель учитывает эту разницу. Старое
+`ua.lmg...AudioPlaylist` сохранено отдельным классом.
 
 Priority 3 добавил подтверждённые R8-merged фрагменты:
 - выбор API-хоста по `api.vk.com/ping.txt` → `api.vk.ru/ping.txt` с исходным
@@ -266,8 +268,16 @@ UI ссылается на ресурсы LMG, которых нет в прое
 - `getAlbum/getArtist/getArtistTopTracks` ← `catalog.getAudioArtist`, `audio.getAudiosByArtist`, `audio.getRelatedArtistsById`
 - `getLyricsResult` ← `audio.getLyrics` с синхронными `begin/end` и plain-text fallback
 - Aura запускает персональный VK Mix `common` ← `audio.getStreamMixAudios`
-  (порции по 5, `append=false` → `append=true`, явный `PlaybackContext.VkMix`)
-- настройки StreamMix ← `audio.getStreamMixSettings`
+  (порции по 5, `append=false` → `append=true`, полный
+  `PlaybackContext.VkMix(VkMixSession)`)
+- настройки StreamMix ← `audio.getStreamMixSettings`; официальный JSON
+  `options` имеет вид `{ "id": "…", "category_id": ["option_id"] }`, пустые
+  категории не отправляются, а один `mixOptionsId` сохраняется на всю очередь
+- настройки открываются внутри полноэкранной Aura без карточек на главном;
+  поддержаны hidden-категории, `multi_select`, Reset/Apply и состояния
+  loading/empty/error/session-expired
+- отрицательный отзыв в VK Mix ← `audio.addDislike`; Undo ←
+  `audio.removeDislike`, без вымышленных more/less genre действий
 - Wave onboarding удалён из текущего приложения; старые методы не подключать обратно без новой явной команды владельца.
 - follow/unfollow радиостанций добавлены в `VkAudioApi`
 - приложение инициализирует Ktor, `VkApiClient`, `MusicBackend` и AES/GCM-хранилище сессии

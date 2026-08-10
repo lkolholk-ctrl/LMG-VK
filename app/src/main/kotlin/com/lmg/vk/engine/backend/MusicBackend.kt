@@ -2,6 +2,11 @@ package com.lmg.vk.engine.backend
 
 import com.lmg.vk.engine.Track
 import com.lmg.vk.engine.LyricsParser
+import com.lmg.vk.engine.VkMixCategory
+import com.lmg.vk.engine.VkMixCategoryType
+import com.lmg.vk.engine.VkMixOption
+import com.lmg.vk.engine.VkMixSession
+import com.lmg.vk.engine.VkMixSettings
 import com.lmg.vk.engine.backend.wave.WaveBatchResponse
 import com.lmg.vk.engine.backend.wave.WaveSessionStartResponse
 import com.lmg.vk.network.VkApiClient
@@ -21,6 +26,7 @@ import com.lmg.vk.network.dto.music.AudioArtistDto
 import com.lmg.vk.network.dto.music.AudioPhotoDto
 import com.lmg.vk.network.dto.music.AudioSearchMainResponse
 import com.lmg.vk.network.dto.music.AudioStreamMix
+import com.lmg.vk.network.dto.music.AudioStreamMixSettings
 import com.lmg.vk.network.dto.music.AudioTrack
 import com.lmg.vk.network.dto.music.coverUrl
 import com.lmg.vk.network.dto.music.mergeAudioTracksById
@@ -97,10 +103,12 @@ fun backendUserMessage(exception: Throwable?): String = when (exception) {
  * of losing the mix id after the first five tracks have been loaded.
  */
 data class VkMixPlaybackSource(
-    val mixId: String,
-    val entityId: String?,
+    val session: VkMixSession,
     val tracks: List<Track>,
-)
+) {
+    val mixId: String get() = session.mixId
+    val entityId: String? get() = session.entityId
+}
 
 object MusicBackend {
 
@@ -116,6 +124,11 @@ object MusicBackend {
     private lateinit var catalogApi: VkCatalogApi
     private lateinit var methodsRegistry: VkMethodsRegistry
     private lateinit var sessionStore: VkSessionStore
+    private data class LocatedVkMix(
+        val mix: AudioStreamMix,
+        val blockId: String,
+        val sectionId: String,
+    )
     private val trackCache = ConcurrentHashMap<String, AudioTrack>()
     private data class CachedStream(val info: StreamInfo, val cachedAtMs: Long)
     private val streamCache = ConcurrentHashMap<String, CachedStream>()
@@ -887,45 +900,76 @@ object MusicBackend {
 
     suspend fun getArtistMixSource(artistId: String, mixId: String?): VkMixPlaybackSource? = runCatching {
         val normalizedId = artistId.removePrefix("vk_")
-        val resolvedMixId = mixId ?: catalogApi.getAudioArtist(normalizedId)
-            .requireData()
-            .audio_stream_mixes.orEmpty()
-            .firstOrNull()
-            ?.playbackMixId
-            ?: return@runCatching null
-        val tracks = audioApi.getStreamMixAudios(
+        val artistCatalog = catalogApi.getAudioArtist(normalizedId).getOrNull()
+        val catalogMixes = artistCatalog?.audio_stream_mixes.orEmpty()
+        val catalogMix = if (mixId == null) {
+            catalogMixes.firstOrNull()
+        } else {
+            catalogMixes.firstOrNull { it.playbackMixId == mixId }
+        }
+        val resolvedMixId = mixId ?: catalogMix?.playbackMixId ?: return@runCatching null
+        val settings = catalogMix?.settings?.toVkMixSettings()
+        val session = VkMixSession(
+            blockId = artistCatalog?.allBlocks()?.firstOrNull { block ->
+                catalogMix != null && catalogMix.id in block.audio_stream_mixes_ids.orEmpty()
+            }?.id.orEmpty(),
+            sectionId = artistCatalog?.section?.id?.takeIf(String::isNotBlank)
+                ?: artistCatalog?.catalog?.default_section.orEmpty(),
             mixId = resolvedMixId,
+            isTunable = catalogMix?.is_tunable == true,
+            title = catalogMix?.playbackTitle(settings).orEmpty(),
+            settings = settings,
             entityId = normalizedId,
+            catalogItemId = catalogMix?.id,
+        )
+        val tracks = audioApi.getStreamMixAudios(
+            mixId = session.mixId,
+            entityId = session.entityId,
             append = false,
+            options = session.options,
+            mixOptionsId = session.mixOptionsId,
+            sourceRef = session.sourceRef,
         ).requireData().map(::cacheTrack).map { it.toEngineTrack() }
         VkMixPlaybackSource(
-            mixId = resolvedMixId,
-            entityId = normalizedId,
+            session = session,
             tracks = tracks,
         )
     }.getOrNull()
 
     /**
-     * Resolve and start the personal VK Mix that lives behind LMG's Aura.
+     * Resolve the personal VK Mix that lives behind LMG's Aura.
      *
      * VK X first reads `catalog.getAudioAuto`; when that response only contains
      * section ids, it opens those sections with `catalog.getSection`. We follow
      * that same narrow lookup and stop as soon as the first server-provided mix
      * is found. No catalog cards are created for the Aura screen.
      */
-    suspend fun getPersonalMixSource(): VkMixPlaybackSource? = runCatching {
+    suspend fun resolvePersonalMixSession(): VkMixSession {
         requireInitialized()
         fun List<AudioStreamMix>.commonMix(): AudioStreamMix? =
             firstOrNull { it.playbackMixId == "common" }
+
+        fun VkCatalogResponse.locate(
+            mix: AudioStreamMix,
+            sectionIdHint: String? = null,
+        ): LocatedVkMix {
+            val blockId = allBlocks().firstOrNull { block ->
+                mix.id in block.audio_stream_mixes_ids.orEmpty()
+            }?.id.orEmpty()
+            val sectionId = section?.id?.takeIf(String::isNotBlank)
+                ?: sectionIdHint?.takeIf(String::isNotBlank)
+                ?: catalog?.default_section.orEmpty()
+            return LocatedVkMix(mix, blockId, sectionId)
+        }
 
         val catalog = catalogApi.getAudioAuto().requireData()
         // The interactive VK Mix holder treats `common` as the personal/default
         // mix and keeps its tune settings when switching between variants.
         val rootMixes = catalog.audio_stream_mixes.orEmpty()
-        var mix = rootMixes.commonMix()
-        var fallbackMix = rootMixes.firstOrNull()
+        var located = rootMixes.commonMix()?.let(catalog::locate)
+        var fallback = rootMixes.firstOrNull()?.let(catalog::locate)
 
-        if (mix == null) {
+        if (located == null) {
             val sectionIds = buildList {
                 catalog.catalog?.default_section?.takeIf(String::isNotBlank)?.let(::add)
                 catalog.section?.id?.takeIf(String::isNotBlank)?.let(::add)
@@ -940,35 +984,80 @@ object MusicBackend {
             }.distinct()
 
             for (sectionId in sectionIds) {
-                val sectionMixes = catalogApi.getSection(sectionId).getOrNull()
-                    ?.audio_stream_mixes.orEmpty()
-                if (fallbackMix == null) fallbackMix = sectionMixes.firstOrNull()
-                mix = sectionMixes.commonMix()
-                if (mix != null) break
+                val section = catalogApi.getSection(sectionId).getOrNull() ?: continue
+                val sectionMixes = section.audio_stream_mixes.orEmpty()
+                if (fallback == null) {
+                    fallback = sectionMixes.firstOrNull()?.let { section.locate(it, sectionId) }
+                }
+                located = sectionMixes.commonMix()?.let { section.locate(it, sectionId) }
+                if (located != null) break
             }
         }
 
-        val resolvedMix = mix ?: fallbackMix ?: return@runCatching null
-        val mixId = resolvedMix.playbackMixId
-        val tracks = audioApi.getStreamMixAudios(
-            mixId = mixId,
-            append = false,
-        ).requireData().map(::cacheTrack).map { it.toEngineTrack() }
-        VkMixPlaybackSource(
-            mixId = mixId,
-            entityId = null,
-            tracks = tracks,
+        val resolved = located ?: fallback
+            ?: throw backendFailure(404, "VK не вернул персональный Mix")
+        val settings = resolved.mix.settings?.toVkMixSettings()
+        return VkMixSession(
+            blockId = resolved.blockId,
+            sectionId = resolved.sectionId,
+            mixId = resolved.mix.playbackMixId,
+            isTunable = resolved.mix.is_tunable == true,
+            title = resolved.mix.playbackTitle(settings),
+            settings = settings,
+            catalogItemId = resolved.mix.id,
         )
-    }.getOrNull()
+    }
+
+    /** Start a fresh VK Mix queue with `append=false`. */
+    suspend fun startVkMix(session: VkMixSession): VkMixPlaybackSource {
+        val tracks = audioApi.getStreamMixAudios(
+            mixId = session.mixId,
+            entityId = session.entityId,
+            append = false,
+            options = session.options,
+            mixOptionsId = session.mixOptionsId,
+            sourceRef = session.sourceRef,
+        ).requireData().map(::cacheTrack).map { it.toEngineTrack() }
+        return VkMixPlaybackSource(session = session, tracks = tracks)
+    }
+
+    suspend fun getPersonalMixSource(): VkMixPlaybackSource =
+        startVkMix(resolvePersonalMixSession())
+
+    /** Refresh settings exactly through `audio.getStreamMixSettings`. */
+    suspend fun getVkMixSettings(session: VkMixSession): VkMixSettings {
+        requireInitialized()
+        return audioApi.getStreamMixSettings(session.mixId)
+            .requireData()
+            .settings
+            .toVkMixSettings()
+    }
 
     /** Continue the same VK Mix session; regular album/playlist queues never call this. */
-    suspend fun appendVkMix(mixId: String, entityId: String?): List<Track> = runCatching {
+    suspend fun appendVkMix(session: VkMixSession): List<Track> = runCatching {
         audioApi.getStreamMixAudios(
-            mixId = mixId,
-            entityId = entityId,
+            mixId = session.mixId,
+            entityId = session.entityId,
             append = true,
-        ).requireData().map(::cacheTrack).map { it.toEngineTrack() }
+            options = session.options,
+            mixOptionsId = session.mixOptionsId,
+            sourceRef = session.sourceRef,
+        ).requireData()
+            .map(::cacheTrack)
+            .map { it.toEngineTrack() }
+            .filter { it.isAvailable }
     }.getOrDefault(emptyList())
+
+    /** Official negative feedback. `audio.addDislike` returns the updated track. */
+    suspend fun dislikeTrack(trackId: String) {
+        val updated = audioApi.addDislike(normalizeTrackId(trackId)).requireData()
+        cacheTrack(updated.toAudioTrack())
+    }
+
+    /** The response form is unconfirmed, therefore removeDislike remains Unit. */
+    suspend fun removeTrackDislike(trackId: String) {
+        audioApi.removeDislike(normalizeTrackId(trackId)).requireData()
+    }
 
     suspend fun getArtistTopTracks(artistId: String): List<Track> =
         audioApi.getAudiosByArtist(artistId.removePrefix("vk_")).requireData()
@@ -1949,6 +2038,41 @@ object MusicBackend {
         streamMixId = playbackMixId,
         streamMixTunable = is_tunable == true,
     )
+
+    /** Exact DTO -> editor model mapping recovered from official VK. */
+    private fun AudioStreamMixSettings.toVkMixSettings() = VkMixSettings(
+        title = title,
+        subtitle = subtitle,
+        multiSelect = multi_select ?: false,
+        categories = mix_categories.map { category ->
+            VkMixCategory(
+                id = category.id,
+                title = category.title,
+                type = VkMixCategoryType.fromWire(category.type),
+                options = category.options.map { option ->
+                    VkMixOption(
+                        id = option.id,
+                        title = option.title,
+                        icon = option.icon,
+                        badgeIconUrl = option.iconBadge,
+                        isSelected = option.selected ?: false,
+                    )
+                },
+            )
+        },
+    )
+
+    /** VK shows the selected option before the generic and catalog titles. */
+    private fun AudioStreamMix.playbackTitle(settings: VkMixSettings?): String =
+        settings
+            ?.categories
+            ?.asSequence()
+            ?.flatMap { it.options.asSequence() }
+            ?.firstOrNull(VkMixOption::isSelected)
+            ?.title
+            ?.takeIf(String::isNotBlank)
+            ?: titles?.common_state?.takeIf(String::isNotBlank)
+            ?: title
 
     private fun AudioTrack.toTrackMeta() = TrackMeta(
         id = fullId,

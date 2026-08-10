@@ -82,6 +82,9 @@ data class AudioStreamMix(
     val id: String,
     val title: String,
     val description: String,
+    val background_animation_url: String? = null,
+    val image_url: String? = null,
+    val settings: AudioStreamMixSettings? = null,
     val stream_mix: AudioStreamMixLink? = null,
     val is_tunable: Boolean? = null,
     val titles: AudioStreamMixTitles? = null,
@@ -98,7 +101,8 @@ data class AudioStreamMix(
 data class AudioStreamMixSettingsOption(
     val id: String,
     val icon: String,
-    val selected: Boolean,
+    @Json(name = "icon_badge") val iconBadge: String? = null,
+    val selected: Boolean? = null,
     val title: String,
 )
 
@@ -115,6 +119,7 @@ data class AudioStreamMixSettings(
     val title: String,
     val subtitle: String,
     val mix_categories: List<AudioStreamMixSettingsCategory>,
+    val multi_select: Boolean? = null,
 )
 
 @JsonClass(generateAdapter = true)
