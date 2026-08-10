@@ -85,7 +85,14 @@ data class AudioStreamMix(
     val stream_mix: AudioStreamMixLink? = null,
     val is_tunable: Boolean? = null,
     val titles: AudioStreamMixTitles? = null,
-)
+) {
+    /**
+     * `id` identifies the CatalogKit item, while official VK starts and
+     * continues playback with the nested `stream_mix.id`.
+     */
+    val playbackMixId: String
+        get() = stream_mix?.id?.takeIf(String::isNotBlank) ?: id
+}
 
 @JsonClass(generateAdapter = true)
 data class AudioStreamMixSettingsOption(

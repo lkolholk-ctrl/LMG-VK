@@ -265,7 +265,8 @@ UI ссылается на ресурсы LMG, которых нет в прое
 - `loadHomeContent/loadCharts` ← `catalog.getAudioAuto` + `audio.getPopular`
 - `getAlbum/getArtist/getArtistTopTracks` ← `catalog.getAudioArtist`, `audio.getAudiosByArtist`, `audio.getRelatedArtistsById`
 - `getLyricsResult` ← `audio.getLyrics` с синхронными `begin/end` и plain-text fallback
-- личная волна и batch-сессия ← `audio.getStreamMixAudios` (порции по 5), fallback `audio.getRecommendations`
+- Aura запускает персональный VK Mix `common` ← `audio.getStreamMixAudios`
+  (порции по 5, `append=false` → `append=true`, явный `PlaybackContext.VkMix`)
 - настройки StreamMix ← `audio.getStreamMixSettings`
 - Wave onboarding удалён из текущего приложения; старые методы не подключать обратно без новой явной команды владельца.
 - follow/unfollow радиостанций добавлены в `VkAudioApi`

@@ -102,9 +102,10 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
- * "My Wave" — the main screen, our own take on the Yandex-Music style feed.
+ * "My Wave" — LMG's Aura presentation for the personal VK Mix.
  *
- * The screen is now just the wave hero, vertically centered (idle: big title +
+ * VK owns the playback source and continuation, while this screen remains the
+ * existing Aura hero, vertically centered (idle: big title +
  * Play; playing: artist, cover, flat controls and a live wave progress line in
  * the title pill). Mood tiles and content sections (recently played, charts,
  * recommendations) live in the New tab.
@@ -133,13 +134,16 @@ fun WaveHomeScreen(
         }
     }
 
-    LaunchedEffect(viewModel) { viewModel.loadHomeContent() }
-
     val currentTrack by PlayerController.currentTrack.collectAsState()
     val isPlaying by PlayerController.isPlaying.collectAsState()
     val isBuffering by PlayerController.isBuffering.collectAsState()
     val favoriteIds by PlayerController.favoriteIds.collectAsState()
     val isBuildingWave by viewModel.isBuildingWave.collectAsState()
+    val isLoggedIn by com.lmg.vk.engine.backend.MusicAuth.isLoggedIn.collectAsState()
+
+    fun startAuraMix() {
+        if (isLoggedIn) viewModel.startAuraMix(context) else onOpenAuth()
+    }
 
     // Активная «именованная» волна (по муду/треку/артисту). У дефолтной «Моей волны»
     // имени нет → индикатор не показываем.
@@ -225,7 +229,7 @@ fun WaveHomeScreen(
             if (activeStationName != null) {
                 WaveStationIndicator(
                     name = activeStationName,
-                    onClear = { viewModel.buildWaveQueue(context) }
+                    onClear = ::startAuraMix,
                 )
             }
 
@@ -274,7 +278,7 @@ fun WaveHomeScreen(
                         BigPlayButton(
                             loading = isBuildingWave,
                             accent = accent,
-                            onClick = { viewModel.buildWaveQueue(context) }
+                            onClick = ::startAuraMix,
                         )
                     }
                 } else {

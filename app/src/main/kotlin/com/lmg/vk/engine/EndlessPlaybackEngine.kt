@@ -31,6 +31,9 @@ class EndlessPlaybackEngine(
         // до 8-10 треков и ждать сеть: initial batch 30, затем добиваем до ~60.
         const val REFILL_THRESHOLD = 40
         const val REFILL_BATCH_SIZE = 30
+        // Official VK asks its playback source for more when the remaining
+        // queue reaches the source threshold; the player fallback is 5.
+        const val VK_MIX_REFILL_THRESHOLD = 5
         // Станция по треку — единственный режим без batch-эндпоинта: каждый
         // трек = отдельный GET /library/wave/next. Пачка 30 давала залп из
         // 30+ последовательных запросов (риск 429); добираем меньшими дозами.
@@ -112,6 +115,12 @@ class EndlessPlaybackEngine(
         if (com.lmg.vk.engine.PlayerController.isLocalJucePlaybackActive) {
             return false
         }
+        // Official VK enables end-of-queue loading only for a queue whose
+        // PlaybackQueueConfig explicitly supports endless listening (VK Mix).
+        // A plain album/playlist/artist list must finish at its own boundary.
+        if (!PlayerController.playbackQueueConfig.endlessListeningEnabled) {
+            return false
+        }
         // При включённом повторе до хвоста очереди дело не дойдёт вообще: плеер
         // ходит по кругу. Гейта не было, и мы молча качали батчи по 30 треков,
         // которые никогда не проиграются. На выключении повтора PlayerController
@@ -120,14 +129,9 @@ class EndlessPlaybackEngine(
             android.util.Log.d("EndlessEngine", "Repeat is on — refill skipped")
             return false
         }
-        // Дозаправка работает ВЕЗДЕ (полевой фидбек: «одно и то же по кругу —
-        // не по кайфу»):
-        //  - волна (Global) — продолжаем волну: личную или станцию по seed;
-        //  - альбом/плейлист/поиск/артист — когда свой материал кончается,
-        //    бесшовно переходим в станцию по хвосту очереди (как у Яндекса).
-        // Прежние гейты (AutoMix-тумблер и boundary-lock на Global) убраны:
-        // тумблер AutoMix управляет кроссфейдами, а не бесконечностью, и
-        // именно эта связка оставляла очередь «ходить по кругу».
+        // Источник продолжения тоже не выводим из последнего трека очереди:
+        // VK Mix продолжается тем же `audio.getStreamMixAudios(append=true)`,
+        // а явно запущенная Wave — своим сохранённым refill-контекстом.
 
         if (isRefilling.get()) {
             android.util.Log.d("EndlessEngine", "Already refilling in background, skip")
@@ -136,10 +140,13 @@ class EndlessPlaybackEngine(
 
         // Calculate remaining items if not passed explicitly
         val remaining = if (remainingCount == -1) getRemainingTracks() else remainingCount
-        android.util.Log.d("EndlessEngine", "Checking refill: remaining=$remaining, threshold=$REFILL_THRESHOLD")
+        val isVkMix = PlayerController.playbackContext is PlaybackContext.VkMix
+        val threshold = if (isVkMix) VK_MIX_REFILL_THRESHOLD else REFILL_THRESHOLD
+        android.util.Log.d("EndlessEngine", "Checking refill: remaining=$remaining, threshold=$threshold")
 
-        if (!force && remaining >= REFILL_THRESHOLD) {
-            android.util.Log.d("EndlessEngine", "Queue has sufficient tracks ($remaining >= $REFILL_THRESHOLD), skipping")
+        val hasEnoughTracks = if (isVkMix) remaining > threshold else remaining >= threshold
+        if (!force && hasEnoughTracks) {
+            android.util.Log.d("EndlessEngine", "Queue has sufficient tracks ($remaining, threshold=$threshold), skipping")
             return false
         }
 
@@ -162,7 +169,15 @@ class EndlessPlaybackEngine(
                 val ctx = PlayerController.context
                 if (ctx != null) {
                     val refillCtx = _refillContext.value
-                    val isGlobal = PlayerController.playbackContext is PlaybackContext.Global
+                    val playbackContext = PlayerController.playbackContext
+                    if (playbackContext is PlaybackContext.VkMix) {
+                        return@withContext com.lmg.vk.engine.backend.MusicBackend.appendVkMix(
+                            mixId = playbackContext.mixId,
+                            entityId = playbackContext.entityId,
+                        )
+                    }
+                    val isGlobal = playbackContext is PlaybackContext.Global
+                    if (!isGlobal) return@withContext emptyList()
                     val currentQueue = PlayerController.getCurrentQueue()
                     val queueIds = currentQueue.map { it.id }
                     val currentIndex = PlayerController.getCurrentIndex()
@@ -257,10 +272,9 @@ class EndlessPlaybackEngine(
                         }
                     }
 
-                    // Волна: seed из контекста (мудовая/трековая станция) или null
-                    // (личная волна). Не-волна: станция по ПОСЛЕДНЕМУ треку
-                    // очереди — альбом кончился, продолжаем «по мотивам».
-                    val baseSeed = if (isGlobal) refillCtx?.seedTrackId else queueIds.lastOrNull()
+                    // Волна: seed из её явного контекста или null для личной.
+                    // Обычные музыкальные очереди отсеяны queue config выше.
+                    val baseSeed = refillCtx?.seedTrackId
                     // Обычная "волна по треку" должна всегда оставаться anchored к
                     // исходному seed_track_id. Ротация и дрейф ниже нужны для артист-
                     // волны/жанровых сценариев, но для track station они превращают

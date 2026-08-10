@@ -91,6 +91,17 @@ fun backendUserMessage(exception: Throwable?): String = when (exception) {
     else -> exception?.message ?: "Что-то пошло не так"
 }
 
+/**
+ * The identity VK needs to continue an `audio.getStreamMixAudios` queue.
+ * Mirrors the relevant fields of official VK's `StartPlayVkMixSource` instead
+ * of losing the mix id after the first five tracks have been loaded.
+ */
+data class VkMixPlaybackSource(
+    val mixId: String,
+    val entityId: String?,
+    val tracks: List<Track>,
+)
+
 object MusicBackend {
 
     private val _lastError = MutableStateFlow<String?>(null)
@@ -833,7 +844,7 @@ object MusicBackend {
             isFollowed = artist.is_followed == true,
             canFollow = artist.can_follow == true,
             mixId = catalogPages.firstNotNullOfOrNull {
-                it.audio_stream_mixes.orEmpty().firstOrNull()?.id
+                it.audio_stream_mixes.orEmpty().firstOrNull()?.playbackMixId
             },
             topSongs = tracks.map { it.toArtistSong() },
             latestRelease = albums.maxWithOrNull(
@@ -874,18 +885,88 @@ object MusicBackend {
         true
     }.getOrDefault(false)
 
-    suspend fun getArtistMix(artistId: String, mixId: String?): List<Track> = runCatching {
+    suspend fun getArtistMixSource(artistId: String, mixId: String?): VkMixPlaybackSource? = runCatching {
         val normalizedId = artistId.removePrefix("vk_")
         val resolvedMixId = mixId ?: catalogApi.getAudioArtist(normalizedId)
             .requireData()
             .audio_stream_mixes.orEmpty()
             .firstOrNull()
-            ?.id
-            ?: return@runCatching emptyList()
-        audioApi.getStreamMixAudios(
+            ?.playbackMixId
+            ?: return@runCatching null
+        val tracks = audioApi.getStreamMixAudios(
             mixId = resolvedMixId,
             entityId = normalizedId,
             append = false,
+        ).requireData().map(::cacheTrack).map { it.toEngineTrack() }
+        VkMixPlaybackSource(
+            mixId = resolvedMixId,
+            entityId = normalizedId,
+            tracks = tracks,
+        )
+    }.getOrNull()
+
+    /**
+     * Resolve and start the personal VK Mix that lives behind LMG's Aura.
+     *
+     * VK X first reads `catalog.getAudioAuto`; when that response only contains
+     * section ids, it opens those sections with `catalog.getSection`. We follow
+     * that same narrow lookup and stop as soon as the first server-provided mix
+     * is found. No catalog cards are created for the Aura screen.
+     */
+    suspend fun getPersonalMixSource(): VkMixPlaybackSource? = runCatching {
+        requireInitialized()
+        fun List<AudioStreamMix>.commonMix(): AudioStreamMix? =
+            firstOrNull { it.playbackMixId == "common" }
+
+        val catalog = catalogApi.getAudioAuto().requireData()
+        // The interactive VK Mix holder treats `common` as the personal/default
+        // mix and keeps its tune settings when switching between variants.
+        val rootMixes = catalog.audio_stream_mixes.orEmpty()
+        var mix = rootMixes.commonMix()
+        var fallbackMix = rootMixes.firstOrNull()
+
+        if (mix == null) {
+            val sectionIds = buildList {
+                catalog.catalog?.default_section?.takeIf(String::isNotBlank)?.let(::add)
+                catalog.section?.id?.takeIf(String::isNotBlank)?.let(::add)
+                catalog.catalog?.sections.orEmpty()
+                    .map { it.id }
+                    .filter(String::isNotBlank)
+                    .forEach(::add)
+                catalog.allBlocks()
+                    .flatMap { it.actions.orEmpty() }
+                    .mapNotNull { it.section_id?.takeIf(String::isNotBlank) }
+                    .forEach(::add)
+            }.distinct()
+
+            for (sectionId in sectionIds) {
+                val sectionMixes = catalogApi.getSection(sectionId).getOrNull()
+                    ?.audio_stream_mixes.orEmpty()
+                if (fallbackMix == null) fallbackMix = sectionMixes.firstOrNull()
+                mix = sectionMixes.commonMix()
+                if (mix != null) break
+            }
+        }
+
+        val resolvedMix = mix ?: fallbackMix ?: return@runCatching null
+        val mixId = resolvedMix.playbackMixId
+        val tracks = audioApi.getStreamMixAudios(
+            mixId = mixId,
+            append = false,
+        ).requireData().map(::cacheTrack).map { it.toEngineTrack() }
+        VkMixPlaybackSource(
+            mixId = mixId,
+            entityId = null,
+            tracks = tracks,
+        )
+    }.getOrNull()
+
+    /** Continue the same VK Mix session; regular album/playlist queues never call this. */
+    suspend fun appendVkMix(mixId: String, entityId: String?): List<Track> = runCatching {
+        audioApi.getStreamMixAudios(
+            mixId = mixId,
+            entityId = entityId,
+            append = true,
         ).requireData().map(::cacheTrack).map { it.toEngineTrack() }
     }.getOrDefault(emptyList())
 
@@ -1134,7 +1215,7 @@ object MusicBackend {
         waveMutex.withLock {
             resetWaveLocked()
             ensureWaveSourceLocked(seedTrackId = null)
-            val id = "vk_mix_${activeWaveMix?.id ?: "recommendations"}_${System.currentTimeMillis()}"
+            val id = "vk_mix_${activeWaveMix?.playbackMixId ?: "recommendations"}_${System.currentTimeMillis()}"
             waveSessionId = id
             WaveSessionStartResponse(
                 sessionId = id,
@@ -1352,7 +1433,7 @@ object MusicBackend {
                 // отдаёт общие рекомендации аккаунта, поэтому «Волна по треку»
                 // подбирала что угодно, кроме похожего.
                 val result = audioApi.getStreamMixAudios(
-                    mixId = mix.id,
+                    mixId = mix.playbackMixId,
                     entityId = seedTrackId,
                     append = activeWaveAppend,
                 )
@@ -1360,7 +1441,7 @@ object MusicBackend {
                     is VkResult.Success -> result.data.also { activeWaveAppend = true }
                     is VkResult.Error -> {
                         com.lmg.vk.debug.DebugLog.add(
-                            "WAVE микс ${mix.id} отказал (${result.code}) → рекомендации",
+                            "WAVE микс ${mix.playbackMixId} отказал (${result.code}) → рекомендации",
                         )
                         emptyList()
                     }
@@ -1424,7 +1505,7 @@ object MusicBackend {
             mixes.firstOrNull()
         }
         com.lmg.vk.debug.DebugLog.add(
-            "WAVE источник: " + (activeWaveMix?.let { "микс ${it.id} \"${it.title}\"" }
+            "WAVE источник: " + (activeWaveMix?.let { "микс ${it.playbackMixId} \"${it.title}\"" }
                 ?: "рекомендации") + (seedTrackId?.let { " seed=$it" } ?: " (личная)"),
         )
     }
@@ -1865,6 +1946,8 @@ object MusicBackend {
         artist = description.takeIf(String::isNotBlank),
         source = "vk",
         isCustom = true,
+        streamMixId = playbackMixId,
+        streamMixTunable = is_tunable == true,
     )
 
     private fun AudioTrack.toTrackMeta() = TrackMeta(

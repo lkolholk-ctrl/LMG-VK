@@ -50,6 +50,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.lmg.vk.engine.AudioDownloadManager
+import com.lmg.vk.engine.PlaybackContext
 import com.lmg.vk.engine.Track
 import com.lmg.vk.engine.backend.AlbumResponse
 import com.lmg.vk.engine.backend.MiniArtist
@@ -307,12 +308,22 @@ fun AlbumDetailScreen(
                             isDark = isDark,
                             onPlay = {
                                 if (playableTracks.isNotEmpty()) {
-                                    PlayerController.play(context, playableTracks, 0)
+                                    PlayerController.play(
+                                        context,
+                                        playableTracks,
+                                        0,
+                                        playbackContext = PlaybackContext.Album(albumId),
+                                    )
                                 }
                             },
                             onShuffle = {
                                 if (playableTracks.isNotEmpty()) {
-                                    PlayerController.play(context, playableTracks.shuffled(), 0)
+                                    PlayerController.play(
+                                        context,
+                                        playableTracks.shuffled(),
+                                        0,
+                                        playbackContext = PlaybackContext.Album(albumId),
+                                    )
                                 }
                             },
                             canPlay = playableTracks.isNotEmpty(),
@@ -466,7 +477,12 @@ fun AlbumDetailScreen(
                             onClick = {
                                 val playableIndex = playableTracks.indexOfFirst { it.id == track.id }
                                 if (playableIndex >= 0) {
-                                    PlayerController.play(context, playableTracks, playableIndex)
+                                    PlayerController.play(
+                                        context,
+                                        playableTracks,
+                                        playableIndex,
+                                        playbackContext = PlaybackContext.Album(albumId),
+                                    )
                                 }
                             }
                         )

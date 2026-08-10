@@ -51,6 +51,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.lmg.vk.engine.AudioDownloadManager
+import com.lmg.vk.engine.PlaybackContext
 import com.lmg.vk.engine.backend.Album
 import com.lmg.vk.engine.backend.MiniArtist
 import com.lmg.vk.engine.backend.MusicBackend
@@ -317,11 +318,23 @@ fun PlaylistDetailScreen(
                                 ?: tracks.firstOrNull()?.coverUrl,
                             isDark = isDark,
                             onPlay = {
-                                if (playableTracks.isNotEmpty()) PlayerController.play(context, playableTracks, 0)
+                                if (playableTracks.isNotEmpty()) {
+                                    PlayerController.play(
+                                        context,
+                                        playableTracks,
+                                        0,
+                                        playbackContext = PlaybackContext.Playlist(playlistId),
+                                    )
+                                }
                             },
                             onShuffle = {
                                 if (playableTracks.isNotEmpty()) {
-                                    PlayerController.play(context, playableTracks.shuffled(), 0)
+                                    PlayerController.play(
+                                        context,
+                                        playableTracks.shuffled(),
+                                        0,
+                                        playbackContext = PlaybackContext.Playlist(playlistId),
+                                    )
                                 }
                             },
                             mainColor = vkMainColor(playlistInfo?.mainColor),
@@ -444,7 +457,12 @@ fun PlaylistDetailScreen(
                             onClick = {
                                 val playableIndex = playableTracks.indexOfFirst { it.id == track.id }
                                 if (playableIndex >= 0) {
-                                    PlayerController.play(context, playableTracks, playableIndex)
+                                    PlayerController.play(
+                                        context,
+                                        playableTracks,
+                                        playableIndex,
+                                        playbackContext = PlaybackContext.Playlist(playlistId),
+                                    )
                                 }
                             }
                         )

@@ -1126,7 +1126,10 @@ data class HomeItem(
     @SerialName("isClip") val isClip: Boolean = false,
     /** Server CatalogKit promotional/editorial card without an audio stream. */
     @SerialName("isCustom") val isCustom: Boolean = false,
-    @SerialName("isAvailable") val isAvailable: Boolean = true
+    @SerialName("isAvailable") val isAvailable: Boolean = true,
+    /** Nested `AudioStreamMix.stream_mix.id`, not the CatalogKit item id. */
+    @SerialName("streamMixId") val streamMixId: String? = null,
+    @SerialName("streamMixTunable") val streamMixTunable: Boolean = false,
 ) {
     /** Трек = не альбом, не артист и не видеоклип (клип не стримится). */
     val isTrack: Boolean

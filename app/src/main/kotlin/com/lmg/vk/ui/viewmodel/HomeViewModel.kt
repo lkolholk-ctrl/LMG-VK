@@ -26,8 +26,9 @@ import kotlinx.coroutines.launch
 /**
  * ViewModel for the Home (Listen Now) screen.
  * 
- * Offline-first: loads from cache immediately, then refreshes from API in background.
- * Uses WaveRepository for "My Wave" analytics and queue building.
+ * Offline-first: loads catalog content from cache for the New tab. The Aura
+ * starts VK Mix directly; WaveRepository remains only for explicit legacy
+ * mood/station modes outside the personal Aura entry point.
  */
 class HomeViewModel : ViewModel() {
 
@@ -386,68 +387,38 @@ class HomeViewModel : ViewModel() {
     }
 
     /**
-     * Builds the expanded personal wave. Fast start: a small one-shot batch
-     * starts the music after a single request; EndlessPlaybackEngine tops the
-     * queue up through the session that WaveRepository warms up in parallel.
+     * Starts the official personal VK Mix inside LMG's Aura presentation.
+     * The Aura remains the whole screen; VK supplies only the playback source.
      */
-    fun buildWaveQueue(context: Context) {
+    fun startAuraMix(context: Context) {
         if (waveLoadJob?.isActive == true) return
-        if (!isLinked()) { _needsLink.value = true; return }
+        _error.value = null
         _isBuildingWave.value = true
 
         waveLoadJob = viewModelScope.launch {
             try {
-                val repo = WaveRepository.getInstance(context)
-                val tracks = repo.startPersonalWave()
-                android.util.Log.d("Wave", "buildWaveQueue: startPersonalWave -> ${tracks.size} tracks")
+                val mixSource = MusicBackend.getPersonalMixSource()
+                val tracks = mixSource?.tracks.orEmpty().filter { it.isAvailable }
+                android.util.Log.d("VkMix", "startAuraMix -> ${tracks.size} tracks")
 
-                if (tracks.isNotEmpty()) {
+                if (mixSource != null && tracks.isNotEmpty()) {
                     _waveTracks.value = tracks
                     PlayerController.playFromList(
                         context = context,
                         tracks = tracks,
                         startIndex = 0,
-                        autoRefillType = "WAVE"
+                        playbackContext = com.lmg.vk.engine.PlaybackContext.VkMix(
+                            mixId = mixSource.mixId,
+                            entityId = mixSource.entityId,
+                        ),
                     )
-                    _isBuildingWave.value = false
-                    PlayerController.ensureWaveRefill()
                 } else {
-                    // Персональная волна backend пуста НА СЕРВЕРЕ: он Apple-only и у
-                    // аккаунта нет apple-сидов (лайки Y/кастомные), поэтому на все
-                    // /wave/* приходит status:"empty", tracks:[]. Чтобы «Моя волна»
-                    // не молчала и не откатывалась — падаем в бесконечную ЖАНРОВУЮ
-                    // волну по топ-жанрам юзера: /wave/genre/{genre} это Apple-каталог,
-                    // не зависит от персональных сидов. GENRE-дозаправка (см.
-                    // EndlessPlaybackEngine) держит её бесконечной.
-                    val fallback = buildGenreFallbackQueue(repo)
-                    if (fallback != null) {
-                        val (genres, genreTracks) = fallback
-                        android.util.Log.d(
-                            "Wave",
-                            "buildWaveQueue: personal empty -> search genre fallback $genres -> ${genreTracks.size} tracks"
-                        )
-                        _waveTracks.value = genreTracks
-                        // autoRefillType=SEARCH + seedPool=жанры → EndlessPlaybackEngine
-                        // дозаправляет волну поиском по этим жанрам (см. SEARCH-ветку).
-                        // Персональная волна пуста (Apple-only), поэтому идём поиском;
-                        // /wave/genre backend починил (2026-07-11). Волна бесконечна.
-                        PlayerController.playFromList(
-                            context = context,
-                            tracks = genreTracks,
-                            startIndex = 0,
-                            autoRefillType = "SEARCH",
-                            autoRefillId = genres.firstOrNull(),
-                            autoRefillName = genres.firstOrNull(),
-                            seedPool = genres
-                        )
-                        _isBuildingWave.value = false
-                        PlayerController.ensureWaveRefill()
-                    }
+                    _error.value = "VK Mix недоступен"
                 }
             } catch (e: CancellationException) {
                 throw e
-            } catch (_: Exception) {
-                _error.value = "Failed to build wave"
+            } catch (e: Exception) {
+                _error.value = com.lmg.vk.engine.backend.backendUserMessage(e)
             } finally {
                 if (waveLoadJob === coroutineContext[Job]) {
                     _isBuildingWave.value = false
@@ -455,51 +426,6 @@ class HomeViewModel : ViewModel() {
                 }
             }
         }
-    }
-
-    /**
-     * Fallback для пустой персональной волны. Берёт топ-жанры юзера и набирает
-     * очередь ПОИСКОМ (buildGenreSearchQueue): персональная волна пуста (Apple-
-     * only), а поиск стабилен. (/wave/genre backend починил 2026-07-11 — раньше он
-     * висел; теперь это просто наш fallback.) Возвращает список жанров (для
-     * SEARCH-дозаправки через seedPool) и стартовую пачку. getTopGenres сам
-     * отдаёт дефолты (Electronic/Techno…), если истории нет — так что волна
-     * заведётся даже у нового юзера.
-     */
-    private suspend fun buildGenreFallbackQueue(
-        repo: WaveRepository
-    ): Pair<List<String>, List<Track>>? {
-        val genres = try {
-            repo.getTopGenres(limit = 5)
-        } catch (e: CancellationException) {
-            throw e
-        } catch (_: Exception) {
-            emptyList()
-        }
-        if (genres.isEmpty()) return null
-        // Первую пачку берём через ПРАВИЛЬНЫЙ /wave/genre/{genre} (round-robin по
-        // жанрам): жанрово классифицированные треки, а не результат текст-поиска по
-        // слову-жанру. Сырой поиск остаётся внутри buildMultiGenreWaveQueue как
-        // аварийный фолбэк, если сервер вернёт пусто по всем жанрам.
-        suspend fun search(): List<Track> = try {
-            repo.buildMultiGenreWaveQueue(
-                genres = genres,
-                count = WaveRepository.WAVE_QUEUE_SIZE
-            )
-        } catch (e: CancellationException) {
-            throw e
-        } catch (_: Exception) {
-            emptyList()
-        }
-        var tracks = search()
-        if (tracks.isEmpty()) {
-            // Первый заход мог совпасть со сменой сети на старте (OkHttp сбрасывает
-            // пулы — «NET revive»), из-за чего волна не стартовала с первого раза.
-            // Один повтор после короткой паузы обычно уже попадает в живые пулы.
-            delay(600)
-            tracks = search()
-        }
-        return if (tracks.isNotEmpty()) genres to tracks else null
     }
 
     /**

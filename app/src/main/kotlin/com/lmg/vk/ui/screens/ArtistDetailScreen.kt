@@ -80,6 +80,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import com.lmg.vk.engine.Track
+import com.lmg.vk.engine.PlaybackContext
 import com.lmg.vk.engine.backend.ArtistAlbum
 import com.lmg.vk.engine.backend.ArtistLink
 import com.lmg.vk.engine.backend.ArtistResponse
@@ -331,12 +332,22 @@ fun ArtistDetailScreen(
                             isDark = colors.isDark,
                             onPlay = {
                                 if (playableArtistTracks.isNotEmpty()) {
-                                    PlayerController.play(context, playableArtistTracks, 0)
+                                    PlayerController.play(
+                                        context,
+                                        playableArtistTracks,
+                                        0,
+                                        playbackContext = PlaybackContext.Artist(artistId),
+                                    )
                                 }
                             },
                             onShuffle = {
                                 if (playableArtistTracks.isNotEmpty()) {
-                                    PlayerController.play(context, playableArtistTracks.shuffled(), 0)
+                                    PlayerController.play(
+                                        context,
+                                        playableArtistTracks.shuffled(),
+                                        0,
+                                        playbackContext = PlaybackContext.Artist(artistId),
+                                    )
                                 }
                             }
                         )
@@ -352,12 +363,21 @@ fun ArtistDetailScreen(
                                 onMix = {
                                     scope.launch {
                                         isMixBusy = true
-                                        val mix = MusicBackend.getArtistMix(
+                                        val mixSource = MusicBackend.getArtistMixSource(
                                             artistInfo.id,
                                             artistInfo.mixId,
-                                        ).filter { it.isAvailable }
-                                        if (mix.isNotEmpty()) {
-                                            PlayerController.play(context, mix, 0)
+                                        )
+                                        val mix = mixSource?.tracks.orEmpty().filter { it.isAvailable }
+                                        if (mixSource != null && mix.isNotEmpty()) {
+                                            PlayerController.play(
+                                                context,
+                                                mix,
+                                                0,
+                                                playbackContext = PlaybackContext.VkMix(
+                                                    mixId = mixSource.mixId,
+                                                    entityId = mixSource.entityId,
+                                                ),
+                                            )
                                         } else {
                                             Toast.makeText(context, "Artist mix is unavailable", Toast.LENGTH_SHORT).show()
                                         }
@@ -478,7 +498,12 @@ fun ArtistDetailScreen(
                                                     val playableSongs = songs.filter { it.isAvailable }
                                                     val playableIndex = playableSongs.indexOfFirst { it.id == track.id }
                                                     if (playableIndex >= 0) {
-                                                        PlayerController.play(context, playableSongs, playableIndex)
+                                                        PlayerController.play(
+                                                            context,
+                                                            playableSongs,
+                                                            playableIndex,
+                                                            playbackContext = PlaybackContext.Artist(artistId),
+                                                        )
                                                     }
                                                 }
                                             )
@@ -787,7 +812,14 @@ fun ArtistDetailScreen(
                     val playable = artistTracks.filter { it.isAvailable }
                     val selected = artistTracks.getOrNull(index)
                     val playableIndex = playable.indexOfFirst { it.id == selected?.id }
-                    if (playableIndex >= 0) PlayerController.play(context, playable, playableIndex)
+                    if (playableIndex >= 0) {
+                        PlayerController.play(
+                            context,
+                            playable,
+                            playableIndex,
+                            playbackContext = PlaybackContext.Artist(artistId),
+                        )
+                    }
                 },
                 onDismiss = { showAllSongs = false },
             )

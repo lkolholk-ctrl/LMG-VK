@@ -36,16 +36,16 @@ import kotlinx.coroutines.withTimeout
 import kotlin.coroutines.resume
 
 /**
- * Strict playback scope isolation.
- * - Downloads / Playlist contexts are BOUNDED — the player must NEVER
- *   auto-advance beyond the injected local array or fetch global recommendations.
- * - Only [Global] allows the EndlessPlaybackEngine to refill the queue.
+ * Playback source identity, kept separately from [PlaybackQueueConfig] as in
+ * the official VK player. Regular music sources are finite; VK Mix and an
+ * explicitly configured Wave source may request their own next batch.
  */
 sealed class PlaybackContext {
     object Downloads : PlaybackContext()
     data class Playlist(val id: String) : PlaybackContext()
     data class Album(val id: String) : PlaybackContext()
     data class Artist(val id: String) : PlaybackContext()
+    data class VkMix(val mixId: String, val entityId: String?) : PlaybackContext()
     object Global : PlaybackContext()
 }
 
@@ -87,6 +87,8 @@ object PlayerController {
     // ── Playback Context (isolation gate) ──
     private var _playbackContext: PlaybackContext = PlaybackContext.Global
     val playbackContext: PlaybackContext get() = _playbackContext
+    private var _playbackQueueConfig: PlaybackQueueConfig = PlaybackQueueConfig.DEFAULT
+    val playbackQueueConfig: PlaybackQueueConfig get() = _playbackQueueConfig
     private val _playbackBackend = MutableStateFlow(PlaybackBackend.EXO_STREAMING)
     val playbackBackend: StateFlow<PlaybackBackend> = _playbackBackend
     val isLocalJucePlaybackActive: Boolean
@@ -116,7 +118,8 @@ object PlayerController {
         autoRefillId: String? = null,
         autoRefillName: String? = null,
         seedTrackId: String? = null,
-        seedPool: List<String> = emptyList()
+        seedPool: List<String> = emptyList(),
+        playbackContext: PlaybackContext? = null,
     ) {
         if (tracks.isEmpty() || startIndex !in tracks.indices) return
         val startTrack = tracks[startIndex]
@@ -127,11 +130,17 @@ object PlayerController {
             DebugLog.add("PC.play kind=$kind отброшено чужих: ${tracks.size - pure.size}")
         }
         if (kind == TrackKind.LOCAL) {
-            playLocalOnJuce(context, pure, newStart)
+            playLocalOnJuce(
+                context = context,
+                tracks = pure,
+                startIndex = newStart,
+                playbackContext = playbackContext ?: PlaybackContext.Playlist("local_audio"),
+            )
         } else {
             playFromList(
                 context, pure, newStart,
-                autoRefillType, autoRefillId, autoRefillName, seedTrackId, seedPool
+                autoRefillType, autoRefillId, autoRefillName, seedTrackId, seedPool,
+                playbackContext,
             )
         }
     }
@@ -144,13 +153,12 @@ object PlayerController {
     )
 
     /**
-     * Единая точка входа для авто-дозаправки очереди волны. Безопасно дёргать из
-     * нескольких триггеров (UI-bridge и service-listener) — EndlessPlaybackEngine
-     * дедуплицирует через свой lock + throttle. Только для волны (Global).
+     * Единая точка входа для очереди с разрешённым endless listening. Безопасно
+     * дёргать из нескольких триггеров (UI-bridge и service-listener) —
+     * EndlessPlaybackEngine дедуплицирует через свой lock + throttle.
      */
     fun ensureWaveRefill() {
-        // Без гейта по контексту: дозаправка работает везде (в не-волне —
-        // станция по хвосту очереди, решает сам EndlessPlaybackEngine).
+        if (!_playbackQueueConfig.endlessListeningEnabled) return
         ioScope.launch { endlessEngine.checkAndRefillIfNeeded() }
     }
 
@@ -612,7 +620,8 @@ object PlayerController {
         autoRefillId: String? = null,
         autoRefillName: String? = null,
         seedTrackId: String? = null,
-        seedPool: List<String> = emptyList()
+        seedPool: List<String> = emptyList(),
+        playbackContext: PlaybackContext? = null,
     ) {
         if (tracks.isEmpty() || startIndex !in tracks.indices) {
             android.util.Log.e("VOIDPIXEL_MEDIA", "playFromList called with empty tracks or invalid startIndex=$startIndex")
@@ -649,7 +658,7 @@ object PlayerController {
         }
 
         // ── Determine playback context BEFORE any async work ──
-        val newContext = when {
+        val newContext = playbackContext ?: when {
             autoRefillType.equals("library", ignoreCase = true) && autoRefillId.equals("downloads", ignoreCase = true) ->
                 PlaybackContext.Downloads
             autoRefillType.equals("playlist", ignoreCase = true) && autoRefillId != null ->
@@ -659,6 +668,15 @@ object PlayerController {
             autoRefillType.equals("artist", ignoreCase = true) && autoRefillId != null ->
                 PlaybackContext.Artist(autoRefillId)
             else -> PlaybackContext.Global
+        }
+        // Official VK derives queue capabilities from StartPlaySource. LMG keeps
+        // the source in PlaybackContext, so preserve the same distinction here:
+        // regular music is finite; only an explicit mix/refill source is endless.
+        val newQueueConfig = when {
+            newContext is PlaybackContext.VkMix -> PlaybackQueueConfig.VK_MIX_CONFIG
+            newContext !is PlaybackContext.Global -> PlaybackQueueConfig.MUSIC_CONFIG
+            autoRefillType != null -> PlaybackQueueConfig.VK_MIX_CONFIG
+            else -> PlaybackQueueConfig.MUSIC_WITHOUT_SOURCE_CONFIG
         }
 
         _isVideoClip.value = false   // обычный трек — не видеоклип
@@ -673,11 +691,18 @@ object PlayerController {
             }
 
             _playbackContext = newContext
+            _playbackQueueConfig = newQueueConfig
             _playbackBackend.value = PlaybackBackend.EXO_STREAMING
-            android.util.Log.d("VOIDPIXEL_MEDIA", "[CONTEXT_SET] $newContext")
+            android.util.Log.d(
+                "VOIDPIXEL_MEDIA",
+                "[CONTEXT_SET] $newContext queueConfig=$newQueueConfig",
+            )
 
             endlessEngine.reset()
-            if (newContext is PlaybackContext.Global && autoRefillType != null) {
+            if (newQueueConfig.endlessListeningEnabled &&
+                newContext is PlaybackContext.Global &&
+                autoRefillType != null
+            ) {
                 val type = try {
                     EndlessPlaybackEngine.RefillContext.Type.valueOf(autoRefillType.uppercase())
                 } catch (e: Exception) {
@@ -748,7 +773,7 @@ object PlayerController {
                     }
                     addToRecent(startTrack)
 
-                    if (newContext is PlaybackContext.Global) {
+                    if (newQueueConfig.endlessListeningEnabled) {
                         launch {
                             kotlinx.coroutines.delay(3000)
                             endlessEngine.checkAndRefillIfNeeded()
@@ -821,20 +846,12 @@ object PlayerController {
         // ExoPlayer впустую.
         if (!com.lmg.vk.engine.automix.AutoMixNativeEngine.isAvailable()) {
             DebugLog.add("JUCE недоступен — локальные треки играем через ExoPlayer")
-            // Контекст пробрасываем: без него playFromList выставил бы Global,
-            // а это включает автодозаправку «волны» поверх локальной очереди —
-            // к скачанным трекам начали бы приклеиваться онлайн-треки.
-            val (refillType, refillId) = when (playbackContext) {
-                is PlaybackContext.Downloads -> "library" to "downloads"
-                is PlaybackContext.Playlist -> "playlist" to playbackContext.id
-                is PlaybackContext.Album -> "album" to playbackContext.id
-                is PlaybackContext.Artist -> "artist" to playbackContext.id
-                else -> null to null
-            }
+            // Оригинальный VK передаёт источник отдельно от refill-конфига.
+            // Пробрасываем его напрямую: локальная очередь остаётся конечной и
+            // не превращается в глобальную волну из-за строковой эвристики.
             playFromList(
                 context, tracks, startIndex,
-                autoRefillType = refillType,
-                autoRefillId = refillId,
+                playbackContext = playbackContext,
             )
             return
         }
@@ -842,6 +859,7 @@ object PlayerController {
         ioScope.launch {
             // Статичная локальная очередь — без онлайн-рефилла.
             _playbackContext = playbackContext
+            _playbackQueueConfig = PlaybackQueueConfig.MUSIC_CONFIG
             _playbackBackend.value = PlaybackBackend.JUCE_LOCAL
             endlessEngine.reset()
 
@@ -1374,7 +1392,16 @@ object PlayerController {
             else -> PlaybackContext.Global
         }
         _playbackContext = newContext
-        android.util.Log.d("VOIDPIXEL_MEDIA", "[CONTEXT_SET] setAutoRefillContext: type=$type, id=$id, name=$name, seedTrackId=$seedTrackId -> context=$newContext")
+        _playbackQueueConfig = if (newContext is PlaybackContext.Global) {
+            PlaybackQueueConfig.VK_MIX_CONFIG
+        } else {
+            PlaybackQueueConfig.MUSIC_CONFIG
+        }
+        android.util.Log.d(
+            "VOIDPIXEL_MEDIA",
+            "[CONTEXT_SET] setAutoRefillContext: type=$type, id=$id, name=$name, " +
+                "seedTrackId=$seedTrackId -> context=$newContext queueConfig=$_playbackQueueConfig",
+        )
 
         endlessEngine.reset()
         if (newContext is PlaybackContext.Global) {
@@ -1397,6 +1424,7 @@ object PlayerController {
 
     fun clearAutoRefillContext() {
         _playbackContext = PlaybackContext.Global
+        _playbackQueueConfig = PlaybackQueueConfig.MUSIC_WITHOUT_SOURCE_CONFIG
         endlessEngine.reset()
         android.util.Log.d("VOIDPIXEL_MEDIA", "[CONTEXT_CLEAR] Context cleared, reset to Global")
     }
@@ -1714,6 +1742,7 @@ object PlayerController {
             is PlaybackContext.Playlist -> "playlist"
             is PlaybackContext.Album -> "album"
             is PlaybackContext.Artist -> "artist"
+            is PlaybackContext.VkMix -> "vk_mix"
             is PlaybackContext.Global -> "wave"
         }
 
@@ -1779,6 +1808,9 @@ object PlayerController {
         thumbnail: String?,
     ) {
         ioScope.launch {
+            endlessEngine.reset()
+            _playbackContext = PlaybackContext.Downloads
+            _playbackQueueConfig = PlaybackQueueConfig.MUSIC_CONFIG
             withContext(Dispatchers.Main) {
                 val player = getPlayer(context) ?: return@withContext
                 val item = MediaItem.Builder()
@@ -1828,9 +1860,8 @@ object PlayerController {
      *     40 треков «волны». В ленте сниппетов очередь обязана быть ровно та,
      *     что листает пользователь.
      *
-     * Поэтому здесь: прямой uri без `liquid://`, `PlaybackContext.Downloads`
-     * как ОГРАНИЧЕННЫЙ контекст (дозаправка разрешена только для Global) и
-     * пустой refill-контекст.
+     * Поэтому здесь: прямой uri без `liquid://`, `PlaybackContext.Downloads`,
+     * конечный `MUSIC_CONFIG` и пустой refill-контекст.
      *
      * Обрезку по времени НЕ делаем: VK X её тоже не делает — во всём
      * деобфусцированном коде нет ни одного `ClippingConfiguration`, границы
@@ -1861,6 +1892,7 @@ object PlayerController {
         ioScope.launch {
             endlessEngine.reset()
             _playbackContext = PlaybackContext.Downloads
+            _playbackQueueConfig = PlaybackQueueConfig.MUSIC_CONFIG
             _playbackBackend.value = PlaybackBackend.EXO_STREAMING
 
             withContext(Dispatchers.Main) {
@@ -2081,8 +2113,8 @@ object PlayerController {
                     onTrackChanged(mediaId)
 
                     // ── Endless refill background monitoring ──
-                    // Проверяем в ЛЮБОМ контексте: очередь у края — движок сам
-                    // решит, чем дозаправить (волна или станция по хвосту).
+                    // Callback общий для всех очередей; PlaybackQueueConfig
+                    // внутри движка разрешит запрос только VK Mix/явной Wave.
                     val player = controller
                     if (player != null) {
                         val total = player.mediaItemCount
