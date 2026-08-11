@@ -144,10 +144,19 @@ fun LibraryScreen(
     val profileSearch by viewModel.profileSearch.collectAsState()
     val isProfileSearchLoading by viewModel.isProfileSearchLoading.collectAsState()
     val profileSearchError by viewModel.profileSearchError.collectAsState()
+    val currentTrack by PlayerController.currentTrack.collectAsState()
 
     // Downloads state
     val db = remember { FavoriteTrackDatabase.getInstance(context) }
     val downloadedTracks by db.downloadsFlow.collectAsState(initial = emptyList())
+    val downloadedTrackIds = remember(downloadedTracks) {
+        downloadedTracks.mapTo(mutableSetOf()) {
+            com.lmg.vk.engine.VkAudioIdentity.stableFullId(it.trackId)
+        }
+    }
+    val currentTrackId = remember(currentTrack) {
+        currentTrack?.id?.let(com.lmg.vk.engine.VkAudioIdentity::stableFullId)
+    }
 
     // Imported state
     val isLoggedIn by MusicAuth.isLoggedIn.collectAsState()
@@ -233,7 +242,7 @@ fun LibraryScreen(
     }
 
     LaunchedEffect(currentView) {
-        if (currentView == LibraryView.RECENT) {
+        if (currentView == LibraryView.MAIN || currentView == LibraryView.RECENT) {
             recentTracks = runCatching {
                 val ids = AppDatabase.getInstance(context).playbackHistoryDao()
                     .getRecentTrackIds(100)
@@ -263,12 +272,6 @@ fun LibraryScreen(
     ) {
         when (currentView) {
             LibraryView.MAIN -> {
-                // ── Вариант A (редизайн): системные разделы одной карточкой 28dp
-                // с живыми сабтайтлами, ниже — сетка плейлистов 2 колонки с
-                // мозаикой обложек. My Playlists и Imported слиты в одну сетку
-                // (импортные — с бейджем источника), Local Audio + Медиатека —
-                // один раздел «On this device». ──
-                // Размер загрузок на диске — фоном, чтобы не трогать main.
                 var downloadsSize by remember { mutableStateOf<String?>(null) }
                 LaunchedEffect(downloadedTracks) {
                     downloadsSize = kotlinx.coroutines.withContext(Dispatchers.IO) {
@@ -292,58 +295,33 @@ fun LibraryScreen(
                     }
                 }
                 val favoritePreview = remember(matchingFavorites) { matchingFavorites.take(5) }
+                val recentPreview = remember(recentTracks) { recentTracks.take(4) }
 
-                androidx.compose.foundation.lazy.grid.LazyVerticalGrid(
-                    // В альбоме/на планшете больше колонок под плейлисты (было 2);
-                    // full-span заголовки/системная карточка тянутся во всю ширину.
-                    columns = if (win.useSideBySide)
-                        androidx.compose.foundation.lazy.grid.GridCells.Adaptive(minSize = 160.dp)
-                    else androidx.compose.foundation.lazy.grid.GridCells.Fixed(2),
+                LazyColumn(
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 178.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                    contentPadding = PaddingValues(bottom = 178.dp),
                 ) {
-                    item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) {
+                    item(key = "library_header") {
                         SectionTopBar(
                             title = "Library",
-                            subtitle = "Your music, collections and playlists",
+                            subtitle = "${favorites.size} tracks · ${allPlaylistCells.size} playlists · ${downloadedTracks.size} offline",
                             isDark = lc.isDark,
-                            modifier = Modifier.requiredWidth(screenWidth),
-                            actions = if (isLoggedIn) {
-                                {
-                                    SectionTopBarAction(
-                                        label = if (isSyncing || playlistSyncState.isSyncing) "Syncing…" else "Sync library",
-                                        icon = com.lmg.vk.ui.icons.LmgGlyphs.RefreshOutline28,
-                                        filled = true,
-                                        enabled = !isSyncing && !playlistSyncState.isSyncing,
-                                        onClick = ::refreshLibrary,
-                                    )
-                                }
-                            } else {
-                                null
-                            },
                         )
                     }
 
-                    item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) {
-                        LibraryTabs(
-                            isDark = lc.isDark,
-                            downloaded = false,
-                            onLibrary = {},
-                            onDownloaded = { openDownloads() },
-                        )
-                    }
-
-                    item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) {
-                        LibrarySearchField(
-                            value = libraryQuery,
-                            onValueChange = { libraryQuery = it },
+                    item(key = "library_search_sync") {
+                        LibrarySearchSyncRow(
+                            query = libraryQuery,
+                            onQueryChange = { libraryQuery = it },
+                            showSync = isLoggedIn,
+                            isSyncing = isSyncing || playlistSyncState.isSyncing,
+                            onSync = ::refreshLibrary,
+                            modifier = Modifier.padding(horizontal = 20.dp),
                         )
                     }
 
                     if (isLoggedIn && libraryQuery.trim().length >= 2) {
-                        item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) {
+                        item(key = "library_profile_search") {
                             ProfileLibrarySearchResults(
                                 result = profileSearch,
                                 isLoading = isProfileSearchLoading,
@@ -355,95 +333,93 @@ fun LibraryScreen(
                                     }
                                 },
                                 onPlaylistClick = onOpenPlaylist,
+                                modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp),
                             )
                         }
                     }
 
-                    // ── Системные разделы: одна карточка, строки с живым контентом ──
-                    item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(28.dp))
-                                .background(lc.cardSurface)
-                        ) {
-                            MenuCard("Recent", "Recently played", com.lmg.vk.ui.icons.LmgGlyphs.HistoryBackwardOutline28, lc.accent, { currentView = LibraryView.RECENT }, win.useSideBySide)
-                            SystemRowDivider(compact = win.useSideBySide)
-                            MenuCard(
-                                "Playlists",
-                                "${allPlaylistCells.size} playlists",
-                                com.lmg.vk.ui.icons.LmgGlyphs.PlaylistOutline28,
-                                lc.accent,
-                                { currentView = LibraryView.PLAYLISTS },
-                                win.useSideBySide,
-                            )
-                            SystemRowDivider(compact = win.useSideBySide)
-                            MenuCard("Albums", "Saved and local albums", com.lmg.vk.ui.icons.LmgGlyphs.AlbumFilled12, lc.accent, onOpenLocalLibrary, win.useSideBySide)
-                            SystemRowDivider(compact = win.useSideBySide)
-                            MenuCard("Artists & curators", "Artists in your library", com.lmg.vk.ui.icons.LmgGlyphs.UserOutline28, lc.accent, onOpenLocalLibrary, win.useSideBySide)
-                            SystemRowDivider(compact = win.useSideBySide)
-                            MenuCard(
-                                title = "Downloaded music",
-                                subtitle = downloadsSize
-                                    ?.let { "${downloadedTracks.size} tracks · $it" }
-                                    ?: "${downloadedTracks.size} tracks",
-                                icon = com.lmg.vk.ui.icons.LmgGlyphs.DownloadOutline28,
-                                tint = Color(0xFF29B6F6),
-                                compact = win.useSideBySide,
-                                onClick = { openDownloads() }
+                    item(key = "library_quick_sections") {
+                        Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 14.dp)) {
+                            LibrarySectionTitle(title = "Your library")
+                            Spacer(Modifier.height(10.dp))
+                            LibraryQuickSections(
+                                playlistCount = allPlaylistCells.size,
+                                downloadCount = downloadedTracks.size,
+                                downloadsSize = downloadsSize,
+                                wide = win.useSideBySide,
+                                onPlaylists = { currentView = LibraryView.PLAYLISTS },
+                                onAlbums = onOpenLocalLibrary,
+                                onArtists = onOpenLocalLibrary,
+                                onDownloads = ::openDownloads,
                             )
                         }
                     }
 
-                    item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text(
-                                text = if (libraryQuery.isBlank()) {
-                                    "My tracks · ${favorites.size}"
-                                } else {
-                                    "Search results · ${matchingFavorites.size}"
-                                },
-                                color = lc.textPrimary,
-                                fontSize = if (win.useSideBySide) 17.sp else 20.sp,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.weight(1f),
+                    item(key = "library_recent_header") {
+                        Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)) {
+                            LibrarySectionTitle(
+                                title = "Recently played",
+                                count = recentTracks.size.takeIf { it > 0 },
+                                action = "See all",
+                                onAction = { currentView = LibraryView.RECENT },
                             )
-                            Text(
-                                if (libraryQuery.isBlank()) "See all" else "Show all",
-                                color = lc.accent,
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .liquidClickable { currentView = LibraryView.FAVORITES }
-                                    .padding(horizontal = 10.dp, vertical = 6.dp),
+                        }
+                    }
+
+                    if (recentPreview.isEmpty()) {
+                        item(key = "library_recent_empty") {
+                            CompactLibraryEmptyHint(
+                                text = "Tracks you play will appear here",
+                                icon = lmgVector(LmgDrawables.HistoryBackwardOutline28),
+                                modifier = Modifier.padding(horizontal = 20.dp),
                             )
-                            IconButton(
-                                enabled = favorites.isNotEmpty(),
-                                onClick = { viewModel.shuffleAndPlay(context) },
+                        }
+                    } else {
+                        items(recentPreview, key = { "recent-preview-${it.id}" }) { track ->
+                            RecentTrackItem(
+                                track = track,
+                                compact = true,
+                                horizontalPadding = 20.dp,
                             ) {
-                                Icon(com.lmg.vk.ui.icons.LmgGlyphs.ShuffleOutline28, "Shuffle my tracks", tint = lc.accent)
+                                val index = recentTracks.indexOfFirst { it.id == track.id }
+                                if (index >= 0) PlayerController.play(context, recentTracks, index)
                             }
                         }
                     }
 
-                    items(
-                        count = favoritePreview.size,
-                        key = { "favorite-preview-${favoritePreview[it].trackId}" },
-                        span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) },
-                    ) { index ->
-                        LibraryTrackPreview(favoritePreview[index]) {
-                            viewModel.playTrack(
-                                context,
-                                favoritePreview[index].cloudTrackId
-                                    ?: favoritePreview[index].trackId,
+                    item(key = "library_favorites_header") {
+                        Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp)) {
+                            LibrarySectionTitle(
+                                title = if (libraryQuery.isBlank()) "My tracks" else "Search results",
+                                count = if (libraryQuery.isBlank()) favorites.size else matchingFavorites.size,
+                                action = if (libraryQuery.isBlank()) "See all" else "Show all",
+                                onAction = { currentView = LibraryView.FAVORITES },
+                                quickActionIcon = lmgVector(LmgDrawables.ShuffleOutline24),
+                                quickActionDescription = "Shuffle my tracks",
+                                quickActionEnabled = favorites.isNotEmpty(),
+                                onQuickAction = { viewModel.shuffleAndPlay(context) },
                             )
                         }
                     }
 
+                    if (favoritePreview.isEmpty()) {
+                        item(key = "library_favorites_empty") {
+                            CompactLibraryEmptyHint(
+                                text = if (libraryQuery.isBlank()) "Your favorite tracks will appear here" else "No tracks match your search",
+                                icon = lmgVector(LmgDrawables.FavoriteOutline28),
+                                modifier = Modifier.padding(horizontal = 20.dp),
+                            )
+                        }
+                    } else {
+                        items(favoritePreview, key = { "favorite-preview-${it.trackId}" }) { track ->
+                            LibraryTrackPreview(
+                                track = track,
+                                modifier = Modifier.padding(horizontal = 20.dp),
+                            ) {
+                                viewModel.playTrack(context, track.cloudTrackId ?: track.trackId)
+                            }
+                        }
+                    }
                 }
             }
 
@@ -686,77 +662,36 @@ fun LibraryScreen(
                             },
                             isDark = lc.isDark,
                             onBack = { currentView = LibraryView.MAIN },
-                            actions = {
-                                SectionTopBarAction(
-                                    label = if (isSyncing) "Syncing…" else "Sync tracks",
-                                    icon = com.lmg.vk.ui.icons.LmgGlyphs.RefreshOutline28,
-                                    filled = false,
-                                    enabled = !isSyncing,
-                                    onClick = { viewModel.syncWithCloud() },
-                                )
+                        )
+                    }
+
+                    item(key = "favorites_search_sync") {
+                        LibrarySearchSyncRow(
+                            query = libraryQuery,
+                            onQueryChange = { libraryQuery = it },
+                            showSync = true,
+                            syncLabel = "Sync tracks",
+                            isSyncing = isSyncing,
+                            onSync = { viewModel.syncWithCloud() },
+                            modifier = Modifier.padding(horizontal = 20.dp),
+                        )
+                    }
+
+                    item(key = "favorites_controls") {
+                        MyTracksControlBar(
+                            enabled = favorites.isNotEmpty(),
+                            sort = favoriteSort,
+                            onPlayAll = { viewModel.playAll(context) },
+                            onShuffle = { viewModel.shuffleAndPlay(context) },
+                            onSort = {
+                                favoriteSort = when (favoriteSort) {
+                                    FavoriteSort.DEFAULT -> FavoriteSort.TITLE
+                                    FavoriteSort.TITLE -> FavoriteSort.ARTIST
+                                    FavoriteSort.ARTIST -> FavoriteSort.DEFAULT
+                                }
                             },
+                            modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp),
                         )
-                    }
-
-                    item(key = "favorites_search") {
-                        LibrarySearchField(
-                            value = libraryQuery,
-                            onValueChange = { libraryQuery = it },
-                            modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
-                        )
-                    }
-
-                    item(key = "favorites_sort") {
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 4.dp),
-                            horizontalArrangement = Arrangement.End,
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .liquidClickable {
-                                        favoriteSort = when (favoriteSort) {
-                                            FavoriteSort.DEFAULT -> FavoriteSort.TITLE
-                                            FavoriteSort.TITLE -> FavoriteSort.ARTIST
-                                            FavoriteSort.ARTIST -> FavoriteSort.DEFAULT
-                                        }
-                                    }
-                                    .padding(horizontal = 10.dp, vertical = 6.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Icon(
-                                    imageVector = com.lmg.vk.ui.icons.LmgGlyphs.SortOutline28,
-                                    contentDescription = null,
-                                    tint = lc.accent,
-                                    modifier = Modifier.size(16.dp),
-                                )
-                                Spacer(Modifier.width(5.dp))
-                                Text(
-                                    text = when (favoriteSort) {
-                                        FavoriteSort.DEFAULT -> "Default"
-                                        FavoriteSort.TITLE -> "By title"
-                                        FavoriteSort.ARTIST -> "By artist"
-                                    },
-                                    color = lc.accent,
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                )
-                            }
-                        }
-                    }
-
-                    if (favorites.isNotEmpty()) {
-                        item(key = "favorites_actions") {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 20.dp, vertical = 8.dp),
-                                horizontalArrangement = Arrangement.spacedBy(12.dp)
-                            ) {
-                                ActionButton("Play All", com.lmg.vk.ui.icons.LmgGlyphs.Play28, onClick = { viewModel.playAll(context) }, modifier = Modifier.weight(1f))
-                                ActionButton("Shuffle", com.lmg.vk.ui.icons.LmgGlyphs.ShuffleOutline28, onClick = { viewModel.shuffleAndPlay(context) }, modifier = Modifier.weight(1f))
-                            }
-                        }
                     }
 
                     if (displayedFavorites.isEmpty() && !isSyncing) {
@@ -770,6 +705,8 @@ fun LibraryScreen(
                         }
                     } else {
                         items(displayedFavorites, key = { it.trackId }) { track ->
+                            val stableTrackIds = listOfNotNull(track.trackId, track.cloudTrackId)
+                                .map(com.lmg.vk.engine.VkAudioIdentity::stableFullId)
                             Box(
                                 modifier = if (win.useSideBySide) {
                                     Modifier.padding(horizontal = wideSidePad)
@@ -783,6 +720,8 @@ fun LibraryScreen(
                                         .stableFullId(track.trackId) in favoriteIds,
                                     enabled = track.isAvailable,
                                     compact = win.useSideBySide,
+                                    isCurrent = currentTrackId != null && currentTrackId in stableTrackIds,
+                                    isDownloaded = stableTrackIds.any { it in downloadedTrackIds },
                                     onClick = {
                                         viewModel.playTrack(
                                             context,
@@ -1241,6 +1180,356 @@ private fun LibraryTabs(
     }
 }
 
+private data class LibraryQuickItem(
+    val title: String,
+    val subtitle: String,
+    val icon: androidx.compose.ui.graphics.vector.ImageVector,
+    val iconSize: androidx.compose.ui.unit.Dp = 19.dp,
+    val onClick: () -> Unit,
+)
+
+@Composable
+private fun LibrarySearchSyncRow(
+    query: String,
+    onQueryChange: (String) -> Unit,
+    showSync: Boolean,
+    syncLabel: String = "Sync",
+    isSyncing: Boolean,
+    onSync: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        LibrarySearchField(
+            value = query,
+            onValueChange = onQueryChange,
+            modifier = Modifier.weight(1f),
+        )
+        if (showSync) {
+            Row(
+                modifier = Modifier
+                    .height(44.dp)
+                    .alpha(if (isSyncing) 0.58f else 1f)
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(LiquidTheme.colors.cardSurface)
+                    .liquidClickable(
+                        enabled = !isSyncing,
+                        pressedScale = LiquidMotion.PressButton,
+                        onClick = onSync,
+                    )
+                    .padding(horizontal = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    imageVector = lmgVector(LmgDrawables.RefreshOutline28),
+                    contentDescription = null,
+                    tint = LiquidTheme.colors.accent,
+                    modifier = Modifier.size(17.dp),
+                )
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    text = if (isSyncing) "Syncing" else syncLabel,
+                    color = LiquidTheme.colors.textPrimary,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun LibrarySectionTitle(
+    title: String,
+    count: Int? = null,
+    action: String? = null,
+    onAction: () -> Unit = {},
+    quickActionIcon: androidx.compose.ui.graphics.vector.ImageVector? = null,
+    quickActionDescription: String? = null,
+    quickActionEnabled: Boolean = true,
+    onQuickAction: () -> Unit = {},
+) {
+    val lc = LiquidTheme.colors
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = buildString {
+                append(title)
+                count?.let { append(" · $it") }
+            },
+            color = lc.textPrimary,
+            fontSize = 18.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.weight(1f),
+        )
+        quickActionIcon?.let { icon ->
+            Box(
+                modifier = Modifier
+                    .size(30.dp)
+                    .alpha(if (quickActionEnabled) 1f else 0.4f)
+                    .clip(CircleShape)
+                    .liquidClickable(
+                        enabled = quickActionEnabled,
+                        pressedScale = LiquidMotion.PressIcon,
+                        onClick = onQuickAction,
+                    ),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = quickActionDescription,
+                    tint = lc.accent,
+                    modifier = Modifier.size(17.dp),
+                )
+            }
+            Spacer(Modifier.width(2.dp))
+        }
+        action?.let { label ->
+            Row(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(12.dp))
+                    .liquidClickable(onClick = onAction)
+                    .padding(horizontal = 8.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = label,
+                    color = lc.accent,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Spacer(Modifier.width(2.dp))
+                Icon(
+                    imageVector = lmgVector(LmgDrawables.ChevronRightSmallOutline24),
+                    contentDescription = null,
+                    tint = lc.accent,
+                    modifier = Modifier.size(14.dp),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun LibraryQuickSections(
+    playlistCount: Int,
+    downloadCount: Int,
+    downloadsSize: String?,
+    wide: Boolean,
+    onPlaylists: () -> Unit,
+    onAlbums: () -> Unit,
+    onArtists: () -> Unit,
+    onDownloads: () -> Unit,
+) {
+    val items = listOf(
+        LibraryQuickItem(
+            title = "Playlists",
+            subtitle = "$playlistCount saved",
+            icon = lmgVector(LmgDrawables.PlaylistOutline28),
+            onClick = onPlaylists,
+        ),
+        LibraryQuickItem(
+            title = "Albums",
+            subtitle = "Saved and local",
+            icon = lmgVector(LmgDrawables.AlbumFilled12),
+            iconSize = 16.dp,
+            onClick = onAlbums,
+        ),
+        LibraryQuickItem(
+            title = "Artists & curators",
+            subtitle = "Your collections",
+            icon = lmgVector(LmgDrawables.Users3Outline28),
+            onClick = onArtists,
+        ),
+        LibraryQuickItem(
+            title = "Downloads",
+            subtitle = downloadsSize?.let { "$downloadCount · $it" } ?: "$downloadCount offline",
+            icon = lmgVector(LmgDrawables.DownloadOutline28),
+            onClick = onDownloads,
+        ),
+    )
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        items.chunked(if (wide) 4 else 2).forEach { rowItems ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                rowItems.forEach { item ->
+                    LibraryQuickTile(item = item, modifier = Modifier.weight(1f), compact = wide)
+                }
+                repeat((if (wide) 4 else 2) - rowItems.size) {
+                    Spacer(Modifier.weight(1f))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun LibraryQuickTile(
+    item: LibraryQuickItem,
+    modifier: Modifier = Modifier,
+    compact: Boolean,
+) {
+    val lc = LiquidTheme.colors
+    Row(
+        modifier = modifier
+            .height(if (compact) 72.dp else 82.dp)
+            .clip(RoundedCornerShape(20.dp))
+            .background(lc.cardSurface)
+            .liquidClickable(onClick = item.onClick)
+            .padding(horizontal = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(34.dp)
+                .clip(CircleShape)
+                .background(lc.accent.copy(alpha = if (lc.isDark) 0.18f else 0.12f)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = item.icon,
+                contentDescription = null,
+                tint = lc.accent,
+                modifier = Modifier.size(item.iconSize),
+            )
+        }
+        Spacer(Modifier.width(9.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = item.title,
+                color = lc.textPrimary,
+                fontSize = if (compact) 12.5.sp else 13.5.sp,
+                lineHeight = if (compact) 14.sp else 15.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = item.subtitle,
+                color = lc.textSecondary,
+                fontSize = if (compact) 10.5.sp else 11.5.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
+@Composable
+private fun CompactLibraryEmptyHint(
+    text: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    modifier: Modifier = Modifier,
+) {
+    val lc = LiquidTheme.colors
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(54.dp)
+            .clip(RoundedCornerShape(18.dp))
+            .background(lc.cardSurface.copy(alpha = 0.68f))
+            .padding(horizontal = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(icon, null, tint = lc.iconMuted, modifier = Modifier.size(19.dp))
+        Spacer(Modifier.width(10.dp))
+        Text(text, color = lc.textSecondary, fontSize = 13.sp)
+    }
+}
+
+@Composable
+private fun MyTracksControlBar(
+    enabled: Boolean,
+    sort: FavoriteSort,
+    onPlayAll: () -> Unit,
+    onShuffle: () -> Unit,
+    onSort: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        CompactLibraryAction(
+            label = "Play all",
+            icon = lmgVector(LmgDrawables.Play28),
+            emphasized = true,
+            enabled = enabled,
+            onClick = onPlayAll,
+            modifier = Modifier.weight(1f),
+        )
+        CompactLibraryAction(
+            label = "Shuffle",
+            icon = lmgVector(LmgDrawables.ShuffleOutline24),
+            enabled = enabled,
+            onClick = onShuffle,
+            modifier = Modifier.weight(1f),
+        )
+        CompactLibraryAction(
+            label = when (sort) {
+                FavoriteSort.DEFAULT -> "Default"
+                FavoriteSort.TITLE -> "Title"
+                FavoriteSort.ARTIST -> "Artist"
+            },
+            icon = lmgVector(LmgDrawables.SortHorizontalOutline24),
+            onClick = onSort,
+            modifier = Modifier.weight(1f),
+        )
+    }
+}
+
+@Composable
+private fun CompactLibraryAction(
+    label: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    emphasized: Boolean = false,
+    enabled: Boolean = true,
+) {
+    val lc = LiquidTheme.colors
+    Row(
+        modifier = modifier
+            .height(42.dp)
+            .alpha(if (enabled) 1f else 0.45f)
+            .clip(RoundedCornerShape(16.dp))
+            .background(if (emphasized) lc.accent.copy(alpha = 0.14f) else lc.cardSurface)
+            .liquidClickable(
+                enabled = enabled,
+                pressedScale = LiquidMotion.PressButton,
+                onClick = onClick,
+            )
+            .padding(horizontal = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center,
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = lc.accent,
+            modifier = Modifier.size(17.dp),
+        )
+        Spacer(Modifier.width(6.dp))
+        Text(
+            text = label,
+            color = if (emphasized) lc.accent else lc.textPrimary,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
 @Composable
 private fun LibrarySearchField(
     value: String,
@@ -1251,16 +1540,18 @@ private fun LibrarySearchField(
     BasicTextField(
         value = value,
         onValueChange = onValueChange,
+        modifier = modifier,
         textStyle = TextStyle(color = lc.textPrimary, fontSize = 15.sp),
         cursorBrush = SolidColor(lc.accent),
         singleLine = true,
         decorationBox = { inner ->
             Row(
-                modifier = modifier
+                modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(22.dp))
+                    .height(44.dp)
+                    .clip(RoundedCornerShape(18.dp))
                     .background(lc.cardSurface)
-                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                    .padding(horizontal = 14.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Icon(com.lmg.vk.ui.icons.LmgGlyphs.SearchOutline28, null, tint = lc.iconMuted, modifier = Modifier.size(21.dp))
@@ -1281,10 +1572,11 @@ private fun ProfileLibrarySearchResults(
     error: String?,
     onTrackClick: (Track) -> Unit,
     onPlaylistClick: (String) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val lc = LiquidTheme.colors
     Column(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(24.dp))
             .background(lc.cardSurface)
@@ -1437,61 +1729,6 @@ private fun PlaylistControls(
             )
         }
     }
-}
-
-@Composable
-private fun MenuCard(
-    title: String,
-    subtitle: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    tint: Color,
-    onClick: () -> Unit,
-    compact: Boolean = false,
-    trailing: @Composable () -> Unit = {}
-) {
-    val lc = LiquidTheme.colors
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(if (compact) 58.dp else 72.dp)
-            .liquidClickable(onClick = onClick)
-            .padding(horizontal = 16.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Box(
-            modifier = Modifier
-                .size(if (compact) 36.dp else 44.dp)
-                .background(tint.copy(alpha = 0.12f), CircleShape)
-                .clip(CircleShape),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(icon, null, tint = tint, modifier = Modifier.size(if (compact) 18.dp else 22.dp))
-        }
-
-        Spacer(Modifier.width(if (compact) 12.dp else 14.dp))
-
-        Column(modifier = Modifier.weight(1f)) {
-            Text(title, color = lc.textPrimary, fontSize = if (compact) 14.sp else 16.sp, fontWeight = FontWeight.Bold)
-            Text(subtitle, color = lc.textSecondary, fontSize = if (compact) 12.sp else 13.sp)
-        }
-
-        trailing()
-
-        Icon(com.lmg.vk.ui.icons.LmgGlyphs.ChevronRightOutline24, null, tint = lc.textTertiary, modifier = Modifier.size(if (compact) 20.dp else 24.dp))
-    }
-}
-
-/** Разделитель строк внутри системной карточки (с отступом под иконку). */
-@Composable
-private fun SystemRowDivider(compact: Boolean = false) {
-    val lc = LiquidTheme.colors
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(start = if (compact) 64.dp else 74.dp, end = 16.dp)
-            .height(0.8.dp)
-            .background(lc.textPrimary.copy(alpha = 0.06f))
-    )
 }
 
 /** UI-модель ячейки локального или VK-плейлиста. */
@@ -2050,10 +2287,14 @@ private fun ActionButton(
 }
 
 @Composable
-private fun LibraryTrackPreview(track: FavoriteTrackEntity, onClick: () -> Unit) {
+private fun LibraryTrackPreview(
+    track: FavoriteTrackEntity,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+) {
     val lc = LiquidTheme.colors
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .alpha(if (track.isAvailable) 1f else 0.42f)
             .clip(RoundedCornerShape(14.dp))
@@ -2067,6 +2308,7 @@ private fun LibraryTrackPreview(track: FavoriteTrackEntity, onClick: () -> Unit)
             coverUrl = track.imageUrl,
             modifier = Modifier.size(50.dp).clip(RoundedCornerShape(8.dp)),
             contentScale = ContentScale.Crop,
+            placeholderIconSize = 21.dp,
         )
         Spacer(Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
@@ -2094,29 +2336,35 @@ private fun LibraryTrackPreview(track: FavoriteTrackEntity, onClick: () -> Unit)
 }
 
 @Composable
-private fun RecentTrackItem(track: Track, onClick: () -> Unit) {
+private fun RecentTrackItem(
+    track: Track,
+    compact: Boolean = false,
+    horizontalPadding: androidx.compose.ui.unit.Dp = 16.dp,
+    onClick: () -> Unit,
+) {
     val lc = LiquidTheme.colors
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .alpha(if (track.isAvailable) 1f else 0.42f)
             .clickable(enabled = track.isAvailable, onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 8.dp),
+            .padding(horizontal = horizontalPadding, vertical = if (compact) 5.dp else 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         AlbumArtImage(
             uri = null,
             contentDescription = null,
             coverUrl = track.coverUrl,
-            modifier = Modifier.size(54.dp).clip(RoundedCornerShape(8.dp)),
+            modifier = Modifier.size(if (compact) 48.dp else 54.dp).clip(RoundedCornerShape(8.dp)),
             contentScale = ContentScale.Crop,
+            placeholderIconSize = if (compact) 20.dp else 23.dp,
         )
         Spacer(Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 track.title,
                 color = lc.textPrimary,
-                fontSize = 15.sp,
+                fontSize = if (compact) 14.sp else 15.sp,
                 fontWeight = FontWeight.Medium,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -2124,7 +2372,7 @@ private fun RecentTrackItem(track: Track, onClick: () -> Unit) {
             Text(
                 if (track.isAvailable) track.artist else "Unavailable · ${track.artist}",
                 color = lc.textSecondary,
-                fontSize = 13.sp,
+                fontSize = if (compact) 12.sp else 13.sp,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -2140,6 +2388,8 @@ private fun FavoriteTrackItem(
     track: FavoriteTrackEntity,
     isLiked: Boolean,
     enabled: Boolean = true,
+    isCurrent: Boolean = false,
+    isDownloaded: Boolean = false,
     onClick: () -> Unit,
     onMore: () -> Unit,
     compact: Boolean = false
@@ -2153,18 +2403,44 @@ private fun FavoriteTrackItem(
             .padding(horizontal = 16.dp, vertical = if (compact) 6.dp else 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        val itemArtSize = if (compact) 44.dp else 56.dp
+        val itemArtSize = if (compact) 42.dp else 50.dp
         val coverToDisplay = track.imageUrl?.takeIf { it.isNotBlank() }
             ?.replace("1000x1000", "300x300")
-        AlbumArtImage(
-            uri = null,
-            contentDescription = null,
-            coverUrl = coverToDisplay,
+        Box(
             modifier = Modifier
                 .size(itemArtSize)
-                .clip(RoundedCornerShape(6.dp)),
-            contentScale = ContentScale.Crop,
-        )
+                .then(
+                    if (isCurrent) Modifier.border(1.5.dp, lc.accent, RoundedCornerShape(8.dp))
+                    else Modifier,
+                )
+                .padding(if (isCurrent) 2.dp else 0.dp),
+        ) {
+            AlbumArtImage(
+                uri = null,
+                contentDescription = null,
+                coverUrl = coverToDisplay,
+                modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(7.dp)),
+                contentScale = ContentScale.Crop,
+                placeholderIconSize = if (compact) 18.dp else 21.dp,
+            )
+            if (isDownloaded) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .size(17.dp)
+                        .clip(CircleShape)
+                        .background(lc.cardSurface),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = lmgVector(LmgDrawables.DownloadCheckOutline28),
+                        contentDescription = "Downloaded",
+                        tint = lc.accent,
+                        modifier = Modifier.size(12.dp),
+                    )
+                }
+            }
+        }
 
         Spacer(modifier = Modifier.width(12.dp))
 
@@ -2176,7 +2452,7 @@ private fun FavoriteTrackItem(
                 }
                 Text(
                     text = track.title,
-                    color = lc.textPrimary,
+                    color = if (isCurrent) lc.accent else lc.textPrimary,
                     fontSize = if (compact) 13.sp else 15.sp,
                     fontWeight = FontWeight.Medium,
                     maxLines = 1,
@@ -2203,7 +2479,13 @@ private fun FavoriteTrackItem(
         // здесь стоял onToggleLike: кнопка с подписью «Опции» молча снимала
         // лайк, то есть УДАЛЯЛА трек из медиатеки одним нажатием, без
         // подтверждения и без возможности что-то ещё сделать.
-        IconButton(onClick = onMore) {
+        Box(
+            modifier = Modifier
+                .size(if (compact) 32.dp else 36.dp)
+                .clip(CircleShape)
+                .liquidClickable(pressedScale = LiquidMotion.PressIcon, onClick = onMore),
+            contentAlignment = Alignment.Center,
+        ) {
             Icon(
                 imageVector = com.lmg.vk.ui.icons.LmgGlyphs.MoreHorizontal28,
                 contentDescription = "Опции",

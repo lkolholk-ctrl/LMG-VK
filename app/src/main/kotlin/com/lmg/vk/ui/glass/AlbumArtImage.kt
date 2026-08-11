@@ -53,6 +53,7 @@ fun AlbumArtImage(
     albumId: Long = -1L,
     coverUrl: String? = null,
     resolvedArtwork: ResolvedArtworkSource? = null,
+    placeholderIconSize: androidx.compose.ui.unit.Dp = 44.dp,
 ) {
     val artwork = resolvedArtwork
         ?: remember(uri, coverUrl) { ArtworkSourceResolver.resolve(uri, coverUrl) }
@@ -64,6 +65,7 @@ fun AlbumArtImage(
             MissingArtwork(
                 modifier = modifier,
                 contentDescription = contentDescription,
+                iconSize = placeholderIconSize,
             )
         } else {
             AsyncImage(
@@ -201,6 +203,7 @@ fun AlbumArtImage(
         MissingArtwork(
             modifier = modifier,
             contentDescription = contentDescription,
+            iconSize = placeholderIconSize,
         )
     }
 }
@@ -224,6 +227,7 @@ private fun decodeSampledByteArray(bytes: ByteArray, maxSide: Int): Bitmap? {
 private fun MissingArtwork(
     modifier: Modifier = Modifier,
     contentDescription: String? = null,
+    iconSize: androidx.compose.ui.unit.Dp = 44.dp,
 ) {
     Box(
         modifier = modifier.background(MaterialTheme.colorScheme.surfaceVariant),
@@ -233,7 +237,7 @@ private fun MissingArtwork(
             imageVector = com.lmg.vk.ui.icons.LmgGlyphs.MusicNote24,
             contentDescription = contentDescription,
             tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
-            modifier = Modifier.size(44.dp),
+            modifier = Modifier.size(iconSize),
         )
     }
 }
