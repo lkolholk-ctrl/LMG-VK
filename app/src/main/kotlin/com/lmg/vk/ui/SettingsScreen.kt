@@ -43,6 +43,8 @@ import com.kyant.backdrop.backdrops.LayerBackdrop
 import com.lmg.vk.engine.AppSettings
 import com.lmg.vk.engine.PlayerController
 import com.lmg.vk.engine.PlayerSettings
+import com.lmg.vk.R
+import com.lmg.vk.ui.components.SectionHero
 import com.lmg.vk.ui.glass.liquidClickable
 import com.lmg.vk.ui.liquid.LiquidToggle
 import com.lmg.vk.ui.LauncherIcon
@@ -98,63 +100,32 @@ fun SettingsScreen(
                 .verticalScroll(scroll)
                 .padding(horizontal = 20.dp)
         ) {
-            Spacer(modifier = Modifier.windowInsetsTopHeight(WindowInsets.statusBars))
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // Header
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // Кнопка «назад» только когда Settings открыт оверлеем; как таб — без неё.
-                if (showBack) {
-                    Box(
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clip(CircleShape)
-                            .background(if (lc.isDark) Color(0xFF1C1C1E) else Color(0xFFF2F2F7))
-                            .liquidClickable(pressedScale = LiquidMotion.PressIcon) { onBack() },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-                            contentDescription = null,
-                            tint = lc.iconDefault,
-                            modifier = Modifier.size(22.dp)
-                        )
+            // 5 быстрых тапов по заголовку по-прежнему открывают скрытый debug UI.
+            var dbgTaps by remember { mutableStateOf(0) }
+            var dbgLastTapAt by remember { mutableStateOf(0L) }
+            SectionHero(
+                title = "Settings",
+                subtitle = "Account, playback and appearance",
+                artworkRes = R.drawable.hero_settings,
+                isDark = lc.isDark,
+                fullBleed = true,
+                onBack = if (showBack) onBack else null,
+                onTitleClick = {
+                    val now = System.currentTimeMillis()
+                    dbgTaps = if (now - dbgLastTapAt < 1200L) dbgTaps + 1 else 1
+                    dbgLastTapAt = now
+                    if (dbgTaps >= 5) {
+                        dbgTaps = 0
+                        val enabled = !AppSettings.debugUiEnabled.value
+                        AppSettings.setDebugUiEnabled(enabled)
+                        android.widget.Toast.makeText(
+                            context,
+                            if (enabled) "Debug tools: ON" else "Debug tools: OFF",
+                            android.widget.Toast.LENGTH_SHORT,
+                        ).show()
                     }
-                    Spacer(modifier = Modifier.width(16.dp))
-                }
-                // 5 быстрых тапов по заголовку — вкл/выкл отладочный UI
-                // (панель JUCE DEBUG, LOG-чип, LCAT). Скрыт по умолчанию.
-                var dbgTaps by remember { mutableStateOf(0) }
-                var dbgLastTapAt by remember { mutableStateOf(0L) }
-                val dbgContext = LocalContext.current
-                Text(
-                    text = "Settings",
-                    color = lc.textPrimary,
-                    fontSize = if (win.useSideBySide) 20.sp else 24.sp,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null
-                    ) {
-                        val now = System.currentTimeMillis()
-                        dbgTaps = if (now - dbgLastTapAt < 1200L) dbgTaps + 1 else 1
-                        dbgLastTapAt = now
-                        if (dbgTaps >= 5) {
-                            dbgTaps = 0
-                            val on = !AppSettings.debugUiEnabled.value
-                            AppSettings.setDebugUiEnabled(on)
-                            android.widget.Toast.makeText(
-                                dbgContext,
-                                if (on) "Debug tools: ON" else "Debug tools: OFF",
-                                android.widget.Toast.LENGTH_SHORT
-                            ).show()
-                        }
-                    }
-                )
-            }
+                },
+            )
 
             Spacer(modifier = Modifier.height(20.dp))
 

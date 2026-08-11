@@ -20,6 +20,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -42,8 +43,11 @@ import com.lmg.vk.engine.PlayerController
 import com.lmg.vk.engine.Track
 import com.lmg.vk.ui.glass.AlbumArtImage
 import com.lmg.vk.ui.glass.liquidClickable
+import com.lmg.vk.ui.components.SectionHero
+import com.lmg.vk.ui.components.SectionHeroAction
 import com.lmg.vk.ui.theme.LiquidMotion
 import com.lmg.vk.ui.theme.LiquidTheme
+import com.lmg.vk.R
 import kotlinx.coroutines.launch
 
 /**
@@ -72,77 +76,50 @@ fun HistoryScreen(
     val compact = win.useSideBySide
 
     Box(modifier = Modifier.fillMaxSize().background(lc.settingsBackground)) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            Spacer(modifier = Modifier.windowInsetsTopHeight(WindowInsets.statusBars))
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // Header
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                if (showBack) {
-                    Box(
-                        modifier = Modifier
-                            .size(if (compact) 34.dp else 40.dp)
-                            .clip(CircleShape)
-                            .background(if (lc.isDark) Color(0xFF1C1C1E) else Color(0xFFF2F2F7))
-                            .liquidClickable(pressedScale = LiquidMotion.PressIcon) { onBack() },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-                            contentDescription = null,
-                            tint = lc.iconDefault,
-                            modifier = Modifier.size(if (compact) 18.dp else 22.dp)
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(if (compact) 12.dp else 16.dp))
-                }
-                Text(
-                    text = title,
-                    color = lc.textPrimary,
-                    fontSize = if (compact) 20.sp else 24.sp,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.weight(1f)
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 96.dp),
+        ) {
+            item(key = "history_hero") {
+                SectionHero(
+                    title = title,
+                    subtitle = if (history.isEmpty()) "Your listening history" else "${history.size} recent tracks",
+                    artworkRes = R.drawable.hero_history,
+                    isDark = lc.isDark,
+                    onBack = if (showBack) onBack else null,
+                    actions = if (history.isNotEmpty()) {
+                        {
+                            SectionHeroAction(
+                                label = "Clear history",
+                                icon = Icons.Rounded.Delete,
+                                filled = false,
+                                onClick = { scope.launch { dao.clear() } },
+                            )
+                        }
+                    } else {
+                        null
+                    },
                 )
-                if (history.isNotEmpty()) {
-                    Text(
-                        text = "Clear",
-                        color = lc.accent,
-                        fontSize = if (compact) 13.sp else 15.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(50))
-                            .liquidClickable(pressedScale = LiquidMotion.PressButton) { scope.launch { dao.clear() } }
-                            .padding(horizontal = 10.dp, vertical = 6.dp)
-                    )
-                }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            item { Spacer(modifier = Modifier.height(8.dp)) }
 
             if (history.isEmpty()) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "Nothing played yet",
-                        color = lc.textSecondary,
-                        fontSize = 15.sp
-                    )
+                item(key = "history_empty") {
+                    Box(
+                        modifier = Modifier.fillMaxWidth().height(240.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "Nothing played yet",
+                            color = lc.textSecondary,
+                            fontSize = 15.sp
+                        )
+                    }
                 }
             } else {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                        start = histSidePad, end = histSidePad, bottom = 96.dp
-                    )
-                ) {
-                    items(history, key = { it.trackId }) { entry ->
+                items(history, key = { it.trackId }) { entry ->
+                    Box(modifier = Modifier.fillMaxWidth().padding(horizontal = histSidePad)) {
                         HistoryRow(entry = entry, compact = compact, onClick = { playEntry(context, entry) })
                     }
                 }

@@ -56,9 +56,12 @@ import com.lmg.vk.ui.glass.AlbumArtImage
 import com.lmg.vk.ui.glass.GlassDialog
 import com.lmg.vk.ui.glass.GlassDialogButton
 import com.lmg.vk.ui.glass.liquidClickable
+import com.lmg.vk.ui.components.SectionHero
+import com.lmg.vk.ui.components.SectionHeroAction
 import com.lmg.vk.ui.theme.AppFontFamily
 import com.lmg.vk.ui.theme.LiquidMotion
 import com.lmg.vk.ui.theme.LiquidTheme
+import com.lmg.vk.R
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emitAll
@@ -168,105 +171,74 @@ fun DownloadsScreen(onBack: () -> Unit = {}) {
     val dialogShown = itemToDelete != null || confirmClearAll
 
     val totalBytes = downloads.sumOf { it.sizeBytes }
+    val migration by com.lmg.vk.data.local.DownloadsMigrator.progress.collectAsState()
 
     Box(modifier = Modifier.fillMaxSize().background(lc.settingsBackground)) {
-        Column(
+        LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
                 // Диалог поверх размытого контента — тот же приём, что в Библиотеке.
-                .then(if (dialogShown) Modifier.blur(16.dp) else Modifier)
+                .then(if (dialogShown) Modifier.blur(16.dp) else Modifier),
+            contentPadding = PaddingValues(bottom = 178.dp),
         ) {
-            Spacer(Modifier.windowInsetsTopHeight(WindowInsets.statusBars))
-            Spacer(Modifier.height(12.dp))
-
-            // ── Шапка ──
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(if (compact) 34.dp else 40.dp)
-                        .clip(CircleShape)
-                        .background(if (lc.isDark) Color(0xFF1C1C1E) else Color(0xFFF2F2F7))
-                        .liquidClickable(pressedScale = LiquidMotion.PressIcon) { onBack() },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-                        contentDescription = "Back",
-                        tint = lc.iconDefault,
-                        modifier = Modifier.size(if (compact) 18.dp else 22.dp)
-                    )
-                }
-                Spacer(Modifier.width(if (compact) 12.dp else 16.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = "Downloads",
-                        color = lc.textPrimary,
-                        fontFamily = AppFontFamily,
-                        fontSize = if (compact) 20.sp else 24.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    // Подзаголовок печатаем только когда есть что печатать: строка
-                    // «0 треков · 0 МБ» — это шум, а не информация.
-                    if (downloads.isNotEmpty()) {
-                        Text(
-                            text = buildString {
-                                append(downloadsCountLabel(downloads.size))
-                                formatDownloadSize(totalBytes)?.let { append(" · ").append(it) }
-                            },
-                            color = lc.textSecondary,
-                            fontFamily = AppFontFamily,
-                            fontSize = if (compact) 12.sp else 13.sp
-                        )
-                    }
-                }
-                // «Clear all» — только когда есть что чистить; кнопка над пустым
-                // списком лишь путала бы.
-                if (downloads.isNotEmpty()) {
-                    Text(
-                        text = "Clear all",
-                        color = lc.accentRed,
-                        fontFamily = AppFontFamily,
-                        fontSize = if (compact) 13.sp else 15.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(50))
-                            .liquidClickable(pressedScale = LiquidMotion.PressButton) { confirmClearAll = true }
-                            .padding(horizontal = 10.dp, vertical = 6.dp)
-                    )
-                }
+            item(key = "downloads_hero") {
+                SectionHero(
+                    title = "Downloads",
+                    subtitle = if (downloads.isEmpty()) {
+                        "Music available offline"
+                    } else {
+                        buildString {
+                            append(downloadsCountLabel(downloads.size))
+                            formatDownloadSize(totalBytes)?.let { append(" · ").append(it) }
+                        }
+                    },
+                    artworkRes = R.drawable.hero_downloads,
+                    isDark = lc.isDark,
+                    onBack = onBack,
+                    actions = if (downloads.isNotEmpty()) {
+                        {
+                            SectionHeroAction(
+                                label = "Clear all",
+                                icon = Icons.Rounded.Delete,
+                                filled = false,
+                                onClick = { confirmClearAll = true },
+                            )
+                        }
+                    } else {
+                        null
+                    },
+                )
             }
 
-            Spacer(Modifier.height(16.dp))
+            item { Spacer(Modifier.height(8.dp)) }
 
             // Прогресс одноразового переноса скачанного в публичные Загрузки.
             // Пока он идёт, список может быть неполным — без этой строки экран
             // выглядел бы просто «потерявшим» треки.
-            val migration by com.lmg.vk.data.local.DownloadsMigrator.progress.collectAsState()
             migration?.let { (done, total) ->
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 20.dp)
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(lc.cardSurface)
-                        .padding(horizontal = 16.dp, vertical = 12.dp)
-                ) {
-                    Text(
-                        text = "Moving downloads to Downloads… $done/$total",
-                        color = lc.textSecondary,
-                        fontFamily = AppFontFamily,
-                        fontSize = 12.sp
-                    )
-                    LinearProgressIndicator(
-                        progress = { if (total > 0) done.toFloat() / total else 0f },
-                        color = lc.accent,
-                        modifier = Modifier.fillMaxWidth().padding(top = 6.dp)
-                    )
+                item(key = "downloads_migration") {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 20.dp)
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(lc.cardSurface)
+                            .padding(horizontal = 16.dp, vertical = 12.dp)
+                    ) {
+                        Text(
+                            text = "Moving downloads to Downloads… $done/$total",
+                            color = lc.textSecondary,
+                            fontFamily = AppFontFamily,
+                            fontSize = 12.sp
+                        )
+                        LinearProgressIndicator(
+                            progress = { if (total > 0) done.toFloat() / total else 0f },
+                            color = lc.accent,
+                            modifier = Modifier.fillMaxWidth().padding(top = 6.dp)
+                        )
+                    }
+                    Spacer(Modifier.height(16.dp))
                 }
-                Spacer(Modifier.height(16.dp))
             }
 
             // ── Идущие загрузки ──
@@ -274,67 +246,69 @@ fun DownloadsScreen(onBack: () -> Unit = {}) {
             // честную сводку, а не подставляем чужие заголовки.
             if (running.isNotEmpty()) {
                 val avg = running.sumOf { it.percent } / running.size
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 20.dp)
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(lc.cardSurface)
-                        .padding(horizontal = 16.dp, vertical = 12.dp)
-                ) {
-                    Text(
-                        text = "Downloading ${running.size} · $avg%",
-                        color = lc.textPrimary,
-                        fontFamily = AppFontFamily,
-                        fontSize = if (compact) 13.sp else 14.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    LinearProgressIndicator(
-                        progress = { avg / 100f },
-                        color = lc.accent,
-                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
-                    )
+                item(key = "downloads_running") {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 20.dp)
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(lc.cardSurface)
+                            .padding(horizontal = 16.dp, vertical = 12.dp)
+                    ) {
+                        Text(
+                            text = "Downloading ${running.size} · $avg%",
+                            color = lc.textPrimary,
+                            fontFamily = AppFontFamily,
+                            fontSize = if (compact) 13.sp else 14.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        LinearProgressIndicator(
+                            progress = { avg / 100f },
+                            color = lc.accent,
+                            modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+                        )
+                    }
+                    Spacer(Modifier.height(16.dp))
                 }
-                Spacer(Modifier.height(16.dp))
             }
 
             if (downloads.isEmpty()) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(
-                            imageVector = Icons.Rounded.Download,
-                            contentDescription = null,
-                            tint = lc.textTertiary,
-                            modifier = Modifier.size(48.dp)
-                        )
-                        Spacer(Modifier.height(12.dp))
-                        Text(
-                            text = "Nothing downloaded yet",
-                            color = lc.textSecondary,
-                            fontFamily = AppFontFamily,
-                            fontSize = 15.sp
-                        )
-                        Spacer(Modifier.height(4.dp))
-                        Text(
-                            text = "Download a track from its menu",
-                            color = lc.textTertiary,
-                            fontFamily = AppFontFamily,
-                            fontSize = 13.sp
-                        )
+                item(key = "downloads_empty") {
+                    Box(
+                        modifier = Modifier.fillMaxWidth().height(240.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(
+                                imageVector = Icons.Rounded.Download,
+                                contentDescription = null,
+                                tint = lc.textTertiary,
+                                modifier = Modifier.size(48.dp)
+                            )
+                            Spacer(Modifier.height(12.dp))
+                            Text(
+                                text = "Nothing downloaded yet",
+                                color = lc.textSecondary,
+                                fontFamily = AppFontFamily,
+                                fontSize = 15.sp
+                            )
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                text = "Download a track from its menu",
+                                color = lc.textTertiary,
+                                fontFamily = AppFontFamily,
+                                fontSize = 13.sp
+                            )
+                        }
                     }
                 }
             } else {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    // Снизу оставляем место под мини-плеер и бар, как на остальных
-                    // экранах, иначе последняя строка уезжает под них.
-                    contentPadding = PaddingValues(
-                        start = if (compact) 24.dp else 20.dp,
-                        end = if (compact) 24.dp else 20.dp,
-                        bottom = 178.dp
-                    )
-                ) {
-                    items(downloads, key = { it.trackId }) { item ->
+                items(downloads, key = { it.trackId }) { item ->
+                    Box(
+                        modifier = Modifier.padding(
+                            horizontal = if (compact) 24.dp else 20.dp,
+                        ),
+                    ) {
                         DownloadedRow(
                             item = item,
                             compact = compact,

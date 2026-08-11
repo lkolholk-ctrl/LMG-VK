@@ -46,6 +46,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -53,6 +54,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.lmg.vk.R
 import com.lmg.vk.data.local.LocalLibraryIndexer
 import com.lmg.vk.data.local.LocalLibraryStore
 import com.lmg.vk.data.local.db.AlbumAgg
@@ -60,6 +62,7 @@ import com.lmg.vk.data.local.db.AppDatabase
 import com.lmg.vk.data.local.db.ArtistAgg
 import com.lmg.vk.data.local.db.LocalTrackEntity
 import com.lmg.vk.ui.glass.liquidClickable
+import com.lmg.vk.ui.components.SectionHero
 import com.lmg.vk.ui.theme.LiquidColors
 import com.lmg.vk.ui.theme.LiquidMotion
 import com.lmg.vk.ui.theme.LiquidTheme
@@ -115,49 +118,42 @@ fun LocalLibraryScreen(
     BackHandler(enabled = selectionMode && !bulkOpen) { exitSelection() }
 
     Box(Modifier.fillMaxSize().background(lc.settingsBackground)) {
-        Column(Modifier.fillMaxSize()) {
-            Spacer(Modifier.windowInsetsTopHeight(WindowInsets.statusBars))
-            Spacer(Modifier.height(12.dp))
-
+        val listHeader: @Composable () -> Unit = {
             if (selectionMode) {
-                SelectionHeader(selected.size, lc, onClose = { exitSelection() })
-            } else {
-                Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-                    CircleBack(lc, onBack)
-                    Spacer(Modifier.width(14.dp))
-                    Text(
-                        "Library", color = lc.textPrimary,
-                        fontSize = if (com.lmg.vk.ui.rememberWindowInfo().useSideBySide) 20.sp else 24.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            }
-            Spacer(Modifier.height(12.dp))
-
-            if (!selectionMode) {
-                SearchField(query, lc, onChange = { query = it }, onClear = { query = "" })
-                Spacer(Modifier.height(12.dp))
-            }
-
-            if (query.isBlank()) {
-                if (!selectionMode) {
-                    Segments(tab, lc) { tab = it }
-                    Spacer(Modifier.height(8.dp))
-                }
-                when (tab) {
-                    0 -> ArtistsList(dao, lc, onOpenArtist)
-                    1 -> AlbumsGrid(dao, lc, onOpenAlbum)
-                    else -> TracksTab(
-                        dao, lc, context, selectionMode, selected,
-                        onLongPress = { e -> selectionMode = true; selected[e.id] = e },
-                        onToggle = { e -> if (selected.containsKey(e.id)) selected.remove(e.id) else selected[e.id] = e },
-                        onSelectAllVisible = { list -> list.forEach { selected[it.id] = it } },
-                        onClearVisible = { exitSelection() }
-                    )
+                Column {
+                    Spacer(Modifier.windowInsetsTopHeight(WindowInsets.statusBars))
+                    Spacer(Modifier.height(12.dp))
+                    SelectionHeader(selected.size, lc, onClose = { exitSelection() })
+                    Spacer(Modifier.height(12.dp))
                 }
             } else {
-                SearchResultsView(results, lc, context, onOpenArtist, onOpenAlbum)
+                LocalLibraryBrowseHeader(
+                    query = query,
+                    selectedTab = tab,
+                    lc = lc,
+                    onBack = onBack,
+                    onQueryChange = { query = it },
+                    onClearQuery = { query = "" },
+                    onSelectTab = { tab = it },
+                )
             }
+        }
+
+        if (query.isBlank()) {
+            when (tab) {
+                0 -> ArtistsList(dao, lc, onOpenArtist, listHeader)
+                1 -> AlbumsGrid(dao, lc, onOpenAlbum, listHeader)
+                else -> TracksTab(
+                    dao, lc, context, selectionMode, selected,
+                    header = listHeader,
+                    onLongPress = { e -> selectionMode = true; selected[e.id] = e },
+                    onToggle = { e -> if (selected.containsKey(e.id)) selected.remove(e.id) else selected[e.id] = e },
+                    onSelectAllVisible = { list -> list.forEach { selected[it.id] = it } },
+                    onClearVisible = { exitSelection() }
+                )
+            }
+        } else {
+            SearchResultsView(results, lc, context, onOpenArtist, onOpenAlbum, listHeader)
         }
 
         // нижняя панель действий в режиме выбора
@@ -205,6 +201,38 @@ fun LocalLibraryScreen(
 }
 
 @Composable
+private fun LocalLibraryBrowseHeader(
+    query: String,
+    selectedTab: Int,
+    lc: LiquidColors,
+    onBack: () -> Unit,
+    onQueryChange: (String) -> Unit,
+    onClearQuery: () -> Unit,
+    onSelectTab: (Int) -> Unit,
+) {
+    val screenWidth = LocalConfiguration.current.screenWidthDp.dp
+    Column(modifier = Modifier.requiredWidth(screenWidth)) {
+        SectionHero(
+            title = "On this device",
+            subtitle = "Artists, albums and tracks stored locally",
+            artworkRes = R.drawable.hero_music,
+            isDark = lc.isDark,
+            onBack = onBack,
+        )
+        Spacer(Modifier.height(12.dp))
+        SearchField(
+            query = query,
+            lc = lc,
+            onChange = onQueryChange,
+            onClear = onClearQuery,
+        )
+        Spacer(Modifier.height(12.dp))
+        Segments(selectedTab, lc, onSelectTab)
+        Spacer(Modifier.height(8.dp))
+    }
+}
+
+@Composable
 private fun SelectionHeader(count: Int, lc: LiquidColors, onClose: () -> Unit) {
     Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
         Box(
@@ -228,15 +256,21 @@ private fun LaunchedEffectIndex(context: android.content.Context) {
 private fun ArtistsList(
     dao: com.lmg.vk.data.local.db.LocalTracksDao,
     lc: LiquidColors,
-    onOpenArtist: (String) -> Unit
+    onOpenArtist: (String) -> Unit,
+    header: @Composable () -> Unit,
 ) {
     val flow = remember { dao.artists() }
     val artists by flow.collectAsState(initial = emptyList())
     // Адаптив: в широком окне центрируем список узкой колонкой ~600dp.
     val win = com.lmg.vk.ui.rememberWindowInfo()
     val sidePad = if (win.useSideBySide) 24.dp else 12.dp
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = sidePad, end = sidePad, bottom = 120.dp)) {
-        items(artists, key = { it.name }) { a -> ArtistRow(a, lc, compact = win.useSideBySide) { onOpenArtist(a.name) } }
+    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 120.dp)) {
+        item(key = "local_artists_hero") { header() }
+        items(artists, key = { it.name }) { artist ->
+            Box(modifier = Modifier.fillMaxWidth().padding(horizontal = sidePad)) {
+                ArtistRow(artist, lc, compact = win.useSideBySide) { onOpenArtist(artist.name) }
+            }
+        }
     }
 }
 
@@ -244,7 +278,8 @@ private fun ArtistsList(
 private fun AlbumsGrid(
     dao: com.lmg.vk.data.local.db.LocalTracksDao,
     lc: LiquidColors,
-    onOpenAlbum: (Long, String) -> Unit
+    onOpenAlbum: (Long, String) -> Unit,
+    header: @Composable () -> Unit,
 ) {
     val flow = remember { dao.albums() }
     val albums by flow.collectAsState(initial = emptyList())
@@ -257,6 +292,10 @@ private fun AlbumsGrid(
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
+        item(
+            key = "local_albums_hero",
+            span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) },
+        ) { header() }
         items(albums, key = { it.albumId }) { al -> AlbumCard(al, lc, compact = win.useSideBySide) { onOpenAlbum(al.albumId, al.name) } }
     }
 }
@@ -268,6 +307,7 @@ private fun TracksTab(
     context: android.content.Context,
     selectionMode: Boolean,
     selected: Map<String, LocalTrackEntity>,
+    header: @Composable () -> Unit,
     onLongPress: (LocalTrackEntity) -> Unit,
     onToggle: (LocalTrackEntity) -> Unit,
     onSelectAllVisible: (List<LocalTrackEntity>) -> Unit,
@@ -285,21 +325,26 @@ private fun TracksTab(
     // (полоса сортировки сверху остаётся во всю ширину).
     val win = com.lmg.vk.ui.rememberWindowInfo()
     val sidePad = if (win.useSideBySide) 24.dp else 12.dp
-    Column(Modifier.fillMaxSize()) {
-        Row(
-            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 6.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            if (selectionMode) {
-                SortChip("Select All (${tracks.size})", false, lc) { onSelectAllVisible(tracks) }
-                SortChip("Deselect", false, lc) { onClearVisible() }
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(bottom = if (selectionMode) 96.dp else 120.dp),
+    ) {
+        item(key = "local_tracks_hero") { header() }
+        item(key = "local_tracks_sort") {
+            Row(
+                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 6.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                if (selectionMode) {
+                    SortChip("Select All (${tracks.size})", false, lc) { onSelectAllVisible(tracks) }
+                    SortChip("Deselect", false, lc) { onClearVisible() }
+                }
+                val labels = listOf("Title", "Artist", "Album", "Added", "Duration")
+                labels.forEachIndexed { i, t -> SortChip(t, sort == i, lc) { sort = i } }
             }
-            val labels = listOf("Title", "Artist", "Album", "Added", "Duration")
-            labels.forEachIndexed { i, t -> SortChip(t, sort == i, lc) { sort = i } }
         }
-        LazyColumn(Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(start = sidePad, end = sidePad, bottom = if (selectionMode) 96.dp else 120.dp)) {
-            itemsIndexed(tracks) { index, e ->
+        itemsIndexed(tracks) { index, e ->
+            Box(modifier = Modifier.fillMaxWidth().padding(horizontal = sidePad)) {
                 SelectableTrackRow(
                     e, lc,
                     selectionMode = selectionMode,
@@ -357,35 +402,55 @@ private fun SearchResultsView(
     lc: LiquidColors,
     context: android.content.Context,
     onOpenArtist: (String) -> Unit,
-    onOpenAlbum: (Long, String) -> Unit
+    onOpenAlbum: (Long, String) -> Unit,
+    header: @Composable () -> Unit,
 ) {
     val r = results
-    if (r == null) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("Searching…", color = lc.textTertiary, fontSize = 14.sp)
-        }
-        return
-    }
-    if (r.artists.isEmpty() && r.albums.isEmpty() && r.tracks.isEmpty()) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("No results found", color = lc.textTertiary, fontSize = 14.sp)
-        }
-        return
-    }
     val win = com.lmg.vk.ui.rememberWindowInfo()
     val sidePad = if (win.useSideBySide) 24.dp else 12.dp
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = sidePad, end = sidePad, bottom = 120.dp)) {
-        if (r.artists.isNotEmpty()) {
-            item { SectionLabel("Artists", lc) }
-            items(r.artists, key = { "a_" + it.name }) { a -> ArtistRow(a, lc, compact = win.useSideBySide) { onOpenArtist(a.name) } }
-        }
-        if (r.albums.isNotEmpty()) {
-            item { SectionLabel("Albums", lc) }
-            items(r.albums, key = { "al_" + it.albumId }) { al -> AlbumRow(al, lc, compact = win.useSideBySide) { onOpenAlbum(al.albumId, al.name) } }
-        }
-        if (r.tracks.isNotEmpty()) {
-            item { SectionLabel("Tracks", lc) }
-            itemsIndexed(r.tracks) { index, e -> TrackRow(e, lc, compact = win.useSideBySide) { LocalLibraryStore.play(context, r.tracks, index) } }
+    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 120.dp)) {
+        item(key = "local_search_hero") { header() }
+        when {
+            r == null -> item(key = "local_search_loading") {
+                Box(Modifier.fillMaxWidth().height(240.dp), contentAlignment = Alignment.Center) {
+                    Text("Searching…", color = lc.textTertiary, fontSize = 14.sp)
+                }
+            }
+
+            r.artists.isEmpty() && r.albums.isEmpty() && r.tracks.isEmpty() -> item(key = "local_search_empty") {
+                Box(Modifier.fillMaxWidth().height(240.dp), contentAlignment = Alignment.Center) {
+                    Text("No results found", color = lc.textTertiary, fontSize = 14.sp)
+                }
+            }
+
+            else -> {
+                if (r.artists.isNotEmpty()) {
+                    item { Box(Modifier.padding(horizontal = sidePad)) { SectionLabel("Artists", lc) } }
+                    items(r.artists, key = { "a_" + it.name }) { artist ->
+                        Box(Modifier.fillMaxWidth().padding(horizontal = sidePad)) {
+                            ArtistRow(artist, lc, compact = win.useSideBySide) { onOpenArtist(artist.name) }
+                        }
+                    }
+                }
+                if (r.albums.isNotEmpty()) {
+                    item { Box(Modifier.padding(horizontal = sidePad)) { SectionLabel("Albums", lc) } }
+                    items(r.albums, key = { "al_" + it.albumId }) { album ->
+                        Box(Modifier.fillMaxWidth().padding(horizontal = sidePad)) {
+                            AlbumRow(album, lc, compact = win.useSideBySide) { onOpenAlbum(album.albumId, album.name) }
+                        }
+                    }
+                }
+                if (r.tracks.isNotEmpty()) {
+                    item { Box(Modifier.padding(horizontal = sidePad)) { SectionLabel("Tracks", lc) } }
+                    itemsIndexed(r.tracks) { index, track ->
+                        Box(Modifier.fillMaxWidth().padding(horizontal = sidePad)) {
+                            TrackRow(track, lc, compact = win.useSideBySide) {
+                                LocalLibraryStore.play(context, r.tracks, index)
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }

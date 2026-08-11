@@ -92,6 +92,8 @@ import com.lmg.vk.ui.glass.GlassKit
 import com.lmg.vk.ui.glass.AlbumArtImage
 import com.lmg.vk.ui.glass.liquidClickable
 import com.lmg.vk.ui.components.PlaylistNameDialog
+import com.lmg.vk.ui.components.SectionHero
+import com.lmg.vk.ui.components.SectionHeroAction
 import com.lmg.vk.ui.theme.LiquidMotion
 import com.lmg.vk.ui.components.PlaylistPickerSheet
 import com.lmg.vk.ui.components.TrackActionsSheet
@@ -320,29 +322,26 @@ fun LibraryScreen(
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) {
-                        Column {
-                            Spacer(Modifier.windowInsetsTopHeight(WindowInsets.statusBars))
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(
-                                    text = "Library",
-                                    fontSize = if (win.useSideBySide) 26.sp else 34.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = lc.textPrimary,
-                                    modifier = Modifier.padding(top = 12.dp, bottom = 8.dp).weight(1f)
-                                )
-                                if (isSyncing || playlistSyncState.isSyncing) {
-                                    CircularProgressIndicator(
-                                        modifier = Modifier.size(20.dp),
-                                        color = lc.accent,
-                                        strokeWidth = 2.dp,
+                        SectionHero(
+                            title = "Library",
+                            subtitle = "Your music, collections and playlists",
+                            artworkRes = R.drawable.hero_library,
+                            isDark = lc.isDark,
+                            fullBleed = true,
+                            actions = if (isLoggedIn) {
+                                {
+                                    SectionHeroAction(
+                                        label = if (isSyncing || playlistSyncState.isSyncing) "Syncing…" else "Sync library",
+                                        icon = Icons.Filled.Refresh,
+                                        filled = true,
+                                        enabled = !isSyncing && !playlistSyncState.isSyncing,
+                                        onClick = ::refreshLibrary,
                                     )
-                                } else if (isLoggedIn) {
-                                    IconButton(onClick = ::refreshLibrary) {
-                                        Icon(Icons.Filled.Refresh, "Refresh library", tint = lc.iconMuted)
-                                    }
                                 }
-                            }
-                        }
+                            } else {
+                                null
+                            },
+                        )
                     }
 
                     item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) {
@@ -490,87 +489,107 @@ fun LibraryScreen(
                         }
                 }
                 var playlistToDelete by remember { mutableStateOf<PlaylistCellData?>(null) }
+                val syncMessage = when {
+                    playlistSyncState.isSyncing -> "Synchronizing local and VK playlists…"
+                    playlistSyncState.error != null -> playlistSyncState.error
+                    playlistSyncState.lastReport != null -> playlistSyncState.lastReport?.let {
+                        buildString {
+                            append("Synced · ${it.pushed} uploaded · ${it.pulled} downloaded")
+                            if (it.failed > 0) append(" · ${it.failed} failed")
+                            if (it.deleted > 0) append(" · ${it.deleted} deleted")
+                            if (it.unsupportedTracks > 0) append(" · ${it.unsupportedTracks} local-only tracks")
+                        }
+                    }
+                    else -> null
+                }
 
-                Column(modifier = Modifier.fillMaxSize()) {
-                    SubHeader("Playlists", onBack = { currentView = LibraryView.MAIN }) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            if (playlistSyncState.isSyncing) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(20.dp),
-                                    color = lc.accent,
-                                    strokeWidth = 2.dp,
-                                )
-                            } else if (isLoggedIn) {
-                                IconButton(onClick = { loadImportedPlaylists() }) {
-                                    Icon(Icons.Filled.Refresh, "Sync playlists", tint = lc.iconMuted)
+                androidx.compose.foundation.lazy.grid.LazyVerticalGrid(
+                    columns = if (win.useSideBySide)
+                        androidx.compose.foundation.lazy.grid.GridCells.Adaptive(160.dp)
+                    else androidx.compose.foundation.lazy.grid.GridCells.Fixed(2),
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 178.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                ) {
+                    item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) {
+                        SectionHero(
+                            title = "Playlists",
+                            subtitle = "${allPlaylistCells.size} collections",
+                            artworkRes = R.drawable.hero_playlists,
+                            isDark = lc.isDark,
+                            fullBleed = true,
+                            onBack = { currentView = LibraryView.MAIN },
+                            actions = {
+                                if (isLoggedIn) {
+                                    SectionHeroAction(
+                                        label = if (playlistSyncState.isSyncing) "Syncing…" else "Sync",
+                                        icon = Icons.Filled.Refresh,
+                                        filled = false,
+                                        enabled = !playlistSyncState.isSyncing,
+                                        onClick = { loadImportedPlaylists() },
+                                    )
                                 }
-                            }
-                            IconButton(onClick = { showCreatePlaylistDialog = true }) {
-                                Icon(Icons.Rounded.Add, "Add playlist", tint = lc.accent)
-                            }
-                        }
-                    }
-                    val syncMessage = when {
-                        playlistSyncState.isSyncing -> "Synchronizing local and VK playlists…"
-                        playlistSyncState.error != null -> playlistSyncState.error
-                        playlistSyncState.lastReport != null -> playlistSyncState.lastReport?.let {
-                            buildString {
-                                append("Synced · ${it.pushed} uploaded · ${it.pulled} downloaded")
-                                if (it.failed > 0) append(" · ${it.failed} failed")
-                                if (it.deleted > 0) append(" · ${it.deleted} deleted")
-                                if (it.unsupportedTracks > 0) append(" · ${it.unsupportedTracks} local-only tracks")
-                            }
-                        }
-                        else -> null
-                    }
-                    syncMessage?.let { message ->
-                        Text(
-                            text = message,
-                            color = if (playlistSyncState.error != null) AppleRed else lc.textSecondary,
-                            fontSize = 12.sp,
-                            modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis,
+                                SectionHeroAction(
+                                    label = "New playlist",
+                                    icon = Icons.Rounded.Add,
+                                    filled = true,
+                                    onClick = { showCreatePlaylistDialog = true },
+                                )
+                            },
                         )
                     }
-                    LibrarySearchField(
-                        value = playlistQuery,
-                        onValueChange = { playlistQuery = it },
-                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
-                    )
-                    PlaylistControls(
-                        source = playlistSource,
-                        sort = playlistSort,
-                        onSourceChange = { playlistSource = it },
-                        onSortChange = {
-                            playlistSort = when (playlistSort) {
-                                PlaylistSort.DEFAULT -> PlaylistSort.NAME
-                                PlaylistSort.NAME -> PlaylistSort.TRACK_COUNT
-                                PlaylistSort.TRACK_COUNT -> PlaylistSort.DEFAULT
-                            }
-                        },
-                    )
+
+                    syncMessage?.let { message ->
+                        item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) {
+                            Text(
+                                text = message,
+                                color = if (playlistSyncState.error != null) AppleRed else lc.textSecondary,
+                                fontSize = 12.sp,
+                                modifier = Modifier.padding(vertical = 4.dp),
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                    }
+
+                    item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) {
+                        LibrarySearchField(
+                            value = playlistQuery,
+                            onValueChange = { playlistQuery = it },
+                            modifier = Modifier.padding(vertical = 8.dp),
+                        )
+                    }
+
+                    item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) {
+                        PlaylistControls(
+                            source = playlistSource,
+                            sort = playlistSort,
+                            onSourceChange = { playlistSource = it },
+                            onSortChange = {
+                                playlistSort = when (playlistSort) {
+                                    PlaylistSort.DEFAULT -> PlaylistSort.NAME
+                                    PlaylistSort.NAME -> PlaylistSort.TRACK_COUNT
+                                    PlaylistSort.TRACK_COUNT -> PlaylistSort.DEFAULT
+                                }
+                            },
+                        )
+                    }
 
                     if (visiblePlaylists.isEmpty()) {
-                        EmptyState("No playlists found", Icons.AutoMirrored.Rounded.PlaylistPlay)
-                    } else {
-                        androidx.compose.foundation.lazy.grid.LazyVerticalGrid(
-                            columns = if (win.useSideBySide)
-                                androidx.compose.foundation.lazy.grid.GridCells.Adaptive(160.dp)
-                            else androidx.compose.foundation.lazy.grid.GridCells.Fixed(2),
-                            modifier = Modifier.weight(1f),
-                            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 178.dp),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                            verticalArrangement = Arrangement.spacedBy(16.dp),
-                        ) {
-                            items(visiblePlaylists.size, key = { visiblePlaylists[it].key }) { index ->
-                                val cell = visiblePlaylists[index]
-                                PlaylistCell(
-                                    data = cell,
-                                    onClick = { onOpenPlaylist(cell.id) },
-                                    onLongPress = { playlistToDelete = cell },
-                                )
+                        item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) {
+                            Box(modifier = Modifier.fillMaxWidth().height(240.dp)) {
+                                EmptyState("No playlists found", Icons.AutoMirrored.Rounded.PlaylistPlay)
                             }
+                        }
+                    } else {
+                        items(visiblePlaylists.size, key = { visiblePlaylists[it].key }) { index ->
+                            val cell = visiblePlaylists[index]
+                            PlaylistCell(
+                                data = cell,
+                                onClick = { onOpenPlaylist(cell.id) },
+                                onLongPress = { playlistToDelete = cell },
+                            )
                         }
                     }
                 }
@@ -620,20 +639,30 @@ fun LibraryScreen(
             }
 
             LibraryView.RECENT -> {
-                Column(modifier = Modifier.fillMaxSize()) {
-                    SubHeader("Recent", onBack = { currentView = LibraryView.MAIN })
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(bottom = 178.dp),
+                ) {
+                    item(key = "recent_hero") {
+                        SectionHero(
+                            title = "Recent",
+                            subtitle = if (recentTracks.isEmpty()) "Your listening history" else "${recentTracks.size} recent tracks",
+                            artworkRes = R.drawable.hero_history,
+                            isDark = lc.isDark,
+                            onBack = { currentView = LibraryView.MAIN },
+                        )
+                    }
                     if (recentTracks.isEmpty()) {
-                        EmptyState("No listening history yet", Icons.Rounded.History)
+                        item(key = "recent_empty") {
+                            Box(modifier = Modifier.fillMaxWidth().height(240.dp)) {
+                                EmptyState("No listening history yet", Icons.Rounded.History)
+                            }
+                        }
                     } else {
-                        LazyColumn(
-                            modifier = Modifier.weight(1f),
-                            contentPadding = PaddingValues(bottom = 178.dp),
-                        ) {
-                            items(recentTracks, key = { it.id }) { track ->
-                                RecentTrackItem(track = track) {
-                                    val index = recentTracks.indexOfFirst { it.id == track.id }
-                                    if (index >= 0) PlayerController.play(context, recentTracks, index)
-                                }
+                        items(recentTracks, key = { it.id }) { track ->
+                            RecentTrackItem(track = track) {
+                                val index = recentTracks.indexOfFirst { it.id == track.id }
+                                if (index >= 0) PlayerController.play(context, recentTracks, index)
                             }
                         }
                     }
@@ -659,85 +688,101 @@ fun LibraryScreen(
                         FavoriteSort.ARTIST -> matchingFavorites.sortedBy { it.artistName.orEmpty().lowercase() }
                     }
                 }
-                Column(modifier = Modifier.fillMaxSize()) {
-                    // Header
-                    SubHeader(
-                        if (libraryQuery.isBlank()) "My tracks · ${favorites.size}"
-                        else "Search results · ${matchingFavorites.size}",
-                        onBack = { currentView = LibraryView.MAIN },
-                    ) {
-                        if (isSyncing) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(20.dp),
-                                color = AppleRed,
-                                strokeWidth = 2.dp
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(bottom = 178.dp),
+                ) {
+                    item(key = "favorites_hero") {
+                        SectionHero(
+                            title = "My tracks",
+                            subtitle = if (libraryQuery.isBlank()) {
+                                "${favorites.size} favorite tracks"
+                            } else {
+                                "${matchingFavorites.size} search results"
+                            },
+                            artworkRes = R.drawable.hero_music,
+                            isDark = lc.isDark,
+                            onBack = { currentView = LibraryView.MAIN },
+                            actions = {
+                                SectionHeroAction(
+                                    label = if (isSyncing) "Syncing…" else "Sync tracks",
+                                    icon = Icons.Filled.Refresh,
+                                    filled = false,
+                                    enabled = !isSyncing,
+                                    onClick = { viewModel.syncWithCloud() },
+                                )
+                            },
+                        )
+                    }
+
+                    item(key = "favorites_search") {
+                        LibrarySearchField(
+                            value = libraryQuery,
+                            onValueChange = { libraryQuery = it },
+                            modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
+                        )
+                    }
+
+                    item(key = "favorites_sort") {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 4.dp),
+                            horizontalArrangement = Arrangement.End,
+                        ) {
+                            Text(
+                                text = when (favoriteSort) {
+                                    FavoriteSort.DEFAULT -> "Default"
+                                    FavoriteSort.TITLE -> "By title"
+                                    FavoriteSort.ARTIST -> "By artist"
+                                },
+                                color = lc.accent,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .liquidClickable {
+                                        favoriteSort = when (favoriteSort) {
+                                            FavoriteSort.DEFAULT -> FavoriteSort.TITLE
+                                            FavoriteSort.TITLE -> FavoriteSort.ARTIST
+                                            FavoriteSort.ARTIST -> FavoriteSort.DEFAULT
+                                        }
+                                    }
+                                    .padding(horizontal = 10.dp, vertical = 6.dp),
                             )
-                        } else {
-                            IconButton(onClick = { viewModel.syncWithCloud() }) {
-                                Icon(Icons.Filled.Refresh, null, tint = lc.iconMuted, modifier = Modifier.size(20.dp))
+                        }
+                    }
+
+                    if (favorites.isNotEmpty()) {
+                        item(key = "favorites_actions") {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 20.dp, vertical = 8.dp),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                ActionButton("Play All", Icons.Default.PlayArrow, onClick = { viewModel.playAll(context) }, modifier = Modifier.weight(1f))
+                                ActionButton("Shuffle", Icons.Default.Shuffle, onClick = { viewModel.shuffleAndPlay(context) }, modifier = Modifier.weight(1f))
                             }
                         }
                     }
 
-                    LibrarySearchField(
-                        value = libraryQuery,
-                        onValueChange = { libraryQuery = it },
-                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
-                    )
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 4.dp),
-                        horizontalArrangement = Arrangement.End,
-                    ) {
-                        Text(
-                            text = when (favoriteSort) {
-                                FavoriteSort.DEFAULT -> "Default"
-                                FavoriteSort.TITLE -> "By title"
-                                FavoriteSort.ARTIST -> "By artist"
-                            },
-                            color = lc.accent,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(12.dp))
-                                .liquidClickable {
-                                    favoriteSort = when (favoriteSort) {
-                                        FavoriteSort.DEFAULT -> FavoriteSort.TITLE
-                                        FavoriteSort.TITLE -> FavoriteSort.ARTIST
-                                        FavoriteSort.ARTIST -> FavoriteSort.DEFAULT
-                                    }
-                                }
-                                .padding(horizontal = 10.dp, vertical = 6.dp),
-                        )
-                    }
-
-                    // Play/Shuffle
-                    if (favorites.isNotEmpty()) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 20.dp, vertical = 8.dp),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            ActionButton("Play All", Icons.Default.PlayArrow, onClick = { viewModel.playAll(context) }, modifier = Modifier.weight(1f))
-                            ActionButton("Shuffle", Icons.Default.Shuffle, onClick = { viewModel.shuffleAndPlay(context) }, modifier = Modifier.weight(1f))
-                        }
-                    }
-
-                    // Content
                     if (displayedFavorites.isEmpty() && !isSyncing) {
-                        EmptyState(
-                            if (libraryQuery.isBlank()) "No favorites yet" else "No tracks match your search",
-                            Icons.Default.Favorite,
-                        )
+                        item(key = "favorites_empty") {
+                            Box(modifier = Modifier.fillMaxWidth().height(240.dp)) {
+                                EmptyState(
+                                    if (libraryQuery.isBlank()) "No favorites yet" else "No tracks match your search",
+                                    Icons.Default.Favorite,
+                                )
+                            }
+                        }
                     } else {
-                        LazyColumn(
-                            modifier = Modifier.weight(1f),
-                            contentPadding = if (win.useSideBySide)
-                                PaddingValues(start = wideSidePad, end = wideSidePad, bottom = 178.dp)
-                            else PaddingValues(bottom = 178.dp)
-                        ) {
-                            items(displayedFavorites, key = { it.trackId }) { track ->
+                        items(displayedFavorites, key = { it.trackId }) { track ->
+                            Box(
+                                modifier = if (win.useSideBySide) {
+                                    Modifier.padding(horizontal = wideSidePad)
+                                } else {
+                                    Modifier
+                                },
+                            ) {
                                 FavoriteTrackItem(
                                     track = track,
                                     isLiked = track.trackId in favoriteIds,
@@ -800,65 +845,78 @@ fun LibraryScreen(
                 var showClearAllDialog by remember { mutableStateOf(false) }
                 var trackToDelete by remember { mutableStateOf<com.lmg.vk.data.local.db.DownloadedTrackEntity?>(null) }
                 val isDialogActive = trackToDelete != null || showClearAllDialog
+                val migration by com.lmg.vk.data.local.DownloadsMigrator.progress.collectAsState()
 
                 // ── Screen content (blurred when dialog is active) ──
-                Column(
+                LazyColumn(
                     modifier = Modifier
                         .fillMaxSize()
-                        .then(if (isDialogActive) Modifier.blur(16.dp) else Modifier)
+                        .then(if (isDialogActive) Modifier.blur(16.dp) else Modifier),
+                    contentPadding = PaddingValues(bottom = 178.dp),
                 ) {
-                    SubHeader(
-                        title = "Downloads",
-                        onBack = { currentView = LibraryView.MAIN },
-                        actions = {
-                            if (downloadedTracks.isNotEmpty()) {
-                                IconButton(onClick = { showClearAllDialog = true }) {
-                                    Icon(
-                                        imageVector = Icons.Rounded.Close,
-                                        contentDescription = "Clear all downloads",
-                                        tint = AppleRed,
-                                        modifier = Modifier.size(24.dp)
+                    item(key = "library_downloads_hero") {
+                        SectionHero(
+                            title = "Downloads",
+                            subtitle = "${downloadedTracks.size} offline tracks",
+                            artworkRes = R.drawable.hero_downloads,
+                            isDark = lc.isDark,
+                            onBack = { currentView = LibraryView.MAIN },
+                            actions = {
+                                if (downloadedTracks.isNotEmpty()) {
+                                    SectionHeroAction(
+                                        label = "Clear all",
+                                        icon = Icons.Rounded.Close,
+                                        filled = false,
+                                        onClick = { showClearAllDialog = true },
                                     )
                                 }
-                            }
-                        }
-                    )
+                            },
+                        )
+                    }
 
-                    LibraryTabs(
-                        isDark = lc.isDark,
-                        downloaded = true,
-                        onLibrary = { currentView = LibraryView.MAIN },
-                        onDownloaded = {},
-                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp),
-                    )
+                    item(key = "library_downloads_tabs") {
+                        LibraryTabs(
+                            isDark = lc.isDark,
+                            downloaded = true,
+                            onLibrary = { currentView = LibraryView.MAIN },
+                            onDownloaded = {},
+                            modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp),
+                        )
+                    }
 
                     // Ненавязчивый прогресс одноразовой миграции скачанного в
                     // публичные Загрузки (сотни файлов — видно, что идёт работа).
-                    val migration by com.lmg.vk.data.local.DownloadsMigrator.progress.collectAsState()
                     migration?.let { (done, total) ->
-                        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 6.dp)) {
-                            Text(
-                                text = "Moving downloads to Downloads… $done/$total",
-                                color = LiquidTheme.colors.textSecondary,
-                                fontSize = 12.sp
-                            )
-                            androidx.compose.material3.LinearProgressIndicator(
-                                progress = { if (total > 0) done.toFloat() / total else 0f },
-                                modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
-                            )
+                        item(key = "library_downloads_migration") {
+                            Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 6.dp)) {
+                                Text(
+                                    text = "Moving downloads to Downloads… $done/$total",
+                                    color = LiquidTheme.colors.textSecondary,
+                                    fontSize = 12.sp
+                                )
+                                androidx.compose.material3.LinearProgressIndicator(
+                                    progress = { if (total > 0) done.toFloat() / total else 0f },
+                                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
+                                )
+                            }
                         }
                     }
 
                     if (downloadedTracks.isEmpty()) {
-                        EmptyState("No downloaded tracks yet", Icons.Default.Download)
+                        item(key = "library_downloads_empty") {
+                            Box(modifier = Modifier.fillMaxWidth().height(240.dp)) {
+                                EmptyState("No downloaded tracks yet", Icons.Default.Download)
+                            }
+                        }
                     } else {
-                        LazyColumn(
-                            modifier = Modifier.weight(1f),
-                            contentPadding = if (win.useSideBySide)
-                                PaddingValues(start = wideSidePad, end = wideSidePad, bottom = 178.dp)
-                            else PaddingValues(bottom = 178.dp)
-                        ) {
-                            items(downloadedTracks, key = { it.trackId }) { trackEntity ->
+                        items(downloadedTracks, key = { it.trackId }) { trackEntity ->
+                            Box(
+                                modifier = if (win.useSideBySide) {
+                                    Modifier.padding(horizontal = wideSidePad)
+                                } else {
+                                    Modifier
+                                },
+                            ) {
                                 DownloadedTrackItem(
                                     track = trackEntity,
                                     compact = win.useSideBySide,
