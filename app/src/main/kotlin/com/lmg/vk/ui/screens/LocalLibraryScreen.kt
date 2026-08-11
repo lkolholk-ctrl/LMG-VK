@@ -56,6 +56,7 @@ import com.lmg.vk.ui.glass.liquidClickable
 import com.lmg.vk.ui.components.SectionTopBar
 import com.lmg.vk.ui.theme.LiquidColors
 import com.lmg.vk.ui.theme.LiquidMotion
+import com.lmg.vk.ui.theme.LiquidSurfaces
 import com.lmg.vk.ui.theme.LiquidTheme
 import kotlinx.coroutines.delay
 
@@ -151,7 +152,7 @@ fun LocalLibraryScreen(
         if (selectionMode && selected.isNotEmpty()) {
             Row(
                 Modifier.align(Alignment.BottomCenter).fillMaxWidth()
-                    .background(lc.cardSurface)
+                    .background(LiquidSurfaces.card(lc.isDark))
                     .windowInsetsPadding(WindowInsets.navigationBars)
                     .padding(horizontal = 16.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically
@@ -173,7 +174,7 @@ fun LocalLibraryScreen(
         if (status == LocalLibraryIndexer.Status.SCANNING && !selectionMode) {
             Box(
                 Modifier.align(Alignment.BottomCenter).padding(bottom = 24.dp)
-                    .clip(CircleShape).background(lc.cardSurface).padding(horizontal = 16.dp, vertical = 10.dp)
+                    .clip(CircleShape).background(LiquidSurfaces.card(lc.isDark)).padding(horizontal = 16.dp, vertical = 10.dp)
             ) {
                 Text("Indexing library… $progress", color = lc.textSecondary, fontSize = 13.sp)
             }
@@ -656,7 +657,9 @@ private fun Segments(selected: Int, lc: LiquidColors, onSelect: (Int) -> Unit) {
         items.forEachIndexed { i, t ->
             Box(
                 Modifier.weight(1f).clip(CircleShape)
-                    .background(if (selected == i) lc.accent else lc.cardSurface)
+                    .background(
+                        if (selected == i) lc.accent else LiquidSurfaces.card(lc.isDark),
+                    )
                     .liquidClickable(pressedScale = LiquidMotion.PressButton) { onSelect(i) }
                     .padding(vertical = if (compact) 7.dp else 9.dp),
                 contentAlignment = Alignment.Center
@@ -671,7 +674,9 @@ private fun Segments(selected: Int, lc: LiquidColors, onSelect: (Int) -> Unit) {
 @Composable
 private fun SortChip(text: String, selected: Boolean, lc: LiquidColors, onClick: () -> Unit) {
     Box(
-        Modifier.clip(CircleShape).background(if (selected) lc.accent else lc.cardSurface)
+        Modifier.clip(CircleShape).background(
+            if (selected) lc.accent else LiquidSurfaces.card(lc.isDark),
+        )
             .liquidClickable(pressedScale = LiquidMotion.PressButton, onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 6.dp),
         contentAlignment = Alignment.Center
@@ -685,7 +690,7 @@ private fun SearchField(query: String, lc: LiquidColors, onChange: (String) -> U
     val compact = com.lmg.vk.ui.rememberWindowInfo().useSideBySide
     Row(
         Modifier.fillMaxWidth().padding(horizontal = 16.dp).height(if (compact) 38.dp else 44.dp).clip(CircleShape)
-            .background(lc.searchFieldBg).padding(horizontal = 14.dp),
+            .background(LiquidSurfaces.card(lc.isDark)).padding(horizontal = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(com.lmg.vk.ui.icons.LmgGlyphs.SearchOutline28, null, tint = lc.iconMuted, modifier = Modifier.size(if (compact) 18.dp else 20.dp))

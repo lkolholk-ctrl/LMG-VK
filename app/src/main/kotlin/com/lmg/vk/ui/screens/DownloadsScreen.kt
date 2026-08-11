@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -53,9 +54,9 @@ import com.lmg.vk.ui.glass.GlassDialog
 import com.lmg.vk.ui.glass.GlassDialogButton
 import com.lmg.vk.ui.glass.liquidClickable
 import com.lmg.vk.ui.components.SectionTopBar
-import com.lmg.vk.ui.components.SectionTopBarAction
 import com.lmg.vk.ui.theme.AppFontFamily
 import com.lmg.vk.ui.theme.LiquidMotion
+import com.lmg.vk.ui.theme.LiquidSurfaces
 import com.lmg.vk.ui.theme.LiquidTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -191,10 +192,8 @@ fun DownloadsScreen(onBack: () -> Unit = {}) {
                     onBack = onBack,
                     actions = if (downloads.isNotEmpty()) {
                         {
-                            SectionTopBarAction(
-                                label = "Clear all",
-                                icon = com.lmg.vk.ui.icons.LmgGlyphs.DeleteSavedOutline28,
-                                filled = false,
+                            Spacer(Modifier.weight(1f))
+                            DownloadsHeaderAction(
                                 onClick = { confirmClearAll = true },
                             )
                         }
@@ -215,8 +214,8 @@ fun DownloadsScreen(onBack: () -> Unit = {}) {
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 20.dp)
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(lc.cardSurface)
+                            .clip(RoundedCornerShape(28.dp))
+                            .background(LiquidSurfaces.card(lc.isDark))
                             .padding(horizontal = 16.dp, vertical = 12.dp)
                     ) {
                         Text(
@@ -245,8 +244,8 @@ fun DownloadsScreen(onBack: () -> Unit = {}) {
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 20.dp)
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(lc.cardSurface)
+                            .clip(RoundedCornerShape(28.dp))
+                            .background(LiquidSurfaces.card(lc.isDark))
                             .padding(horizontal = 16.dp, vertical = 12.dp)
                     ) {
                         Text(
@@ -370,6 +369,45 @@ fun DownloadsScreen(onBack: () -> Unit = {}) {
                 )
             )
         }
+    }
+}
+
+@Composable
+private fun RowScope.DownloadsHeaderAction(
+    onClick: () -> Unit,
+) {
+    val lc = LiquidTheme.colors
+    Row(
+        modifier = Modifier
+            .height(40.dp)
+            .liquidClickable(
+                pressedScale = LiquidMotion.PressButton,
+                onClick = onClick,
+            ),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(40.dp)
+                .clip(CircleShape)
+                .background(LiquidSurfaces.card(lc.isDark)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = com.lmg.vk.ui.icons.LmgGlyphs.DeleteSavedOutline28,
+                contentDescription = "Clear all downloads",
+                tint = lc.accentRed,
+                modifier = Modifier.size(18.dp),
+            )
+        }
+        Spacer(Modifier.width(7.dp))
+        Text(
+            text = "Clear all",
+            color = lc.accentRed,
+            fontFamily = AppFontFamily,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.SemiBold,
+        )
     }
 }
 

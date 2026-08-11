@@ -75,11 +75,11 @@ import com.lmg.vk.ui.glass.AlbumArtImage
 import com.lmg.vk.ui.glass.liquidClickable
 import com.lmg.vk.ui.components.PlaylistNameDialog
 import com.lmg.vk.ui.components.SectionTopBar
-import com.lmg.vk.ui.components.SectionTopBarAction
 import com.lmg.vk.ui.theme.LiquidMotion
 import com.lmg.vk.ui.components.PlaylistPickerSheet
 import com.lmg.vk.ui.components.TrackActionsSheet
 import com.lmg.vk.ui.theme.LiquidTheme
+import com.lmg.vk.ui.theme.LiquidSurfaces
 import com.lmg.vk.ui.viewmodel.LibraryViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -346,7 +346,6 @@ fun LibraryScreen(
                                 playlistCount = allPlaylistCells.size,
                                 downloadCount = downloadedTracks.size,
                                 downloadsSize = downloadsSize,
-                                wide = win.useSideBySide,
                                 onPlaylists = { currentView = LibraryView.PLAYLISTS },
                                 onAlbums = onOpenLocalLibrary,
                                 onArtists = onOpenLocalLibrary,
@@ -483,19 +482,20 @@ fun LibraryScreen(
                             onBack = { currentView = LibraryView.MAIN },
                             actions = {
                                 if (isLoggedIn) {
-                                    SectionTopBarAction(
+                                    CompactLibraryAction(
                                         label = if (playlistSyncState.isSyncing) "Syncing…" else "Sync",
-                                        icon = com.lmg.vk.ui.icons.LmgGlyphs.RefreshOutline28,
-                                        filled = false,
+                                        icon = lmgVector(LmgDrawables.RefreshOutline28),
                                         enabled = !playlistSyncState.isSyncing,
                                         onClick = { loadImportedPlaylists() },
+                                        modifier = Modifier.weight(1f),
                                     )
                                 }
-                                SectionTopBarAction(
+                                CompactLibraryAction(
                                     label = "New playlist",
                                     icon = lmgVector(LmgDrawables.ListPlusOutline20),
-                                    filled = true,
+                                    emphasized = true,
                                     onClick = { showCreatePlaylistDialog = true },
+                                    modifier = Modifier.weight(1f),
                                 )
                             },
                         )
@@ -670,7 +670,6 @@ fun LibraryScreen(
                             query = libraryQuery,
                             onQueryChange = { libraryQuery = it },
                             showSync = true,
-                            syncLabel = "Sync tracks",
                             isSyncing = isSyncing,
                             onSync = { viewModel.syncWithCloud() },
                             modifier = Modifier.padding(horizontal = 20.dp),
@@ -802,10 +801,12 @@ fun LibraryScreen(
                             onBack = { currentView = LibraryView.MAIN },
                             actions = {
                                 if (downloadedTracks.isNotEmpty()) {
-                                    SectionTopBarAction(
+                                    Spacer(Modifier.weight(1f))
+                                    CompactLibraryAction(
                                         label = "Clear all",
-                                        icon = com.lmg.vk.ui.icons.LmgGlyphs.CancelOutline28,
-                                        filled = false,
+                                        icon = lmgVector(LmgDrawables.DeleteSavedOutline28),
+                                        emphasized = true,
+                                        tint = lc.accentRed,
                                         onClick = { showClearAllDialog = true },
                                     )
                                 }
@@ -1193,7 +1194,6 @@ private fun LibrarySearchSyncRow(
     query: String,
     onQueryChange: (String) -> Unit,
     showSync: Boolean,
-    syncLabel: String = "Sync",
     isSyncing: Boolean,
     onSync: () -> Unit,
     modifier: Modifier = Modifier,
@@ -1209,34 +1209,24 @@ private fun LibrarySearchSyncRow(
             modifier = Modifier.weight(1f),
         )
         if (showSync) {
-            Row(
+            Box(
                 modifier = Modifier
-                    .height(44.dp)
+                    .size(44.dp)
                     .alpha(if (isSyncing) 0.58f else 1f)
-                    .clip(RoundedCornerShape(18.dp))
-                    .background(LiquidTheme.colors.cardSurface)
+                    .clip(CircleShape)
+                    .background(LiquidSurfaces.card(LiquidTheme.colors.isDark))
                     .liquidClickable(
                         enabled = !isSyncing,
                         pressedScale = LiquidMotion.PressButton,
                         onClick = onSync,
-                    )
-                    .padding(horizontal = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
+                    ),
+                contentAlignment = Alignment.Center,
             ) {
                 Icon(
                     imageVector = lmgVector(LmgDrawables.RefreshOutline28),
-                    contentDescription = null,
+                    contentDescription = if (isSyncing) "Syncing tracks" else "Sync tracks",
                     tint = LiquidTheme.colors.accent,
-                    modifier = Modifier.size(17.dp),
-                )
-                Spacer(Modifier.width(6.dp))
-                Text(
-                    text = if (isSyncing) "Syncing" else syncLabel,
-                    color = LiquidTheme.colors.textPrimary,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.size(19.dp),
                 )
             }
         }
@@ -1322,7 +1312,6 @@ private fun LibraryQuickSections(
     playlistCount: Int,
     downloadCount: Int,
     downloadsSize: String?,
-    wide: Boolean,
     onPlaylists: () -> Unit,
     onAlbums: () -> Unit,
     onArtists: () -> Unit,
@@ -1343,31 +1332,24 @@ private fun LibraryQuickSections(
             onClick = onAlbums,
         ),
         LibraryQuickItem(
-            title = "Artists & curators",
-            subtitle = "Your collections",
+            title = "Artists",
+            subtitle = "& curators",
             icon = lmgVector(LmgDrawables.Users3Outline28),
             onClick = onArtists,
         ),
         LibraryQuickItem(
             title = "Downloads",
-            subtitle = downloadsSize?.let { "$downloadCount · $it" } ?: "$downloadCount offline",
+            subtitle = downloadsSize ?: "$downloadCount offline",
             icon = lmgVector(LmgDrawables.DownloadOutline28),
             onClick = onDownloads,
         ),
     )
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        items.chunked(if (wide) 4 else 2).forEach { rowItems ->
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                rowItems.forEach { item ->
-                    LibraryQuickTile(item = item, modifier = Modifier.weight(1f), compact = wide)
-                }
-                repeat((if (wide) 4 else 2) - rowItems.size) {
-                    Spacer(Modifier.weight(1f))
-                }
-            }
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        items.forEach { item ->
+            LibraryQuickTile(item = item, modifier = Modifier.weight(1f))
         }
     }
 }
@@ -1376,23 +1358,22 @@ private fun LibraryQuickSections(
 private fun LibraryQuickTile(
     item: LibraryQuickItem,
     modifier: Modifier = Modifier,
-    compact: Boolean,
 ) {
     val lc = LiquidTheme.colors
-    Row(
+    Column(
         modifier = modifier
-            .height(if (compact) 72.dp else 82.dp)
-            .clip(RoundedCornerShape(20.dp))
-            .background(lc.cardSurface)
-            .liquidClickable(onClick = item.onClick)
-            .padding(horizontal = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
+            .liquidClickable(
+                pressedScale = LiquidMotion.PressButton,
+                onClick = item.onClick,
+            )
+            .padding(horizontal = 2.dp, vertical = 2.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Box(
             modifier = Modifier
-                .size(34.dp)
+                .size(56.dp)
                 .clip(CircleShape)
-                .background(lc.accent.copy(alpha = if (lc.isDark) 0.18f else 0.12f)),
+                .background(LiquidSurfaces.card(lc.isDark)),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
@@ -1402,25 +1383,24 @@ private fun LibraryQuickTile(
                 modifier = Modifier.size(item.iconSize),
             )
         }
-        Spacer(Modifier.width(9.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = item.title,
-                color = lc.textPrimary,
-                fontSize = if (compact) 12.5.sp else 13.5.sp,
-                lineHeight = if (compact) 14.sp else 15.sp,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                text = item.subtitle,
-                color = lc.textSecondary,
-                fontSize = if (compact) 10.5.sp else 11.5.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
+        Spacer(Modifier.height(7.dp))
+        Text(
+            text = item.title,
+            color = lc.textPrimary,
+            fontSize = 12.sp,
+            lineHeight = 14.sp,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Text(
+            text = item.subtitle,
+            color = lc.textSecondary,
+            fontSize = 10.5.sp,
+            lineHeight = 12.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 
@@ -1435,8 +1415,8 @@ private fun CompactLibraryEmptyHint(
         modifier = modifier
             .fillMaxWidth()
             .height(54.dp)
-            .clip(RoundedCornerShape(18.dp))
-            .background(lc.cardSurface.copy(alpha = 0.68f))
+            .clip(RoundedCornerShape(28.dp))
+            .background(LiquidSurfaces.card(lc.isDark))
             .padding(horizontal = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -1495,33 +1475,39 @@ private fun CompactLibraryAction(
     modifier: Modifier = Modifier,
     emphasized: Boolean = false,
     enabled: Boolean = true,
+    tint: Color? = null,
 ) {
     val lc = LiquidTheme.colors
+    val actionColor = tint ?: lc.accent
     Row(
         modifier = modifier
             .height(42.dp)
             .alpha(if (enabled) 1f else 0.45f)
-            .clip(RoundedCornerShape(16.dp))
-            .background(if (emphasized) lc.accent.copy(alpha = 0.14f) else lc.cardSurface)
             .liquidClickable(
                 enabled = enabled,
                 pressedScale = LiquidMotion.PressButton,
                 onClick = onClick,
-            )
-            .padding(horizontal = 10.dp),
+            ),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.Center,
     ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = lc.accent,
-            modifier = Modifier.size(17.dp),
-        )
+        Box(
+            modifier = Modifier
+                .size(40.dp)
+                .clip(CircleShape)
+                .background(LiquidSurfaces.card(lc.isDark)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = actionColor,
+                modifier = Modifier.size(17.dp),
+            )
+        }
         Spacer(Modifier.width(6.dp))
         Text(
             text = label,
-            color = if (emphasized) lc.accent else lc.textPrimary,
+            color = if (emphasized) actionColor else lc.textPrimary,
             fontSize = 12.sp,
             fontWeight = FontWeight.SemiBold,
             maxLines = 1,
@@ -1549,8 +1535,8 @@ private fun LibrarySearchField(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(44.dp)
-                    .clip(RoundedCornerShape(18.dp))
-                    .background(lc.cardSurface)
+                    .clip(CircleShape)
+                    .background(LiquidSurfaces.card(lc.isDark))
                     .padding(horizontal = 14.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -1579,7 +1565,7 @@ private fun ProfileLibrarySearchResults(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(24.dp))
-            .background(lc.cardSurface)
+            .background(LiquidSurfaces.card(lc.isDark))
             .padding(vertical = 8.dp),
     ) {
         Text(
@@ -1696,8 +1682,11 @@ private fun PlaylistControls(
                 fontSize = 12.sp,
                 fontWeight = FontWeight.SemiBold,
                 modifier = Modifier
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(if (selected) lc.accent.copy(alpha = 0.14f) else lc.cardSurface)
+                    .clip(CircleShape)
+                    .background(
+                        if (selected) lc.accent.copy(alpha = 0.14f)
+                        else LiquidSurfaces.card(lc.isDark),
+                    )
                     .liquidClickable { onSourceChange(option) }
                     .padding(horizontal = 12.dp, vertical = 8.dp),
             )
@@ -1705,7 +1694,7 @@ private fun PlaylistControls(
         Spacer(Modifier.weight(1f))
         Row(
             modifier = Modifier
-                .clip(RoundedCornerShape(14.dp))
+                .clip(CircleShape)
                 .liquidClickable(onClick = onSortChange)
                 .padding(horizontal = 10.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -1765,7 +1754,7 @@ private fun PlaylistCell(
                 .fillMaxWidth()
                 .aspectRatio(1f)
                 .clip(RoundedCornerShape(16.dp))
-                .background(lc.cardSurface)
+                .background(LiquidSurfaces.card(lc.isDark))
         ) {
             when {
                 data.covers.size >= 4 -> {
@@ -2107,7 +2096,7 @@ private fun ImportedPlaylistRow(
         modifier = Modifier
             .fillMaxWidth()
             .clip(shape)
-            .background(lc.cardSurface)   // серая подложка как в настройках
+            .background(LiquidSurfaces.card(lc.isDark))
             .liquidClickable(onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -2186,7 +2175,7 @@ private fun LocalPlaylistRow(
         modifier = Modifier
             .fillMaxWidth()
             .clip(shape)
-            .background(lc.cardSurface)   // серая подложка как в настройках
+            .background(LiquidSurfaces.card(lc.isDark))
             .liquidClickable(onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -2429,7 +2418,7 @@ private fun FavoriteTrackItem(
                         .align(Alignment.BottomEnd)
                         .size(17.dp)
                         .clip(CircleShape)
-                        .background(lc.cardSurface),
+                        .background(LiquidSurfaces.card(lc.isDark)),
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
