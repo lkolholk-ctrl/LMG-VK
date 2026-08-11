@@ -153,13 +153,13 @@ fun GroupScreen(
             state.isLoading && state.group == null -> GroupSkeleton(compact = compact)
 
             state.notFound -> GroupMessage(
-                icon = Icons.Rounded.Info,
+                icon = com.lmg.vk.ui.icons.LmgGlyphs.InfoCircleOutline28,
                 title = "Сообщество не найдено",
                 message = "VK не знает сообщества с id ${-state.ownerId}. Возможно, его удалили.",
             )
 
             state.error != null && state.group == null -> GroupMessage(
-                icon = Icons.Rounded.Groups,
+                icon = com.lmg.vk.ui.icons.LmgGlyphs.Users3Outline28,
                 title = "Не удалось открыть сообщество",
                 message = state.error!!,
                 actionLabel = "Повторить",
@@ -247,7 +247,7 @@ fun GroupScreen(
                     when {
                         state.audioClosed -> item {
                             GroupInlineMessage(
-                                icon = Icons.Rounded.Lock,
+                                icon = com.lmg.vk.ui.icons.LmgGlyphs.LockOutline28,
                                 title = "Музыка закрыта",
                                 message = "Сообщество не открывает свои аудиозаписи.",
                             )
@@ -255,7 +255,7 @@ fun GroupScreen(
 
                         state.audioError != null && state.tracks.isEmpty() -> item {
                             GroupInlineMessage(
-                                icon = Icons.Rounded.MusicNote,
+                                icon = com.lmg.vk.ui.icons.LmgGlyphs.MusicNote24,
                                 title = "Не удалось загрузить музыку",
                                 message = state.audioError!!,
                                 actionLabel = "Повторить",
@@ -266,7 +266,7 @@ fun GroupScreen(
                         // Честная пустота: у сообщества действительно нет аудио.
                         state.audioIsEmpty -> item {
                             GroupInlineMessage(
-                                icon = Icons.Rounded.MusicNote,
+                                icon = com.lmg.vk.ui.icons.LmgGlyphs.MusicNote24,
                                 title = "Нет аудиозаписей",
                                 message = "Сообщество не добавило ни одного трека.",
                             )
@@ -375,7 +375,7 @@ private fun GroupHeader(
                         contentAlignment = Alignment.Center,
                     ) {
                         Icon(
-                            Icons.Rounded.Groups,
+                            com.lmg.vk.ui.icons.LmgGlyphs.Users3Outline28,
                             null,
                             tint = Color.White.copy(alpha = 0.30f),
                             modifier = Modifier.size(96.dp),
@@ -471,7 +471,7 @@ private fun GroupHeader(
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     GroupActionButton(
                         label = "Слушать",
-                        icon = Icons.Rounded.PlayArrow,
+                        icon = com.lmg.vk.ui.icons.LmgGlyphs.Play28,
                         enabled = canPlay,
                         filled = true,
                         modifier = Modifier.weight(1f),
@@ -479,7 +479,7 @@ private fun GroupHeader(
                     )
                     GroupActionButton(
                         label = "Вперемешку",
-                        icon = Icons.Rounded.Shuffle,
+                        icon = com.lmg.vk.ui.icons.LmgGlyphs.ShuffleOutline28,
                         enabled = canPlay,
                         filled = false,
                         modifier = Modifier.weight(1f),
@@ -566,7 +566,7 @@ private fun GroupMembershipButton(
             )
         } else {
             Icon(
-                imageVector = if (isMember) Icons.Rounded.Check else Icons.Rounded.PersonAddAlt1,
+                imageVector = if (isMember) Icons.Rounded.Check else com.lmg.vk.ui.icons.LmgGlyphs.UsersOutline28,
                 contentDescription = null,
                 tint = contentColor,
                 modifier = Modifier.size(18.dp),
@@ -727,7 +727,7 @@ private fun GroupMembersRow(
                         )
                     } else {
                         Icon(
-                            Icons.Rounded.Person,
+                            com.lmg.vk.ui.icons.LmgGlyphs.UserOutline28,
                             contentDescription = null,
                             tint = colors.iconMuted,
                             modifier = Modifier.size(24.dp),
@@ -926,7 +926,7 @@ private fun GroupRetryButton(label: String, onClick: () -> Unit) {
             .padding(horizontal = 20.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(Icons.Rounded.Refresh, null, tint = GroupAccent, modifier = Modifier.size(18.dp))
+        Icon(com.lmg.vk.ui.icons.LmgGlyphs.RefreshOutline28, null, tint = GroupAccent, modifier = Modifier.size(18.dp))
         Spacer(Modifier.width(8.dp))
         Text(
             text = label,

@@ -64,11 +64,11 @@ fun SideBar(
     val lc = LiquidTheme.colors
     val items = remember {
         listOf(
-            SideNavItem(LiquidGlyphs.Home, "Home", 0),
-            SideNavItem(LiquidGlyphs.Search, "Search", 1),
+            SideNavItem(com.lmg.vk.ui.icons.LmgGlyphs.HomeOutline28, "Home", 0),
+            SideNavItem(com.lmg.vk.ui.icons.LmgGlyphs.SearchOutline28, "Search", 1),
             SideNavItem(LiquidGlyphs.Star, "New", 4),
-            SideNavItem(LiquidGlyphs.Playlist, "Library", 2),
-            SideNavItem(LiquidGlyphs.Settings, "Settings", 3),
+            SideNavItem(com.lmg.vk.ui.icons.LmgGlyphs.FolderSimpleOutline28, "Library", 2),
+            SideNavItem(com.lmg.vk.ui.icons.LmgGlyphs.GearOutline24, "Settings", 3),
         )
     }
 
@@ -133,7 +133,7 @@ fun SideBar(
                         modifier = Modifier.fillMaxWidth()
                     )
                 } else {
-                    Icon(Icons.Rounded.Person, null, tint = lc.iconMuted, modifier = Modifier.size(16.dp))
+                    Icon(com.lmg.vk.ui.icons.LmgGlyphs.UserOutline28, null, tint = lc.iconMuted, modifier = Modifier.size(16.dp))
                 }
             }
             Spacer(Modifier.width(8.dp))

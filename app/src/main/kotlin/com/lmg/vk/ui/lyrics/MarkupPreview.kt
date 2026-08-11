@@ -118,7 +118,7 @@ fun MarkupPreviewView(
                     contentAlignment = Alignment.Center
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, null, tint = Color.White,
+                        Icon(com.lmg.vk.ui.icons.LmgGlyphs.ArrowLeftOutline28, null, tint = Color.White,
                             modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(6.dp))
                         Text("Back to sync", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
@@ -165,10 +165,10 @@ fun MarkupPreviewView(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                CircleBtn(if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, accent) {
+                CircleBtn(if (isPlaying) com.lmg.vk.ui.icons.LmgGlyphs.Pause28 else com.lmg.vk.ui.icons.LmgGlyphs.Play28, accent) {
                     PlayerController.togglePlayPause(context)
                 }
-                CircleBtn(Icons.Rounded.Replay, accent) {
+                CircleBtn(com.lmg.vk.ui.icons.LmgGlyphs.RefreshOutline28, accent) {
                     val t = lyrics.lines.getOrNull(startLineIndex)?.timeMs?.coerceAtLeast(0L) ?: 0L
                     PlayerController.seekTo(t)
                 }

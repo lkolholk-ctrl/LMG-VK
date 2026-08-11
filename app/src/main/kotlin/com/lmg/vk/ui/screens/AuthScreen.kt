@@ -88,7 +88,7 @@ fun AuthScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                        imageVector = com.lmg.vk.ui.icons.LmgGlyphs.ArrowLeftOutline28,
                         contentDescription = null,
                         tint = lc.iconDefault,
                         modifier = Modifier.size(22.dp)

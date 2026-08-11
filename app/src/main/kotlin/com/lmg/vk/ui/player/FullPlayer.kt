@@ -816,7 +816,7 @@ fun FullPlayer(
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
-                            Icons.Rounded.MoreHoriz, null,
+                            com.lmg.vk.ui.icons.LmgGlyphs.MoreHorizontal28, null,
                             tint = Color.White.copy(alpha = 0.70f),
                             modifier = Modifier.size(26.dp)
                         )
@@ -893,7 +893,7 @@ fun FullPlayer(
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
-                            Icons.Rounded.Shuffle, null,
+                            com.lmg.vk.ui.icons.LmgGlyphs.ShuffleOutline28, null,
                             tint = if (shuffleEnabled) Color(0xFFFC3C44)
                             else Color.White.copy(alpha = 0.40f),
                             modifier = Modifier.size(24.dp)
@@ -901,7 +901,7 @@ fun FullPlayer(
                     }
 
                     AnimatedTransportButton(
-                        icon = Icons.Rounded.FastRewind,
+                        icon = com.lmg.vk.ui.icons.LmgGlyphs.SkipPrevious36,
                         iconSize = 56.dp,
                         onClick = onSkipPrevious
                     )
@@ -909,8 +909,8 @@ fun FullPlayer(
                     // кольцо: видно, что плеер грузит трек, а не завис.
                     Box(contentAlignment = Alignment.Center) {
                         AnimatedTransportButton(
-                            icon = if (isPlaying) Icons.Rounded.Pause
-                                   else Icons.Rounded.PlayArrow,
+                            icon = if (isPlaying) com.lmg.vk.ui.icons.LmgGlyphs.Pause36
+                                   else com.lmg.vk.ui.icons.LmgGlyphs.Play36,
                             iconSize = 74.dp,
                             onClick = onPlayPause
                         )
@@ -923,7 +923,7 @@ fun FullPlayer(
                         }
                     }
                     AnimatedTransportButton(
-                        icon = Icons.Rounded.FastForward,
+                        icon = com.lmg.vk.ui.icons.LmgGlyphs.SkipNext36,
                         iconSize = 56.dp,
                         onClick = onSkipNext
                     )
@@ -936,8 +936,8 @@ fun FullPlayer(
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
-                            if (repeatMode == 2) Icons.Rounded.RepeatOne
-                            else Icons.Rounded.Repeat, null,
+                            if (repeatMode == 2) com.lmg.vk.ui.icons.LmgGlyphs.RepeatOneOutline28
+                            else com.lmg.vk.ui.icons.LmgGlyphs.RepeatOutline28, null,
                             tint = if (repeatMode > 0) Color(0xFFFC3C44)
                             else Color.White.copy(alpha = 0.40f),
                             modifier = Modifier.size(24.dp)
@@ -958,7 +958,10 @@ fun FullPlayer(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    BottomIcon(Icons.Rounded.ChatBubbleOutline) {
+                    BottomIcon(
+                        if (showLyrics) com.lmg.vk.ui.icons.LmgGlyphs.SubtitlesOutline28
+                        else com.lmg.vk.ui.icons.LmgGlyphs.CommentOutline28,
+                    ) {
                         if (showLyrics) {
                             showLyrics = false
                             controlsVisible = true
@@ -968,9 +971,9 @@ fun FullPlayer(
                             showQueue = false // Close queue if open
                         }
                     }
-                    BottomIcon(Icons.Rounded.Cast) { showAirPlay = true }
+                    BottomIcon(com.lmg.vk.ui.icons.LmgGlyphs.ScreencastOutline28) { showAirPlay = true }
 
-                    BottomIcon(Icons.AutoMirrored.Rounded.QueueMusic) {
+                    BottomIcon(com.lmg.vk.ui.icons.LmgGlyphs.ListPlayOutline28) {
                         if (showQueue) {
                             showQueue = false
                             controlsVisible = true
@@ -1079,7 +1082,7 @@ fun FullPlayer(
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
-                                if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
+                                if (isPlaying) com.lmg.vk.ui.icons.LmgGlyphs.Pause36 else com.lmg.vk.ui.icons.LmgGlyphs.Play36,
                                 if (isPlaying) "Pause" else "Play",
                                 tint = Color.White, modifier = Modifier.size(38.dp)
                             )
@@ -1168,7 +1171,7 @@ fun FullPlayer(
                             )
                             if (artistId != null) {
                                 Icon(
-                                    imageVector = Icons.Rounded.ChevronRight,
+                                    imageVector = com.lmg.vk.ui.icons.LmgGlyphs.ChevronRightOutline24,
                                     contentDescription = null,
                                     tint = Color.White.copy(alpha = 0.40f),
                                     modifier = Modifier.size(24.dp)
@@ -1245,7 +1248,7 @@ fun FullPlayer(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
-                            imageVector = Icons.Rounded.Info,
+                            imageVector = com.lmg.vk.ui.icons.LmgGlyphs.DocumentTextOutline28,
                             contentDescription = null,
                             tint = Color.White,
                             modifier = Modifier.size(24.dp)
@@ -1282,7 +1285,7 @@ fun FullPlayer(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
-                            imageVector = Icons.Rounded.GraphicEq,
+                            imageVector = com.lmg.vk.ui.icons.LmgGlyphs.SlidersOutline28,
                             contentDescription = null,
                             tint = Color.White,
                             modifier = Modifier.size(24.dp)
@@ -1337,7 +1340,7 @@ fun FullPlayer(
                                 tint = Color(0xFF4CAF50), modifier = Modifier.size(24.dp)
                             )
                             else -> Icon(
-                                Icons.Rounded.Download, null,
+                                com.lmg.vk.ui.icons.LmgGlyphs.DownloadOutline28, null,
                                 tint = Color.White, modifier = Modifier.size(24.dp)
                             )
                         }
@@ -1378,7 +1381,7 @@ fun FullPlayer(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Icon(
-                                imageVector = Icons.Rounded.Edit,
+                                imageVector = com.lmg.vk.ui.icons.LmgGlyphs.TextOutline28,
                                 contentDescription = null,
                                 tint = Color.White,
                                 modifier = Modifier.size(24.dp)
@@ -1412,7 +1415,7 @@ fun FullPlayer(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Icon(
-                                imageVector = Icons.Rounded.Edit,
+                                imageVector = com.lmg.vk.ui.icons.LmgGlyphs.EditOutline28,
                                 contentDescription = null,
                                 tint = Color.White,
                                 modifier = Modifier.size(24.dp)
@@ -1447,7 +1450,7 @@ fun FullPlayer(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
-                            imageVector = Icons.Rounded.Settings,
+                            imageVector = com.lmg.vk.ui.icons.LmgGlyphs.GearOutline24,
                             contentDescription = null,
                             tint = Color.White,
                             modifier = Modifier.size(24.dp)
@@ -1468,7 +1471,7 @@ fun FullPlayer(
         GlassDialog(
             visible = showPromoDialog,
             onDismiss = { showPromoDialog = false },
-            icon = Icons.Rounded.Download,
+            icon = com.lmg.vk.ui.icons.LmgGlyphs.DownloadOutline28,
             iconTint = Color(0xFFFC3C44),
             title = "VK Music subscription required",
             message = "Offline caching will use VK-only subscription and audio data after the download flow is restored.",
@@ -1488,7 +1491,7 @@ fun FullPlayer(
         GlassDialog(
             visible = showDeleteConfirmDialog,
             onDismiss = { showDeleteConfirmDialog = false },
-            icon = Icons.Rounded.Close,
+            icon = com.lmg.vk.ui.icons.LmgGlyphs.CancelOutline28,
             iconTint = Color(0xFFFF5252),
             title = "Delete Download?",
             message = "Are you sure you want to delete this track from your device? You will need an internet connection to stream it again.",
@@ -1650,7 +1653,7 @@ private fun DebugPanel(onDismiss: () -> Unit) {
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
-                            Icons.Rounded.Close, null,
+                            com.lmg.vk.ui.icons.LmgGlyphs.CancelOutline28, null,
                             tint = Color.White.copy(alpha = 0.70f),
                             modifier = Modifier.size(22.dp)
                         )

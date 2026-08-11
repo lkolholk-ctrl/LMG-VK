@@ -200,7 +200,7 @@ fun DetailHeader(
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     DetailActionButton(
                         label = "Play",
-                        icon = Icons.Rounded.PlayArrow,
+                        icon = com.lmg.vk.ui.icons.LmgGlyphs.Play28,
                         filled = true,
                         isDark = isDark,
                         onPhoto = true,
@@ -209,7 +209,7 @@ fun DetailHeader(
                     )
                     DetailActionButton(
                         label = "Shuffle",
-                        icon = Icons.Rounded.Shuffle,
+                        icon = com.lmg.vk.ui.icons.LmgGlyphs.ShuffleOutline28,
                         filled = false,
                         isDark = isDark,
                         onPhoto = true,
@@ -399,7 +399,7 @@ fun DetailTrackRow(
                     modifier = Modifier.size(36.dp),
                 ) {
                     Icon(
-                        Icons.Rounded.MoreVert,
+                        com.lmg.vk.ui.icons.LmgGlyphs.MenuOutline28,
                         contentDescription = "Track actions",
                         tint = LiquidSurfaces.textTertiary(isDark),
                         modifier = Modifier.size(20.dp),
@@ -453,7 +453,7 @@ fun DetailTopBar(
             contentAlignment = Alignment.Center
         ) {
             Icon(
-                imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                imageVector = com.lmg.vk.ui.icons.LmgGlyphs.ArrowLeftOutline28,
                 contentDescription = "Back",
                 tint = if (showTitle) LiquidSurfaces.textPrimary(isDark) else Color.White,
                 modifier = Modifier.size(20.dp)

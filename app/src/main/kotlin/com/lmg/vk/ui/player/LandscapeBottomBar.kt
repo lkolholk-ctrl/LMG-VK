@@ -112,7 +112,7 @@ fun LandscapeBottomBar(
                         contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize()
                     )
                 } else {
-                    Icon(LiquidGlyphs.MusicNote, null, tint = lc.iconMuted, modifier = Modifier.size(18.dp))
+                    Icon(com.lmg.vk.ui.icons.LmgGlyphs.MusicNote24, null, tint = lc.iconMuted, modifier = Modifier.size(18.dp))
                 }
             }
             Spacer(Modifier.width(10.dp))
@@ -136,7 +136,7 @@ fun LandscapeBottomBar(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                CircleIconButton(LiquidGlyphs.Previous, "Previous", 30.dp, 18.dp, lc.textPrimary) {
+                CircleIconButton(com.lmg.vk.ui.icons.LmgGlyphs.SkipPrevious36, "Previous", 30.dp, 18.dp, lc.textPrimary) {
                     PlayerController.skipPrevious(context)
                 }
                 Box(
@@ -148,13 +148,14 @@ fun LandscapeBottomBar(
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        if (isPlaying) LiquidGlyphs.Pause else LiquidGlyphs.Play,
+                        if (isPlaying) com.lmg.vk.ui.icons.LmgGlyphs.Pause28
+                        else com.lmg.vk.ui.icons.LmgGlyphs.Play28,
                         if (isPlaying) "Pause" else "Play",
                         tint = if (lc.isDark) Color.Black else Color.White,
                         modifier = Modifier.size(18.dp)
                     )
                 }
-                CircleIconButton(LiquidGlyphs.Next, "Next", 30.dp, 18.dp, lc.textPrimary) {
+                CircleIconButton(com.lmg.vk.ui.icons.LmgGlyphs.SkipNext36, "Next", 30.dp, 18.dp, lc.textPrimary) {
                     PlayerController.skipNext(context)
                 }
             }
@@ -189,18 +190,20 @@ fun LandscapeBottomBar(
         // ── Справа: shuffle / repeat / favorite / queue ──
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
             CircleIconButton(
-                Icons.Rounded.Shuffle, "Shuffle", 30.dp, 16.dp,
+                com.lmg.vk.ui.icons.LmgGlyphs.ShuffleOutline28, "Shuffle", 30.dp, 16.dp,
                 if (shuffleEnabled) lc.accent else lc.iconMuted
             ) { PlayerController.toggleShuffle() }
             CircleIconButton(
-                LiquidGlyphs.Repeat, "Repeat", 30.dp, 16.dp,
+                com.lmg.vk.ui.icons.LmgGlyphs.RepeatOutline28, "Repeat", 30.dp, 16.dp,
                 if (repeatMode != 0) lc.accent else lc.iconMuted
             ) { PlayerController.cycleRepeatMode() }
             CircleIconButton(
-                LiquidGlyphs.Heart, "Favorite", 30.dp, 16.dp,
+                if (isFavorite) com.lmg.vk.ui.icons.LmgGlyphs.Favorite28
+                else com.lmg.vk.ui.icons.LmgGlyphs.FavoriteOutline28,
+                "Favorite", 30.dp, 16.dp,
                 if (isFavorite) lc.accentRed else lc.iconMuted
             ) { PlayerController.toggleFavorite(cur.id) }
-            CircleIconButton(LiquidGlyphs.QueueMusic, "Queue", 30.dp, 16.dp, lc.iconMuted) {
+            CircleIconButton(com.lmg.vk.ui.icons.LmgGlyphs.ListPlayOutline28, "Queue", 30.dp, 16.dp, lc.iconMuted) {
                 onQueueClick()
             }
         }

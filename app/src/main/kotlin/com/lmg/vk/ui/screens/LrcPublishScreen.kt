@@ -341,11 +341,11 @@ private fun SyncTaggingMode(
 
             // транспорт
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 8.dp)) {
-                RoundIcon(if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, lc) {
+                RoundIcon(if (isPlaying) com.lmg.vk.ui.icons.LmgGlyphs.Pause28 else com.lmg.vk.ui.icons.LmgGlyphs.Play28, lc) {
                     PlayerController.togglePlayPause(context)
                 }
                 Spacer(Modifier.width(12.dp))
-                RoundIcon(Icons.Rounded.Replay, lc) { PlayerController.seekTo(0) }
+                RoundIcon(com.lmg.vk.ui.icons.LmgGlyphs.RefreshOutline28, lc) { PlayerController.seekTo(0) }
                 Spacer(Modifier.width(12.dp))
                 Text("TEST", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold,
                     modifier = Modifier.clip(RoundedCornerShape(10.dp)).background(lc.accentGreen)
@@ -467,11 +467,11 @@ private fun SyncWordTaggingMode(
 
             // транспорт + большой TAP
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 8.dp)) {
-                RoundIcon(if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, lc) {
+                RoundIcon(if (isPlaying) com.lmg.vk.ui.icons.LmgGlyphs.Pause28 else com.lmg.vk.ui.icons.LmgGlyphs.Play28, lc) {
                     PlayerController.togglePlayPause(context)
                 }
                 Spacer(Modifier.width(12.dp))
-                RoundIcon(Icons.Rounded.Replay, lc) { PlayerController.seekTo(0) }
+                RoundIcon(com.lmg.vk.ui.icons.LmgGlyphs.RefreshOutline28, lc) { PlayerController.seekTo(0) }
                 Spacer(Modifier.width(12.dp))
                 Text("TEST", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold,
                     modifier = Modifier.clip(RoundedCornerShape(10.dp)).background(lc.accentGreen)
@@ -672,7 +672,7 @@ private fun CircleBack(lc: LiquidColors, onClick: () -> Unit) {
             .clickable(remember { MutableInteractionSource() }, null, onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
-        Icon(Icons.AutoMirrored.Rounded.ArrowBack, null, tint = lc.iconDefault, modifier = Modifier.size(22.dp))
+        Icon(com.lmg.vk.ui.icons.LmgGlyphs.ArrowLeftOutline28, null, tint = lc.iconDefault, modifier = Modifier.size(22.dp))
     }
 }
 

@@ -168,7 +168,7 @@ fun SettingsScreen(
                             )
                         } else {
                             Icon(
-                                imageVector = Icons.Rounded.Person,
+                                imageVector = com.lmg.vk.ui.icons.LmgGlyphs.UserOutline28,
                                 contentDescription = null,
                                 tint = lc.iconMuted,
                                 modifier = Modifier.size(28.dp)
@@ -231,7 +231,7 @@ fun SettingsScreen(
                 SettingsActionItem(
                     title = "Ignore Battery Optimization",
                     subtitle = "Prevents background stutter (Doze). Recommended for music",
-                    icon = Icons.Rounded.ChevronRight,
+                    icon = com.lmg.vk.ui.icons.LmgGlyphs.WarningTriangleOutline28,
                     onClick = { requestIgnoreBatteryOptimizations(context) }
                 )
             }
@@ -298,6 +298,7 @@ fun SettingsScreen(
             PlainCard {
                 SettingsToggleItem(
                     title = "Транслировать в статус",
+                    icon = com.lmg.vk.ui.icons.LmgGlyphs.MusicNoteWaveOutline28,
                     // Честно про последствия: это единственная настройка в списке,
                     // которая меняет что-то ВНЕ приложения и видна другим людям.
                     // Про «не вошли» пишем прямо, потому что тумблер сам по себе
@@ -328,6 +329,7 @@ fun SettingsScreen(
             PlainCard {
                 SettingsToggleItem(
                     title = "Обход блокировок",
+                    icon = com.lmg.vk.ui.icons.LmgGlyphs.LockOutline28,
                     subtitle = when (val state = proxyState) {
                         is com.lmg.vk.network.proxy.VkProxyState.Available ->
                             "Готово: ${state.ips.size} адр., " +
@@ -344,7 +346,7 @@ fun SettingsScreen(
                 SettingsActionItem(
                     title = "Обновить адреса",
                     subtitle = "Перечитать список серверов и сертификатов",
-                    icon = Icons.Rounded.ChevronRight,
+                    icon = com.lmg.vk.ui.icons.LmgGlyphs.RefreshOutline28,
                     onClick = {
                         proxyScope.launch {
                             com.lmg.vk.network.proxy.VkProxyRepository.refresh()
@@ -373,7 +375,7 @@ fun SettingsScreen(
                     } else {
                         "Отметить исполнителей, под которых ВКонтакте подстроит выдачу"
                     },
-                    icon = Icons.Rounded.ChevronRight,
+                    icon = com.lmg.vk.ui.icons.LmgGlyphs.SlidersOutline28,
                     onClick = {
                         if (onboardingLoggedIn) onOpenRecommendationsOnboarding()
                     }
@@ -392,7 +394,7 @@ fun SettingsScreen(
                     title = "Отладочный лог",
                     subtitle = "Что происходит при запуске трека. Внутри — " +
                         "«Очистить», затем воспроизведите трек и пришлите лог",
-                    icon = Icons.Rounded.ChevronRight,
+                    icon = com.lmg.vk.ui.icons.LmgGlyphs.DocumentTextOutline28,
                     onClick = onOpenDebugLog
                 )
             }
@@ -456,6 +458,7 @@ fun SettingsScreen(
                 SettingsToggleItem(
                     title = "Increase Contrast",
                     subtitle = "Stronger text & less glass transparency",
+                    icon = com.lmg.vk.ui.icons.LmgGlyphs.GearOutline24,
                     selected = increaseContrast,
                     onSelect = { PlayerSettings.setIncreaseContrast(it) }
                 )
@@ -576,6 +579,7 @@ private fun PlainDivider() {
 private fun SettingsToggleItem(
     title: String,
     subtitle: String,
+    icon: ImageVector,
     selected: Boolean,
     onSelect: (Boolean) -> Unit
 ) {
@@ -589,6 +593,13 @@ private fun SettingsToggleItem(
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = LiquidTheme.colors.iconDefault,
+            modifier = Modifier.size(22.dp),
+        )
+        Spacer(modifier = Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = title,
@@ -622,6 +633,13 @@ private fun SettingsActionItem(
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = LiquidTheme.colors.iconDefault,
+            modifier = Modifier.size(22.dp),
+        )
+        Spacer(modifier = Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = title,
@@ -636,7 +654,7 @@ private fun SettingsActionItem(
             )
         }
         Icon(
-            imageVector = Icons.Rounded.ChevronRight,
+            imageVector = com.lmg.vk.ui.icons.LmgGlyphs.ChevronRightOutline24,
             contentDescription = null,
             tint = LiquidTheme.colors.iconDefault,
             modifier = Modifier.size(20.dp)
@@ -746,6 +764,12 @@ private fun CrossfadeSelector(
             .padding(horizontal = 12.dp, vertical = 10.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
+        Icon(
+            imageVector = com.lmg.vk.ui.icons.LmgGlyphs.SlidersOutline28,
+            contentDescription = "Crossfade",
+            tint = LiquidTheme.colors.iconDefault,
+            modifier = Modifier.size(22.dp),
+        )
         options.forEach { sec ->
             val isSelected = selectedMs / 1000 == sec
             val isDark = LiquidTheme.colors.isDark
@@ -793,6 +817,12 @@ private fun SleepTimerSelector(
             .padding(horizontal = 12.dp, vertical = 10.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
+        Icon(
+            imageVector = com.lmg.vk.ui.icons.LmgGlyphs.ClockOutline28,
+            contentDescription = "Sleep timer",
+            tint = LiquidTheme.colors.iconDefault,
+            modifier = Modifier.size(22.dp),
+        )
         options.forEach { minutes ->
             val isSelected = selectedMinutes == minutes
             val isDark = LiquidTheme.colors.isDark

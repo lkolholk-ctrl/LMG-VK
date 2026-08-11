@@ -574,7 +574,7 @@ private fun NewScreenHeader(
                     )
                 } else {
                     Icon(
-                        imageVector = Icons.Rounded.Refresh,
+                        imageVector = com.lmg.vk.ui.icons.LmgGlyphs.RefreshOutline28,
                         contentDescription = "Обновить каталог VK",
                         tint = lc.textPrimary,
                         modifier = Modifier.size(if (compact) 20.dp else 22.dp),
@@ -661,7 +661,7 @@ private fun NewLoadError(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(
-                imageVector = Icons.Rounded.Refresh,
+                imageVector = com.lmg.vk.ui.icons.LmgGlyphs.RefreshOutline28,
                 contentDescription = null,
                 tint = lc.accent,
                 modifier = Modifier.size(17.dp),
@@ -777,7 +777,7 @@ private fun NewSectionHeader(
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
-                        imageVector = Icons.Rounded.ChevronRight,
+                        imageVector = com.lmg.vk.ui.icons.LmgGlyphs.ChevronRightOutline24,
                         contentDescription = if (itemCount > 0) "Открыть раздел, $itemCount элементов" else "Открыть раздел",
                         tint = LiquidTheme.colors.textPrimary,
                         modifier = Modifier.size(if (compact) 20.dp else 23.dp),
@@ -896,7 +896,7 @@ private fun NewSectionSheet(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Icon(
-                            imageVector = Icons.Rounded.PlayArrow,
+                            imageVector = com.lmg.vk.ui.icons.LmgGlyphs.Play28,
                             contentDescription = "Слушать все",
                             tint = lc.accent,
                             modifier = Modifier.size(17.dp),
@@ -1521,7 +1521,7 @@ private fun NewCloseableBanner(
             contentAlignment = Alignment.Center,
         ) {
             Icon(
-                imageVector = Icons.Rounded.Close,
+                imageVector = com.lmg.vk.ui.icons.LmgGlyphs.CancelOutline28,
                 contentDescription = "Скрыть",
                 tint = Color.White,
                 modifier = Modifier.size(18.dp),

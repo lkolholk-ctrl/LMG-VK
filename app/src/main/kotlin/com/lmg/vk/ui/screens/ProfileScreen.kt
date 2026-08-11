@@ -224,16 +224,16 @@ fun ProfileScreen(
                 // внутренняя механика, пользователю знать про рефреш незачем.
                 item {
                     val facts = buildList {
-                        add(Icons.Rounded.Person to ("VK ID" to
+                        add(com.lmg.vk.ui.icons.LmgGlyphs.UserOutline28 to ("VK ID" to
                             ((profile?.id ?: profileId)?.toString() ?: "…")))
                         if (!slug.isNullOrBlank()) {
-                            add(Icons.Rounded.Person to ("Address" to "vk.com/$slug"))
+                            add(com.lmg.vk.ui.icons.LmgGlyphs.LinkOutline28 to ("Address" to "vk.com/$slug"))
                         }
                         profile?.locationLabel?.takeIf(String::isNotBlank)?.let {
-                            add(Icons.Rounded.Place to ("Location" to it))
+                            add(com.lmg.vk.ui.icons.LmgGlyphs.LocationOutline28 to ("Location" to it))
                         }
                         profile?.bdate?.takeIf(String::isNotBlank)?.let {
-                            add(Icons.Rounded.Cake to ("Birthday" to formatBirthday(it)))
+                            add(com.lmg.vk.ui.icons.LmgGlyphs.CakeOutline28 to ("Birthday" to formatBirthday(it)))
                         }
                     }
                     ProfileFactGrid(facts = facts, compact = compact)
@@ -256,7 +256,7 @@ fun ProfileScreen(
                         }
                         ProfileDivider()
                         ProfileNavigationRow(
-                            icon = Icons.Rounded.QueueMusic,
+                            icon = com.lmg.vk.ui.icons.LmgGlyphs.ListOutline28,
                             label = "My Library",
                             value = "Favorites, playlists & downloads",
                             compact = compact,
@@ -308,7 +308,7 @@ fun ProfileScreen(
                         // но вход в него не с профиля.
                         if (!slug.isNullOrBlank()) {
                             ProfileNavigationRow(
-                                icon = Icons.Rounded.Person,
+                                icon = com.lmg.vk.ui.icons.LmgGlyphs.CopyOutline28,
                                 label = "Copy VK profile link",
                                 value = "vk.com/$slug",
                                 compact = compact,
@@ -331,7 +331,7 @@ fun ProfileScreen(
                             ProfileDivider()
                         }
                         ProfileNavigationRow(
-                            icon = Icons.Rounded.Settings,
+                            icon = com.lmg.vk.ui.icons.LmgGlyphs.GearOutline24,
                             label = "Settings",
                             value = "Playback, appearance & data",
                             compact = compact,
@@ -346,7 +346,7 @@ fun ProfileScreen(
                         )
                     } else {
                         ProfileNavigationRow(
-                            icon = Icons.Rounded.Person,
+                            icon = com.lmg.vk.ui.icons.LmgGlyphs.UserOutline28,
                             label = "Sign In",
                             value = "Connect your VK account",
                             compact = compact,
@@ -354,7 +354,7 @@ fun ProfileScreen(
                         )
                         ProfileDivider()
                         ProfileNavigationRow(
-                            icon = Icons.Rounded.Settings,
+                            icon = com.lmg.vk.ui.icons.LmgGlyphs.GearOutline24,
                             label = "Settings",
                             value = "Playback, appearance & data",
                             compact = compact,
@@ -657,7 +657,7 @@ private fun OwnerRow(
                         )
                     } else {
                         Icon(
-                            imageVector = if (circleAvatar) Icons.Rounded.Person else Icons.Rounded.Groups,
+                            imageVector = if (circleAvatar) com.lmg.vk.ui.icons.LmgGlyphs.UserOutline28 else com.lmg.vk.ui.icons.LmgGlyphs.Users3Outline28,
                             contentDescription = null,
                             tint = colors.iconMuted,
                             modifier = Modifier.size(20.dp),
@@ -694,7 +694,7 @@ private fun OwnerRow(
             )
         }
         Icon(
-            Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+            com.lmg.vk.ui.icons.LmgGlyphs.ChevronRightOutline24,
             null,
             tint = colors.textTertiary,
             modifier = Modifier.size(18.dp),
@@ -801,7 +801,7 @@ private fun ProfileHeader(
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
-                        imageVector = Icons.Rounded.Person,
+                        imageVector = com.lmg.vk.ui.icons.LmgGlyphs.UserOutline28,
                         contentDescription = null,
                         tint = Color.White.copy(alpha = 0.30f),
                         modifier = Modifier.size(96.dp),
@@ -898,13 +898,13 @@ private fun ProfileHeader(
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 ProfileHeaderButton(
                     label = "My Music",
-                    icon = Icons.Rounded.QueueMusic,
+                    icon = com.lmg.vk.ui.icons.LmgGlyphs.ListPlayOutline28,
                     filled = true,
                     onClick = onOpenLibrary,
                 )
                 ProfileHeaderButton(
                     label = "Settings",
-                    icon = Icons.Rounded.Settings,
+                    icon = com.lmg.vk.ui.icons.LmgGlyphs.GearOutline24,
                     filled = false,
                     onClick = onOpenSettings,
                 )
@@ -1092,7 +1092,7 @@ private fun ProfileMetric(
             if (onClick != null) {
                 Spacer(Modifier.width(4.dp))
                 Icon(
-                    Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+                    com.lmg.vk.ui.icons.LmgGlyphs.ChevronRightOutline24,
                     contentDescription = null,
                     tint = LiquidSurfaces.textTertiary(colors.isDark),
                     modifier = Modifier.size(16.dp),
@@ -1221,7 +1221,7 @@ private fun ProfileNavigationRow(
         if (loading) {
             CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = colors.iconMuted)
         } else {
-            Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, null, tint = colors.textTertiary, modifier = Modifier.size(18.dp))
+            Icon(com.lmg.vk.ui.icons.LmgGlyphs.ChevronRightOutline24, null, tint = colors.textTertiary, modifier = Modifier.size(18.dp))
         }
     }
 }

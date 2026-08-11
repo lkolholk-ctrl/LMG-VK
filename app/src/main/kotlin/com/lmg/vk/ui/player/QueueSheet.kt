@@ -210,7 +210,7 @@ fun QueueSheet(
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
-                            imageVector = Icons.Rounded.Close,
+                            imageVector = com.lmg.vk.ui.icons.LmgGlyphs.CancelOutline28,
                             contentDescription = null,
                             tint = Color.White,
                             modifier = Modifier.size(22.dp)
@@ -278,8 +278,8 @@ fun QueueSheet(
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
-                                    imageVector = if (isFavorite) Icons.Rounded.Favorite
-                                    else Icons.Rounded.FavoriteBorder,
+                                    imageVector = if (isFavorite) com.lmg.vk.ui.icons.LmgGlyphs.Favorite28
+                                    else com.lmg.vk.ui.icons.LmgGlyphs.FavoriteOutline28,
                                     contentDescription = null,
                                     tint = if (isFavorite) colors.accentRed
                                     else LiquidSurfaces.onHeaderSecondary,
@@ -411,11 +411,11 @@ fun QueueSheet(
                             // или на локальном треке — неправда, и выглядит поломкой.
                             val (icon, message) = when {
                                 repeatMode != 0 ->
-                                    Icons.Rounded.Repeat to "Repeat is on — playing in a loop"
+                                    com.lmg.vk.ui.icons.LmgGlyphs.RepeatOutline28 to "Repeat is on — playing in a loop"
                                 !queueEditable ->
-                                    Icons.Rounded.MusicNote to "Local track plays on its own"
+                                    com.lmg.vk.ui.icons.LmgGlyphs.MusicNote24 to "Local track plays on its own"
                                 else ->
-                                    Icons.Rounded.Waves to "Finding what plays next"
+                                    com.lmg.vk.ui.icons.LmgGlyphs.MusicNoteWaveOutline28 to "Finding what plays next"
                             }
                             Box(
                                 modifier = Modifier.fillMaxSize(),
@@ -606,7 +606,7 @@ private fun DraggableQueueRow(
                 .padding(horizontal = LiquidMetrics.QueuePadding)
         ) {
             Icon(
-                imageVector = Icons.Rounded.DeleteOutline,
+                imageVector = com.lmg.vk.ui.icons.LmgGlyphs.DeleteOutline28,
                 contentDescription = null,
                 tint = Color.White,
                 modifier = Modifier
@@ -615,7 +615,7 @@ private fun DraggableQueueRow(
                     .graphicsLayer { alpha = if (removeOffset.value > 0f) 1f else 0f }
             )
             Icon(
-                imageVector = Icons.Rounded.DeleteOutline,
+                imageVector = com.lmg.vk.ui.icons.LmgGlyphs.DeleteOutline28,
                 contentDescription = null,
                 tint = Color.White,
                 modifier = Modifier

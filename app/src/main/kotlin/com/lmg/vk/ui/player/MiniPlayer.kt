@@ -173,7 +173,7 @@ fun MiniPlayer(
             contentAlignment = Alignment.Center
         ) {
             Icon(
-                imageVector = if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
+                imageVector = if (isPlaying) com.lmg.vk.ui.icons.LmgGlyphs.Pause28 else com.lmg.vk.ui.icons.LmgGlyphs.Play28,
                 contentDescription = if (isPlaying) "Pause" else "Play",
                 modifier = Modifier.size(28.dp),
                 tint = fgPrimary

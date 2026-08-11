@@ -105,13 +105,20 @@ fun YearRecapScreen(
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
-                        imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                        imageVector = com.lmg.vk.ui.icons.LmgGlyphs.ArrowLeftOutline28,
                         contentDescription = null,
                         tint = lc.iconDefault,
                         modifier = Modifier.size(if (compact) 18.dp else 22.dp),
                     )
                 }
                 Spacer(modifier = Modifier.width(if (compact) 12.dp else 16.dp))
+                Icon(
+                    imageVector = com.lmg.vk.ui.icons.LmgGlyphs.CalendarOutline28,
+                    contentDescription = null,
+                    tint = lc.iconDefault,
+                    modifier = Modifier.size(if (compact) 20.dp else 24.dp),
+                )
+                Spacer(modifier = Modifier.width(if (compact) 8.dp else 10.dp))
                 Text(
                     text = "Итоги года",
                     color = lc.textPrimary,
@@ -498,7 +505,7 @@ private fun CreatePlaylistCard(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Icon(
-                        imageVector = Icons.Rounded.Refresh,
+                        imageVector = com.lmg.vk.ui.icons.LmgGlyphs.RefreshOutline28,
                         contentDescription = null,
                         tint = lc.accent,
                         modifier = Modifier.size(17.dp),
@@ -524,7 +531,7 @@ private fun CreatePlaylistCard(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Icon(
-                    imageVector = Icons.Rounded.PlaylistAdd,
+                    imageVector = com.lmg.vk.ui.icons.LmgGlyphs.ListAddOutline28,
                     contentDescription = null,
                     tint = lc.accent,
                     modifier = Modifier.size(18.dp),
@@ -612,7 +619,7 @@ private fun RecapEmpty(artistMode: Boolean, compact: Boolean, onRetry: () -> Uni
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(
-                imageVector = Icons.Rounded.Refresh,
+                imageVector = com.lmg.vk.ui.icons.LmgGlyphs.RefreshOutline28,
                 contentDescription = null,
                 tint = lc.accent,
                 modifier = Modifier.size(17.dp),
@@ -664,7 +671,7 @@ private fun RecapLoadError(message: String, compact: Boolean, onRetry: () -> Uni
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(
-                imageVector = Icons.Rounded.Refresh,
+                imageVector = com.lmg.vk.ui.icons.LmgGlyphs.RefreshOutline28,
                 contentDescription = null,
                 tint = lc.accent,
                 modifier = Modifier.size(17.dp),

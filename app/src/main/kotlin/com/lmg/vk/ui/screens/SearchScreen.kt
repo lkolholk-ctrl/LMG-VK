@@ -184,7 +184,7 @@ fun SearchScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        Icons.AutoMirrored.Rounded.ArrowBack,
+                        com.lmg.vk.ui.icons.LmgGlyphs.ArrowLeftOutline28,
                         contentDescription = "Back",
                         tint = LiquidTheme.colors.textPrimary,
                         modifier = Modifier.size(if (compact) 18.dp else 22.dp)
@@ -229,7 +229,7 @@ fun SearchScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(
-                    imageVector = Icons.Rounded.Search,
+                    imageVector = com.lmg.vk.ui.icons.LmgGlyphs.SearchOutline28,
                     contentDescription = null,
                     tint = LiquidTheme.colors.iconMuted,
                     modifier = Modifier.size(20.dp)
@@ -282,7 +282,7 @@ fun SearchScreen(
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
-                            imageVector = Icons.Rounded.Close,
+                            imageVector = com.lmg.vk.ui.icons.LmgGlyphs.CancelOutline28,
                             contentDescription = null,
                             tint = LiquidTheme.colors.textSecondary,
                             modifier = Modifier.size(14.dp)
@@ -512,7 +512,7 @@ fun SearchScreen(
                                                 title = item.title,
                                                 subtitle = if (item.isAvailable) item.displayArtist
                                                     else "Недоступно · ${item.displayArtist}",
-                                                icon = Icons.Rounded.MusicNote,
+                                                icon = com.lmg.vk.ui.icons.LmgGlyphs.MusicNote24,
                                                 coverUrl = item.cover,
                                                 isExplicit = item.isExplicit,
                                                 isCustom = item.isCustom,
@@ -644,7 +644,7 @@ private fun ArtistChip(
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = Icons.Rounded.Person,
+                    imageVector = com.lmg.vk.ui.icons.LmgGlyphs.UserOutline28,
                     contentDescription = null,
                     tint = LiquidTheme.colors.iconMuted,
                     modifier = Modifier.size(if (compact) 26.dp else 32.dp)
@@ -723,7 +723,7 @@ private fun HistoryChip(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(
-            imageVector = Icons.Rounded.History,
+            imageVector = com.lmg.vk.ui.icons.LmgGlyphs.HistoryBackwardOutline28,
             contentDescription = null,
             tint = LiquidTheme.colors.iconMuted,
             modifier = Modifier.size(15.dp)
@@ -756,7 +756,7 @@ private fun SearchWelcomeState(compact: Boolean) {
             contentAlignment = Alignment.Center,
         ) {
             Icon(
-                imageVector = Icons.Rounded.Search,
+                imageVector = com.lmg.vk.ui.icons.LmgGlyphs.SearchOutline28,
                 contentDescription = null,
                 tint = SearchAccent,
                 modifier = Modifier.size(if (compact) 25.dp else 31.dp),

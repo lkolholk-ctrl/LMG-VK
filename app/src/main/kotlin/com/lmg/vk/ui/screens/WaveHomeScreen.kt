@@ -454,7 +454,7 @@ fun WaveHomeScreen(
                         ) {
                             FlatCircleButton(onClick = { PlayerController.togglePlayPause(context) }) {
                                 Icon(
-                                    imageVector = if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
+                                    imageVector = if (isPlaying) com.lmg.vk.ui.icons.LmgGlyphs.Pause28 else com.lmg.vk.ui.icons.LmgGlyphs.Play28,
                                     contentDescription = if (isPlaying) "Pause" else "Play",
                                     tint = Color.White,
                                     modifier = Modifier.size(26.dp)
@@ -525,7 +525,7 @@ fun WaveHomeScreen(
                             }
                             FlatCircleButton(onClick = { PlayerController.toggleFavorite(track.id) }) {
                                 Icon(
-                                    imageVector = Icons.Rounded.FavoriteBorder,
+                                    imageVector = com.lmg.vk.ui.icons.LmgGlyphs.FavoriteOutline28,
                                     contentDescription = "Like",
                                     tint = if (isFavorite) Color(0xFFFF4D67) else Color.White,
                                     modifier = Modifier.size(24.dp)
@@ -1231,7 +1231,7 @@ private fun WaveStationIndicator(name: String, onClear: () -> Unit) {
             contentAlignment = Alignment.Center
         ) {
             Icon(
-                imageVector = Icons.Rounded.Close,
+                imageVector = com.lmg.vk.ui.icons.LmgGlyphs.CancelOutline28,
                 contentDescription = "Reset to My Wave",
                 tint = Color.White.copy(alpha = 0.85f),
                 modifier = Modifier.size(16.dp)
@@ -1274,7 +1274,7 @@ private fun WaveTopBar(
                 )
             } else {
                 Icon(
-                    imageVector = Icons.Rounded.AccountCircle,
+                    imageVector = com.lmg.vk.ui.icons.LmgGlyphs.UserCircleOutline28,
                     contentDescription = "Profile",
                     tint = Color.White,
                     modifier = Modifier.size(26.dp)
@@ -1300,7 +1300,7 @@ private fun WaveTopBar(
         ) {
             onTune?.let { tune ->
                 Icon(
-                    imageVector = Icons.Rounded.Tune,
+                    imageVector = com.lmg.vk.ui.icons.LmgGlyphs.SlidersOutline28,
                     contentDescription = "Tune VK Mix",
                     tint = Color.White,
                     modifier = Modifier
@@ -1309,7 +1309,7 @@ private fun WaveTopBar(
                 )
             }
             Icon(
-                imageVector = Icons.Rounded.Search,
+                imageVector = com.lmg.vk.ui.icons.LmgGlyphs.SearchOutline28,
                 contentDescription = "Search",
                 tint = Color.White,
                 modifier = Modifier
@@ -1337,7 +1337,7 @@ private fun BigPlayButton(loading: Boolean, accent: Color = WaveAccent, onClick:
         } else {
             // Просто большой треугольник, без круга/подложки
             Icon(
-                imageVector = Icons.Rounded.PlayArrow,
+                imageVector = com.lmg.vk.ui.icons.LmgGlyphs.Play28,
                 contentDescription = "Listen",
                 tint = accent,
                 modifier = Modifier.size(124.dp)

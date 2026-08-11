@@ -354,7 +354,7 @@ fun HomeScreen(
                 )
                 IconButton(onClick = { viewModel.refresh() }) {
                     Icon(
-                        imageVector = Icons.Rounded.Refresh,
+                        imageVector = com.lmg.vk.ui.icons.LmgGlyphs.RefreshOutline28,
                         contentDescription = "Refresh",
                         tint = LiquidTheme.colors.textSecondary
                     )
@@ -721,7 +721,7 @@ private fun BannerCard(
             contentAlignment = Alignment.Center
         ) {
             Icon(
-                imageVector = Icons.Rounded.PlayArrow,
+                imageVector = com.lmg.vk.ui.icons.LmgGlyphs.Play28,
                 contentDescription = "Play",
                 tint = Color.White,
                 modifier = Modifier.size(20.dp)

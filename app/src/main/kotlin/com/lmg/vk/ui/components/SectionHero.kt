@@ -67,6 +67,11 @@ fun SectionHero(
     actions: (@Composable RowScope.() -> Unit)? = null,
 ) {
     val screenWidth = LocalConfiguration.current.screenWidthDp.dp
+    // Все локальные Hero-обложки имеют размер 1448x1086 (ровно 4:3).
+    // HeaderHeight=528dp предназначен для портретной фото/видео-шапки артиста:
+    // на этих картинках он вырезал почти всю композицию по бокам. Сохраняем
+    // исходный прямоугольник, но ограничиваем высоту на широких устройствах.
+    val heroHeight = (screenWidth * 3f / 4f).coerceIn(264.dp, 420.dp)
     val heroModifier = if (fullBleed) {
         modifier.requiredWidth(screenWidth)
     } else {
@@ -77,7 +82,7 @@ fun SectionHero(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(LiquidMetrics.HeaderHeight)
+                .height(heroHeight)
                 .clipToBounds(),
         ) {
             Image(
@@ -114,7 +119,7 @@ fun SectionHero(
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
-                        imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                        imageVector = com.lmg.vk.ui.icons.LmgGlyphs.ArrowLeftOutline28,
                         contentDescription = "Back",
                         tint = Color.White,
                         modifier = Modifier.size(22.dp),

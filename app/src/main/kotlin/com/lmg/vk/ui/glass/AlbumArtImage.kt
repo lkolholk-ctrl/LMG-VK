@@ -232,7 +232,7 @@ private fun MissingArtwork(
         contentAlignment = Alignment.Center,
     ) {
         Icon(
-            imageVector = Icons.Rounded.MusicNote,
+            imageVector = com.lmg.vk.ui.icons.LmgGlyphs.MusicNote24,
             contentDescription = contentDescription,
             tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
             modifier = Modifier.size(44.dp),

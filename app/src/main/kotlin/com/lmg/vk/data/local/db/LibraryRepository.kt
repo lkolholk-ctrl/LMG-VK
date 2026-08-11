@@ -114,7 +114,7 @@ class LibraryRepository private constructor(context: Context) {
     private fun FavoriteTrackEntity.matchesCloud(track: LibraryTrack): Boolean {
         val sameTitle = title.trim().equals(track.title.trim(), ignoreCase = true)
         val sameArtist = artistName.orEmpty().trim()
-            .equals(track.artist.trim(), ignoreCase = true)
+            .equals(track.artist.orEmpty().trim(), ignoreCase = true)
         val sameDuration = durationMs <= 0L || track.durationMs <= 0L ||
             kotlin.math.abs(durationMs - track.durationMs) <= 2_000L
         return sameTitle && sameArtist && sameDuration

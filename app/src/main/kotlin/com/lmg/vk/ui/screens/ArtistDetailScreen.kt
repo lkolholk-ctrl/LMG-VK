@@ -301,7 +301,7 @@ fun ArtistDetailScreen(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Icon(
-                            Icons.Rounded.Refresh,
+                            com.lmg.vk.ui.icons.LmgGlyphs.RefreshOutline28,
                             contentDescription = null,
                             tint = LiquidSurfaces.textPrimary(colors.isDark),
                             modifier = Modifier.size(18.dp),
@@ -777,7 +777,7 @@ fun ArtistDetailScreen(
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                    imageVector = com.lmg.vk.ui.icons.LmgGlyphs.ArrowLeftOutline28,
                     contentDescription = "Back",
                     tint = if (showTopBarTitle) {
                         LiquidSurfaces.textPrimary(colors.isDark)
@@ -981,7 +981,7 @@ private fun ArtistListDialogTopBar(
             contentAlignment = Alignment.Center,
         ) {
             Icon(
-                imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                imageVector = com.lmg.vk.ui.icons.LmgGlyphs.ArrowLeftOutline28,
                 contentDescription = "Back",
                 tint = LiquidSurfaces.textPrimary(isDark),
                 modifier = Modifier.size(22.dp),
@@ -1120,8 +1120,8 @@ private fun ArtistHeader(
             Spacer(Modifier.height(14.dp))
 
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                HeaderButton("Play", Icons.Rounded.PlayArrow, filled = true, onClick = onPlay)
-                HeaderButton("Shuffle", Icons.Rounded.Shuffle, filled = false, onClick = onShuffle)
+                HeaderButton("Play", com.lmg.vk.ui.icons.LmgGlyphs.Play28, filled = true, onClick = onPlay)
+                HeaderButton("Shuffle", com.lmg.vk.ui.icons.LmgGlyphs.ShuffleOutline28, filled = false, onClick = onShuffle)
             }
         }
     }
@@ -1344,19 +1344,19 @@ private fun ArtistActionsStrip(
     ) {
         ArtistActionButton(
             if (isMixBusy) "Loading…" else "Artist mix",
-            Icons.Rounded.Radio,
+            com.lmg.vk.ui.icons.LmgGlyphs.MusicNoteWaveOutline28,
             !isMixBusy,
             isDark,
             onMix,
         )
         ArtistActionButton(
             if (isFollowed) "Following" else "Follow",
-            if (isFollowed) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+            if (isFollowed) com.lmg.vk.ui.icons.LmgGlyphs.Favorite28 else com.lmg.vk.ui.icons.LmgGlyphs.FavoriteOutline28,
             followEnabled,
             isDark,
             onFollow,
         )
-        ArtistActionButton("Share", Icons.Rounded.Share, true, isDark, onShare)
+        ArtistActionButton("Share", com.lmg.vk.ui.icons.LmgGlyphs.ShareOutline28, true, isDark, onShare)
     }
 }
 

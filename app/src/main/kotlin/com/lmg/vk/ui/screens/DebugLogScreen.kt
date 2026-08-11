@@ -133,7 +133,7 @@ fun DebugLogScreen(onBack: () -> Unit = {}) {
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                        imageVector = com.lmg.vk.ui.icons.LmgGlyphs.ArrowLeftOutline28,
                         contentDescription = "Назад",
                         tint = lc.iconDefault,
                         modifier = Modifier.size(if (compact) 18.dp else 22.dp)
@@ -174,7 +174,7 @@ fun DebugLogScreen(onBack: () -> Unit = {}) {
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = if (filterVisible) Icons.Rounded.Close else Icons.Rounded.Search,
+                        imageVector = if (filterVisible) com.lmg.vk.ui.icons.LmgGlyphs.CancelOutline28 else com.lmg.vk.ui.icons.LmgGlyphs.Filter24,
                         contentDescription = "Фильтр",
                         tint = if (filterVisible) lc.accent else lc.textTertiary,
                         modifier = Modifier.size(if (compact) 18.dp else 20.dp)
@@ -196,7 +196,7 @@ fun DebugLogScreen(onBack: () -> Unit = {}) {
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
-                        imageVector = Icons.Rounded.Search,
+                        imageVector = com.lmg.vk.ui.icons.LmgGlyphs.SearchOutline28,
                         contentDescription = null,
                         tint = lc.textTertiary,
                         modifier = Modifier.size(16.dp)
@@ -241,19 +241,19 @@ fun DebugLogScreen(onBack: () -> Unit = {}) {
             ) {
                 LogActionButton(
                     text = "Скопировать всё",
-                    icon = Icons.Rounded.ContentCopy,
+                    icon = com.lmg.vk.ui.icons.LmgGlyphs.CopyOutline28,
                     modifier = Modifier.weight(1f),
                     onClick = { copyLogToClipboard(context, buildLogText(lines)) }
                 )
                 LogActionButton(
                     text = "Поделиться",
-                    icon = Icons.Rounded.Share,
+                    icon = com.lmg.vk.ui.icons.LmgGlyphs.ShareOutline28,
                     modifier = Modifier.weight(1f),
                     onClick = { shareLogText(context, buildLogText(lines)) }
                 )
                 LogActionButton(
                     text = "Очистить",
-                    icon = Icons.Rounded.Delete,
+                    icon = com.lmg.vk.ui.icons.LmgGlyphs.DeleteOutline28,
                     tint = lc.accentRed,
                     showLabel = false,
                     onClick = {

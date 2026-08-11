@@ -374,6 +374,6 @@ private fun CircleBack(lc: LiquidColors, onClick: () -> Unit) {
             .clip(CircleShape).clickable(remember { MutableInteractionSource() }, null, onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
-        Icon(Icons.AutoMirrored.Rounded.ArrowBack, null, tint = lc.iconDefault, modifier = Modifier.size(22.dp))
+        Icon(com.lmg.vk.ui.icons.LmgGlyphs.ArrowLeftOutline28, null, tint = lc.iconDefault, modifier = Modifier.size(22.dp))
     }
 }

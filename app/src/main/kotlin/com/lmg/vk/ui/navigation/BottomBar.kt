@@ -52,10 +52,10 @@ fun BottomBar(
 ) {
     val items = remember {
         listOf(
-            BottomNavItem(LiquidGlyphs.Equalizer, "Wave", 0),
+            BottomNavItem(com.lmg.vk.ui.icons.LmgGlyphs.MusicNoteWaveOutline28, "Wave", 0),
             BottomNavItem(LiquidGlyphs.Star, "New", 4),
-            BottomNavItem(LiquidGlyphs.Playlist, "Library", 2),
-            BottomNavItem(LiquidGlyphs.Settings, "Settings", 3)
+            BottomNavItem(com.lmg.vk.ui.icons.LmgGlyphs.FolderSimpleOutline28, "Library", 2),
+            BottomNavItem(com.lmg.vk.ui.icons.LmgGlyphs.GearOutline24, "Settings", 3)
         )
     }
 

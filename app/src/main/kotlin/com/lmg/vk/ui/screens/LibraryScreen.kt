@@ -332,7 +332,7 @@ fun LibraryScreen(
                                 {
                                     SectionHeroAction(
                                         label = if (isSyncing || playlistSyncState.isSyncing) "Syncing…" else "Sync library",
-                                        icon = Icons.Filled.Refresh,
+                                        icon = com.lmg.vk.ui.icons.LmgGlyphs.RefreshOutline28,
                                         filled = true,
                                         enabled = !isSyncing && !playlistSyncState.isSyncing,
                                         onClick = ::refreshLibrary,
@@ -385,27 +385,27 @@ fun LibraryScreen(
                                 .clip(RoundedCornerShape(28.dp))
                                 .background(lc.cardSurface)
                         ) {
-                            MenuCard("Recent", "Recently played", Icons.Rounded.History, lc.accent, { currentView = LibraryView.RECENT }, win.useSideBySide)
+                            MenuCard("Recent", "Recently played", com.lmg.vk.ui.icons.LmgGlyphs.HistoryBackwardOutline28, lc.accent, { currentView = LibraryView.RECENT }, win.useSideBySide)
                             SystemRowDivider(compact = win.useSideBySide)
                             MenuCard(
                                 "Playlists",
                                 "${allPlaylistCells.size} playlists",
-                                Icons.AutoMirrored.Rounded.PlaylistPlay,
+                                com.lmg.vk.ui.icons.LmgGlyphs.PlaylistOutline28,
                                 lc.accent,
                                 { currentView = LibraryView.PLAYLISTS },
                                 win.useSideBySide,
                             )
                             SystemRowDivider(compact = win.useSideBySide)
-                            MenuCard("Albums", "Saved and local albums", Icons.Rounded.Album, lc.accent, onOpenLocalLibrary, win.useSideBySide)
+                            MenuCard("Albums", "Saved and local albums", com.lmg.vk.ui.icons.LmgGlyphs.AlbumFilled12, lc.accent, onOpenLocalLibrary, win.useSideBySide)
                             SystemRowDivider(compact = win.useSideBySide)
-                            MenuCard("Artists & curators", "Artists in your library", Icons.Rounded.Person, lc.accent, onOpenLocalLibrary, win.useSideBySide)
+                            MenuCard("Artists & curators", "Artists in your library", com.lmg.vk.ui.icons.LmgGlyphs.UserOutline28, lc.accent, onOpenLocalLibrary, win.useSideBySide)
                             SystemRowDivider(compact = win.useSideBySide)
                             MenuCard(
                                 title = "Downloaded music",
                                 subtitle = downloadsSize
                                     ?.let { "${downloadedTracks.size} tracks · $it" }
                                     ?: "${downloadedTracks.size} tracks",
-                                icon = Icons.Default.Download,
+                                icon = com.lmg.vk.ui.icons.LmgGlyphs.DownloadOutline28,
                                 tint = Color(0xFF29B6F6),
                                 compact = win.useSideBySide,
                                 onClick = { openDownloads() }
@@ -443,7 +443,7 @@ fun LibraryScreen(
                                 enabled = favorites.isNotEmpty(),
                                 onClick = { viewModel.shuffleAndPlay(context) },
                             ) {
-                                Icon(Icons.Default.Shuffle, "Shuffle my tracks", tint = lc.accent)
+                                Icon(com.lmg.vk.ui.icons.LmgGlyphs.ShuffleOutline28, "Shuffle my tracks", tint = lc.accent)
                             }
                         }
                     }
@@ -528,7 +528,7 @@ fun LibraryScreen(
                                 if (isLoggedIn) {
                                     SectionHeroAction(
                                         label = if (playlistSyncState.isSyncing) "Syncing…" else "Sync",
-                                        icon = Icons.Filled.Refresh,
+                                        icon = com.lmg.vk.ui.icons.LmgGlyphs.RefreshOutline28,
                                         filled = false,
                                         enabled = !playlistSyncState.isSyncing,
                                         onClick = { loadImportedPlaylists() },
@@ -536,7 +536,7 @@ fun LibraryScreen(
                                 }
                                 SectionHeroAction(
                                     label = "New playlist",
-                                    icon = Icons.Rounded.Add,
+                                    icon = com.lmg.vk.ui.icons.LmgGlyphs.AddOutline28,
                                     filled = true,
                                     onClick = { showCreatePlaylistDialog = true },
                                 )
@@ -583,7 +583,7 @@ fun LibraryScreen(
                     if (visiblePlaylists.isEmpty()) {
                         item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) {
                             Box(modifier = Modifier.fillMaxWidth().height(240.dp)) {
-                                EmptyState("No playlists found", Icons.AutoMirrored.Rounded.PlaylistPlay)
+                                EmptyState("No playlists found", com.lmg.vk.ui.icons.LmgGlyphs.PlaylistOutline28)
                             }
                         }
                     } else {
@@ -604,7 +604,7 @@ fun LibraryScreen(
                         onDismiss = { playlistToDelete = null },
                         title = "Delete Playlist",
                         message = "Are you sure you want to delete '${cell.name}'?",
-                        icon = Icons.Rounded.Close,
+                        icon = com.lmg.vk.ui.icons.LmgGlyphs.CancelOutline28,
                         iconTint = Color(0xFFFF5252),
                         primaryButton = GlassDialogButton(
                             text = "Delete",
@@ -659,7 +659,7 @@ fun LibraryScreen(
                     if (recentTracks.isEmpty()) {
                         item(key = "recent_empty") {
                             Box(modifier = Modifier.fillMaxWidth().height(240.dp)) {
-                                EmptyState("No listening history yet", Icons.Rounded.History)
+                                EmptyState("No listening history yet", com.lmg.vk.ui.icons.LmgGlyphs.HistoryBackwardOutline28)
                             }
                         }
                     } else {
@@ -710,7 +710,7 @@ fun LibraryScreen(
                             actions = {
                                 SectionHeroAction(
                                     label = if (isSyncing) "Syncing…" else "Sync tracks",
-                                    icon = Icons.Filled.Refresh,
+                                    icon = com.lmg.vk.ui.icons.LmgGlyphs.RefreshOutline28,
                                     filled = false,
                                     enabled = !isSyncing,
                                     onClick = { viewModel.syncWithCloud() },
@@ -732,15 +732,7 @@ fun LibraryScreen(
                             modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 4.dp),
                             horizontalArrangement = Arrangement.End,
                         ) {
-                            Text(
-                                text = when (favoriteSort) {
-                                    FavoriteSort.DEFAULT -> "Default"
-                                    FavoriteSort.TITLE -> "By title"
-                                    FavoriteSort.ARTIST -> "By artist"
-                                },
-                                color = lc.accent,
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.SemiBold,
+                            Row(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(12.dp))
                                     .liquidClickable {
@@ -751,7 +743,26 @@ fun LibraryScreen(
                                         }
                                     }
                                     .padding(horizontal = 10.dp, vertical = 6.dp),
-                            )
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Icon(
+                                    imageVector = com.lmg.vk.ui.icons.LmgGlyphs.SortOutline28,
+                                    contentDescription = null,
+                                    tint = lc.accent,
+                                    modifier = Modifier.size(16.dp),
+                                )
+                                Spacer(Modifier.width(5.dp))
+                                Text(
+                                    text = when (favoriteSort) {
+                                        FavoriteSort.DEFAULT -> "Default"
+                                        FavoriteSort.TITLE -> "By title"
+                                        FavoriteSort.ARTIST -> "By artist"
+                                    },
+                                    color = lc.accent,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                )
+                            }
                         }
                     }
 
@@ -763,8 +774,8 @@ fun LibraryScreen(
                                     .padding(horizontal = 20.dp, vertical = 8.dp),
                                 horizontalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
-                                ActionButton("Play All", Icons.Default.PlayArrow, onClick = { viewModel.playAll(context) }, modifier = Modifier.weight(1f))
-                                ActionButton("Shuffle", Icons.Default.Shuffle, onClick = { viewModel.shuffleAndPlay(context) }, modifier = Modifier.weight(1f))
+                                ActionButton("Play All", com.lmg.vk.ui.icons.LmgGlyphs.Play28, onClick = { viewModel.playAll(context) }, modifier = Modifier.weight(1f))
+                                ActionButton("Shuffle", com.lmg.vk.ui.icons.LmgGlyphs.ShuffleOutline28, onClick = { viewModel.shuffleAndPlay(context) }, modifier = Modifier.weight(1f))
                             }
                         }
                     }
@@ -774,7 +785,7 @@ fun LibraryScreen(
                             Box(modifier = Modifier.fillMaxWidth().height(240.dp)) {
                                 EmptyState(
                                     if (libraryQuery.isBlank()) "No favorites yet" else "No tracks match your search",
-                                    Icons.Default.Favorite,
+                                    com.lmg.vk.ui.icons.LmgGlyphs.Favorite28,
                                 )
                             }
                         }
@@ -876,7 +887,7 @@ fun LibraryScreen(
                                 if (downloadedTracks.isNotEmpty()) {
                                     SectionHeroAction(
                                         label = "Clear all",
-                                        icon = Icons.Rounded.Close,
+                                        icon = com.lmg.vk.ui.icons.LmgGlyphs.CancelOutline28,
                                         filled = false,
                                         onClick = { showClearAllDialog = true },
                                     )
@@ -916,7 +927,7 @@ fun LibraryScreen(
                     if (downloadedTracks.isEmpty()) {
                         item(key = "library_downloads_empty") {
                             Box(modifier = Modifier.fillMaxWidth().height(240.dp)) {
-                                EmptyState("No downloaded tracks yet", Icons.Default.Download)
+                                EmptyState("No downloaded tracks yet", com.lmg.vk.ui.icons.LmgGlyphs.DownloadOutline28)
                             }
                         }
                     } else {
@@ -971,7 +982,7 @@ fun LibraryScreen(
                         onDismiss = { showClearAllDialog = false },
                         title = "Clear All Downloads",
                         message = "This will permanently delete all ${downloadedTracks.size} downloaded tracks from your device and the database. This action cannot be undone.",
-                        icon = Icons.Default.Download,
+                        icon = com.lmg.vk.ui.icons.LmgGlyphs.DownloadOutline28,
                         iconTint = AppleRed,
                         primaryButton = GlassDialogButton(
                             text = "Clear All",
@@ -999,7 +1010,7 @@ fun LibraryScreen(
                         onDismiss = { trackToDelete = null },
                         title = "Delete Offline Track",
                         message = "Remove '${track.title}' from your device storage?",
-                        icon = Icons.Rounded.Close,
+                        icon = com.lmg.vk.ui.icons.LmgGlyphs.CancelOutline28,
                         iconTint = Color(0xFFFF5252),
                         primaryButton = GlassDialogButton(
                             text = "Remove",
@@ -1032,12 +1043,12 @@ fun LibraryScreen(
                 ) {
                     SubHeader("My Playlists", onBack = { currentView = LibraryView.MAIN }) {
                         IconButton(onClick = { showCreatePlaylistDialog = true }) {
-                            Icon(Icons.Rounded.Add, null, tint = Color(0xFF30D158), modifier = Modifier.size(24.dp))
+                            Icon(com.lmg.vk.ui.icons.LmgGlyphs.AddCircleOutline28, null, tint = Color(0xFF30D158), modifier = Modifier.size(24.dp))
                         }
                     }
 
                     if (localPlaylists.isEmpty()) {
-                        EmptyState("No playlists yet.\nCreate one to get started!", Icons.AutoMirrored.Rounded.PlaylistPlay)
+                        EmptyState("No playlists yet.\nCreate one to get started!", com.lmg.vk.ui.icons.LmgGlyphs.PlaylistOutline28)
                     } else {
                         LazyColumn(
                             modifier = Modifier.weight(1f),
@@ -1066,7 +1077,7 @@ fun LibraryScreen(
                         onDismiss = { playlistToDelete = null },
                         title = "Delete Playlist",
                         message = "Are you sure you want to delete '${playlist.name}'?",
-                        icon = Icons.Rounded.Close,
+                        icon = com.lmg.vk.ui.icons.LmgGlyphs.CancelOutline28,
                         iconTint = Color(0xFFFF5252),
                         primaryButton = GlassDialogButton(
                             text = "Delete",
@@ -1103,7 +1114,7 @@ fun LibraryScreen(
                         if (isLoggedIn) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 IconButton(onClick = { loadImportedPlaylists() }) {
-                                    Icon(Icons.Filled.Refresh, null, tint = lc.iconMuted, modifier = Modifier.size(20.dp))
+                                    Icon(com.lmg.vk.ui.icons.LmgGlyphs.RefreshOutline28, null, tint = lc.iconMuted, modifier = Modifier.size(20.dp))
                                 }
                             }
                         }
@@ -1117,7 +1128,7 @@ fun LibraryScreen(
                             contentAlignment = Alignment.Center
                         ) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Icon(Icons.AutoMirrored.Rounded.PlaylistPlay, null, tint = lc.iconMuted, modifier = Modifier.size(64.dp))
+                                Icon(com.lmg.vk.ui.icons.LmgGlyphs.PlaylistOutline28, null, tint = lc.iconMuted, modifier = Modifier.size(64.dp))
                                 Spacer(Modifier.height(16.dp))
                                 Text("Sync Playlists", color = lc.textPrimary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
                                 Spacer(Modifier.height(8.dp))
@@ -1136,7 +1147,7 @@ fun LibraryScreen(
                         }
                     } else {
                         if (importedPlaylists.isEmpty()) {
-                            EmptyState("No playlists yet.", Icons.AutoMirrored.Rounded.PlaylistPlay)
+                            EmptyState("No playlists yet.", com.lmg.vk.ui.icons.LmgGlyphs.PlaylistOutline28)
                         } else {
                             LazyColumn(
                                 modifier = Modifier.weight(1f),
@@ -1166,7 +1177,7 @@ fun LibraryScreen(
                         onDismiss = { importedPlaylistToDelete = null },
                         title = "Delete Playlist",
                         message = "Are you sure you want to delete '${playlist.name}' from your backend library?",
-                        icon = Icons.Rounded.Close,
+                        icon = com.lmg.vk.ui.icons.LmgGlyphs.CancelOutline28,
                         iconTint = Color(0xFFFF5252),
                         primaryButton = GlassDialogButton(
                             text = "Delete",
@@ -1274,7 +1285,7 @@ private fun LibrarySearchField(
                     .padding(horizontal = 16.dp, vertical = 14.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Icon(Icons.Rounded.Search, null, tint = lc.iconMuted, modifier = Modifier.size(21.dp))
+                Icon(com.lmg.vk.ui.icons.LmgGlyphs.SearchOutline28, null, tint = lc.iconMuted, modifier = Modifier.size(21.dp))
                 Spacer(Modifier.width(10.dp))
                 Box(modifier = Modifier.weight(1f)) {
                     if (value.isBlank()) Text("Search library", color = lc.textTertiary, fontSize = 15.sp)
@@ -1370,7 +1381,7 @@ private fun ProfileLibrarySearchResults(
                             )
                         }
                         Icon(
-                            Icons.Rounded.ChevronRight,
+                            com.lmg.vk.ui.icons.LmgGlyphs.ChevronRightOutline24,
                             contentDescription = "Open playlist",
                             tint = lc.iconMuted,
                         )
@@ -1422,20 +1433,31 @@ private fun PlaylistControls(
             )
         }
         Spacer(Modifier.weight(1f))
-        Text(
-            text = when (sort) {
-                PlaylistSort.DEFAULT -> "Default"
-                PlaylistSort.NAME -> "A–Z"
-                PlaylistSort.TRACK_COUNT -> "By tracks"
-            },
-            color = lc.accent,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Bold,
+        Row(
             modifier = Modifier
                 .clip(RoundedCornerShape(14.dp))
                 .liquidClickable(onClick = onSortChange)
                 .padding(horizontal = 10.dp, vertical = 8.dp),
-        )
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = com.lmg.vk.ui.icons.LmgGlyphs.SortOutline28,
+                contentDescription = null,
+                tint = lc.accent,
+                modifier = Modifier.size(15.dp),
+            )
+            Spacer(Modifier.width(5.dp))
+            Text(
+                text = when (sort) {
+                    PlaylistSort.DEFAULT -> "Default"
+                    PlaylistSort.NAME -> "A–Z"
+                    PlaylistSort.TRACK_COUNT -> "By tracks"
+                },
+                color = lc.accent,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+            )
+        }
     }
 }
 
@@ -1477,7 +1499,7 @@ private fun MenuCard(
 
         trailing()
 
-        Icon(Icons.Rounded.ChevronRight, null, tint = lc.textTertiary, modifier = Modifier.size(if (compact) 20.dp else 24.dp))
+        Icon(com.lmg.vk.ui.icons.LmgGlyphs.ChevronRightOutline24, null, tint = lc.textTertiary, modifier = Modifier.size(if (compact) 20.dp else 24.dp))
     }
 }
 
@@ -1553,7 +1575,7 @@ private fun PlaylistCell(
                 }
                 else -> {
                     Icon(
-                        Icons.AutoMirrored.Rounded.PlaylistPlay,
+                        com.lmg.vk.ui.icons.LmgGlyphs.PlaylistOutline28,
                         null,
                         tint = lc.iconMuted,
                         modifier = Modifier.size(40.dp).align(Alignment.Center)
@@ -1677,7 +1699,7 @@ private fun LocalAudioView(
                             startIndex = 0
                         )
                     }) {
-                        Icon(Icons.Default.Shuffle, null, tint = Color(0xFFFF9F0A), modifier = Modifier.size(22.dp))
+                        Icon(com.lmg.vk.ui.icons.LmgGlyphs.ShuffleOutline28, null, tint = Color(0xFFFF9F0A), modifier = Modifier.size(22.dp))
                     }
                 }
             }
@@ -1687,7 +1709,7 @@ private fun LocalAudioView(
             !hasPermission -> {
                 Box(modifier = Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(Icons.Rounded.MusicNote, null, tint = lc.iconMuted, modifier = Modifier.size(64.dp))
+                        Icon(com.lmg.vk.ui.icons.LmgGlyphs.MusicNote24, null, tint = lc.iconMuted, modifier = Modifier.size(64.dp))
                         Spacer(Modifier.height(16.dp))
                         Text("Allow access to your music", color = lc.textPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                         Spacer(Modifier.height(8.dp))
@@ -1699,7 +1721,7 @@ private fun LocalAudioView(
                             lineHeight = 20.sp
                         )
                         Spacer(Modifier.height(16.dp))
-                        ActionButton("Grant Permission", Icons.Default.PlayArrow, onClick = { permissionLauncher.launch(permission) })
+                        ActionButton("Grant Permission", com.lmg.vk.ui.icons.LmgGlyphs.ScanViewfinderOutline28, onClick = { permissionLauncher.launch(permission) })
                     }
                 }
             }
@@ -1709,7 +1731,7 @@ private fun LocalAudioView(
                 }
             }
             tracks.isEmpty() -> {
-                EmptyState("No local audio found", Icons.Rounded.MusicNote)
+                EmptyState("No local audio found", com.lmg.vk.ui.icons.LmgGlyphs.MusicNote24)
             }
             else -> {
                 LazyColumn(
@@ -1762,7 +1784,7 @@ private fun LocalTrackRow(
             contentAlignment = Alignment.Center
         ) {
             // Иконка-заглушка снизу; обложка (если есть) рисуется поверх.
-            Icon(Icons.Rounded.MusicNote, null, tint = lc.iconMuted, modifier = Modifier.size(if (compact) 18.dp else 22.dp))
+            Icon(com.lmg.vk.ui.icons.LmgGlyphs.MusicNote24, null, tint = lc.iconMuted, modifier = Modifier.size(if (compact) 18.dp else 22.dp))
             AsyncImage(
                 model = track.albumArtUri,
                 contentDescription = null,
@@ -1802,7 +1824,7 @@ private fun SubHeader(
             contentAlignment = Alignment.Center
         ) {
             Icon(
-                Icons.AutoMirrored.Rounded.ArrowBack, null, tint = lc.textPrimary,
+                com.lmg.vk.ui.icons.LmgGlyphs.ArrowLeftOutline28, null, tint = lc.textPrimary,
                 modifier = Modifier.size(if (compact) 18.dp else 20.dp)
             )
         }
@@ -1896,7 +1918,7 @@ private fun ImportedPlaylistRow(
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        Icons.AutoMirrored.Rounded.PlaylistPlay,
+                        com.lmg.vk.ui.icons.LmgGlyphs.PlaylistOutline28,
                         null,
                         tint = lc.iconMuted,
                         modifier = Modifier.size(28.dp)
@@ -1924,7 +1946,7 @@ private fun ImportedPlaylistRow(
         }
 
         IconButton(onClick = onDelete) {
-            Icon(Icons.Rounded.Close, null, tint = lc.textTertiary, modifier = Modifier.size(22.dp))
+            Icon(com.lmg.vk.ui.icons.LmgGlyphs.CancelOutline28, null, tint = lc.textTertiary, modifier = Modifier.size(22.dp))
         }
     }
 }
@@ -1976,7 +1998,7 @@ private fun LocalPlaylistRow(
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        Icons.AutoMirrored.Rounded.PlaylistPlay,
+                        com.lmg.vk.ui.icons.LmgGlyphs.PlaylistOutline28,
                         null,
                         tint = lc.iconMuted,
                         modifier = Modifier.size(28.dp)
@@ -2004,7 +2026,7 @@ private fun LocalPlaylistRow(
         }
 
         IconButton(onClick = onDelete) {
-            Icon(Icons.Rounded.Close, null, tint = lc.textTertiary, modifier = Modifier.size(22.dp))
+            Icon(com.lmg.vk.ui.icons.LmgGlyphs.CancelOutline28, null, tint = lc.textTertiary, modifier = Modifier.size(22.dp))
         }
     }
 }
@@ -2205,7 +2227,7 @@ private fun FavoriteTrackItem(
         // подтверждения и без возможности что-то ещё сделать.
         IconButton(onClick = onMore) {
             Icon(
-                imageVector = Icons.Rounded.MoreVert,
+                imageVector = com.lmg.vk.ui.icons.LmgGlyphs.MenuOutline28,
                 contentDescription = "Опции",
                 tint = lc.textTertiary,
                 modifier = Modifier.size(if (compact) 19.dp else 22.dp)
@@ -2273,7 +2295,7 @@ private fun DownloadedTrackItem(
 
         IconButton(onClick = onDelete) {
             Icon(
-                imageVector = Icons.Rounded.Close,
+                imageVector = com.lmg.vk.ui.icons.LmgGlyphs.CancelOutline28,
                 contentDescription = null,
                 tint = lc.textTertiary,
                 modifier = Modifier.size(if (compact) 19.dp else 22.dp)

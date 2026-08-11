@@ -68,7 +68,7 @@ internal fun ArtistChooserDialog(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Icon(
-                            imageVector = Icons.Rounded.Person,
+                            imageVector = com.lmg.vk.ui.icons.LmgGlyphs.UserOutline28,
                             contentDescription = null,
                             tint = colors.accent,
                             modifier = Modifier.size(22.dp),

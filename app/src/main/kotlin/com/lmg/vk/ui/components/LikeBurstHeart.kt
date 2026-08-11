@@ -92,7 +92,7 @@ fun LikeBurstHeart(
             }
         }
         Icon(
-            imageVector = if (isLiked) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+            imageVector = if (isLiked) com.lmg.vk.ui.icons.LmgGlyphs.Favorite28 else com.lmg.vk.ui.icons.LmgGlyphs.FavoriteOutline28,
             contentDescription = null,
             tint = if (isLiked) likedTint else idleTint,
             modifier = Modifier

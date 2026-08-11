@@ -144,7 +144,7 @@ private fun buildDeviceList(audioManager: AudioManager): List<AudioOutputDevice>
                 externalDevices += AudioOutputDevice(
                     id = device.id,
                     name = rawName.ifBlank { "Bluetooth Audio" },
-                    icon = Icons.Rounded.Headphones,
+                    icon = com.lmg.vk.ui.icons.LmgGlyphs.HeadphonesOutline28,
                     type = OutputType.BLUETOOTH,
                     isActive = activeType == OutputType.BLUETOOTH
                 )
@@ -156,7 +156,7 @@ private fun buildDeviceList(audioManager: AudioManager): List<AudioOutputDevice>
                 externalDevices += AudioOutputDevice(
                     id = device.id,
                     name = rawName.ifBlank { "Wired Headphones" },
-                    icon = Icons.Rounded.Headphones,
+                    icon = com.lmg.vk.ui.icons.LmgGlyphs.HeadphonesOutline28,
                     type = OutputType.WIRED,
                     isActive = activeType == OutputType.WIRED
                 )
@@ -167,7 +167,7 @@ private fun buildDeviceList(audioManager: AudioManager): List<AudioOutputDevice>
                 externalDevices += AudioOutputDevice(
                     id = device.id,
                     name = rawName.ifBlank { "USB Audio" },
-                    icon = Icons.Rounded.Usb,
+                    icon = com.lmg.vk.ui.icons.LmgGlyphs.DevicesOutline28,
                     type = OutputType.USB,
                     isActive = activeType == OutputType.USB
                 )
@@ -179,7 +179,7 @@ private fun buildDeviceList(audioManager: AudioManager): List<AudioOutputDevice>
     val phone = AudioOutputDevice(
         id = -1,
         name = phoneSpeakerName(),
-        icon = Icons.Rounded.PhoneAndroid,
+        icon = com.lmg.vk.ui.icons.LmgGlyphs.SmartphoneOutline28,
         type = OutputType.PHONE,
         isActive = activeType == OutputType.PHONE
     )
@@ -400,7 +400,7 @@ fun AirPlaySheet(
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
-                            imageVector = Icons.Rounded.PersonAddAlt1,
+                            imageVector = com.lmg.vk.ui.icons.LmgGlyphs.VolumeOutline28,
                             contentDescription = null,
                             tint = Color.White.copy(alpha = 0.92f),
                             modifier = Modifier.size(16.dp)
@@ -474,7 +474,7 @@ private fun DeviceRow(
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = Icons.Rounded.Check,
+                    imageVector = com.lmg.vk.ui.icons.LmgGlyphs.ScreencastEnabledOutline28,
                     contentDescription = null,
                     tint = Color.White,
                     modifier = Modifier.size(13.dp)

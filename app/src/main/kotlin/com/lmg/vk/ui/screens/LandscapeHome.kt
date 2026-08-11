@@ -130,14 +130,14 @@ fun LandscapeHome(
                                     color = lc.textPrimary, fontSize = 20.sp, fontWeight = FontWeight.Bold
                                 )
                             }
-                            HeaderIconButton(LiquidGlyphs.Search, "Search", onOpenSearch)
+                            HeaderIconButton(com.lmg.vk.ui.icons.LmgGlyphs.SearchOutline28, "Search", onOpenSearch)
                         }
                         Spacer(Modifier.height(16.dp))
                     }
 
                     if (recent.isNotEmpty()) {
                         item {
-                            SectionLabel(LiquidGlyphs.History, "Recently Played")
+                            SectionLabel(com.lmg.vk.ui.icons.LmgGlyphs.HistoryBackwardOutline28, "Recently Played")
                             Spacer(Modifier.height(10.dp))
                             LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                                 items(recent, key = { it.trackId }) { h ->
@@ -153,7 +153,7 @@ fun LandscapeHome(
 
                     item {
                         SectionLabel(
-                            LiquidGlyphs.Heart,
+                            com.lmg.vk.ui.icons.LmgGlyphs.Favorite28,
                             "Favorites" + if (favorites.isNotEmpty()) "  (${favorites.size})" else ""
                         )
                         Spacer(Modifier.height(6.dp))
@@ -195,7 +195,7 @@ fun LandscapeHome(
                     contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = 14.dp, bottom = BottomBarInset)
                 ) {
                     item {
-                        SectionLabel(LiquidGlyphs.GraphicEq, "Playing Now", accentLabel = true)
+                        SectionLabel(com.lmg.vk.ui.icons.LmgGlyphs.StatisticsOutline28, "Playing Now", accentLabel = true)
                         Spacer(Modifier.height(8.dp))
                         val cur = currentTrack
                         if (cur != null) {
@@ -207,7 +207,7 @@ fun LandscapeHome(
                             Text("Nothing playing", color = lc.textTertiary, fontSize = 12.sp)
                         }
                         Spacer(Modifier.height(18.dp))
-                        SectionLabel(LiquidGlyphs.QueueMusic, "Queue (Up Next)", accentLabel = true)
+                        SectionLabel(com.lmg.vk.ui.icons.LmgGlyphs.ListPlayOutline28, "Queue (Up Next)", accentLabel = true)
                         Spacer(Modifier.height(8.dp))
                     }
                     if (queue.isEmpty()) {
@@ -342,7 +342,7 @@ private fun TrackRow(
         }
         if (highlight) {
             Spacer(Modifier.width(6.dp))
-            Icon(LiquidGlyphs.Play, null, tint = lc.accent, modifier = Modifier.size(17.dp))
+            Icon(com.lmg.vk.ui.icons.LmgGlyphs.Play28, null, tint = lc.accent, modifier = Modifier.size(17.dp))
         }
     }
 }

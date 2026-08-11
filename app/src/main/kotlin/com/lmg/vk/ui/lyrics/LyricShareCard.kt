@@ -178,7 +178,7 @@ fun LyricShareOverlay(
                         .padding(horizontal = 24.dp, vertical = 12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(LiquidGlyphs.Share, null, tint = Color.Black, modifier = Modifier.size(18.dp))
+                    Icon(com.lmg.vk.ui.icons.LmgGlyphs.ShareOutline28, null, tint = Color.Black, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(8.dp))
                     Text("Share", color = Color.Black, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
                 }

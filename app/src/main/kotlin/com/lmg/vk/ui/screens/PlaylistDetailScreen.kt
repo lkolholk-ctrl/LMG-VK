@@ -393,7 +393,7 @@ fun PlaylistDetailScreen(
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 Icon(
-                                    Icons.Rounded.Person,
+                                    com.lmg.vk.ui.icons.LmgGlyphs.UserOutline28,
                                     contentDescription = null,
                                     tint = colors.accent,
                                     modifier = Modifier.size(24.dp),
@@ -408,7 +408,7 @@ fun PlaylistDetailScreen(
                                     modifier = Modifier.padding(start = 12.dp).weight(1f),
                                 )
                                 Icon(
-                                    Icons.Rounded.ArrowForward,
+                                    com.lmg.vk.ui.icons.LmgGlyphs.ArrowRightOutline28,
                                     contentDescription = "Open artist",
                                     tint = LiquidSurfaces.textSecondary(isDark),
                                     modifier = Modifier.size(19.dp),
@@ -603,15 +603,19 @@ private fun PlaylistActionsRow(
                 isFollowing -> "Added"
                 else -> "Add"
             },
-            icon = if (isLocal || isOwned || isFollowing) Icons.Rounded.Check else Icons.Rounded.Add,
+            icon = if (isLocal || isOwned || isFollowing) {
+                com.lmg.vk.ui.icons.LmgGlyphs.BookmarkCheckOutline28
+            } else {
+                com.lmg.vk.ui.icons.LmgGlyphs.BookmarkOutline28
+            },
             enabled = !isLocal && !isOwned && !isFollowing && followEnabled,
             isDark = isDark,
             onClick = onAdd,
         )
-        PlaylistActionButton("Cache", Icons.Rounded.Download, cacheEnabled, isDark, onCache)
-        PlaylistActionButton("Queue", Icons.Rounded.QueueMusic, queueEnabled, isDark, onQueue)
+        PlaylistActionButton("Cache", com.lmg.vk.ui.icons.LmgGlyphs.DownloadOutline28, cacheEnabled, isDark, onCache)
+        PlaylistActionButton("Queue", com.lmg.vk.ui.icons.LmgGlyphs.ListPlayOutline28, queueEnabled, isDark, onQueue)
         if (isLocal) {
-            PlaylistActionButton("Rename", Icons.Rounded.Edit, true, isDark, onRename)
+            PlaylistActionButton("Rename", com.lmg.vk.ui.icons.LmgGlyphs.EditOutline28, true, isDark, onRename)
         }
     }
 }
@@ -710,7 +714,7 @@ private fun RetryButton(isDark: Boolean, onClick: () -> Unit) {
             .padding(horizontal = 14.dp, vertical = 9.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(Icons.Rounded.Refresh, null, tint = LiquidSurfaces.textPrimary(isDark), modifier = Modifier.size(17.dp))
+        Icon(com.lmg.vk.ui.icons.LmgGlyphs.RefreshOutline28, null, tint = LiquidSurfaces.textPrimary(isDark), modifier = Modifier.size(17.dp))
         Text(
             "Retry",
             color = LiquidSurfaces.textPrimary(isDark),

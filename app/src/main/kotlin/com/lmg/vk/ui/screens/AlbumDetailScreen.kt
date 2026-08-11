@@ -259,7 +259,7 @@ fun AlbumDetailScreen(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Icon(
-                            Icons.Rounded.Refresh,
+                            com.lmg.vk.ui.icons.LmgGlyphs.RefreshOutline28,
                             contentDescription = null,
                             tint = LiquidSurfaces.textPrimary(isDark),
                             modifier = Modifier.size(18.dp),
@@ -408,7 +408,7 @@ fun AlbumDetailScreen(
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 Icon(
-                                    Icons.Rounded.Person,
+                                    com.lmg.vk.ui.icons.LmgGlyphs.UserOutline28,
                                     contentDescription = null,
                                     tint = colors.accent,
                                     modifier = Modifier.size(24.dp),
@@ -423,7 +423,7 @@ fun AlbumDetailScreen(
                                     modifier = Modifier.padding(start = 12.dp).weight(1f),
                                 )
                                 Icon(
-                                    Icons.Rounded.ArrowForward,
+                                    com.lmg.vk.ui.icons.LmgGlyphs.ArrowRightOutline28,
                                     contentDescription = "Open artist",
                                     tint = LiquidSurfaces.textSecondary(isDark),
                                     modifier = Modifier.size(19.dp),
@@ -605,14 +605,15 @@ private fun AlbumActionsRow(
                 isAdding -> "Adding…"
                 else -> "Add"
             },
-            if (isFollowing) Icons.Rounded.Check else Icons.Rounded.Add,
+            if (isFollowing) com.lmg.vk.ui.icons.LmgGlyphs.BookmarkCheckOutline28
+            else com.lmg.vk.ui.icons.LmgGlyphs.BookmarkOutline28,
             (isFollowing || canFollow) && !isAdding,
             isDark,
             onAdd,
         )
-        AlbumActionButton(cacheLabel, Icons.Rounded.Download, canDownload, isDark, onDownload)
-        AlbumActionButton("Queue", Icons.Rounded.QueueMusic, canQueue, isDark, onQueue)
-        AlbumActionButton("Share", Icons.Rounded.Share, true, isDark, onShare)
+        AlbumActionButton(cacheLabel, com.lmg.vk.ui.icons.LmgGlyphs.DownloadOutline28, canDownload, isDark, onDownload)
+        AlbumActionButton("Queue", com.lmg.vk.ui.icons.LmgGlyphs.ListPlayOutline28, canQueue, isDark, onQueue)
+        AlbumActionButton("Share", com.lmg.vk.ui.icons.LmgGlyphs.ShareOutline28, true, isDark, onShare)
     }
 }
 

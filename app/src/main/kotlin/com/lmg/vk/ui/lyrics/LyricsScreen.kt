@@ -19,6 +19,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -614,12 +615,7 @@ fun LyricsScreen(
                     horizontalAlignment = Alignment.End
                 ) {
                     val badgeActive = syncUiOpen || syncOffsetMs != 0L
-                    Text(
-                        text = if (syncOffsetMs == 0L) "SYNC"
-                               else "SYNC %+.1fs".format(syncOffsetMs / 1000f),
-                        color = Color.White.copy(alpha = if (badgeActive) 0.95f else 0.45f),
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.SemiBold,
+                    Row(
                         modifier = Modifier
                             .clip(RoundedCornerShape(10.dp))
                             .background(Color.Black.copy(alpha = 0.35f))
@@ -627,8 +623,24 @@ fun LyricsScreen(
                                 interactionSource = remember { MutableInteractionSource() },
                                 indication = null
                             ) { syncUiOpen = !syncUiOpen }
-                            .padding(horizontal = 10.dp, vertical = 6.dp)
-                    )
+                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = if (syncOffsetMs == 0L) "SYNC"
+                                   else "SYNC %+.1fs".format(syncOffsetMs / 1000f),
+                            color = Color.White.copy(alpha = if (badgeActive) 0.95f else 0.45f),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        Spacer(Modifier.width(3.dp))
+                        Icon(
+                            imageVector = com.lmg.vk.ui.icons.LmgGlyphs.ChevronDownOutline28,
+                            contentDescription = null,
+                            tint = Color.White.copy(alpha = if (badgeActive) 0.95f else 0.45f),
+                            modifier = Modifier.size(13.dp),
+                        )
+                    }
                     if (syncUiOpen) {
                         Spacer(Modifier.height(8.dp))
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

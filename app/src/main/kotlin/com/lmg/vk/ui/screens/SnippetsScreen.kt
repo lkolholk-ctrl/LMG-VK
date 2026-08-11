@@ -142,7 +142,7 @@ fun SnippetsScreen(
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
-                    imageVector = Icons.Rounded.ArrowBack,
+                    imageVector = com.lmg.vk.ui.icons.LmgGlyphs.ArrowLeftOutline28,
                     contentDescription = "Назад",
                     tint = Color.White,
                     modifier = Modifier.size(20.dp),
@@ -331,7 +331,7 @@ private fun SnippetCard(
                         )
                     } else {
                         Icon(
-                            imageVector = if (isActivePlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
+                            imageVector = if (isActivePlaying) com.lmg.vk.ui.icons.LmgGlyphs.Pause28 else com.lmg.vk.ui.icons.LmgGlyphs.Play28,
                             contentDescription = if (isActivePlaying) "Пауза" else "Слушать фрагмент",
                             tint = Color.White,
                             modifier = Modifier.size(if (compact) 22.dp else 26.dp),

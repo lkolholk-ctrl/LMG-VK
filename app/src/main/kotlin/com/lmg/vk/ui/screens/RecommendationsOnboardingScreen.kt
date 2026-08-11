@@ -120,7 +120,7 @@ fun RecommendationsOnboardingScreen(
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
-                        imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                        imageVector = com.lmg.vk.ui.icons.LmgGlyphs.ArrowLeftOutline28,
                         contentDescription = null,
                         tint = lc.iconDefault,
                         modifier = Modifier.size(if (compact) 18.dp else 22.dp),
@@ -311,7 +311,7 @@ private fun OnboardingSearchField(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(
-            imageVector = Icons.Rounded.Search,
+            imageVector = com.lmg.vk.ui.icons.LmgGlyphs.SearchOutline28,
             contentDescription = null,
             tint = lc.textTertiary,
             modifier = Modifier.size(18.dp),
@@ -341,7 +341,7 @@ private fun OnboardingSearchField(
         }
         if (query.isNotEmpty()) {
             Icon(
-                imageVector = Icons.Rounded.Close,
+                imageVector = com.lmg.vk.ui.icons.LmgGlyphs.CancelOutline28,
                 contentDescription = null,
                 tint = lc.textTertiary,
                 modifier = Modifier
@@ -625,7 +625,7 @@ private fun OnboardingSubmitError(
         )
         Spacer(modifier = Modifier.width(10.dp))
         Icon(
-            imageVector = Icons.Rounded.Close,
+            imageVector = com.lmg.vk.ui.icons.LmgGlyphs.CancelOutline28,
             contentDescription = null,
             tint = lc.textSecondary,
             modifier = Modifier
@@ -648,7 +648,7 @@ private fun RetryChip(compact: Boolean, onRetry: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(
-            imageVector = Icons.Rounded.Refresh,
+            imageVector = com.lmg.vk.ui.icons.LmgGlyphs.RefreshOutline28,
             contentDescription = null,
             tint = lc.accent,
             modifier = Modifier.size(17.dp),

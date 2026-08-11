@@ -175,19 +175,19 @@ fun OwnerAudioScreen(
             }
 
             state.isClosed -> OwnerAudioMessage(
-                icon = Icons.Rounded.Lock,
+                icon = com.lmg.vk.ui.icons.LmgGlyphs.LockOutline28,
                 title = "${state.title} closed their music",
                 message = "VK doesn't allow access to this profile's audio.",
             )
 
             state.error != null && state.tracks.isEmpty() -> OwnerAudioMessage(
-                icon = Icons.Rounded.Lock,
+                icon = com.lmg.vk.ui.icons.LmgGlyphs.LockOutline28,
                 title = "Couldn't load audio",
                 message = state.error,
             )
 
             state.tracks.isEmpty() -> OwnerAudioMessage(
-                icon = Icons.Rounded.Person,
+                icon = com.lmg.vk.ui.icons.LmgGlyphs.UserOutline28,
                 title = "No audio",
                 message = "${state.title} has no tracks in VK.",
             )
@@ -325,7 +325,7 @@ private fun OwnerAudioHeader(
                         contentAlignment = Alignment.Center,
                     ) {
                         Icon(
-                            Icons.Rounded.Person,
+                            com.lmg.vk.ui.icons.LmgGlyphs.UserOutline28,
                             null,
                             tint = Color.White.copy(alpha = 0.30f),
                             modifier = Modifier.size(96.dp),
@@ -385,8 +385,8 @@ private fun OwnerAudioHeader(
                 }
                 Spacer(Modifier.height(16.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    OwnerAudioButton("Play", Icons.Rounded.PlayArrow, canPlay, Modifier.weight(1f), onPlay)
-                    OwnerAudioButton("Shuffle", Icons.Rounded.Shuffle, canPlay, Modifier.weight(1f), onShuffle)
+                    OwnerAudioButton("Play", com.lmg.vk.ui.icons.LmgGlyphs.Play28, canPlay, Modifier.weight(1f), onPlay)
+                    OwnerAudioButton("Shuffle", com.lmg.vk.ui.icons.LmgGlyphs.ShuffleOutline28, canPlay, Modifier.weight(1f), onShuffle)
                 }
             }
         }

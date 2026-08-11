@@ -172,7 +172,7 @@ fun LocalLibraryScreen(
                         .padding(horizontal = 16.dp, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(Icons.Rounded.Edit, null, tint = Color.White, modifier = Modifier.size(18.dp))
+                    Icon(com.lmg.vk.ui.icons.LmgGlyphs.EditOutline28, null, tint = Color.White, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(8.dp))
                     Text("Edit Tags", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                 }
@@ -239,7 +239,7 @@ private fun SelectionHeader(count: Int, lc: LiquidColors, onClose: () -> Unit) {
             Modifier.size(40.dp).background(if (lc.isDark) Color(0xFF1C1C1E) else Color(0xFFF2F2F7), CircleShape)
                 .clip(CircleShape).liquidClickable(pressedScale = LiquidMotion.PressIcon, onClick = onClose),
             contentAlignment = Alignment.Center
-        ) { Icon(Icons.Rounded.Close, null, tint = lc.iconDefault, modifier = Modifier.size(22.dp)) }
+        ) { Icon(com.lmg.vk.ui.icons.LmgGlyphs.CancelOutline28, null, tint = lc.iconDefault, modifier = Modifier.size(22.dp)) }
         Spacer(Modifier.width(14.dp))
         Text(if (count == 0) "Select Tracks" else "Selected: $count",
             color = lc.textPrimary, fontSize = 22.sp, fontWeight = FontWeight.Bold)
@@ -384,7 +384,7 @@ private fun SelectableTrackRow(
             }
             Spacer(Modifier.width(10.dp))
         }
-        ArtBox(albumArt(e.albumId), if (compact) 40.dp else 48.dp, 8.dp, lc, Icons.Rounded.MusicNote)
+        ArtBox(albumArt(e.albumId), if (compact) 40.dp else 48.dp, 8.dp, lc, com.lmg.vk.ui.icons.LmgGlyphs.MusicNote24)
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(e.title, color = lc.textPrimary, fontSize = if (compact) 13.5.sp else 15.sp, fontWeight = FontWeight.Medium,
@@ -528,7 +528,7 @@ fun LocalAlbumDetailScreen(albumId: Long, albumName: String, onBack: () -> Unit)
                 }
                 Spacer(Modifier.height(12.dp))
                 Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                    ArtBox(albumArt(albumId), if (win.useSideBySide) 140.dp else 180.dp, 16.dp, lc, Icons.Rounded.Album)
+                    ArtBox(albumArt(albumId), if (win.useSideBySide) 140.dp else 180.dp, 16.dp, lc, com.lmg.vk.ui.icons.LmgGlyphs.AlbumFilled12)
                 }
                 Spacer(Modifier.height(14.dp))
                 Text(albumName, color = lc.textPrimary, fontSize = if (win.useSideBySide) 18.sp else 20.sp, fontWeight = FontWeight.Bold,
@@ -561,7 +561,7 @@ private fun ArtistRow(a: ArtistAgg, lc: LiquidColors, compact: Boolean = false, 
             .padding(horizontal = 8.dp, vertical = if (compact) 6.dp else 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        ArtBox(albumArt(a.anyAlbumId), if (compact) 40.dp else 48.dp, 24.dp, lc, Icons.Rounded.Person)
+        ArtBox(albumArt(a.anyAlbumId), if (compact) 40.dp else 48.dp, 24.dp, lc, com.lmg.vk.ui.icons.LmgGlyphs.UserOutline28)
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(a.name, color = lc.textPrimary, fontSize = if (compact) 13.5.sp else 15.sp, fontWeight = FontWeight.Medium,
@@ -579,7 +579,7 @@ private fun AlbumRow(al: AlbumAgg, lc: LiquidColors, compact: Boolean = false, o
             .padding(horizontal = 8.dp, vertical = if (compact) 6.dp else 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        ArtBox(albumArt(al.albumId), if (compact) 40.dp else 48.dp, 8.dp, lc, Icons.Rounded.Album)
+        ArtBox(albumArt(al.albumId), if (compact) 40.dp else 48.dp, 8.dp, lc, com.lmg.vk.ui.icons.LmgGlyphs.AlbumFilled12)
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(al.name, color = lc.textPrimary, fontSize = if (compact) 13.5.sp else 15.sp, fontWeight = FontWeight.Medium,
@@ -595,7 +595,7 @@ private fun AlbumCard(al: AlbumAgg, lc: LiquidColors, compact: Boolean = false, 
         Modifier.clip(RoundedCornerShape(12.dp))
             .liquidClickable(onClick = onClick).padding(4.dp)
     ) {
-        ArtBox(albumArt(al.albumId), null, 12.dp, lc, Icons.Rounded.Album, Modifier.fillMaxWidth().aspectRatio(1f))
+        ArtBox(albumArt(al.albumId), null, 12.dp, lc, com.lmg.vk.ui.icons.LmgGlyphs.AlbumFilled12, Modifier.fillMaxWidth().aspectRatio(1f))
         Spacer(Modifier.height(6.dp))
         Text(al.name, color = lc.textPrimary, fontSize = if (compact) 13.sp else 14.sp, fontWeight = FontWeight.Medium,
             maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -611,7 +611,7 @@ private fun TrackRow(e: LocalTrackEntity, lc: LiquidColors, paddingH: Dp = 8.dp,
             .padding(horizontal = paddingH, vertical = if (compact) 6.dp else 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        ArtBox(albumArt(e.albumId), if (compact) 40.dp else 48.dp, 8.dp, lc, Icons.Rounded.MusicNote)
+        ArtBox(albumArt(e.albumId), if (compact) 40.dp else 48.dp, 8.dp, lc, com.lmg.vk.ui.icons.LmgGlyphs.MusicNote24)
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(e.title, color = lc.textPrimary, fontSize = if (compact) 13.5.sp else 15.sp, fontWeight = FontWeight.Medium,
@@ -698,7 +698,7 @@ private fun SearchField(query: String, lc: LiquidColors, onChange: (String) -> U
             .background(lc.searchFieldBg).padding(horizontal = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Icon(Icons.Rounded.Search, null, tint = lc.iconMuted, modifier = Modifier.size(if (compact) 18.dp else 20.dp))
+        Icon(com.lmg.vk.ui.icons.LmgGlyphs.SearchOutline28, null, tint = lc.iconMuted, modifier = Modifier.size(if (compact) 18.dp else 20.dp))
         Spacer(Modifier.width(10.dp))
         BasicTextField(
             value = query, onValueChange = onChange, singleLine = true,
@@ -712,7 +712,7 @@ private fun SearchField(query: String, lc: LiquidColors, onChange: (String) -> U
             }
         )
         if (query.isNotEmpty()) {
-            Icon(Icons.Rounded.Close, null, tint = lc.iconMuted,
+            Icon(com.lmg.vk.ui.icons.LmgGlyphs.CancelOutline28, null, tint = lc.iconMuted,
                 modifier = Modifier.size(20.dp).liquidClickable(pressedScale = LiquidMotion.PressIcon, onClick = onClear))
         }
     }
@@ -725,7 +725,7 @@ private fun PlayAllButton(lc: LiquidColors, onClick: () -> Unit) {
             .liquidClickable(pressedScale = LiquidMotion.PressIcon, onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
-        Icon(Icons.Rounded.PlayArrow, null, tint = Color.White, modifier = Modifier.size(24.dp))
+        Icon(com.lmg.vk.ui.icons.LmgGlyphs.Play28, null, tint = Color.White, modifier = Modifier.size(24.dp))
     }
 }
 
@@ -737,6 +737,6 @@ private fun CircleBack(lc: LiquidColors, onClick: () -> Unit) {
             .clip(CircleShape).liquidClickable(pressedScale = LiquidMotion.PressIcon, onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
-        Icon(Icons.AutoMirrored.Rounded.ArrowBack, null, tint = lc.iconDefault, modifier = Modifier.size(if (compact) 18.dp else 22.dp))
+        Icon(com.lmg.vk.ui.icons.LmgGlyphs.ArrowLeftOutline28, null, tint = lc.iconDefault, modifier = Modifier.size(if (compact) 18.dp else 22.dp))
     }
 }

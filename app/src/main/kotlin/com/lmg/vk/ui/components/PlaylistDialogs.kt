@@ -128,7 +128,7 @@ fun PlaylistPickerSheet(
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Icon(
-                                Icons.AutoMirrored.Rounded.PlaylistPlay,
+                                com.lmg.vk.ui.icons.LmgGlyphs.PlaylistOutline28,
                                 contentDescription = null,
                                 tint = colors.accent,
                                 modifier = Modifier.size(24.dp),

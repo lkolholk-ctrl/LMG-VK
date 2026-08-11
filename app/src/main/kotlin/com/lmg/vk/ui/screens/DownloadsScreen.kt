@@ -199,7 +199,7 @@ fun DownloadsScreen(onBack: () -> Unit = {}) {
                         {
                             SectionHeroAction(
                                 label = "Clear all",
-                                icon = Icons.Rounded.Delete,
+                                icon = com.lmg.vk.ui.icons.LmgGlyphs.DeleteSavedOutline28,
                                 filled = false,
                                 onClick = { confirmClearAll = true },
                             )
@@ -280,7 +280,7 @@ fun DownloadsScreen(onBack: () -> Unit = {}) {
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Icon(
-                                imageVector = Icons.Rounded.Download,
+                                imageVector = com.lmg.vk.ui.icons.LmgGlyphs.DownloadOutline28,
                                 contentDescription = null,
                                 tint = lc.textTertiary,
                                 modifier = Modifier.size(48.dp)
@@ -327,7 +327,7 @@ fun DownloadsScreen(onBack: () -> Unit = {}) {
                 onDismiss = { itemToDelete = null },
                 title = "Remove download?",
                 message = "\"${target.title}\" will be deleted from this device together with its file.",
-                icon = Icons.Rounded.Delete,
+                icon = com.lmg.vk.ui.icons.LmgGlyphs.DeleteSavedOutline28,
                 iconTint = lc.accentRed,
                 primaryButton = GlassDialogButton(
                     text = "Delete",
@@ -357,7 +357,7 @@ fun DownloadsScreen(onBack: () -> Unit = {}) {
                     formatDownloadSize(totalBytes)?.let { append(" (").append(it).append(')') }
                     append(" will be deleted from this device. This cannot be undone.")
                 },
-                icon = Icons.Rounded.Delete,
+                icon = com.lmg.vk.ui.icons.LmgGlyphs.DeleteSavedOutline28,
                 iconTint = lc.accentRed,
                 primaryButton = GlassDialogButton(
                     text = "Clear all",
@@ -471,7 +471,7 @@ private fun DownloadedRow(
             contentAlignment = Alignment.Center
         ) {
             Icon(
-                imageVector = Icons.Rounded.Delete,
+                imageVector = com.lmg.vk.ui.icons.LmgGlyphs.DeleteSavedOutline28,
                 contentDescription = "Delete download",
                 tint = lc.textTertiary,
                 modifier = Modifier.size(if (compact) 18.dp else 20.dp)

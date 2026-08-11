@@ -91,7 +91,7 @@ fun HistoryScreen(
                         {
                             SectionHeroAction(
                                 label = "Clear history",
-                                icon = Icons.Rounded.Delete,
+                                icon = com.lmg.vk.ui.icons.LmgGlyphs.DeleteOutline28,
                                 filled = false,
                                 onClick = { scope.launch { dao.clear() } },
                             )

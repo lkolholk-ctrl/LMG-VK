@@ -124,18 +124,18 @@ fun TrackActionsSheet(
 
             Spacer(Modifier.height(16.dp))
 
-            ActionRow(rowBg, Icons.Rounded.QueueMusic, "Play next") {
+            ActionRow(rowBg, com.lmg.vk.ui.icons.LmgGlyphs.PlayNextOutline24, "Play next") {
                 PlayerController.insertNext(track)
                 onDismiss()
             }
             Spacer(Modifier.height(8.dp))
-            ActionRow(rowBg, Icons.Rounded.PlaylistAdd, "Add to queue") {
+            ActionRow(rowBg, com.lmg.vk.ui.icons.LmgGlyphs.ListAddOutline28, "Add to queue") {
                 PlayerController.addToQueue(track)
                 onDismiss()
             }
             Spacer(Modifier.height(8.dp))
             if (onAddToPlaylist != null) {
-                ActionRow(rowBg, Icons.Rounded.PlaylistAdd, "Add to playlist") {
+                ActionRow(rowBg, com.lmg.vk.ui.icons.LmgGlyphs.ListAddOutline28, "Add to playlist") {
                     onAddToPlaylist()
                     onDismiss()
                 }
@@ -156,7 +156,7 @@ fun TrackActionsSheet(
                 Spacer(Modifier.height(8.dp))
             }
             if (onRemoveFromPlaylist != null) {
-                ActionRow(rowBg, Icons.Rounded.Delete, "Remove from playlist") {
+                ActionRow(rowBg, com.lmg.vk.ui.icons.LmgGlyphs.RemoveCircleOutline28, "Remove from playlist") {
                     onRemoveFromPlaylist()
                     onDismiss()
                 }
@@ -165,7 +165,7 @@ fun TrackActionsSheet(
             if (isFavorite != null && onToggleFavorite != null) {
                 ActionRow(
                     rowBg,
-                    if (isFavorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+                    if (isFavorite) com.lmg.vk.ui.icons.LmgGlyphs.Favorite28 else com.lmg.vk.ui.icons.LmgGlyphs.FavoriteOutline28,
                     if (isFavorite) "Remove from My tracks" else "Add to My tracks",
                 ) {
                     onToggleFavorite()
@@ -174,7 +174,7 @@ fun TrackActionsSheet(
                 Spacer(Modifier.height(8.dp))
             }
             if (onCache != null) {
-                ActionRow(rowBg, Icons.Rounded.Download, "Cache track") {
+                ActionRow(rowBg, com.lmg.vk.ui.icons.LmgGlyphs.BookmarkOutline28, "Cache track") {
                     onCache()
                     onDismiss()
                 }
@@ -197,7 +197,7 @@ fun TrackActionsSheet(
                 is TrackDownloadState.Failed -> {
                     // Причину показываем в самой строке: «не удалось» без причины
                     // заставляет тыкать наугад.
-                    ActionRow(rowBg, Icons.Rounded.Download, "Download failed · retry", subtitle = st.message) {
+                    ActionRow(rowBg, com.lmg.vk.ui.icons.LmgGlyphs.DownloadOutline28, "Download failed · retry", subtitle = st.message) {
                         TrackDownloadManager.enqueue(context, track)
                     }
                     Spacer(Modifier.height(8.dp))
@@ -207,18 +207,18 @@ fun TrackActionsSheet(
                     // TrackDownloadState.Done: Done остаётся в states и после того,
                     // как файл удалили, и строка «Downloaded» висела бы враньём.
                     if (isDownloaded) {
-                        ActionRow(rowBg, Icons.Rounded.Check, "Downloaded · remove") {
+                        ActionRow(rowBg, com.lmg.vk.ui.icons.LmgGlyphs.DownloadCheckOutline28, "Downloaded · remove") {
                             scope.launch { DownloadsRegistryBridge.remove(context, track.id) }
                         }
                     } else {
-                        ActionRow(rowBg, Icons.Rounded.Download, "Download") {
+                        ActionRow(rowBg, com.lmg.vk.ui.icons.LmgGlyphs.DownloadOutline28, "Download") {
                             TrackDownloadManager.enqueue(context, track)
                         }
                     }
                     Spacer(Modifier.height(8.dp))
                 }
             }
-            ActionRow(rowBg, Icons.Rounded.Share, "Share") {
+            ActionRow(rowBg, com.lmg.vk.ui.icons.LmgGlyphs.ShareOutline28, "Share") {
                 val vkUrl = com.lmg.vk.engine.VkAudioIdentity.shareUrl(track.id)
                 val text = buildString {
                     append("${track.title} — ${track.artist}")
@@ -308,7 +308,7 @@ private fun DownloadProgressRow(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(
-            imageVector = Icons.Rounded.Download,
+            imageVector = com.lmg.vk.ui.icons.LmgGlyphs.DownloadCancelOutline28,
             contentDescription = null,
             tint = lc.accent,
             modifier = Modifier.size(22.dp)
@@ -350,7 +350,7 @@ private fun DownloadProgressRow(
             contentAlignment = Alignment.Center
         ) {
             Icon(
-                imageVector = Icons.Rounded.Close,
+                imageVector = com.lmg.vk.ui.icons.LmgGlyphs.CancelOutline28,
                 contentDescription = "Cancel download",
                 tint = lc.textSecondary,
                 modifier = Modifier.size(20.dp)
