@@ -214,6 +214,12 @@ fun WaveHomeScreen(
         is VkMixUiState.Error -> state.session
         else -> null
     }
+    // With no retained session the settings action resolves the personal Mix
+    // from CatalogKit. While a start/settings request is already running, do
+    // not open a sheet that cannot launch a second request.
+    val canOpenMixSettings = isLoggedIn &&
+        mixState !is VkMixUiState.Loading &&
+        (mixSession?.isTunable ?: true)
 
     // Широкое окно (телефон-альбом / планшет): вместо полноэкранной Волны с
     // дымом — медиатечный двухколоночный layout (референс). return ПОСЛЕ всех
@@ -250,7 +256,7 @@ fun WaveHomeScreen(
             WaveTopBar(
                 onSearch = onNavigateToSearch,
                 onOpenProfile = onOpenProfile,
-                onTune = if (isLoggedIn && mixSession?.isTunable != false) {
+                onTune = if (canOpenMixSettings) {
                     {
                         showMixSettings = true
                         viewModel.prepareVkMixSettings()

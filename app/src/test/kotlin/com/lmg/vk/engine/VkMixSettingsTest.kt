@@ -2,11 +2,19 @@ package com.lmg.vk.engine
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class VkMixSettingsTest {
+    @Test
+    fun officialSettingsResponseMayOmitSettings() {
+        val response = com.lmg.vk.network.dto.music.AudioStreamMixSettingsResponse()
+
+        assertNull(response.settings)
+    }
+
     @Test
     fun singleSelectClearsOtherVisibleCategoriesButKeepsHidden() {
         val changed = settings(multiSelect = false).toggle("energy", "high")

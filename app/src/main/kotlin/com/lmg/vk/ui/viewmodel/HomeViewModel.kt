@@ -20,6 +20,7 @@ import com.lmg.vk.engine.PlayerController
 import com.lmg.vk.engine.Track
 import com.lmg.vk.engine.VkMixSession
 import com.lmg.vk.engine.VkMixSettings
+import com.lmg.vk.debug.DebugLog
 import android.util.Log
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
@@ -790,14 +791,30 @@ class HomeViewModel : ViewModel() {
         session: VkMixSession? = null,
         original: VkMixSettings? = session?.settings,
         draft: VkMixSettings? = original,
-    ) = VkMixUiState.Error(
-        message = com.lmg.vk.engine.backend.backendUserMessage(this),
-        sessionExpired = (this as? BackendException)?.code?.let { it == 401 || it == 1117 } == true,
-        operation = operation,
-        session = session,
-        original = original,
-        draft = draft,
-    )
+    ): VkMixUiState.Error {
+        val backendError = this as? BackendException
+        DebugLog.add(
+            "VK MIX ${operation.name} failed: " +
+                "${javaClass.simpleName}" +
+                (backendError?.let { " code=${it.code}" } ?: "") +
+                ": ${message ?: "без сообщения"}",
+        )
+        val userMessage = when {
+            backendError?.code == 404 && operation == VkMixOperation.LOAD_SETTINGS && session == null ->
+                "VK не вернул персональный Mix для этого аккаунта"
+            backendError?.code == 404 && operation == VkMixOperation.LOAD_SETTINGS ->
+                "VK не нашёл настройки для текущего Mix"
+            else -> com.lmg.vk.engine.backend.backendUserMessage(this)
+        }
+        return VkMixUiState.Error(
+            message = userMessage,
+            sessionExpired = backendError?.code?.let { it == 401 || it == 1117 } == true,
+            operation = operation,
+            session = session,
+            original = original,
+            draft = draft,
+        )
+    }
 
     /**
      * Builds an expanded mood wave through /wave/mood/{mood}.

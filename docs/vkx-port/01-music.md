@@ -598,7 +598,7 @@ data class AudioRelatedArtistsResponse(
 
 ```
 {
-  "settings": {                                   // SRC C12924e.java:9-10
+  "settings": {                                   // nullable in VK 8.185 response DTO
     "title": String,
     "subtitle": String,
     "multi_select": Boolean?,
@@ -615,6 +615,10 @@ data class AudioRelatedArtistsResponse(
   }
 }
 ```
+
+В `AudioGetStreamMixSettingsResponseDto` официального VK 8.185 поле `settings`
+nullable и имеет default `null`. Это отличается от старого VK X-адаптера:
+успешный ответ без редактора не должен ронять разбор JSON.
 
 FQN: `…objects.audio.AudioGetStreamMixSettingsResponseDto` / `AudioStreamMixSettingsDto` /
 `AudioStreamMixSettingsCategoryDto` / `AudioStreamMixSettingsOptionDto`.

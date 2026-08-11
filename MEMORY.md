@@ -641,3 +641,28 @@ UI, ресурсы и исходную логику необходимо **в п
 - Текстовые подсказки CatalogKit не выводятся как фальшивые аудиокарточки: в New остаются только блоки, которые можно корректно представить витриной с VK-сущностью/обложкой.
 - Изменены: `ui/screens/NewScreen.kt`, `engine/backend/MusicBackend.kt`, `network/dto/music/Priority1MusicDtos.kt`, `MEMORY.md`.
 - Локальная Gradle-сборка и GitHub Actions не запускались по правилу владельца; выполнен `git diff --check` и статический просмотр новых DTO/мапперов.
+
+# VK Mix: исправление загрузки настроек Aura
+
+**Текущий логический этап:** устранение сообщения «Не найдено» после нажатия
+настройки Mix на главном экране. SHA смотреть через `git log -1 --oneline` после
+отдельной команды владельца на commit.
+
+- `resolvePersonalMixSession()` теперь проходит связанные секции CatalogKit и
+  их `next_from`, а не проверяет только корень и первую страницу. Цепочка остаётся
+  подтверждённой VK: `catalog.getAudioAuto` → `catalog.getSection`.
+- При нескольких Mix fallback предпочитает серверный `is_tunable=true`; найденный
+  `common` по-прежнему имеет высший приоритет.
+- Ошибки `catalog.getSection` больше не теряются через `getOrNull`: если Mix не
+  найден, UI получает исходный код VK, а не искусственный локальный 404.
+- `AudioGetStreamMixSettingsResponseDto.settings` приведён к официальному VK
+  8.185: поле nullable. При `settings: null` Moshi больше не падает.
+- Если `audio.getStreamMixSettings` отвечает 404, но официальный CatalogKit уже
+  передал `AudioStreamMix.settings`, используется этот серверный snapshot.
+- Кнопка настройки не запускает второй запрос во время уже активной загрузки.
+  Ошибки VK Mix записываются в DebugLog с операцией и кодом; UI различает
+  отсутствие персонального Mix и отсутствие настроек текущего Mix.
+- Изменены `MusicBackend.kt`, `Priority1MusicDtos.kt`, `WaveHomeScreen.kt`,
+  `HomeViewModel.kt`, `VkMixSettingsTest.kt`, `docs/vkx-port/01-music.md`.
+- Проверка: только `git diff --check` и статическая сверка вызовов/nullable-типа.
+  Локальный Gradle/build запрещён и не запускался.

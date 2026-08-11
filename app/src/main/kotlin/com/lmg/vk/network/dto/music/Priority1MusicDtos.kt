@@ -124,7 +124,9 @@ data class AudioStreamMixSettings(
 
 @JsonClass(generateAdapter = true)
 data class AudioStreamMixSettingsResponse(
-    val settings: AudioStreamMixSettings,
+    // Nullable in the official VK 8.185 DTO. A successful response may state
+    // that this particular Mix has no editor instead of returning an API error.
+    val settings: AudioStreamMixSettings? = null,
 )
 
 /**
