@@ -167,7 +167,9 @@ fun WaveHomeScreen(
     val albumColors = rememberAlbumColors(currentTrack?.displayArtUri, currentTrack?.coverUrl)
 
     val track = currentTrack
-    val isFavorite = track?.id?.let { favoriteIds.contains(it) } == true
+    val isFavorite = track?.id
+        ?.let { com.lmg.vk.engine.VkAudioIdentity.stableFullId(it) }
+        ?.let(favoriteIds::contains) == true
 
     val scope = rememberCoroutineScope()
     val backend by PlayerController.playbackBackend.collectAsState()

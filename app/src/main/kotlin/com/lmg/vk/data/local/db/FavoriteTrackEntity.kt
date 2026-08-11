@@ -35,5 +35,7 @@ data class FavoriteTrackEntity(
     /** true = synced with cloud, false = pending sync */
     val isSynced: Boolean = false,
     /** true = pending deletion on cloud */
-    val pendingDelete: Boolean = false
+    val pendingDelete: Boolean = false,
+    /** Реальный owner_audio id копии, которую `audio.add` создал в My Audio. */
+    val cloudTrackId: String? = null,
 )

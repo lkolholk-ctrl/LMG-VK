@@ -22,6 +22,31 @@ data class VkRootItems<T>(
     val items: List<T> = emptyList(),
 )
 
+/** Точный ответ актуального `audio.add` из официального клиента VK. */
+@JsonClass(generateAdapter = true)
+data class AudioAddResponse(
+    val items_count: Int = 0,
+    val errors_count: Int = 0,
+    val items: List<AudioAddResult>? = null,
+    val errors: List<AudioAddError>? = null,
+)
+
+@JsonClass(generateAdapter = true)
+data class AudioAddResult(
+    val new_audio_id: Int,
+    val audio_raw_id: String = "",
+    val new_owner_id: Long,
+) {
+    val fullId: String get() = "${new_owner_id}_${new_audio_id}"
+}
+
+@JsonClass(generateAdapter = true)
+data class AudioAddError(
+    val audio_raw_id: String = "",
+    val error_code: String = "",
+    val error_msg: String = "",
+)
+
 @JsonClass(generateAdapter = true)
 data class VkArtistPhoto(
     val height: Int = 0,

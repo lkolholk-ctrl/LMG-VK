@@ -29,6 +29,9 @@ object VkAudioIdentity {
         return "${parts[0]}_${parts[1]}"
     }
 
+    /** ID for local state comparisons: no `vk_` prefix and no access key. */
+    fun stableFullId(id: String): String = bareFullId(id) ?: normalizeFullId(id)
+
     /**
      * Preserve a real URL returned by VK; otherwise leave the URI unresolved.
      * No third-party resolver URL is used as a placeholder.

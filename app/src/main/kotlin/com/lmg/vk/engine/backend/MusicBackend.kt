@@ -1106,13 +1106,19 @@ object MusicBackend {
             )
         }.getOrNull()
 
+    /**
+     * Добавляет аудио и возвращает настоящий id копии в библиотеке пользователя.
+     * Официальный `audio.add` меняет owner/audio id; Boolean скрывал эту замену
+     * и оставлял локальную БД привязанной к исходной, позже удаляемой записи.
+     */
+    suspend fun addTrackToLibrary(trackId: String): String? = runCatching {
+        val track = resolveTrack(trackId)
+        audioApi.add(track.fullId, track.access_key).requireData().fullId
+    }.getOrNull()
+
     suspend fun likeTrack(trackId: String, liked: Boolean = true): Boolean {
         if (!liked) return unlikeTrack(trackId)
-        return runCatching {
-            val track = resolveTrack(trackId)
-            audioApi.add(track.fullId, track.access_key).requireData()
-            true
-        }.getOrDefault(false)
+        return addTrackToLibrary(trackId) != null
     }
 
     suspend fun unlikeTrack(trackId: String): Boolean = runCatching {

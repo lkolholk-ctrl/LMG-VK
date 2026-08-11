@@ -181,7 +181,9 @@ fun HomeScreen(
     val auraColors = rememberAlbumColors(uri = null, coverUrl = currentTrack?.coverUrl)
     val favoriteIds by PlayerController.favoriteIds.collectAsState()
     val favoriteTracks = remember(allTracks, favoriteIds) {
-        allTracks.filter { it.id in favoriteIds }
+        allTracks.filter {
+            com.lmg.vk.engine.VkAudioIdentity.stableFullId(it.id) in favoriteIds
+        }
     }
 
     val isLoggedIn by MusicAuth.isLoggedIn.collectAsState()

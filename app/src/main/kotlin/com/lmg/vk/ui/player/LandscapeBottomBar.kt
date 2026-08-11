@@ -70,7 +70,8 @@ fun LandscapeBottomBar(
     val favoriteIds by PlayerController.favoriteIds.collectAsState()
 
     val cur = track ?: return
-    val isFavorite = favoriteIds.contains(cur.id)
+    val favoriteId = com.lmg.vk.engine.VkAudioIdentity.stableFullId(cur.id)
+    val isFavorite = favoriteId in favoriteIds
 
     var isDragging by remember { mutableStateOf(false) }
     var dragFraction by remember { mutableFloatStateOf(0f) }

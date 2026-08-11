@@ -165,12 +165,10 @@ class LibraryViewModel(context: Context) : ViewModel() {
     fun playTrack(context: Context, trackId: String) {
         viewModelScope.launch(Dispatchers.IO) {
             val tracks = repository.getAllFavoritesAsTracks()
-            // FavoriteTrackEntity stores the stable owner_audio id, while the
-            // playback Track may append VK's access_key as owner_audio_key.
-            // Matching only by exact id made every keyed library track ignore
-            // row taps even though the row's click handler was invoked.
+            val requestedId = com.lmg.vk.engine.VkAudioIdentity.stableFullId(trackId)
+            // Playback Track may append VK's access_key as owner_audio_key.
             val startIndex = tracks.indexOfFirst { playbackTrack ->
-                playbackTrack.id == trackId || playbackTrack.id.startsWith("${trackId}_")
+                com.lmg.vk.engine.VkAudioIdentity.stableFullId(playbackTrack.id) == requestedId
             }
             if (startIndex < 0) return@launch
 

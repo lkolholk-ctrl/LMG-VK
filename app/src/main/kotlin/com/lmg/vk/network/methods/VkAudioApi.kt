@@ -10,6 +10,8 @@ import com.lmg.vk.network.MappingVkResponseParser
 import com.lmg.vk.network.MoshiEnvelopeParser
 import com.lmg.vk.network.VkItems
 import com.lmg.vk.network.dto.music.AudioPlaylist
+import com.lmg.vk.network.dto.music.AudioAddResponse
+import com.lmg.vk.network.dto.music.AudioAddResult
 import com.lmg.vk.network.dto.music.AudioLyricsContainer
 import com.lmg.vk.network.dto.music.AudioRelatedArtistsResponse
 import com.lmg.vk.network.dto.music.AudioSearchMainResponse
@@ -683,8 +685,41 @@ class VkAudioApi(
     suspend fun removeDislike(audioFullId: String): VkResult<Unit> =
         executeSimpleList("audio.removeDislike", audioFullId)
 
-    suspend fun add(audioFullId: String, accessKey: String? = null): VkResult<Unit> =
-        executeTrackMutation("audio.add", audioFullId, accessKey)
+    /**
+     * Актуальный batch-контракт официального клиента. VK возвращает новый
+     * owner/audio id пользовательской копии; терять его нельзя, иначе локальная
+     * строка продолжит ссылаться на исходник и задвоится при следующем audio.get.
+     */
+    suspend fun add(audioFullId: String, accessKey: String? = null): VkResult<AudioAddResult> {
+        val normalized = audioFullId.removePrefix("vk_")
+        val requestId = if (normalized.count { it == '_' } < 2 && !accessKey.isNullOrBlank()) {
+            "${normalized}_$accessKey"
+        } else {
+            normalized
+        }
+        val method = VkMethod(
+            "audio.add",
+            MoshiEnvelopeParser<AudioAddResponse>(AudioAddResponse::class.java),
+        ).apply {
+            param("audio_ids", requestId)
+        }
+        return when (val result = client.execute(method)) {
+            is VkResult.Success -> {
+                val item = result.data.items.orEmpty().firstOrNull()
+                val error = result.data.errors.orEmpty().firstOrNull()
+                when {
+                    item != null -> VkResult.Success(item)
+                    error != null -> VkResult.Error(
+                        code = error.error_code.toIntOrNull() ?: -1,
+                        message = error.error_msg.ifBlank { "VK не добавил аудио" },
+                    )
+                    else -> VkResult.Error(-1, "VK вернул пустой ответ audio.add")
+                }
+            }
+
+            is VkResult.Error -> result
+        }
+    }
 
     suspend fun delete(audioFullId: String): VkResult<Unit> =
         executeTrackMutation("audio.delete", audioFullId)

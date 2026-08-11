@@ -513,7 +513,7 @@ fun PlaylistDetailScreen(
             val selectedIndex = tracks.indexOfFirst { it.id == selected.id }
             TrackActionsSheet(
                 track = selected,
-                isFavorite = selected.id in favoriteIds,
+                isFavorite = com.lmg.vk.engine.VkAudioIdentity.stableFullId(selected.id) in favoriteIds,
                 onToggleFavorite = {
                     scope.launch { libraryRepository.toggleFavorite(selected) }
                 },

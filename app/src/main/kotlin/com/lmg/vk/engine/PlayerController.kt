@@ -2256,7 +2256,9 @@ object PlayerController {
     }
 
     fun setFavoriteIds(ids: Set<String>) { _favoriteIds.value = ids }
-    fun isFavorite(trackId: String): Boolean = _favoriteIds.value.contains(trackId)
+    fun isFavorite(trackId: String): Boolean {
+        return VkAudioIdentity.stableFullId(trackId) in _favoriteIds.value
+    }
 
     private fun addToRecent(track: Track) {
         val current = _recentlyPlayed.value.toMutableList()

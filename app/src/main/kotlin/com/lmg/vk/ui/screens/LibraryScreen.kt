@@ -454,7 +454,11 @@ fun LibraryScreen(
                         span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) },
                     ) { index ->
                         LibraryTrackPreview(favoritePreview[index]) {
-                            viewModel.playTrack(context, favoritePreview[index].trackId)
+                            viewModel.playTrack(
+                                context,
+                                favoritePreview[index].cloudTrackId
+                                    ?: favoritePreview[index].trackId,
+                            )
                         }
                     }
 
@@ -785,13 +789,19 @@ fun LibraryScreen(
                             ) {
                                 FavoriteTrackItem(
                                     track = track,
-                                    isLiked = track.trackId in favoriteIds,
+                                    isLiked = com.lmg.vk.engine.VkAudioIdentity
+                                        .stableFullId(track.trackId) in favoriteIds,
                                     enabled = track.isAvailable,
                                     compact = win.useSideBySide,
-                                    onClick = { viewModel.playTrack(context, track.trackId) },
+                                    onClick = {
+                                        viewModel.playTrack(
+                                            context,
+                                            track.cloudTrackId ?: track.trackId,
+                                        )
+                                    },
                                     onMore = {
                                         actionsTrack = Track(
-                                            id = track.trackId,
+                                            id = track.cloudTrackId ?: track.trackId,
                                             title = track.title,
                                             artist = track.artistName.orEmpty(),
                                             albumName = track.albumTitle ?: "",
@@ -813,7 +823,8 @@ fun LibraryScreen(
                 actionsTrack?.let { t ->
                     TrackActionsSheet(
                         track = t,
-                        isFavorite = t.id in favoriteIds,
+                        isFavorite = com.lmg.vk.engine.VkAudioIdentity
+                            .stableFullId(t.id) in favoriteIds,
                         onToggleFavorite = {
                             scope.launch {
                                 LibraryRepository.getInstance(context).toggleFavorite(t)
