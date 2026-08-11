@@ -56,12 +56,11 @@ import com.lmg.vk.ui.glass.AlbumArtImage
 import com.lmg.vk.ui.glass.GlassDialog
 import com.lmg.vk.ui.glass.GlassDialogButton
 import com.lmg.vk.ui.glass.liquidClickable
-import com.lmg.vk.ui.components.SectionHero
-import com.lmg.vk.ui.components.SectionHeroAction
+import com.lmg.vk.ui.components.SectionTopBar
+import com.lmg.vk.ui.components.SectionTopBarAction
 import com.lmg.vk.ui.theme.AppFontFamily
 import com.lmg.vk.ui.theme.LiquidMotion
 import com.lmg.vk.ui.theme.LiquidTheme
-import com.lmg.vk.R
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emitAll
@@ -181,8 +180,8 @@ fun DownloadsScreen(onBack: () -> Unit = {}) {
                 .then(if (dialogShown) Modifier.blur(16.dp) else Modifier),
             contentPadding = PaddingValues(bottom = 178.dp),
         ) {
-            item(key = "downloads_hero") {
-                SectionHero(
+            item(key = "downloads_header") {
+                SectionTopBar(
                     title = "Downloads",
                     subtitle = if (downloads.isEmpty()) {
                         "Music available offline"
@@ -192,12 +191,11 @@ fun DownloadsScreen(onBack: () -> Unit = {}) {
                             formatDownloadSize(totalBytes)?.let { append(" · ").append(it) }
                         }
                     },
-                    artworkRes = R.drawable.hero_downloads,
                     isDark = lc.isDark,
                     onBack = onBack,
                     actions = if (downloads.isNotEmpty()) {
                         {
-                            SectionHeroAction(
+                            SectionTopBarAction(
                                 label = "Clear all",
                                 icon = com.lmg.vk.ui.icons.LmgGlyphs.DeleteSavedOutline28,
                                 filled = false,

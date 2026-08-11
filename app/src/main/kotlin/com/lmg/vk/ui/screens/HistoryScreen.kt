@@ -43,11 +43,10 @@ import com.lmg.vk.engine.PlayerController
 import com.lmg.vk.engine.Track
 import com.lmg.vk.ui.glass.AlbumArtImage
 import com.lmg.vk.ui.glass.liquidClickable
-import com.lmg.vk.ui.components.SectionHero
-import com.lmg.vk.ui.components.SectionHeroAction
+import com.lmg.vk.ui.components.SectionTopBar
+import com.lmg.vk.ui.components.SectionTopBarAction
 import com.lmg.vk.ui.theme.LiquidMotion
 import com.lmg.vk.ui.theme.LiquidTheme
-import com.lmg.vk.R
 import kotlinx.coroutines.launch
 
 /**
@@ -80,16 +79,15 @@ fun HistoryScreen(
             modifier = Modifier.fillMaxSize(),
             contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 96.dp),
         ) {
-            item(key = "history_hero") {
-                SectionHero(
+            item(key = "history_header") {
+                SectionTopBar(
                     title = title,
                     subtitle = if (history.isEmpty()) "Your listening history" else "${history.size} recent tracks",
-                    artworkRes = R.drawable.hero_history,
                     isDark = lc.isDark,
                     onBack = if (showBack) onBack else null,
                     actions = if (history.isNotEmpty()) {
                         {
-                            SectionHeroAction(
+                            SectionTopBarAction(
                                 label = "Clear history",
                                 icon = com.lmg.vk.ui.icons.LmgGlyphs.DeleteOutline28,
                                 filled = false,

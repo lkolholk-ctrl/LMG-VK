@@ -1285,7 +1285,7 @@ fun FullPlayer(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
-                            imageVector = com.lmg.vk.ui.icons.LmgGlyphs.SlidersOutline28,
+                            imageVector = com.lmg.vk.ui.icons.LmgGlyphs.MusicNoteWaveOutline28,
                             contentDescription = null,
                             tint = Color.White,
                             modifier = Modifier.size(24.dp)

@@ -54,7 +54,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
-import com.lmg.vk.R
 import com.lmg.vk.data.local.LocalLibraryIndexer
 import com.lmg.vk.data.local.LocalLibraryStore
 import com.lmg.vk.data.local.db.AlbumAgg
@@ -62,7 +61,7 @@ import com.lmg.vk.data.local.db.AppDatabase
 import com.lmg.vk.data.local.db.ArtistAgg
 import com.lmg.vk.data.local.db.LocalTrackEntity
 import com.lmg.vk.ui.glass.liquidClickable
-import com.lmg.vk.ui.components.SectionHero
+import com.lmg.vk.ui.components.SectionTopBar
 import com.lmg.vk.ui.theme.LiquidColors
 import com.lmg.vk.ui.theme.LiquidMotion
 import com.lmg.vk.ui.theme.LiquidTheme
@@ -212,10 +211,9 @@ private fun LocalLibraryBrowseHeader(
 ) {
     val screenWidth = LocalConfiguration.current.screenWidthDp.dp
     Column(modifier = Modifier.requiredWidth(screenWidth)) {
-        SectionHero(
+        SectionTopBar(
             title = "On this device",
             subtitle = "Artists, albums and tracks stored locally",
-            artworkRes = R.drawable.hero_music,
             isDark = lc.isDark,
             onBack = onBack,
         )
@@ -265,7 +263,7 @@ private fun ArtistsList(
     val win = com.lmg.vk.ui.rememberWindowInfo()
     val sidePad = if (win.useSideBySide) 24.dp else 12.dp
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 120.dp)) {
-        item(key = "local_artists_hero") { header() }
+        item(key = "local_artists_header") { header() }
         items(artists, key = { it.name }) { artist ->
             Box(modifier = Modifier.fillMaxWidth().padding(horizontal = sidePad)) {
                 ArtistRow(artist, lc, compact = win.useSideBySide) { onOpenArtist(artist.name) }
@@ -293,7 +291,7 @@ private fun AlbumsGrid(
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         item(
-            key = "local_albums_hero",
+            key = "local_albums_header",
             span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) },
         ) { header() }
         items(albums, key = { it.albumId }) { al -> AlbumCard(al, lc, compact = win.useSideBySide) { onOpenAlbum(al.albumId, al.name) } }
@@ -329,7 +327,7 @@ private fun TracksTab(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(bottom = if (selectionMode) 96.dp else 120.dp),
     ) {
-        item(key = "local_tracks_hero") { header() }
+        item(key = "local_tracks_header") { header() }
         item(key = "local_tracks_sort") {
             Row(
                 Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 6.dp),
@@ -409,7 +407,7 @@ private fun SearchResultsView(
     val win = com.lmg.vk.ui.rememberWindowInfo()
     val sidePad = if (win.useSideBySide) 24.dp else 12.dp
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 120.dp)) {
-        item(key = "local_search_hero") { header() }
+        item(key = "local_search_header") { header() }
         when {
             r == null -> item(key = "local_search_loading") {
                 Box(Modifier.fillMaxWidth().height(240.dp), contentAlignment = Alignment.Center) {

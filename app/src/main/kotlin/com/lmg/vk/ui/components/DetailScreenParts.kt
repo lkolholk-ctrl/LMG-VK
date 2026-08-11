@@ -399,7 +399,7 @@ fun DetailTrackRow(
                     modifier = Modifier.size(36.dp),
                 ) {
                     Icon(
-                        com.lmg.vk.ui.icons.LmgGlyphs.MenuOutline28,
+                        com.lmg.vk.ui.icons.LmgGlyphs.MoreHorizontal28,
                         contentDescription = "Track actions",
                         tint = LiquidSurfaces.textTertiary(isDark),
                         modifier = Modifier.size(20.dp),

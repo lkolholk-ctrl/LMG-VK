@@ -64,6 +64,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
@@ -73,7 +74,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.kyant.backdrop.backdrops.LayerBackdrop
-import com.lmg.vk.R
 import com.lmg.vk.engine.backend.MusicAuth
 import com.lmg.vk.engine.backend.MusicBackend
 import com.lmg.vk.engine.backend.ProfileLibrarySearch
@@ -92,8 +92,8 @@ import com.lmg.vk.ui.glass.GlassKit
 import com.lmg.vk.ui.glass.AlbumArtImage
 import com.lmg.vk.ui.glass.liquidClickable
 import com.lmg.vk.ui.components.PlaylistNameDialog
-import com.lmg.vk.ui.components.SectionHero
-import com.lmg.vk.ui.components.SectionHeroAction
+import com.lmg.vk.ui.components.SectionTopBar
+import com.lmg.vk.ui.components.SectionTopBarAction
 import com.lmg.vk.ui.theme.LiquidMotion
 import com.lmg.vk.ui.components.PlaylistPickerSheet
 import com.lmg.vk.ui.components.TrackActionsSheet
@@ -149,6 +149,7 @@ fun LibraryScreen(
     // получает больше колонок, а вертикальные списки-строки центрируем узкой
     // колонкой ~600dp боковыми отступами, чтобы строки не растягивались.
     val win = com.lmg.vk.ui.rememberWindowInfo()
+    val screenWidth = LocalConfiguration.current.screenWidthDp.dp
     // Альбом: скромный отступ, чтобы списки заполняли ширину (как шапка), а не
     // висели узкой колонкой по центру с пустыми боками (полевой фидбек).
     val wideSidePad = if (win.useSideBySide) 24.dp else 20.dp
@@ -322,15 +323,14 @@ fun LibraryScreen(
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) {
-                        SectionHero(
+                        SectionTopBar(
                             title = "Library",
                             subtitle = "Your music, collections and playlists",
-                            artworkRes = R.drawable.hero_library,
                             isDark = lc.isDark,
-                            fullBleed = true,
+                            modifier = Modifier.requiredWidth(screenWidth),
                             actions = if (isLoggedIn) {
                                 {
-                                    SectionHeroAction(
+                                    SectionTopBarAction(
                                         label = if (isSyncing || playlistSyncState.isSyncing) "Syncing…" else "Sync library",
                                         icon = com.lmg.vk.ui.icons.LmgGlyphs.RefreshOutline28,
                                         filled = true,
@@ -517,16 +517,15 @@ fun LibraryScreen(
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
                     item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) {
-                        SectionHero(
+                        SectionTopBar(
                             title = "Playlists",
                             subtitle = "${allPlaylistCells.size} collections",
-                            artworkRes = R.drawable.hero_playlists,
                             isDark = lc.isDark,
-                            fullBleed = true,
+                            modifier = Modifier.requiredWidth(screenWidth),
                             onBack = { currentView = LibraryView.MAIN },
                             actions = {
                                 if (isLoggedIn) {
-                                    SectionHeroAction(
+                                    SectionTopBarAction(
                                         label = if (playlistSyncState.isSyncing) "Syncing…" else "Sync",
                                         icon = com.lmg.vk.ui.icons.LmgGlyphs.RefreshOutline28,
                                         filled = false,
@@ -534,7 +533,7 @@ fun LibraryScreen(
                                         onClick = { loadImportedPlaylists() },
                                     )
                                 }
-                                SectionHeroAction(
+                                SectionTopBarAction(
                                     label = "New playlist",
                                     icon = com.lmg.vk.ui.icons.LmgGlyphs.AddOutline28,
                                     filled = true,
@@ -647,11 +646,10 @@ fun LibraryScreen(
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(bottom = 178.dp),
                 ) {
-                    item(key = "recent_hero") {
-                        SectionHero(
+                    item(key = "recent_header") {
+                        SectionTopBar(
                             title = "Recent",
                             subtitle = if (recentTracks.isEmpty()) "Your listening history" else "${recentTracks.size} recent tracks",
-                            artworkRes = R.drawable.hero_history,
                             isDark = lc.isDark,
                             onBack = { currentView = LibraryView.MAIN },
                         )
@@ -696,19 +694,18 @@ fun LibraryScreen(
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(bottom = 178.dp),
                 ) {
-                    item(key = "favorites_hero") {
-                        SectionHero(
+                    item(key = "favorites_header") {
+                        SectionTopBar(
                             title = "My tracks",
                             subtitle = if (libraryQuery.isBlank()) {
                                 "${favorites.size} favorite tracks"
                             } else {
                                 "${matchingFavorites.size} search results"
                             },
-                            artworkRes = R.drawable.hero_music,
                             isDark = lc.isDark,
                             onBack = { currentView = LibraryView.MAIN },
                             actions = {
-                                SectionHeroAction(
+                                SectionTopBarAction(
                                     label = if (isSyncing) "Syncing…" else "Sync tracks",
                                     icon = com.lmg.vk.ui.icons.LmgGlyphs.RefreshOutline28,
                                     filled = false,
@@ -876,16 +873,15 @@ fun LibraryScreen(
                         .then(if (isDialogActive) Modifier.blur(16.dp) else Modifier),
                     contentPadding = PaddingValues(bottom = 178.dp),
                 ) {
-                    item(key = "library_downloads_hero") {
-                        SectionHero(
+                    item(key = "library_downloads_header") {
+                        SectionTopBar(
                             title = "Downloads",
                             subtitle = "${downloadedTracks.size} offline tracks",
-                            artworkRes = R.drawable.hero_downloads,
                             isDark = lc.isDark,
                             onBack = { currentView = LibraryView.MAIN },
                             actions = {
                                 if (downloadedTracks.isNotEmpty()) {
-                                    SectionHeroAction(
+                                    SectionTopBarAction(
                                         label = "Clear all",
                                         icon = com.lmg.vk.ui.icons.LmgGlyphs.CancelOutline28,
                                         filled = false,
@@ -2227,7 +2223,7 @@ private fun FavoriteTrackItem(
         // подтверждения и без возможности что-то ещё сделать.
         IconButton(onClick = onMore) {
             Icon(
-                imageVector = com.lmg.vk.ui.icons.LmgGlyphs.MenuOutline28,
+                imageVector = com.lmg.vk.ui.icons.LmgGlyphs.MoreHorizontal28,
                 contentDescription = "Опции",
                 tint = lc.textTertiary,
                 modifier = Modifier.size(if (compact) 19.dp else 22.dp)

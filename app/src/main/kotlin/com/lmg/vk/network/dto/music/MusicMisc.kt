@@ -32,7 +32,13 @@ data class Genre(
 data class MusicDynamicRestriction(
     val title: String? = null,
     val text: String? = null,
-    val icons: List<String>? = null,
+    /**
+     * В разных ответах VK элементы приходят и строками, и объектами изображения.
+     * Поле сейчас только сохраняется вместе с restriction и UI его не читает,
+     * поэтому не сужаем серверный union до одного формата: иначе один новый
+     * объект иконки роняет разбор всей подборки/страницы артиста.
+     */
+    val icons: List<Any?>? = null,
 )
 
 /** Из `ua.lmg.vkapi2.objects.radio.RadioStation`. */
