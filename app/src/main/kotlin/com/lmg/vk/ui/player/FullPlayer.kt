@@ -50,37 +50,14 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.QueueMusic
-import androidx.compose.material.icons.rounded.Cast
-import androidx.compose.material.icons.rounded.ChatBubbleOutline
-import androidx.compose.material.icons.rounded.FastForward
-import androidx.compose.material.icons.rounded.FastRewind
-import androidx.compose.material.icons.rounded.Favorite
-import androidx.compose.material.icons.rounded.FavoriteBorder
-import androidx.compose.material.icons.rounded.MoreHoriz
-import androidx.compose.material.icons.rounded.Pause
-import androidx.compose.material.icons.rounded.PlayArrow
-import androidx.compose.material.icons.rounded.Repeat
-import androidx.compose.material.icons.rounded.RepeatOne
-import androidx.compose.material.icons.rounded.Shuffle
-import androidx.compose.material.icons.rounded.StarBorder
-import androidx.compose.material.icons.rounded.ChevronRight
-import androidx.compose.material.icons.rounded.GraphicEq
-import androidx.compose.material.icons.rounded.Info
-import androidx.compose.material.icons.rounded.Settings
-import androidx.compose.material.icons.rounded.Edit
-import androidx.compose.material.icons.rounded.Download
-import androidx.compose.material.icons.rounded.CheckCircle
-import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.CropFree
-import androidx.compose.material.icons.rounded.FullscreenExit
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.rememberModalBottomSheetState
+import com.lmg.vk.ui.icons.LmgDrawables
+import com.lmg.vk.ui.icons.lmgVector
 import com.lmg.vk.engine.backend.MiniArtist
 import com.lmg.vk.engine.backend.MusicAuth
 import com.lmg.vk.engine.AppSettings
@@ -475,7 +452,7 @@ fun FullPlayer(
                         // Значок разворота — левый верхний угол, без подложки
                         // (референс Apple); сам тап ловит жестовый слой (onTap).
                         Icon(
-                            Icons.Rounded.CropFree, "Fullscreen",
+                            lmgVector(LmgDrawables.ArrowUpDownCornersOutline24), "Fullscreen",
                             tint = Color.White.copy(alpha = 0.9f),
                             modifier = Modifier
                                 .align(Alignment.TopStart)
@@ -1068,7 +1045,7 @@ fun FullPlayer(
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
-                                Icons.Rounded.FullscreenExit, "Exit fullscreen",
+                                lmgVector(LmgDrawables.ArrowUpDownCornersOutline24), "Exit fullscreen",
                                 tint = Color.White, modifier = Modifier.size(24.dp)
                             )
                         }
@@ -1336,7 +1313,7 @@ fun FullPlayer(
                                 strokeWidth = 2.5.dp
                             )
                             isDownloaded -> Icon(
-                                Icons.Rounded.CheckCircle, null,
+                                lmgVector(LmgDrawables.CheckCircleOn28), null,
                                 tint = Color(0xFF4CAF50), modifier = Modifier.size(24.dp)
                             )
                             else -> Icon(

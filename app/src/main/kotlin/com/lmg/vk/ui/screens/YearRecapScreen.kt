@@ -23,11 +23,6 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.rounded.Check
-import androidx.compose.material.icons.rounded.PlaylistAdd
-import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -43,6 +38,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.lmg.vk.ui.icons.LmgDrawables
+import com.lmg.vk.ui.icons.lmgVector
 import com.lmg.vk.ui.glass.AlbumArtImage
 import com.lmg.vk.ui.glass.liquidClickable
 import com.lmg.vk.ui.rememberWindowInfo
@@ -453,7 +450,7 @@ private fun CreatePlaylistCard(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Icon(
-                    imageVector = Icons.Rounded.Check,
+                    imageVector = lmgVector(LmgDrawables.CheckDoubleOutline16),
                     contentDescription = null,
                     tint = lc.accentGreen,
                     modifier = Modifier.size(18.dp),

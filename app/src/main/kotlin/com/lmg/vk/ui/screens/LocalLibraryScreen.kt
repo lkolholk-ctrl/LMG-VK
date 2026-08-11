@@ -20,16 +20,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.rounded.Album
-import androidx.compose.material.icons.rounded.CheckCircle
-import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.Edit
-import androidx.compose.material.icons.rounded.MusicNote
-import androidx.compose.material.icons.rounded.Person
-import androidx.compose.material.icons.rounded.PlayArrow
-import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -54,6 +44,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.lmg.vk.ui.icons.LmgDrawables
+import com.lmg.vk.ui.icons.lmgVector
 import com.lmg.vk.data.local.LocalLibraryIndexer
 import com.lmg.vk.data.local.LocalLibraryStore
 import com.lmg.vk.data.local.db.AlbumAgg
@@ -376,7 +368,7 @@ private fun SelectableTrackRow(
     ) {
         if (selectionMode) {
             if (selectedNow) {
-                Icon(Icons.Rounded.CheckCircle, null, tint = lc.accent, modifier = Modifier.size(if (compact) 20.dp else 24.dp))
+                Icon(lmgVector(LmgDrawables.CheckCircleOn28), null, tint = lc.accent, modifier = Modifier.size(if (compact) 20.dp else 24.dp))
             } else {
                 Box(Modifier.size(if (compact) 20.dp else 24.dp).clip(CircleShape).border(2.dp, lc.iconMuted, CircleShape))
             }

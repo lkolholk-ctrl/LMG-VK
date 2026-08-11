@@ -27,12 +27,6 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.rounded.Check
-import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.Refresh
-import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -51,6 +45,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.lmg.vk.ui.icons.LmgDrawables
+import com.lmg.vk.ui.icons.lmgVector
 import com.lmg.vk.ui.glass.AlbumArtImage
 import com.lmg.vk.ui.glass.liquidClickable
 import com.lmg.vk.ui.rememberWindowInfo
@@ -396,7 +392,7 @@ private fun ArtistPickCard(
                         contentAlignment = Alignment.Center,
                     ) {
                         Icon(
-                            imageVector = Icons.Rounded.Check,
+                            imageVector = lmgVector(LmgDrawables.CheckDoubleOutline16),
                             contentDescription = null,
                             tint = Color.White,
                             modifier = Modifier.size(20.dp),

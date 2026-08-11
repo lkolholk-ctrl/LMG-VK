@@ -9,8 +9,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.border
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -26,6 +24,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.lmg.vk.ui.icons.LmgDrawables
+import com.lmg.vk.ui.icons.lmgVector
 import com.lmg.vk.ui.glass.liquidClickable
 import com.lmg.vk.ui.liquid.LiquidToggle
 import com.lmg.vk.ui.LauncherIcon
@@ -289,7 +289,7 @@ internal fun LauncherIconSelector(
                                     contentAlignment = Alignment.Center,
                                 ) {
                                     Icon(
-                                        imageVector = Icons.Rounded.Check,
+                                        imageVector = lmgVector(LmgDrawables.CheckDoubleOutline16),
                                         contentDescription = null,
                                         tint = Color.White,
                                         modifier = Modifier.size(14.dp),

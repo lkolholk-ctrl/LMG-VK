@@ -1,6 +1,5 @@
 package com.lmg.vk.ui.navigation
 
-import com.lmg.vk.ui.icons.LiquidGlyphs
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
@@ -12,7 +11,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.material.icons.Icons
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -24,6 +22,8 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import com.lmg.vk.ui.glass.liquidClickable
+import com.lmg.vk.ui.icons.LmgDrawables
+import com.lmg.vk.ui.icons.lmgVector
 import com.lmg.vk.ui.theme.LiquidMotion
 import com.lmg.vk.ui.theme.LiquidTheme
 
@@ -50,10 +50,11 @@ fun BottomBar(
     onItemSelected: (Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val items = remember {
+    val newTabIcon = lmgVector(LmgDrawables.StarsOutline28)
+    val items = remember(newTabIcon) {
         listOf(
             BottomNavItem(com.lmg.vk.ui.icons.LmgGlyphs.MusicNoteWaveOutline28, "Wave", 0),
-            BottomNavItem(LiquidGlyphs.Star, "New", 4),
+            BottomNavItem(newTabIcon, "New", 4),
             BottomNavItem(com.lmg.vk.ui.icons.LmgGlyphs.FolderSimpleOutline28, "Library", 2),
             BottomNavItem(com.lmg.vk.ui.icons.LmgGlyphs.GearOutline24, "Settings", 3)
         )

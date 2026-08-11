@@ -21,20 +21,8 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Check
-import androidx.compose.material.icons.rounded.Groups
-import androidx.compose.material.icons.rounded.Info
-import androidx.compose.material.icons.rounded.Lock
-import androidx.compose.material.icons.rounded.MusicNote
-import androidx.compose.material.icons.rounded.Person
 // PersonAddAlt1, а не PersonAdd: этот вариант уже используется в AirPlaySheet,
 // то есть заведомо есть в подключённом material-icons-extended.
-import androidx.compose.material.icons.rounded.PersonAddAlt1
-import androidx.compose.material.icons.rounded.PlayArrow
-import androidx.compose.material.icons.rounded.Refresh
-import androidx.compose.material.icons.rounded.Shuffle
-import androidx.compose.material.icons.rounded.Verified
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -65,6 +53,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.lmg.vk.ui.icons.LmgDrawables
+import com.lmg.vk.ui.icons.lmgVector
 import com.lmg.vk.engine.PlayerController
 import com.lmg.vk.engine.Track
 import com.lmg.vk.engine.backend.MusicBackend
@@ -423,7 +413,7 @@ private fun GroupHeader(
                     if (group?.verified == 1) {
                         Spacer(Modifier.width(8.dp))
                         Icon(
-                            Icons.Rounded.Verified,
+                            lmgVector(LmgDrawables.CheckShieldOutline28),
                             contentDescription = "Verified",
                             tint = Color(0xFF2787F5),
                             modifier = Modifier.size(20.dp),
@@ -566,7 +556,7 @@ private fun GroupMembershipButton(
             )
         } else {
             Icon(
-                imageVector = if (isMember) Icons.Rounded.Check else com.lmg.vk.ui.icons.LmgGlyphs.UsersOutline28,
+                imageVector = if (isMember) lmgVector(LmgDrawables.CheckDoubleOutline16) else com.lmg.vk.ui.icons.LmgGlyphs.UsersOutline28,
                 contentDescription = null,
                 tint = contentColor,
                 modifier = Modifier.size(18.dp),

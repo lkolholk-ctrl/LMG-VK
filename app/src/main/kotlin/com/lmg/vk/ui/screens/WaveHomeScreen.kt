@@ -34,16 +34,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.FavoriteBorder
-import androidx.compose.material.icons.rounded.Pause
-import androidx.compose.material.icons.rounded.AccountCircle
-import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.PlayArrow
-import androidx.compose.material.icons.rounded.Search
-import androidx.compose.material.icons.rounded.ThumbDown
-import androidx.compose.material.icons.rounded.Tune
-import androidx.compose.material.icons.rounded.Undo
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -82,6 +72,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.lmg.vk.ui.icons.LmgDrawables
+import com.lmg.vk.ui.icons.lmgVector
 import com.lmg.vk.engine.backend.Chart
 import com.lmg.vk.engine.backend.HomeItem
 import com.lmg.vk.engine.backend.toTrack
@@ -548,7 +540,7 @@ fun WaveHomeScreen(
                             val undoAction = feedbackForTrack is VkMixFeedbackState.UndoAvailable ||
                                 (feedbackForTrack is VkMixFeedbackState.Error && feedbackForTrack.retryUndo)
                             WaveFeedbackChip(
-                                icon = if (undoAction) Icons.Rounded.Undo else Icons.Rounded.ThumbDown,
+                                icon = if (undoAction) lmgVector(LmgDrawables.ArrowUturnLeftOutline28) else lmgVector(LmgDrawables.UnfavoriteOutline28),
                                 label = when (feedbackForTrack) {
                                     is VkMixFeedbackState.Submitting -> "Sending…"
                                     is VkMixFeedbackState.UndoAvailable -> "Undo"

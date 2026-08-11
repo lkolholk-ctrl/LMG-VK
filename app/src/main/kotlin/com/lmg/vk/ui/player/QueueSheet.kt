@@ -33,21 +33,6 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.DeleteOutline
-import androidx.compose.material.icons.rounded.DragHandle
-import androidx.compose.material.icons.rounded.FastForward
-import androidx.compose.material.icons.rounded.FastRewind
-import androidx.compose.material.icons.rounded.Favorite
-import androidx.compose.material.icons.rounded.FavoriteBorder
-import androidx.compose.material.icons.rounded.MusicNote
-import androidx.compose.material.icons.rounded.Pause
-import androidx.compose.material.icons.rounded.PlayArrow
-import androidx.compose.material.icons.rounded.Repeat
-import androidx.compose.material.icons.rounded.RepeatOne
-import androidx.compose.material.icons.rounded.Shuffle
-import androidx.compose.material.icons.rounded.Waves
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -78,6 +63,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.lmg.vk.ui.icons.LmgDrawables
+import com.lmg.vk.ui.icons.lmgVector
 import com.lmg.vk.engine.PlaybackBackend
 import com.lmg.vk.engine.PlayerController
 import com.lmg.vk.engine.Track
@@ -766,7 +753,7 @@ private fun DraggableQueueRow(
             contentAlignment = Alignment.Center
         ) {
             Icon(
-                imageVector = Icons.Rounded.DragHandle,
+                imageVector = lmgVector(LmgDrawables.Reorder24),
                 contentDescription = null,
                 tint = LiquidSurfaces.onHeaderPrimary.copy(alpha = if (editable) 0.55f else 0f),
                 modifier = Modifier.size(LiquidMetrics.QueueHandleIcon)

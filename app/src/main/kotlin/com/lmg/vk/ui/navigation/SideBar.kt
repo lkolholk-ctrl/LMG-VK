@@ -19,8 +19,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -37,7 +35,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.lmg.vk.ui.glass.liquidClickable
-import com.lmg.vk.ui.icons.LiquidGlyphs
+import com.lmg.vk.ui.icons.LmgDrawables
+import com.lmg.vk.ui.icons.lmgVector
 import com.lmg.vk.ui.theme.LiquidTheme
 
 /**
@@ -62,11 +61,12 @@ fun SideBar(
     modifier: Modifier = Modifier,
 ) {
     val lc = LiquidTheme.colors
-    val items = remember {
+    val newTabIcon = lmgVector(LmgDrawables.StarsOutline28)
+    val items = remember(newTabIcon) {
         listOf(
             SideNavItem(com.lmg.vk.ui.icons.LmgGlyphs.HomeOutline28, "Home", 0),
             SideNavItem(com.lmg.vk.ui.icons.LmgGlyphs.SearchOutline28, "Search", 1),
-            SideNavItem(LiquidGlyphs.Star, "New", 4),
+            SideNavItem(newTabIcon, "New", 4),
             SideNavItem(com.lmg.vk.ui.icons.LmgGlyphs.FolderSimpleOutline28, "Library", 2),
             SideNavItem(com.lmg.vk.ui.icons.LmgGlyphs.GearOutline24, "Settings", 3),
         )

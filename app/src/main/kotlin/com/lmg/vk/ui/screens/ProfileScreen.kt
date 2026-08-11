@@ -26,16 +26,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ExitToApp
-import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
-import androidx.compose.material.icons.rounded.Cake
-import androidx.compose.material.icons.rounded.Groups
-import androidx.compose.material.icons.rounded.Person
-import androidx.compose.material.icons.rounded.Place
-import androidx.compose.material.icons.rounded.QueueMusic
-import androidx.compose.material.icons.rounded.Settings
-import androidx.compose.material.icons.rounded.Verified
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -68,6 +58,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.lmg.vk.ui.icons.LmgDrawables
+import com.lmg.vk.ui.icons.lmgVector
 import com.lmg.vk.debug.DebugLog
 import com.lmg.vk.engine.backend.MusicAuth
 import com.lmg.vk.engine.backend.VkProfileRepository
@@ -230,7 +222,7 @@ fun ProfileScreen(
                             add(com.lmg.vk.ui.icons.LmgGlyphs.LinkOutline28 to ("Address" to "vk.com/$slug"))
                         }
                         profile?.locationLabel?.takeIf(String::isNotBlank)?.let {
-                            add(com.lmg.vk.ui.icons.LmgGlyphs.LocationOutline28 to ("Location" to it))
+                            add(lmgVector(LmgDrawables.PlaceOutline28) to ("Location" to it))
                         }
                         profile?.bdate?.takeIf(String::isNotBlank)?.let {
                             add(com.lmg.vk.ui.icons.LmgGlyphs.CakeOutline28 to ("Birthday" to formatBirthday(it)))
@@ -339,7 +331,7 @@ fun ProfileScreen(
                         )
                         ProfileDivider()
                         ProfileActionRow(
-                            icon = Icons.AutoMirrored.Rounded.ExitToApp,
+                            icon = lmgVector(LmgDrawables.DoorArrowLeftOutline28),
                             label = "Sign Out",
                             compact = compact,
                             onClick = { showSignOutConfirmation = true },
@@ -851,7 +843,7 @@ private fun ProfileHeader(
                 if (isVerified) {
                     Spacer(Modifier.width(8.dp))
                     Icon(
-                        imageVector = Icons.Rounded.Verified,
+                        imageVector = lmgVector(LmgDrawables.CheckShieldOutline28),
                         contentDescription = "Verified",
                         tint = Color(0xFF0077FF),
                         modifier = Modifier.size(22.dp),

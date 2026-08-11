@@ -50,6 +50,8 @@ import com.lmg.vk.ui.LauncherIconManager
 import com.lmg.vk.ui.components.SectionTopBar
 import com.lmg.vk.ui.glass.liquidClickable
 import com.lmg.vk.ui.rememberWindowInfo
+import com.lmg.vk.ui.icons.LmgDrawables
+import com.lmg.vk.ui.icons.lmgVector
 import com.lmg.vk.ui.theme.LiquidMotion
 import com.lmg.vk.ui.theme.LiquidSurfaces
 import com.lmg.vk.ui.theme.LiquidTheme
@@ -173,28 +175,28 @@ fun SettingsScreen(
                             SettingsCategoryItem(
                                 title = "Playback",
                                 subtitle = playbackSummary(crossfadeMs, sleepTimerMinutes),
-                                icon = com.lmg.vk.ui.icons.LmgGlyphs.Play28,
+                                icon = lmgVector(LmgDrawables.SoundWaveOutline28),
                                 onClick = { page = SettingsPage.PLAYBACK },
                             )
                             SettingsCategoryDivider()
                             SettingsCategoryItem(
                                 title = "Network",
                                 subtitle = networkSummary(proxyEnabled, proxyState),
-                                icon = com.lmg.vk.ui.icons.LmgGlyphs.LockOutline28,
+                                icon = lmgVector(LmgDrawables.GlobeOutline28),
                                 onClick = { page = SettingsPage.NETWORK },
                             )
                             SettingsCategoryDivider()
                             SettingsCategoryItem(
                                 title = "Themes and interface",
                                 subtitle = "${themeModeLabel(themeMode)} theme · ${launcherIcon.title} icon",
-                                icon = com.lmg.vk.ui.icons.LmgGlyphs.GearOutline24,
+                                icon = lmgVector(LmgDrawables.PaletteOutline28),
                                 onClick = { page = SettingsPage.APPEARANCE },
                             )
                             SettingsCategoryDivider()
                             SettingsCategoryItem(
                                 title = "Diagnostics",
                                 subtitle = "Playback log and troubleshooting",
-                                icon = com.lmg.vk.ui.icons.LmgGlyphs.DocumentTextOutline28,
+                                icon = lmgVector(LmgDrawables.BugOutline28),
                                 onClick = { page = SettingsPage.DIAGNOSTICS },
                             )
                         }

@@ -8,8 +8,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.CheckCircle
+import com.lmg.vk.ui.icons.LmgDrawables
+import com.lmg.vk.ui.icons.lmgVector
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -181,7 +181,7 @@ object GlassKit {
     @Composable
     fun VerifiedBadge(modifier: Modifier = Modifier) {
         Icon(
-            imageVector = Icons.Rounded.CheckCircle,
+            imageVector = lmgVector(LmgDrawables.CheckShieldOutline28),
             contentDescription = null,
             tint = Color(0xFF00BFFF),
             modifier = modifier.size(14.dp)

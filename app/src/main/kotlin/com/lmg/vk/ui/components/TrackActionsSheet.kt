@@ -4,18 +4,6 @@ import android.content.Intent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.PlaylistAdd
-import androidx.compose.material.icons.rounded.QueueMusic
-import androidx.compose.material.icons.rounded.Share
-import androidx.compose.material.icons.rounded.Download
-import androidx.compose.material.icons.rounded.Favorite
-import androidx.compose.material.icons.rounded.FavoriteBorder
-import androidx.compose.material.icons.rounded.ArrowUpward
-import androidx.compose.material.icons.rounded.ArrowDownward
-import androidx.compose.material.icons.rounded.Check
-import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
@@ -37,6 +25,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.lmg.vk.ui.icons.LmgDrawables
+import com.lmg.vk.ui.icons.lmgVector
 import com.lmg.vk.audio.TrackDownloadManager
 import com.lmg.vk.audio.TrackDownloadState
 import com.lmg.vk.engine.PlayerController
@@ -142,14 +132,14 @@ fun TrackActionsSheet(
                 Spacer(Modifier.height(8.dp))
             }
             if (onMoveUp != null) {
-                ActionRow(rowBg, Icons.Rounded.ArrowUpward, "Move up") {
+                ActionRow(rowBg, lmgVector(LmgDrawables.ArrowUpOutline24), "Move up") {
                     onMoveUp()
                     onDismiss()
                 }
                 Spacer(Modifier.height(8.dp))
             }
             if (onMoveDown != null) {
-                ActionRow(rowBg, Icons.Rounded.ArrowDownward, "Move down") {
+                ActionRow(rowBg, lmgVector(LmgDrawables.ChevronDown24), "Move down") {
                     onMoveDown()
                     onDismiss()
                 }

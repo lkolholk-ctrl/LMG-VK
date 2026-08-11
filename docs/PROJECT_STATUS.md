@@ -81,21 +81,30 @@
 
 ## 0.5. Пакет VK-глифов
 
-- Импортировано **74 XML-глифа** из shortlist VK 8.185 в
-  `app/src/main/res/drawable/lmg_*.xml`.
-- Некомпозабельный каталог `ui/icons/LmgGlyphs.kt` содержит те же 74
-  `ImageVector`; 88 path-контуров перенесены из XML.
-- Сейчас 71 глиф реально используется в Kotlin. Пока не имеют честной функции:
-  `ExternalLinkOutline24`, `MenuOutline28`, `QrCodeOutline28`. Не рисовать ими
-  фиктивные действия только ради 100% использования.
-- Исправлены две ошибочные прошлые подстановки: действие `…` теперь использует
-  `MoreHorizontal28`, а `Wave from this track` — `MusicNoteWaveOutline28`.
-- Для точной семантики настроек ещё желательно отобрать из полного VK-пака:
-  `Wi-Fi/Globe`, `Palette` или `Sun/Moon`, `Battery`.
-- Для полного удаления `material-icons-extended`/старых `LiquidGlyphs` также
-  нужны: `Check`, `CheckCircle`, `Verified`, `Undo`, `ThumbDown`, `Logout`,
-  `Fullscreen`, `FullscreenExit`, `DragHandle`, `ArrowUp`, `ArrowDown`, `Star`.
-  До получения этих глифов зависимость не удалять.
+- First wave: **74 XML-глифа** + исторический `ui/icons/LmgGlyphs.kt` (path-порты
+  `ImageVector` для совместимости со старыми call site).
+- Second wave (2026-08-11): **+204 XML** из
+  `LMG-VK_LMG-glyphs_8.185_second-wave.zip` → `res/drawable/lmg_*.xml`.
+  Итого **278** `lmg_*.xml`. Пересечений имён с first wave нет.
+- **XML — источник истины.** Second wave **не** дублируется path-данными в
+  Kotlin. Доступ: `ui/icons/LmgDrawables.kt` (`R.drawable.lmg_*`) и
+  `@Composable fun lmgVector(id)` → `ImageVector.vectorResource`.
+- Семантические подстановки second wave (вместо Material / LiquidGlyphs.Star):
+  - Bottom/Side **New** → `StarsOutline28`
+  - Settings categories: Playback→`SoundWaveOutline28`, Network→`GlobeOutline28`,
+    Appearance→`PaletteOutline28`, Diagnostics→`BugOutline28`
+  - Verified → `CheckShieldOutline28`; Check/selected → `CheckDoubleOutline16` /
+    `CheckCircleOn28`
+  - Aura dislike/undo → `UnfavoriteOutline28` / `ArrowUturnLeftOutline28`
+  - Sign out → `DoorArrowLeftOutline28`; queue drag → `Reorder24`
+  - Fullscreen enter/exit → `ArrowUpDownCornersOutline24`
+  - Move up/down → `ArrowUpOutline24` / `ChevronDown24`
+  - Profile location → `PlaceOutline28`
+- Пока без честной функции (не рисовать фиктивные действия): first-wave
+  `ExternalLinkOutline24`, `MenuOutline28`, `QrCodeOutline28` и большая часть
+  second-wave XML, ещё не подключённая к UI.
+- `material-icons-extended` / `LiquidGlyphs` **ещё не удалять**: остаются call
+  site вне этого батча (Library/Artist/Album detail, lyrics tools и т.п.).
 
 ## 0.6. Критичный Moshi-фикс от 2026-08-11
 
