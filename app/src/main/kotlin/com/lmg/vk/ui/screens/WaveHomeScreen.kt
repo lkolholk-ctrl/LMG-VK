@@ -617,14 +617,26 @@ fun WaveHomeScreen(
             sheetState = mixSettingsSheetState,
             containerColor = Color(0xFF151718),
             contentColor = Color.White,
-            dragHandle = null,
+            dragHandle = {
+                Box(
+                    modifier = Modifier
+                        .padding(top = 10.dp)
+                        .width(42.dp)
+                        .height(4.dp)
+                        .clip(CircleShape)
+                        .background(Color.White.copy(alpha = 0.28f)),
+                )
+            },
         ) {
             VkMixSettingsSheet(
                 state = mixState,
                 accent = accent,
                 onToggle = viewModel::toggleVkMixOption,
                 onReset = viewModel::resetVkMixOptions,
-                onApply = { viewModel.applyVkMixSettings(context) },
+                onApply = {
+                    viewModel.applyVkMixSettings(context)
+                    showMixSettings = false
+                },
                 onRetry = { viewModel.retryVkMix(context) },
                 onAuth = {
                     showMixSettings = false
@@ -662,7 +674,7 @@ private fun VkMixInlineStatus(
     onAuth: () -> Unit,
 ) {
     val message = when (state) {
-        is VkMixUiState.Empty -> "VK Mix did not return any tracks"
+        is VkMixUiState.Empty -> "VK Mix не вернул треки"
         is VkMixUiState.Error -> state.message
         else -> null
     } ?: return
@@ -688,7 +700,7 @@ private fun VkMixInlineStatus(
             .padding(horizontal = 18.dp, vertical = 10.dp),
     ) {
         Text(
-            text = if (state is VkMixUiState.Error && state.sessionExpired) "Sign in" else "Retry",
+            text = if (state is VkMixUiState.Error && state.sessionExpired) "Войти" else "Повторить",
             color = Color.White,
             fontSize = 14.sp,
             fontWeight = FontWeight.SemiBold,
@@ -721,7 +733,7 @@ private fun VkMixSettingsSheet(
                 CircularProgressIndicator(color = accent, strokeWidth = 3.dp)
                 Spacer(Modifier.height(18.dp))
                 Text(
-                    text = "Loading VK Mix settings…",
+                    text = "Загружаем настройки VK Mix…",
                     color = Color.White.copy(alpha = 0.72f),
                     fontFamily = AppFontFamily,
                 )
@@ -729,18 +741,18 @@ private fun VkMixSettingsSheet(
 
             is VkMixUiState.Empty -> {
                 VkMixSheetMessage(
-                    title = "VK Mix is empty",
-                    message = "VK did not return tracks for these settings.",
-                    action = "Retry",
+                    title = "VK Mix пока пуст",
+                    message = "VK не вернул треки с этими настройками.",
+                    action = "Повторить",
                     onAction = onRetry,
                 )
             }
 
             is VkMixUiState.Error -> {
                 VkMixSheetMessage(
-                    title = if (state.sessionExpired) "VK session expired" else "Couldn't load VK Mix",
+                    title = if (state.sessionExpired) "Сессия VK истекла" else "Не удалось загрузить VK Mix",
                     message = state.message,
-                    action = if (state.sessionExpired) "Sign in" else "Retry",
+                    action = if (state.sessionExpired) "Войти" else "Повторить",
                     onAction = if (state.sessionExpired) onAuth else onRetry,
                 )
             }
@@ -749,7 +761,7 @@ private fun VkMixSettingsSheet(
                 val settings = state.draft
                 Text(
                     text = settings?.title?.takeIf(String::isNotBlank) ?: state.session.title.ifBlank {
-                        "Tune VK Mix"
+                        "Настроить VK Mix"
                     },
                     color = Color.White,
                     fontSize = 25.sp,
@@ -774,7 +786,7 @@ private fun VkMixSettingsSheet(
                     !state.session.isTunable -> {
                         Spacer(Modifier.height(24.dp))
                         Text(
-                            text = "VK does not allow tuning this Mix.",
+                            text = "Для этого микса VK не разрешил менять настройки.",
                             color = Color.White.copy(alpha = 0.68f),
                             fontFamily = AppFontFamily,
                             textAlign = TextAlign.Center,
@@ -784,7 +796,7 @@ private fun VkMixSettingsSheet(
                     settings == null -> {
                         Spacer(Modifier.height(24.dp))
                         Text(
-                            text = "VK did not provide settings for this Mix.",
+                            text = "VK не вернул настройки этого микса.",
                             color = Color.White.copy(alpha = 0.68f),
                             fontFamily = AppFontFamily,
                             textAlign = TextAlign.Center,
@@ -798,29 +810,47 @@ private fun VkMixSettingsSheet(
                         visibleCategories.forEach { category ->
                             Spacer(Modifier.height(26.dp))
                             Text(
-                                text = category.title,
-                                color = Color.White,
-                                fontSize = 16.sp,
+                                text = category.title.uppercase(),
+                                color = Color.White.copy(alpha = 0.44f),
+                                fontSize = 13.sp,
                                 fontWeight = FontWeight.Bold,
                                 fontFamily = AppFontFamily,
                                 modifier = Modifier.fillMaxWidth(),
                             )
                             Spacer(Modifier.height(11.dp))
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .horizontalScroll(rememberScrollState()),
-                                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                            ) {
-                                category.options.forEach { option ->
-                                    VkMixOptionChip(
-                                        option = option,
-                                        pictured = category.type == VkMixCategoryType.ICONS,
-                                        accent = accent,
-                                        enabled = !state.applying,
-                                        onClick = { onToggle(category.id, option.id) },
-                                    )
+                            when (category.type) {
+                                VkMixCategoryType.ICONS -> Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .horizontalScroll(rememberScrollState()),
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                ) {
+                                    category.options.forEach { option ->
+                                        VkMixPicturedOption(
+                                            option = option,
+                                            accent = accent,
+                                            enabled = !state.applying,
+                                            onClick = { onToggle(category.id, option.id) },
+                                        )
+                                    }
                                 }
+
+                                VkMixCategoryType.BUTTONS -> Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                ) {
+                                    category.options.forEach { option ->
+                                        VkMixButtonOption(
+                                            option = option,
+                                            accent = accent,
+                                            enabled = !state.applying,
+                                            onClick = { onToggle(category.id, option.id) },
+                                            modifier = Modifier.weight(1f),
+                                        )
+                                    }
+                                }
+
+                                VkMixCategoryType.HIDDEN -> Unit
                             }
                         }
 
@@ -830,18 +860,16 @@ private fun VkMixSettingsSheet(
                             horizontalArrangement = Arrangement.spacedBy(12.dp),
                         ) {
                             VkMixSheetAction(
-                                label = "Reset",
+                                label = "Сбросить",
                                 enabled = settings.hasVisibleSelection() && !state.applying,
                                 filled = false,
-                                accent = accent,
                                 onClick = onReset,
                                 modifier = Modifier.weight(1f),
                             )
                             VkMixSheetAction(
-                                label = if (state.applying) "Applying…" else "Apply",
-                                enabled = state.hasChanges && !state.applying,
+                                label = if (state.applying) "Применение…" else "Применить",
+                                enabled = !state.applying,
                                 filled = true,
-                                accent = accent,
                                 onClick = onApply,
                                 modifier = Modifier.weight(1f),
                             )
@@ -854,66 +882,97 @@ private fun VkMixSettingsSheet(
 }
 
 @Composable
-private fun VkMixOptionChip(
+private fun VkMixPicturedOption(
     option: com.lmg.vk.engine.VkMixOption,
-    pictured: Boolean,
     accent: Color,
     enabled: Boolean,
     onClick: () -> Unit,
 ) {
-    Row(
-        modifier = Modifier
-            .clip(RoundedCornerShape(if (pictured) 20.dp else 50.dp))
+    Column(
+        modifier = Modifier.width(56.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(56.dp)
+                .clip(RoundedCornerShape(16.dp))
+                .background(
+                    if (option.isSelected) accent.copy(alpha = 0.82f)
+                    else Color.White.copy(alpha = 0.08f),
+                )
+                .liquidClickable(
+                    enabled = enabled,
+                    pressedScale = LiquidMotion.PressButton,
+                    onClick = onClick,
+                ),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (option.icon.startsWith("http", ignoreCase = true)) {
+                AsyncImage(
+                    model = option.icon,
+                    contentDescription = null,
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier.size(44.dp),
+                )
+            } else if (option.icon.isNotBlank()) {
+                Text(
+                    text = option.icon,
+                    color = Color.White,
+                    fontSize = 28.sp,
+                    fontFamily = AppFontFamily,
+                )
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        Text(
+            text = option.title,
+            color = Color.White.copy(alpha = if (enabled) 1f else 0.55f),
+            fontSize = 11.sp,
+            fontWeight = if (option.isSelected) FontWeight.Bold else FontWeight.Medium,
+            fontFamily = AppFontFamily,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
+}
+
+@Composable
+private fun VkMixButtonOption(
+    option: com.lmg.vk.engine.VkMixOption,
+    accent: Color,
+    enabled: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier
+            .height(72.dp)
+            .clip(RoundedCornerShape(16.dp))
             .background(
-                if (option.isSelected) accent.copy(alpha = 0.82f)
-                else Color.White.copy(alpha = 0.10f),
+                if (option.isSelected) accent.copy(alpha = 0.76f)
+                else Color.White.copy(alpha = 0.08f),
             )
             .liquidClickable(
                 enabled = enabled,
                 pressedScale = LiquidMotion.PressButton,
                 onClick = onClick,
             )
-            .padding(
-                horizontal = if (pictured) 14.dp else 16.dp,
-                vertical = if (pictured) 13.dp else 10.dp,
-            ),
-        verticalAlignment = Alignment.CenterVertically,
+            .padding(horizontal = 8.dp),
+        contentAlignment = Alignment.Center,
     ) {
-        if (pictured && option.icon.isNotBlank()) {
-            if (option.icon.startsWith("http", ignoreCase = true)) {
-                AsyncImage(
-                    model = option.icon,
-                    contentDescription = null,
-                    modifier = Modifier.size(28.dp),
-                )
-            } else {
-                Text(
-                    text = option.icon,
-                    color = Color.White,
-                    fontSize = 20.sp,
-                    fontFamily = AppFontFamily,
-                )
-            }
-            Spacer(Modifier.width(8.dp))
-        }
         Text(
             text = option.title,
             color = Color.White.copy(alpha = if (enabled) 1f else 0.55f),
-            fontSize = 14.sp,
+            fontSize = 13.sp,
+            lineHeight = 16.sp,
             fontWeight = if (option.isSelected) FontWeight.Bold else FontWeight.Medium,
             fontFamily = AppFontFamily,
-            maxLines = 1,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = TextAlign.Center,
         )
-        option.badgeIconUrl
-            ?.takeIf { it.startsWith("http", ignoreCase = true) }
-            ?.let { badge ->
-                Spacer(Modifier.width(6.dp))
-                AsyncImage(
-                    model = badge,
-                    contentDescription = null,
-                    modifier = Modifier.size(16.dp),
-                )
-            }
     }
 }
 
@@ -922,7 +981,6 @@ private fun VkMixSheetAction(
     label: String,
     enabled: Boolean,
     filled: Boolean,
-    accent: Color,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -933,7 +991,7 @@ private fun VkMixSheetAction(
             .background(
                 when {
                     !enabled -> Color.White.copy(alpha = 0.06f)
-                    filled -> accent.copy(alpha = 0.88f)
+                    filled -> Color.White.copy(alpha = 0.90f)
                     else -> Color.White.copy(alpha = 0.12f)
                 },
             )
@@ -946,7 +1004,11 @@ private fun VkMixSheetAction(
     ) {
         Text(
             text = label,
-            color = Color.White.copy(alpha = if (enabled) 1f else 0.38f),
+            color = when {
+                !enabled -> Color.White.copy(alpha = 0.38f)
+                filled -> Color(0xFF111315)
+                else -> Color.White
+            },
             fontWeight = FontWeight.Bold,
             fontFamily = AppFontFamily,
         )

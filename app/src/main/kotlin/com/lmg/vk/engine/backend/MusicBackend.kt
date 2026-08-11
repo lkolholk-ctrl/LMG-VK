@@ -124,11 +124,7 @@ object MusicBackend {
     private lateinit var catalogApi: VkCatalogApi
     private lateinit var methodsRegistry: VkMethodsRegistry
     private lateinit var sessionStore: VkSessionStore
-    private data class LocatedVkMix(
-        val mix: AudioStreamMix,
-        val blockId: String,
-        val sectionId: String,
-    )
+    private const val PERSONAL_VK_MIX_ID = "common"
     private val trackCache = ConcurrentHashMap<String, AudioTrack>()
     private data class CachedStream(val info: StreamInfo, val cachedAtMs: Long)
     private val streamCache = ConcurrentHashMap<String, CachedStream>()
@@ -937,132 +933,17 @@ object MusicBackend {
     }.getOrNull()
 
     /**
-     * Resolve the personal VK Mix that lives behind LMG's Aura.
-     *
-     * VK X first reads `catalog.getAudioAuto`; when that response only contains
-     * section ids, it opens those sections with `catalog.getSection`. We follow
-     * that same narrow lookup and stop as soon as the first server-provided mix
-     * is found. No catalog cards are created for the Aura screen.
+     * The interactive VK Mix holder uses the stable `common` playback id for
+     * the account's personal mix. Catalog blocks only describe how VK renders
+     * that entry point; they are not required by either stream-mix endpoint.
      */
     suspend fun resolvePersonalMixSession(): VkMixSession {
         requireInitialized()
-        fun List<AudioStreamMix>.commonMix(): AudioStreamMix? =
-            firstOrNull { it.playbackMixId == "common" }
-
-        fun List<AudioStreamMix>.preferredFallback(): AudioStreamMix? =
-            firstOrNull { it.is_tunable == true } ?: firstOrNull()
-
-        fun VkCatalogResponse.locate(
-            mix: AudioStreamMix,
-            sectionIdHint: String? = null,
-        ): LocatedVkMix {
-            val blockId = allBlocks().firstOrNull { block ->
-                mix.id in block.audio_stream_mixes_ids.orEmpty()
-            }?.id.orEmpty()
-            val sectionId = section?.id?.takeIf(String::isNotBlank)
-                ?: sectionIdHint?.takeIf(String::isNotBlank)
-                ?: catalog?.default_section.orEmpty()
-            return LocatedVkMix(mix, blockId, sectionId)
-        }
-
-        val catalog = catalogApi.getAudioAuto().requireData()
-        // The interactive VK Mix holder treats `common` as the personal/default
-        // mix and keeps its tune settings when switching between variants.
-        val rootMixes = catalog.audio_stream_mixes.orEmpty()
-        var located = rootMixes.commonMix()?.let(catalog::locate)
-        var fallback = rootMixes.preferredFallback()?.let(catalog::locate)
-        var firstSectionFailure: VkResult.Error? = null
-        var inspectedSectionCount = 0
-
-        fun considerFallback(candidate: LocatedVkMix?) {
-            if (candidate == null) return
-            if (fallback == null ||
-                (fallback?.mix?.is_tunable != true && candidate.mix.is_tunable == true)
-            ) {
-                fallback = candidate
-            }
-        }
-
-        if (located == null) {
-            // CatalogKit may return only navigation ids in getAudioAuto. Follow
-            // the same section chain as the VK catalog and inspect paginated
-            // section responses too: the stream-mix payload is not guaranteed
-            // to be present on the first page or in the root response.
-            val pendingSections = ArrayDeque<String>()
-            val queuedSections = HashSet<String>()
-            val visitedSections = HashSet<String>()
-
-            fun enqueueSection(sectionId: String?) {
-                val normalized = sectionId?.takeIf(String::isNotBlank) ?: return
-                if (normalized !in visitedSections && queuedSections.add(normalized)) {
-                    pendingSections.addLast(normalized)
-                }
-            }
-
-            fun enqueueLinkedSections(page: VkCatalogResponse) {
-                enqueueSection(page.catalog?.default_section)
-                enqueueSection(page.section?.id)
-                page.catalog?.sections.orEmpty().forEach { enqueueSection(it.id) }
-                page.allBlocks()
-                    .flatMap { it.actions.orEmpty() }
-                    .forEach { enqueueSection(it.section_id) }
-            }
-
-            enqueueLinkedSections(catalog)
-            while (pendingSections.isNotEmpty() && located == null) {
-                val sectionId = pendingSections.removeFirst()
-                queuedSections.remove(sectionId)
-                if (!visitedSections.add(sectionId)) continue
-                inspectedSectionCount = visitedSections.size
-
-                val seenOffsets = HashSet<String>()
-                var startFrom: String? = null
-                var pageCount = 0
-                while (pageCount++ < 50) {
-                    val section = when (val result = catalogApi.getSection(sectionId, startFrom)) {
-                        is VkResult.Success -> result.data
-                        is VkResult.Error -> {
-                            if (firstSectionFailure == null) firstSectionFailure = result
-                            break
-                        }
-                    }
-                    enqueueLinkedSections(section)
-
-                    val sectionMixes = section.audio_stream_mixes.orEmpty()
-                    considerFallback(
-                        sectionMixes.preferredFallback()
-                            ?.let { section.locate(it, sectionId) },
-                    )
-                    located = sectionMixes.commonMix()?.let { section.locate(it, sectionId) }
-                    if (located != null) break
-
-                    val next = section.section?.next_from?.takeIf(String::isNotBlank)
-                        ?: section.catalog?.sections.orEmpty()
-                            .firstOrNull { it.id == sectionId }
-                            ?.next_from
-                            ?.takeIf(String::isNotBlank)
-                        ?: break
-                    if (!seenOffsets.add(next)) break
-                    startFrom = next
-                }
-            }
-        }
-
-        val resolved = located ?: fallback ?: firstSectionFailure?.let { failure ->
-            throw backendFailure(failure.code, failure.message)
-        } ?: throw backendFailure(
-            404,
-            "VK не вернул персональный Mix в $inspectedSectionCount разделах CatalogKit",
-        )
-        val settings = resolved.mix.settings?.toVkMixSettings()
         return VkMixSession(
-            blockId = resolved.blockId,
-            sectionId = resolved.sectionId,
-            mixId = resolved.mix.playbackMixId,
-            isTunable = resolved.mix.is_tunable == true,
-            title = resolved.mix.playbackTitle(settings),
-            settings = settings,
-            catalogItemId = resolved.mix.id,
+            mixId = PERSONAL_VK_MIX_ID,
+            isTunable = true,
+            title = "VK Mix",
+            settings = null,
         )
     }
 

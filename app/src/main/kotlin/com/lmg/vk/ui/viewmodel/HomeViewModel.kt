@@ -474,8 +474,10 @@ class HomeViewModel : ViewModel() {
 
         _vkMixState.value = VkMixUiState.Loading
         mixSettingsJob = viewModelScope.launch {
+            var resolvedSession = retainedSession
             try {
-                val session = retainedSession ?: MusicBackend.resolvePersonalMixSession()
+                val session = resolvedSession ?: MusicBackend.resolvePersonalMixSession()
+                resolvedSession = session
                 val settings = if (session.isTunable) {
                     MusicBackend.getVkMixSettings(session)
                 } else {
@@ -502,7 +504,7 @@ class HomeViewModel : ViewModel() {
             } catch (e: Exception) {
                 _vkMixState.value = e.toVkMixError(
                     operation = VkMixOperation.LOAD_SETTINGS,
-                    session = retainedSession,
+                    session = resolvedSession,
                 )
             } finally {
                 if (mixSettingsJob === coroutineContext[Job]) mixSettingsJob = null
@@ -531,7 +533,7 @@ class HomeViewModel : ViewModel() {
     fun applyVkMixSettings(context: Context) {
         val ready = _vkMixState.value as? VkMixUiState.Ready ?: return
         val draft = ready.draft ?: return
-        if (!ready.hasChanges || ready.applying || waveLoadJob?.isActive == true) return
+        if (ready.applying || waveLoadJob?.isActive == true) return
 
         val preparedSession = ready.session.copy(
             settings = draft,
