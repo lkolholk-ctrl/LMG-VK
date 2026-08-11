@@ -593,7 +593,7 @@ private fun DraggableQueueRow(
                 .padding(horizontal = LiquidMetrics.QueuePadding)
         ) {
             Icon(
-                imageVector = com.lmg.vk.ui.icons.LmgGlyphs.DeleteOutline28,
+                imageVector = lmgVector(LmgDrawables.ListDeleteOutline20),
                 contentDescription = null,
                 tint = Color.White,
                 modifier = Modifier
@@ -602,7 +602,7 @@ private fun DraggableQueueRow(
                     .graphicsLayer { alpha = if (removeOffset.value > 0f) 1f else 0f }
             )
             Icon(
-                imageVector = com.lmg.vk.ui.icons.LmgGlyphs.DeleteOutline28,
+                imageVector = lmgVector(LmgDrawables.ListDeleteOutline20),
                 contentDescription = null,
                 tint = Color.White,
                 modifier = Modifier

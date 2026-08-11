@@ -50,7 +50,7 @@ fun BottomBar(
     onItemSelected: (Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val newTabIcon = lmgVector(LmgDrawables.StarsOutline28)
+    val newTabIcon = lmgVector(LmgDrawables.NewsfeedMusicNoteOutline28)
     val items = remember(newTabIcon) {
         listOf(
             BottomNavItem(com.lmg.vk.ui.icons.LmgGlyphs.MusicNoteWaveOutline28, "Wave", 0),
@@ -114,7 +114,7 @@ private fun BottomTab(
             imageVector = item.icon,
             contentDescription = item.label,
             modifier = Modifier
-                .size(34.dp)
+                .size(30.dp)
                 .graphicsLayer { scaleX = iconScale; scaleY = iconScale },
             tint = color
         )

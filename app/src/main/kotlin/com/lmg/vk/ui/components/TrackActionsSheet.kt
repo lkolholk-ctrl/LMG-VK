@@ -119,13 +119,13 @@ fun TrackActionsSheet(
                 onDismiss()
             }
             Spacer(Modifier.height(8.dp))
-            ActionRow(rowBg, com.lmg.vk.ui.icons.LmgGlyphs.ListAddOutline28, "Add to queue") {
+            ActionRow(rowBg, lmgVector(LmgDrawables.ListInsertLastOutline28), "Add to queue") {
                 PlayerController.addToQueue(track)
                 onDismiss()
             }
             Spacer(Modifier.height(8.dp))
             if (onAddToPlaylist != null) {
-                ActionRow(rowBg, com.lmg.vk.ui.icons.LmgGlyphs.ListAddOutline28, "Add to playlist") {
+                ActionRow(rowBg, lmgVector(LmgDrawables.ListPlusOutline20), "Add to playlist") {
                     onAddToPlaylist()
                     onDismiss()
                 }
@@ -146,7 +146,7 @@ fun TrackActionsSheet(
                 Spacer(Modifier.height(8.dp))
             }
             if (onRemoveFromPlaylist != null) {
-                ActionRow(rowBg, com.lmg.vk.ui.icons.LmgGlyphs.RemoveCircleOutline28, "Remove from playlist") {
+                ActionRow(rowBg, lmgVector(LmgDrawables.ListDeleteOutline20), "Remove from playlist") {
                     onRemoveFromPlaylist()
                     onDismiss()
                 }
@@ -155,7 +155,8 @@ fun TrackActionsSheet(
             if (isFavorite != null && onToggleFavorite != null) {
                 ActionRow(
                     rowBg,
-                    if (isFavorite) com.lmg.vk.ui.icons.LmgGlyphs.Favorite28 else com.lmg.vk.ui.icons.LmgGlyphs.FavoriteOutline28,
+                    if (isFavorite) com.lmg.vk.ui.icons.LmgGlyphs.Favorite28
+                    else lmgVector(LmgDrawables.FavoriteAddOutline28),
                     if (isFavorite) "Remove from My tracks" else "Add to My tracks",
                 ) {
                     onToggleFavorite()
@@ -187,7 +188,7 @@ fun TrackActionsSheet(
                 is TrackDownloadState.Failed -> {
                     // Причину показываем в самой строке: «не удалось» без причины
                     // заставляет тыкать наугад.
-                    ActionRow(rowBg, com.lmg.vk.ui.icons.LmgGlyphs.DownloadOutline28, "Download failed · retry", subtitle = st.message) {
+                    ActionRow(rowBg, lmgVector(LmgDrawables.DownloadCrossBadgeOutline24), "Download failed · retry", subtitle = st.message) {
                         TrackDownloadManager.enqueue(context, track)
                     }
                     Spacer(Modifier.height(8.dp))

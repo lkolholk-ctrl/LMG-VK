@@ -19,15 +19,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Add
-import androidx.compose.material.icons.rounded.ArrowForward
-import androidx.compose.material.icons.rounded.Check
-import androidx.compose.material.icons.rounded.Download
-import androidx.compose.material.icons.rounded.QueueMusic
-import androidx.compose.material.icons.rounded.Refresh
-import androidx.compose.material.icons.rounded.Edit
-import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
@@ -70,6 +61,8 @@ import com.lmg.vk.ui.components.PlaylistPickerSheet
 import com.lmg.vk.ui.components.formatTotalDuration
 import com.lmg.vk.ui.components.toDetailThumb
 import com.lmg.vk.ui.components.vkMainColor
+import com.lmg.vk.ui.icons.LmgDrawables
+import com.lmg.vk.ui.icons.lmgVector
 import com.lmg.vk.ui.theme.LiquidSurfaces
 import com.lmg.vk.ui.glass.liquidClickable
 import com.lmg.vk.ui.theme.LiquidMotion
@@ -606,7 +599,7 @@ private fun PlaylistActionsRow(
             icon = if (isLocal || isOwned || isFollowing) {
                 com.lmg.vk.ui.icons.LmgGlyphs.BookmarkCheckOutline28
             } else {
-                com.lmg.vk.ui.icons.LmgGlyphs.BookmarkOutline28
+                lmgVector(LmgDrawables.BookmarkAddOutline28)
             },
             enabled = !isLocal && !isOwned && !isFollowing && followEnabled,
             isDark = isDark,
@@ -615,7 +608,7 @@ private fun PlaylistActionsRow(
         PlaylistActionButton("Cache", com.lmg.vk.ui.icons.LmgGlyphs.DownloadOutline28, cacheEnabled, isDark, onCache)
         PlaylistActionButton("Queue", com.lmg.vk.ui.icons.LmgGlyphs.ListPlayOutline28, queueEnabled, isDark, onQueue)
         if (isLocal) {
-            PlaylistActionButton("Rename", com.lmg.vk.ui.icons.LmgGlyphs.EditOutline28, true, isDark, onRename)
+            PlaylistActionButton("Rename", lmgVector(LmgDrawables.ListPenOutline20), true, isDark, onRename)
         }
     }
 }

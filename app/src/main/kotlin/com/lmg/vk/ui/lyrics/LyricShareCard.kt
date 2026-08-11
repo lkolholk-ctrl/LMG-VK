@@ -42,7 +42,6 @@ import androidx.core.content.FileProvider
 import com.lmg.vk.ui.glass.AlbumArtImage
 import com.lmg.vk.ui.glass.AlbumColors
 import com.lmg.vk.ui.glass.liquidClickable
-import com.lmg.vk.ui.icons.LiquidGlyphs
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext

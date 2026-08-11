@@ -15,8 +15,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Shuffle
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
@@ -41,14 +39,13 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.lmg.vk.engine.PlayerController
 import com.lmg.vk.ui.glass.liquidClickable
-import com.lmg.vk.ui.icons.LiquidGlyphs
 import com.lmg.vk.ui.theme.LiquidTheme
 
 /**
  * Полноширинный нижний мини-плеер для широких окон (телефон-альбом / планшет).
  * Расположение — по референсу друга: слева обложка+инфо, по центру
  * управление и прогресс, справа shuffle / repeat / favorite / queue. Стиль —
- * НАШ ([LiquidTheme.colors], LiquidGlyphs), работает в светлой и тёмной теме.
+ * НАШ ([LiquidTheme.colors], LMG glyphs), работает в светлой и тёмной теме.
  * Все действия ведут в реальный [PlayerController] — новой логики нет, только
  * широкая раскладка уже существующих контролов.
  */

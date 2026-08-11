@@ -24,26 +24,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.automirrored.rounded.PlaylistPlay
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Shuffle
-import androidx.compose.material.icons.filled.Download
-import androidx.compose.material.icons.rounded.Add
-import androidx.compose.material.icons.rounded.Check
-import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.MoreVert
-import androidx.compose.material.icons.rounded.ChevronRight
-import androidx.compose.material.icons.rounded.LibraryMusic
-import androidx.compose.material.icons.rounded.MusicNote
-import androidx.compose.material.icons.rounded.Album
-import androidx.compose.material.icons.rounded.History
-import androidx.compose.material.icons.rounded.Person
-import androidx.compose.material.icons.rounded.Search
-import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -73,6 +53,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.lmg.vk.ui.icons.LmgDrawables
+import com.lmg.vk.ui.icons.lmgVector
 import com.kyant.backdrop.backdrops.LayerBackdrop
 import com.lmg.vk.engine.backend.MusicAuth
 import com.lmg.vk.engine.backend.MusicBackend
@@ -535,7 +517,7 @@ fun LibraryScreen(
                                 }
                                 SectionTopBarAction(
                                     label = "New playlist",
-                                    icon = com.lmg.vk.ui.icons.LmgGlyphs.AddOutline28,
+                                    icon = lmgVector(LmgDrawables.ListPlusOutline20),
                                     filled = true,
                                     onClick = { showCreatePlaylistDialog = true },
                                 )
@@ -1039,7 +1021,7 @@ fun LibraryScreen(
                 ) {
                     SubHeader("My Playlists", onBack = { currentView = LibraryView.MAIN }) {
                         IconButton(onClick = { showCreatePlaylistDialog = true }) {
-                            Icon(com.lmg.vk.ui.icons.LmgGlyphs.AddCircleOutline28, null, tint = Color(0xFF30D158), modifier = Modifier.size(24.dp))
+                            Icon(lmgVector(LmgDrawables.ListPlusOutline20), null, tint = Color(0xFF30D158), modifier = Modifier.size(24.dp))
                         }
                     }
 

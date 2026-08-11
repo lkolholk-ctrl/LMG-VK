@@ -163,7 +163,7 @@ fun LocalLibraryScreen(
                         .padding(horizontal = 16.dp, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(com.lmg.vk.ui.icons.LmgGlyphs.EditOutline28, null, tint = Color.White, modifier = Modifier.size(18.dp))
+                    Icon(lmgVector(LmgDrawables.ListPenOutline20), null, tint = Color.White, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(8.dp))
                     Text("Edit Tags", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                 }

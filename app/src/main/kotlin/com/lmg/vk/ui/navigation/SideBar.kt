@@ -61,7 +61,7 @@ fun SideBar(
     modifier: Modifier = Modifier,
 ) {
     val lc = LiquidTheme.colors
-    val newTabIcon = lmgVector(LmgDrawables.StarsOutline28)
+    val newTabIcon = lmgVector(LmgDrawables.NewsfeedMusicNoteOutline28)
     val items = remember(newTabIcon) {
         listOf(
             SideNavItem(com.lmg.vk.ui.icons.LmgGlyphs.HomeOutline28, "Home", 0),

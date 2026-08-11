@@ -33,15 +33,6 @@ import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.rounded.PlayArrow
-import androidx.compose.material.icons.rounded.Favorite
-import androidx.compose.material.icons.rounded.FavoriteBorder
-import androidx.compose.material.icons.rounded.Radio
-import androidx.compose.material.icons.rounded.Refresh
-import androidx.compose.material.icons.rounded.Share
-import androidx.compose.material.icons.rounded.Shuffle
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -92,6 +83,8 @@ import com.lmg.vk.engine.PlayerController
 import com.lmg.vk.ui.components.releaseTypeLabel
 import com.lmg.vk.ui.glass.AlbumArtImage
 import com.lmg.vk.ui.glass.liquidClickable
+import com.lmg.vk.ui.icons.LmgDrawables
+import com.lmg.vk.ui.icons.lmgVector
 import com.lmg.vk.ui.theme.LiquidMetrics
 import com.lmg.vk.ui.theme.LiquidMotion
 import com.lmg.vk.ui.theme.LiquidSurfaces
@@ -1351,7 +1344,8 @@ private fun ArtistActionsStrip(
         )
         ArtistActionButton(
             if (isFollowed) "Following" else "Follow",
-            if (isFollowed) com.lmg.vk.ui.icons.LmgGlyphs.Favorite28 else com.lmg.vk.ui.icons.LmgGlyphs.FavoriteOutline28,
+            if (isFollowed) com.lmg.vk.ui.icons.LmgGlyphs.Favorite28
+            else lmgVector(LmgDrawables.FavoriteAddOutline28),
             followEnabled,
             isDark,
             onFollow,

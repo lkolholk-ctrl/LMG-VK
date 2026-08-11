@@ -20,15 +20,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Add
-import androidx.compose.material.icons.rounded.ArrowForward
-import androidx.compose.material.icons.rounded.Check
-import androidx.compose.material.icons.rounded.Download
-import androidx.compose.material.icons.rounded.Person
-import androidx.compose.material.icons.rounded.QueueMusic
-import androidx.compose.material.icons.rounded.Refresh
-import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -71,6 +62,8 @@ import com.lmg.vk.ui.components.formatTotalDuration
 import com.lmg.vk.ui.components.releaseTypeLabel
 import com.lmg.vk.ui.components.toDetailThumb
 import com.lmg.vk.ui.components.vkMainColor
+import com.lmg.vk.ui.icons.LmgDrawables
+import com.lmg.vk.ui.icons.lmgVector
 import com.lmg.vk.ui.theme.LiquidSurfaces
 import com.lmg.vk.ui.glass.liquidClickable
 import com.lmg.vk.ui.theme.LiquidMotion
@@ -606,7 +599,7 @@ private fun AlbumActionsRow(
                 else -> "Add"
             },
             if (isFollowing) com.lmg.vk.ui.icons.LmgGlyphs.BookmarkCheckOutline28
-            else com.lmg.vk.ui.icons.LmgGlyphs.BookmarkOutline28,
+            else lmgVector(LmgDrawables.BookmarkAddOutline28),
             (isFollowing || canFollow) && !isAdding,
             isDark,
             onAdd,

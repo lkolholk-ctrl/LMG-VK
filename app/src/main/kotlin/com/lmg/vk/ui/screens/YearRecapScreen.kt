@@ -528,7 +528,7 @@ private fun CreatePlaylistCard(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Icon(
-                    imageVector = com.lmg.vk.ui.icons.LmgGlyphs.ListAddOutline28,
+                    imageVector = lmgVector(LmgDrawables.ListPlusOutline20),
                     contentDescription = null,
                     tint = lc.accent,
                     modifier = Modifier.size(18.dp),
