@@ -41,9 +41,6 @@ private data class BottomNavItem(
     val index: Int
 )
 
-// Бледно-зелёный акцент выбранного таба (жёлтый Яндекса убран).
-private val WaveAccent = Color(0xFF88C088)
-
 @Composable
 fun BottomBar(
     selectedIndex: Int,
@@ -91,7 +88,7 @@ private fun BottomTab(
         else Color.Black.copy(alpha = 0.5f)
 
     val color by animateColorAsState(
-        targetValue = if (selected) WaveAccent else inactiveColor,
+        targetValue = if (selected) LiquidTheme.colors.accent else inactiveColor,
         animationSpec = tween(180),
         label = "tabColor"
     )

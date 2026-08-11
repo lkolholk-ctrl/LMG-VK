@@ -55,8 +55,9 @@
    рекомендаций.
 2. **Playback** — исключение из оптимизации батареи, таймер сна, crossfade.
 3. **Network** — прокси/обход блокировок и обновление адресов/сертификатов.
-4. **Themes and interface** — System/Dark/Light, Increase Contrast, выбор
-   launcher-иконки.
+4. **Themes and interface** — Light/Dark/Auto, Increase Contrast, выбор
+   launcher-иконки. Auto использует Dynamic Color из системной палитры на
+   Android 12+, а на Android 10–11 следует системной светлой/тёмной теме.
 5. **Diagnostics** — экран отладочного лога воспроизведения.
 
 Каждая категория открывается как отдельная внутренняя страница. Кнопка шапки и

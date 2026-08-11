@@ -1,9 +1,13 @@
 package com.lmg.vk.ui.theme
 
+import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.dynamicDarkColorScheme
+import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -11,6 +15,8 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.platform.LocalContext
 
 // ═══════════════════════════════════════════════════════════
 //  Liquid Colors — все цвета приложения
@@ -190,8 +196,51 @@ private val LiquidLightScheme = lightColorScheme(
     surface = Color(0xFFFFFFFF)
 )
 
+/** Перенос системной Material You палитры в собственные поверхности LMG VK. */
+private fun ColorScheme.toDynamicLiquidColors(
+    isDark: Boolean,
+    highContrast: Boolean,
+): LiquidColors {
+    val base = when {
+        isDark && highContrast -> DarkLiquidColorsHighContrast
+        isDark -> DarkLiquidColors
+        highContrast -> LightLiquidColorsHighContrast
+        else -> LightLiquidColors
+    }
+    val secondaryAlpha = if (highContrast) 0.88f else 0.72f
+    val tertiaryAlpha = if (highContrast) 0.68f else 0.50f
+    val borderAlpha = if (highContrast) 0.42f else 0.22f
+    val surfaceAlpha = if (highContrast) 0.92f else 0.78f
+
+    return base.copy(
+        screenBackground = Brush.verticalGradient(List(4) { background }),
+        settingsBackground = background,
+        textPrimary = onBackground,
+        textSecondary = onSurfaceVariant.copy(alpha = secondaryAlpha),
+        textTertiary = onSurfaceVariant.copy(alpha = tertiaryAlpha),
+        glassTint = primary.copy(alpha = if (highContrast) 0.14f else 0.06f),
+        glassBorder = outline.copy(alpha = borderAlpha),
+        divider = outlineVariant.copy(alpha = if (highContrast) 0.72f else 0.48f),
+        cardSurface = surfaceVariant.copy(alpha = surfaceAlpha),
+        // В тёмной Material You палитре primary обычно очень светлый. Немного
+        // углубляем его к onPrimary: так сохраняется оттенок обоев и остаётся
+        // читаемым белый контент существующих акцентных кнопок LMG VK.
+        accent = if (isDark) lerp(primary, onPrimary, 0.38f) else primary,
+        accentRed = error,
+        iconDefault = onSurface,
+        iconMuted = onSurfaceVariant.copy(alpha = if (highContrast) 0.78f else 0.58f),
+        sectionLabel = onSurfaceVariant.copy(alpha = if (highContrast) 0.82f else 0.62f),
+        searchFieldBg = surfaceVariant.copy(alpha = if (highContrast) 0.92f else 0.72f),
+        chipBg = primary.copy(alpha = if (highContrast) 0.14f else 0.07f),
+        chipBorder = outline.copy(alpha = if (highContrast) 0.30f else 0.16f),
+        bottomBarTint = surface,
+        miniPlayerTint = primary.copy(alpha = if (highContrast) 0.12f else 0.06f),
+        miniPlayerBorder = outline.copy(alpha = borderAlpha),
+    )
+}
+
 /**
- * @param themeMode 0=System, 1=Dark, 2=Light
+ * @param themeMode 0=Auto (Dynamic Color), 1=Dark, 2=Light
  * @param highContrast включить высококонтрастную палитру (меньше прозрачности).
  */
 @Composable
@@ -200,18 +249,27 @@ fun LiquidMusicGlassTheme(
     highContrast: Boolean = false,
     content: @Composable () -> Unit
 ) {
+    val context = LocalContext.current
     val isDark = when (themeMode) {
         1 -> true
         2 -> false
         else -> isSystemInDarkTheme()
     }
+    val useDynamicColor = themeMode == 0 && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
 
-    val liquidColors = if (isDark) {
+    val materialScheme = when {
+        useDynamicColor && isDark -> dynamicDarkColorScheme(context)
+        useDynamicColor -> dynamicLightColorScheme(context)
+        isDark -> LiquidDarkScheme
+        else -> LiquidLightScheme
+    }
+    val liquidColors = if (useDynamicColor) {
+        materialScheme.toDynamicLiquidColors(isDark = isDark, highContrast = highContrast)
+    } else if (isDark) {
         if (highContrast) DarkLiquidColorsHighContrast else DarkLiquidColors
     } else {
         if (highContrast) LightLiquidColorsHighContrast else LightLiquidColors
     }
-    val materialScheme = if (isDark) LiquidDarkScheme else LiquidLightScheme
 
     CompositionLocalProvider(
         LocalLiquidColors provides liquidColors
@@ -232,7 +290,7 @@ fun LiquidMusicGlassTheme(
 /**
  * Принудительно ТЁМНЫЙ контент независимо от выбранной темы приложения. Wave и
  * фулл-плеер всегда тёмные — их эффекты (аура/дым/AGSL) рассчитаны на тёмный фон.
- * Тема приложения (Светлая/Тёмная/Системная) меняет только контентные экраны.
+ * Тема приложения (Светлая/Тёмная/Авто) меняет только контентные экраны.
  */
 @Composable
 fun ForceDarkContent(content: @Composable () -> Unit) {

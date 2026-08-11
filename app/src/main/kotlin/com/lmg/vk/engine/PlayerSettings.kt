@@ -51,7 +51,7 @@ object PlayerSettings {
     private const val DEFAULT_CROSSFADE_MS = 0
 
     private val KEY_CACHE_BYTES = longPreferencesKey("audio_cache_bytes")
-    private val KEY_THEME_MODE = intPreferencesKey("theme_mode")  // 0=System 1=Dark 2=Light
+    private val KEY_THEME_MODE = intPreferencesKey("theme_mode")  // 0=Auto 1=Dark 2=Light
     private val KEY_AUTO_MIX = booleanPreferencesKey("auto_mix")
     private val KEY_CROSSFADE_MS = intPreferencesKey("crossfade_ms")
     private val KEY_VOLUME_NORMALIZATION = booleanPreferencesKey("volume_normalization")
@@ -64,7 +64,7 @@ object PlayerSettings {
     private val _audioCacheBytes = MutableStateFlow(DEFAULT_CACHE_BYTES)
     val audioCacheBytes: StateFlow<Long> = _audioCacheBytes
 
-    // Тема приложения: 0=Системная, 1=Тёмная, 2=Светлая. По умолчанию системная.
+    // Тема приложения: 0=Авто/Dynamic Color, 1=Тёмная, 2=Светлая.
     private val _themeMode = MutableStateFlow(0)
     val themeMode: StateFlow<Int> = _themeMode
 

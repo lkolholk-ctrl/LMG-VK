@@ -1,5 +1,6 @@
 package com.lmg.vk.ui.screens
 
+import android.os.Build
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
@@ -188,7 +189,7 @@ fun SettingsScreen(
                             SettingsCategoryDivider()
                             SettingsCategoryItem(
                                 title = "Themes and interface",
-                                subtitle = "${themeModeLabel(themeMode)} theme · ${launcherIcon.title} icon",
+                                subtitle = "${themeModeSummary(themeMode)} · ${launcherIcon.title} icon",
                                 icon = lmgVector(LmgDrawables.PaletteOutline28),
                                 onClick = { page = SettingsPage.APPEARANCE },
                             )
@@ -513,7 +514,7 @@ private fun ThemeModeSelector(
     onSelect: (Int) -> Unit,
 ) {
     val colors = LiquidTheme.colors
-    val labels = listOf("System", "Dark", "Light")
+    val options = listOf(2 to "Light", 1 to "Dark", 0 to "Auto")
 
     Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 12.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -536,8 +537,8 @@ private fun ThemeModeSelector(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            labels.forEachIndexed { index, label ->
-                val active = selected == index
+            options.forEach { (mode, label) ->
+                val active = selected == mode
                 val background = if (active) colors.accent else colors.glassTint
                 val targetText = if (active) Color.White else colors.textSecondary
                 val textColor by animateColorAsState(
@@ -553,7 +554,7 @@ private fun ThemeModeSelector(
                         .background(background)
                         .liquidClickable(
                             pressedScale = LiquidMotion.PressButton,
-                            onClick = { onSelect(index) },
+                            onClick = { onSelect(mode) },
                         ),
                     contentAlignment = Alignment.Center,
                 ) {
@@ -566,13 +567,30 @@ private fun ThemeModeSelector(
                 }
             }
         }
+        if (selected == 0) {
+            Spacer(Modifier.height(10.dp))
+            Text(
+                text = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    "Dynamic Color · adapts to wallpaper and system theme"
+                } else {
+                    "Follows system theme · Dynamic Color requires Android 12+"
+                },
+                color = colors.textSecondary,
+                fontSize = 12.sp,
+                modifier = Modifier.padding(horizontal = 4.dp),
+            )
+        }
     }
 }
 
-private fun themeModeLabel(mode: Int): String = when (mode) {
-    1 -> "Dark"
-    2 -> "Light"
-    else -> "System"
+private fun themeModeSummary(mode: Int): String = when (mode) {
+    1 -> "Dark theme"
+    2 -> "Light theme"
+    else -> if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        "Auto · Dynamic Color"
+    } else {
+        "Auto theme"
+    }
 }
 
 private fun playbackSummary(crossfadeMs: Int, sleepTimerMinutes: Int): String {
