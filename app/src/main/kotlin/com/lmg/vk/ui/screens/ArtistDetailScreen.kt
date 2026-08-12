@@ -170,8 +170,44 @@ fun ArtistDetailScreen(
         mutableStateOf<List<com.lmg.vk.engine.Track>>(emptyList())
     }
     var artistTracksLoading by remember(artistId) { mutableStateOf(false) }
+    var artistTracksNextOffset by remember(artistId) { mutableStateOf<Int?>(null) }
+    var artistTracksHasMore by remember(artistId) { mutableStateOf(false) }
+    var artistTracksLoadError by remember(artistId) { mutableStateOf(false) }
+    var artistTracksLastPageIds by remember(artistId) { mutableStateOf<List<String>?>(null) }
     var artistReleases by remember(artistId) {
         mutableStateOf<List<ArtistAlbum>>(emptyList())
+    }
+
+    suspend fun loadArtistTracksPage(art: ArtistResponse, reset: Boolean) {
+        if (artistTracksLoading) return
+        val offset = if (reset) 0 else artistTracksNextOffset ?: return
+        artistTracksLoading = true
+        artistTracksLoadError = false
+        if (reset) {
+            artistTracksNextOffset = null
+            artistTracksHasMore = false
+            artistTracksLastPageIds = null
+        }
+
+        val page = MusicBackend.getArtistTracksPage(art.id, offset)
+        if (artist?.id != art.id) return
+        if (page == null) {
+            // Keep the same offset: a network/API failure must remain retryable.
+            artistTracksNextOffset = offset
+            artistTracksHasMore = true
+            artistTracksLoadError = true
+            artistTracksLoading = false
+            return
+        }
+
+        val pageIds = page.tracks.map { it.id }
+        val repeatedPage = pageIds.isNotEmpty() && pageIds == artistTracksLastPageIds
+        artistTracksLastPageIds = pageIds
+        val seen = artistTracks.mapTo(HashSet()) { it.id }
+        artistTracks = artistTracks + page.tracks.filter { seen.add(it.id) }
+        artistTracksNextOffset = page.nextOffset
+        artistTracksHasMore = page.hasMore && page.nextOffset != null && !repeatedPage
+        artistTracksLoading = false
     }
 
     LaunchedEffect(artist?.id) {
@@ -179,13 +215,13 @@ fun ArtistDetailScreen(
         if (art == null) {
             artistTracks = emptyList()
             artistTracksLoading = false
+            artistTracksNextOffset = null
+            artistTracksHasMore = false
+            artistTracksLoadError = false
             return@LaunchedEffect
         }
         artistTracks = art.topSongs.map { it.toTrack() }.distinctBy { it.id }
-        artistTracksLoading = true
-        val allTracks = MusicBackend.getArtistAllTracks(art.id).distinctBy { it.id }
-        if (allTracks.isNotEmpty()) artistTracks = allTracks
-        artistTracksLoading = false
+        loadArtistTracksPage(art, reset = true)
     }
 
     LaunchedEffect(artist?.id) {
@@ -797,7 +833,15 @@ fun ArtistDetailScreen(
                 artistName = artist?.name.orEmpty(),
                 tracks = artistTracks,
                 isLoading = artistTracksLoading,
+                hasMore = artistTracksHasMore,
+                loadError = artistTracksLoadError,
+                pagingKey = artistTracksNextOffset,
                 isDark = colors.isDark,
+                onLoadMore = {
+                    artist?.let { art ->
+                        scope.launch { loadArtistTracksPage(art, reset = false) }
+                    }
+                },
                 onPlay = { index ->
                     val playable = artistTracks.filter { it.isAvailable }
                     val selected = artistTracks.getOrNull(index)
@@ -831,7 +875,11 @@ private fun ArtistTracksDialog(
     artistName: String,
     tracks: List<Track>,
     isLoading: Boolean,
+    hasMore: Boolean,
+    loadError: Boolean,
+    pagingKey: Int?,
     isDark: Boolean,
+    onLoadMore: () -> Unit,
     onPlay: (Int) -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -889,6 +937,41 @@ private fun ArtistTracksDialog(
                             textSecondary = LiquidSurfaces.textSecondary(isDark),
                             onClick = { onPlay(index) },
                         )
+                    }
+                }
+                if (hasMore || isLoading || loadError) {
+                    item(key = "artist-next-page") {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 16.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            when {
+                                isLoading -> CircularProgressIndicator(
+                                    color = LiquidTheme.colors.accent,
+                                    modifier = Modifier.size(24.dp),
+                                    strokeWidth = 2.dp,
+                                )
+                                loadError -> Text(
+                                    text = "Retry loading more",
+                                    color = LiquidTheme.colors.accent,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    modifier = Modifier
+                                        .clip(CircleShape)
+                                        .background(LiquidSurfaces.card(isDark))
+                                        .liquidClickable(
+                                            pressedScale = LiquidMotion.PressButton,
+                                            onClick = onLoadMore,
+                                        )
+                                        .padding(horizontal = 18.dp, vertical = 10.dp),
+                                )
+                                hasMore -> LaunchedEffect(pagingKey, tracks.size) {
+                                    onLoadMore()
+                                }
+                            }
+                        }
                     }
                 }
             }

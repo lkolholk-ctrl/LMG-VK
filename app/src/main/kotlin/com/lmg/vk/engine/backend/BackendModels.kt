@@ -127,7 +127,10 @@ data class SearchResponse(
     val region: String,
     val source: String? = null,
     @Serializable(with = TolerantListSerializer::class)
-    val items: List<SearchItem> = emptyList()
+    val items: List<SearchItem> = emptyList(),
+    /** Offset for the next `audio.search` page; independent of merged item count. */
+    @SerialName("nextOffset") val nextOffset: Int? = null,
+    @SerialName("hasMore") val hasMore: Boolean = false,
 )
 
 @Serializable
@@ -330,6 +333,13 @@ data class ArtistResponse(
     val isVk: Boolean
         get() = id.startsWith("vk_") || source == "vk"
 }
+
+/** One ordinary-offset page returned by `audio.getAudiosByArtist`. */
+data class ArtistTrackPage(
+    val tracks: List<com.lmg.vk.engine.Track>,
+    val nextOffset: Int?,
+    val hasMore: Boolean,
+)
 
 @Serializable
 data class ArtistSong(

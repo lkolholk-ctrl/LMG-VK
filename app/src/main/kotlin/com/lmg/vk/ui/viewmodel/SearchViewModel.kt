@@ -39,6 +39,21 @@ class SearchViewModel : ViewModel() {
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error
 
+    private val _isLoadingMore = MutableStateFlow(false)
+    val isLoadingMore: StateFlow<Boolean> = _isLoadingMore
+
+    private val _hasMore = MutableStateFlow(false)
+    val hasMore: StateFlow<Boolean> = _hasMore
+
+    private val _loadMoreError = MutableStateFlow<String?>(null)
+    val loadMoreError: StateFlow<String?> = _loadMoreError
+
+    private val _pagingKey = MutableStateFlow<Int?>(null)
+    val pagingKey: StateFlow<Int?> = _pagingKey
+
+    private var nextOffset: Int? = null
+    private var previousPageKeys: List<String>? = null
+
     // ─── Is Search Active (query not empty) ───
     val isSearchActive: Boolean
         get() = _query.value.isNotBlank()
@@ -63,8 +78,10 @@ class SearchViewModel : ViewModel() {
     fun setQuery(newQuery: String) {
         _query.value = newQuery
         if (newQuery.isBlank()) {
+            loadMoreJob?.cancel()
             _searchResults.value = emptyList()
             _error.value = null
+            resetPaging()
         }
     }
 
@@ -73,8 +90,10 @@ class SearchViewModel : ViewModel() {
      */
     fun clearQuery() {
         _query.value = ""
+        loadMoreJob?.cancel()
         _searchResults.value = emptyList()
         _error.value = null
+        resetPaging()
     }
 
     /**
@@ -89,12 +108,15 @@ class SearchViewModel : ViewModel() {
 
     /** Активный поисковый запрос — новый всегда отменяет предыдущий. */
     private var searchJob: Job? = null
+    private var loadMoreJob: Job? = null
 
     private fun performSearch(q: String) {
         // Гонка ответов: без отмены медленный ответ на СТАРЫЙ запрос мог
         // прийти позже свежего и затереть результаты (при быстром вводе —
         // «правильное название, а список пустой/чужой»).
         searchJob?.cancel()
+        loadMoreJob?.cancel()
+        resetPaging()
         searchJob = viewModelScope.launch {
             _isLoading.value = true
             _error.value = null
@@ -111,6 +133,9 @@ class SearchViewModel : ViewModel() {
 
                 val items = result?.items ?: emptyList()
                 _searchResults.value = items
+                nextOffset = result?.nextOffset
+                _pagingKey.value = nextOffset
+                _hasMore.value = result?.hasMore == true && nextOffset != null
                 if (result == null) {
                     // Человекочитаемое сообщение вместо сырого JSON тела ответа.
                     _error.value = backendUserMessage(MusicBackend.lastApiException.value)
@@ -126,6 +151,68 @@ class SearchViewModel : ViewModel() {
                 if (isActive) _isLoading.value = false
             }
         }
+    }
+
+    /** Request and append the next `audio.search` page. */
+    fun loadMore() {
+        val q = _query.value.trim()
+        val offset = nextOffset
+        if (q.length < 2 || offset == null || !_hasMore.value ||
+            _isLoading.value || _isLoadingMore.value
+        ) return
+
+        loadMoreJob = viewModelScope.launch {
+            _isLoadingMore.value = true
+            _loadMoreError.value = null
+            try {
+                val result = MusicBackend.searchAll(q, offset = offset)
+                if (q != _query.value.trim()) return@launch
+                if (result == null) {
+                    // A failed page remains retryable; it is not the end of results.
+                    _loadMoreError.value = backendUserMessage(MusicBackend.lastApiException.value)
+                    return@launch
+                }
+
+                val pageItems = result.items
+                val pageKeys = pageItems.filter { it.isTrack }.map { it.pagingKey() }
+                val repeatedPage = pageKeys.isNotEmpty() && pageKeys == previousPageKeys
+                previousPageKeys = pageKeys
+                _searchResults.value = mergeSearchPages(_searchResults.value, pageItems)
+                nextOffset = result.nextOffset
+                _pagingKey.value = nextOffset
+                _hasMore.value = result.hasMore && nextOffset != null && !repeatedPage
+                enrichDurations(q, pageItems)
+            } catch (ce: CancellationException) {
+                throw ce
+            } catch (e: Exception) {
+                _loadMoreError.value = backendUserMessage(e)
+            } finally {
+                if (isActive) _isLoadingMore.value = false
+            }
+        }
+    }
+
+    private fun resetPaging() {
+        nextOffset = null
+        previousPageKeys = null
+        _pagingKey.value = null
+        _hasMore.value = false
+        _isLoadingMore.value = false
+        _loadMoreError.value = null
+    }
+
+    private fun mergeSearchPages(
+        current: List<SearchItem>,
+        page: List<SearchItem>,
+    ): List<SearchItem> {
+        val seen = current.mapTo(HashSet()) { it.pagingKey() }
+        return current + page.filter { seen.add(it.pagingKey()) }
+    }
+
+    private fun SearchItem.pagingKey(): String = when {
+        isArtist -> "artist:${artistId?.takeIf(String::isNotBlank) ?: id}"
+        isAlbum -> "album:$id"
+        else -> "track:$id"
     }
 
     /**

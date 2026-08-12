@@ -316,23 +316,43 @@ object MusicBackend {
         )
     }
 
-    suspend fun searchAll(query: String, region: String? = null, source: String = SearchSource.ALL, limit: Int = 30): SearchResponse? =
+    suspend fun searchAll(
+        query: String,
+        region: String? = null,
+        source: String = SearchSource.ALL,
+        limit: Int = 30,
+        offset: Int = 0,
+    ): SearchResponse? =
         runCatching {
             requireInitialized()
             val requestedCount = limit.coerceIn(1, 300)
-            val (mainResult, audioResult, artistResult) = coroutineScope {
-                val main = async { audioApi.searchMain(query, offset = 0, count = requestedCount) }
+            val audioResult = coroutineScope {
                 val audios = async {
-                    audioApi.searchAudios(query, currentUserId(), offset = 0, count = requestedCount)
+                    audioApi.searchAudiosPage(
+                        query = query,
+                        ownerId = currentUserId(),
+                        offset = offset,
+                        count = requestedCount,
+                    )
                 }
-                val artists = async {
-                    audioApi.searchArtists(query, offset = 0, count = requestedCount.coerceAtMost(100))
+                if (offset == 0) {
+                    val main = async { audioApi.searchMain(query, offset = 0, count = requestedCount) }
+                    val artists = async {
+                        audioApi.searchArtists(query, offset = 0, count = requestedCount.coerceAtMost(100))
+                    }
+                    Triple(main.await(), audios.await(), artists.await())
+                } else {
+                    Triple(null, audios.await(), null)
                 }
-                Triple(main.await(), audios.await(), artists.await())
             }
 
-            val main: AudioSearchMainResponse? = mainResult.getOrNull()
-            val directTracks: List<AudioTrack> = audioResult.getOrNull().orEmpty()
+            val mainResult = audioResult.first
+            val trackPageResult = audioResult.second
+            val artistResult = audioResult.third
+
+            val main: AudioSearchMainResponse? = mainResult?.getOrNull()
+            val directPage = trackPageResult.getOrNull()
+            val directTracks: List<AudioTrack> = directPage?.items.orEmpty()
             val mainTracks = main?.let { response ->
                 (response.audios.items + response.own_audios.items).map { it.toAudioTrack() }
             }.orEmpty()
@@ -340,7 +360,7 @@ object MusicBackend {
                 .mergeAudioTracksById()
                 .map(::cacheTrack)
 
-            val directArtists: List<VkArtistDto> = artistResult.getOrNull()?.items.orEmpty()
+            val directArtists: List<VkArtistDto> = artistResult?.getOrNull()?.items.orEmpty()
             // searchArtists возвращает VkArtistDto, а searchMain — другой wire DTO,
             // AudioArtistDto. Объединяем только после нормализации в SearchItem,
             // иначе Kotlin выводит List<Any> и теряет id/domain/name.
@@ -356,7 +376,7 @@ object MusicBackend {
             val mainAlbums = main?.let { response ->
                 response.albums.items + response.own_albums.items
             }.orEmpty()
-            val fallbackAlbums: List<AudioPlaylist> = if (mainAlbums.isEmpty()) {
+            val fallbackAlbums: List<AudioPlaylist> = if (offset == 0 && mainAlbums.isEmpty()) {
                 audioApi.searchPlaylists(
                     query = query,
                     ownerId = currentUserId(),
@@ -367,12 +387,20 @@ object MusicBackend {
                 emptyList()
             }
 
-            if (main == null && directTracks.isEmpty() && directArtists.isEmpty() && fallbackAlbums.isEmpty()) {
-                val failure = sequenceOf(mainResult, audioResult, artistResult)
+            if (directPage == null && main == null && directArtists.isEmpty() && fallbackAlbums.isEmpty()) {
+                val failure = sequenceOf(mainResult, trackPageResult, artistResult)
+                    .filterNotNull()
                     .filterIsInstance<VkResult.Error>()
                     .firstOrNull()
                 throw backendFailure(failure?.code ?: 0, failure?.message ?: "VK search failed")
             }
+
+            // Advance by what VK actually returned. If `count` is absent, only
+            // an empty next page proves EOF; a short page alone does not.
+            val nextOffset = offset + directTracks.size
+            val totalTracks = directPage?.count
+            val hasMoreTracks = directPage != null && directTracks.isNotEmpty() &&
+                (totalTracks?.let { nextOffset < it } ?: true)
 
             SearchResponse(
                 query = query,
@@ -384,6 +412,8 @@ object MusicBackend {
                     addAll(mainAlbums.distinctBy(AudioPlaylistDto::fullId).map { it.toSearchItem() })
                     addAll(fallbackAlbums.distinctBy(AudioPlaylist::fullId).map { it.toSearchItem() })
                 },
+                nextOffset = nextOffset.takeIf { hasMoreTracks },
+                hasMore = hasMoreTracks,
             )
         }.getOrNull()
 
@@ -1014,6 +1044,30 @@ object MusicBackend {
         audioApi.getAudiosByArtist(artistId.removePrefix("vk_")).requireData()
             .map(::cacheTrack)
             .map { it.toEngineTrack() }
+
+    /** One lazily requested artist page; an API failure is not treated as EOF. */
+    suspend fun getArtistTracksPage(
+        artistId: String,
+        offset: Int,
+        limit: Int = 100,
+    ): ArtistTrackPage? = runCatching {
+        requireInitialized()
+        val pageSize = limit.coerceIn(1, 100)
+        val tracks = audioApi.getAudiosByArtist(
+            artistId = artistId.removePrefix("vk_"),
+            type = null,
+            offset = offset.coerceAtLeast(0),
+            count = pageSize,
+        ).requireData()
+        // This response has no total/cursor. A short non-empty page is not
+        // reliable EOF; request once more and stop only on an empty page.
+        val nextOffset = offset.coerceAtLeast(0) + tracks.size
+        ArtistTrackPage(
+            tracks = tracks.map(::cacheTrack).map { it.toEngineTrack() },
+            nextOffset = nextOffset.takeIf { tracks.isNotEmpty() },
+            hasMore = tracks.isNotEmpty(),
+        )
+    }.getOrNull()
 
     /**
      * Все аудио исполнителя. `topSongs` на странице артиста остаётся быстрым

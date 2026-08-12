@@ -579,6 +579,23 @@ class VkAudioApi(
         return client.execute(method)
     }
 
+    /** `audio.search` page with the server's total `count` preserved. */
+    suspend fun searchAudiosPage(
+        query: String,
+        ownerId: Long,
+        offset: Int,
+        count: Int = 120,
+    ): VkResult<VkItems<AudioTrack>> {
+        val method = VkMethod("audio.search", AudioTrackPageParser).apply {
+            param("q", query)
+            param("count", count.coerceIn(1, 300))
+            param("offset", offset.coerceAtLeast(0))
+            param("owner_id", ownerId)
+            param("filter", "all")
+        }
+        return client.execute(method)
+    }
+
     // ---------------------------------------------------------------
     // audio.searchPlaylists (AbstractC1085e.license)
     // ---------------------------------------------------------------

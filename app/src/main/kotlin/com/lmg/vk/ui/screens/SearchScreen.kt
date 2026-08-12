@@ -93,6 +93,10 @@ fun SearchScreen(
     val searchResults by viewModel.searchResults.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val error by viewModel.error.collectAsState()
+    val isLoadingMore by viewModel.isLoadingMore.collectAsState()
+    val hasMore by viewModel.hasMore.collectAsState()
+    val loadMoreError by viewModel.loadMoreError.collectAsState()
+    val pagingKey by viewModel.pagingKey.collectAsState()
 
     // Адаптив: поле поиска и сегменты остаются во всю ширину, а списки
     // результатов/истории в широком окне (альбом/планшет) центрируем узкой
@@ -534,6 +538,42 @@ fun SearchScreen(
                                                     null
                                                 }
                                             )
+                                        }
+                                    }
+
+                                    if (hasMore || isLoadingMore || loadMoreError != null) {
+                                        item(key = "search_next_page") {
+                                            Box(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(vertical = 16.dp),
+                                                contentAlignment = Alignment.Center,
+                                            ) {
+                                                when {
+                                                    isLoadingMore -> CircularProgressIndicator(
+                                                        color = SearchAccent,
+                                                        modifier = Modifier.size(24.dp),
+                                                        strokeWidth = 2.dp,
+                                                    )
+                                                    loadMoreError != null -> Text(
+                                                        text = "Retry loading more",
+                                                        color = SearchAccent,
+                                                        fontSize = 13.sp,
+                                                        fontWeight = FontWeight.SemiBold,
+                                                        modifier = Modifier
+                                                            .clip(CircleShape)
+                                                            .background(LiquidTheme.colors.glassTint)
+                                                            .liquidClickable(
+                                                                pressedScale = LiquidMotion.PressButton,
+                                                                onClick = viewModel::loadMore,
+                                                            )
+                                                            .padding(horizontal = 18.dp, vertical = 10.dp),
+                                                    )
+                                                    hasMore -> LaunchedEffect(pagingKey, searchResults.size) {
+                                                        viewModel.loadMore()
+                                                    }
+                                                }
+                                            }
                                         }
                                     }
 
