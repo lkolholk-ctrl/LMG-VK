@@ -639,6 +639,12 @@ fun AppRoot() {
                 onLogout = { profileOpen = false },
                 onOpenAuth = { authOpen = true },
                 onOpenLibrary = { profileOpen = false; switchTab(2) },
+                onOpenPlaylist = { playlistId ->
+                    profileOpen = false
+                    navController.navigate(
+                        NavRoutes.playlist(NavRoutes.TAB_LIBRARY, playlistId),
+                    )
+                },
             )
         }
 

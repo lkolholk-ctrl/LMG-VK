@@ -48,6 +48,7 @@ object VkProfileRepository {
         val groupsError: String? = null,
         val playlists: List<AudioPlaylist> = emptyList(),
         val playlistsTotal: Int? = null,
+        val playlistsError: String? = null,
         val audioTotal: Int? = null,
         val musicError: String? = null,
         val error: String? = null,
@@ -57,6 +58,9 @@ object VkProfileRepository {
 
         val hasMoreGroups: Boolean
             get() = groupsTotal?.let { groups.size < it } ?: false
+
+        val hasMorePlaylists: Boolean
+            get() = playlistsTotal?.let { playlists.size < it } ?: false
 
         val isEmpty: Boolean
             get() = profile == null && friends.isEmpty() && groups.isEmpty()
@@ -167,6 +171,7 @@ object VkProfileRepository {
                 groupsError = loaded.groups.errorMessage(),
                 playlists = loaded.playlists.itemsOrPrevious(_state.value.playlists),
                 playlistsTotal = loaded.playlists.countOrNull() ?: _state.value.playlistsTotal,
+                playlistsError = loaded.playlists.errorMessage(),
                 audioTotal = loaded.audioCount.countOrNull() ?: _state.value.audioTotal,
                 musicError = loaded.playlists.errorMessage() ?: loaded.audioCount.errorMessage(),
                 error = profileError.takeIf { profile == null },
@@ -258,6 +263,43 @@ object VkProfileRepository {
         }
     }
 
+    suspend fun loadMorePlaylists() {
+        val audio = audioApi ?: return
+        val current = _state.value
+        if (!current.hasMorePlaylists) return
+        val ownerId = current.profile?.id
+            ?: current.playlists.firstOrNull()?.owner_id
+            ?: return
+        if (!pagingMutex.tryLock()) return
+        try {
+            when (
+                val result = audio.getPlaylistsPage(
+                    ownerId = ownerId,
+                    offset = current.playlists.size,
+                    count = 50,
+                )
+            ) {
+                is VkResult.Success -> {
+                    val merged = (current.playlists + result.data.items)
+                        .distinctBy(AudioPlaylist::fullId)
+                    _state.value = _state.value.copy(
+                        playlists = merged,
+                        playlistsTotal = result.data.count ?: current.playlistsTotal,
+                        playlistsError = null,
+                        musicError = null,
+                    )
+                }
+                is VkResult.Error ->
+                    _state.value = _state.value.copy(
+                        playlistsError = messageOf(result),
+                        musicError = messageOf(result),
+                    )
+            }
+        } finally {
+            pagingMutex.unlock()
+        }
+    }
+
     // ------------------------- аудио друга / сообщества -------------------------
 
     suspend fun openFriendAudio(friend: VkFriend) = openOwnerAudio(
@@ -272,6 +314,18 @@ object VkProfileRepository {
         title = group.name,
         subtitle = group.screenName,
         avatarUrl = group.bigAvatarUrl,
+    )
+
+    /**
+     * Аудио текущего аккаунта — тот же [OwnerAudioState], что у друга/группы.
+     * Имя и аватар берём из уже загруженного [VkAccountProfile], без лишнего
+     * `users.get`: профиль на экране уже есть.
+     */
+    suspend fun openMyAudio(profile: VkAccountProfile) = openOwnerAudio(
+        ownerId = profile.id,
+        title = profile.displayName.ifBlank { "id${profile.id}" },
+        subtitle = profile.addressSlug,
+        avatarUrl = profile.largePhotoUrl.ifBlank { profile.bestPhotoUrl },
     )
 
     fun closeOwnerAudio() {
