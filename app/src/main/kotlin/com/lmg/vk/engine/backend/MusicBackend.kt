@@ -1055,7 +1055,11 @@ object MusicBackend {
         val pageSize = limit.coerceIn(1, 100)
         val tracks = audioApi.getAudiosByArtist(
             artistId = artistId.removePrefix("vk_"),
-            type = null,
+            // VK's artist endpoint expects a concrete group. Omitting `type`
+            // makes this page request fail, so Retry only repeated the same
+            // invalid call. `top` is the confirmed mode used by the working
+            // getArtistTopTracks path; offset still advances page by page.
+            type = "top",
             offset = offset.coerceAtLeast(0),
             count = pageSize,
         ).requireData()
