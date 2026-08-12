@@ -61,6 +61,7 @@ import com.lmg.vk.ui.glass.AlbumArtImage
 import com.lmg.vk.ui.mix.VkMixLottieStore
 import com.lmg.vk.ui.theme.AppFontFamily
 import com.lmg.vk.ui.theme.LiquidTheme
+import com.lmg.vk.ui.theme.LiquidSurfaces
 import com.lmg.vk.ui.theme.VkSansDisplay
 import com.lmg.vk.ui.viewmodel.HomeViewModel
 import java.text.SimpleDateFormat
@@ -101,10 +102,11 @@ fun NewScreen(
     val tabStates by viewModel.tabContent.collectAsState()
     val selectedTabs by viewModel.selectedTab.collectAsState()
     val blockPaging by viewModel.blockPaging.collectAsState()
+    val loadingSignalBlocks by viewModel.loadingSignalBlocks.collectAsState()
     val homeBlocks = remember(homeContent) {
         homeContent?.blocks?.filter {
             // Блок табов элементов не несёт — его «содержимое» это сами табы.
-            (it.items.isNotEmpty() || it.subsectionTabs.isNotEmpty()) &&
+            (it.items.isNotEmpty() || it.subsectionTabs.isNotEmpty() || it.signalInfo != null) &&
                 // Служебные блоки VK (separator, placeholder, text и прочие) в
                 // выдаче есть, но карточками не рисуются. Раньше они отсекались
                 // ниже, уже при отрисовке, и попадали в счётчик «N разделов» —
@@ -265,6 +267,10 @@ fun NewScreen(
                         onSelectTab = viewModel::selectSubsectionTab,
                         onRetryTab = viewModel::retrySubsectionTab,
                         onItemClick = onItemClick,
+                        onPlaySignal = { signal, seedTrackId ->
+                            viewModel.startCatalogSignal(context, signal, seedTrackId)
+                        },
+                        loadingSignalBlocks = loadingSignalBlocks,
                         onOpenSheet = { sectionSheetBlock = it },
                         onOpenSnippets = onOpenSnippets,
                     )
@@ -310,6 +316,8 @@ private fun NewCatalogBlock(
     onSelectTab: (String, String) -> Unit,
     onRetryTab: (String) -> Unit,
     onItemClick: (com.lmg.vk.engine.backend.HomeItem) -> Unit,
+    onPlaySignal: (com.lmg.vk.engine.backend.HomeSignalInfo, String?) -> Unit,
+    loadingSignalBlocks: Set<String>,
     onOpenSheet: (com.lmg.vk.engine.backend.HomeBlock) -> Unit,
     onOpenSnippets: () -> Unit = {},
     allowTabs: Boolean = true,
@@ -318,6 +326,16 @@ private fun NewCatalogBlock(
         it == "VK Музыка" && block.layoutName.isNotBlank()
     }
     when {
+        block.signalInfo != null -> {
+            val signal = block.signalInfo
+            NewSignalCard(
+                block = block,
+                compact = compact,
+                isLoading = signal.playBlockId?.let(loadingSignalBlocks::contains) == true,
+                onPlay = { seedTrackId -> onPlaySignal(signal, seedTrackId) },
+            )
+        }
+
         block.layoutName == "close_catalog_banner" -> {
             // Закрытый баннер не рисуем вовсе — вместе с заголовком,
             // иначе на экране останется пустая секция.
@@ -358,6 +376,8 @@ private fun NewCatalogBlock(
                     onSelectTab = onSelectTab,
                     onRetryTab = onRetryTab,
                     onItemClick = onItemClick,
+                    onPlaySignal = onPlaySignal,
+                    loadingSignalBlocks = loadingSignalBlocks,
                     onOpenSheet = onOpenSheet,
                 )
             }
@@ -535,6 +555,124 @@ private fun NewCatalogBlock(
                     }
                 }
             }
+        }
+    }
+}
+
+/**
+ * Official VK Music Signal entity, presented in LMG's neutral surface style.
+ * The cover/text/current month are server fields; play resolves the action's
+ * catalog source instead of treating the preview track as a one-item queue.
+ */
+@Composable
+private fun NewSignalCard(
+    block: com.lmg.vk.engine.backend.HomeBlock,
+    compact: Boolean,
+    isLoading: Boolean,
+    onPlay: (String?) -> Unit,
+) {
+    val signal = block.signalInfo ?: return
+    val lc = LiquidTheme.colors
+    val preview = block.items.firstOrNull()
+    val coverSize = if (compact) 84.dp else 104.dp
+    val canPlay = !signal.playBlockId.isNullOrBlank() && !isLoading
+
+    Column(
+        modifier = Modifier
+            .padding(horizontal = 20.dp)
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(if (compact) 18.dp else 22.dp))
+            .background(LiquidSurfaces.card(lc.isDark))
+            .padding(if (compact) 14.dp else 16.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            AlbumArtImage(
+                uri = null,
+                contentDescription = signal.title.ifBlank { "Сигнал" },
+                coverUrl = signal.cover,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .size(coverSize)
+                    .clip(RoundedCornerShape(if (compact) 16.dp else 20.dp))
+                    .clickable(enabled = canPlay) { onPlay(null) },
+                placeholderIconSize = if (compact) 28.dp else 32.dp,
+            )
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(horizontal = if (compact) 12.dp else 16.dp),
+            ) {
+                signal.currentMonth.takeIf(String::isNotBlank)?.let { month ->
+                    Text(
+                        text = month,
+                        color = lc.accent,
+                        fontSize = if (compact) 10.5.sp else 11.5.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        fontFamily = AppFontFamily,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                Text(
+                    text = signal.title.ifBlank { "Сигнал" },
+                    color = lc.textPrimary,
+                    fontSize = if (compact) 17.sp else 21.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    fontFamily = VkSansDisplay,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = if (signal.currentMonth.isBlank()) 0.dp else 3.dp),
+                )
+                signal.subtitle.takeIf(String::isNotBlank)?.let { subtitle ->
+                    Text(
+                        text = subtitle,
+                        color = lc.textSecondary,
+                        fontSize = if (compact) 11.5.sp else 13.sp,
+                        fontWeight = FontWeight.Normal,
+                        fontFamily = AppFontFamily,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                }
+            }
+            Box(
+                modifier = Modifier
+                    .size(if (compact) 42.dp else 48.dp)
+                    .clip(RoundedCornerShape(50))
+                    .background(lc.accent.copy(alpha = if (canPlay) 0.18f else 0.08f))
+                    .clickable(enabled = canPlay) { onPlay(null) },
+                contentAlignment = Alignment.Center,
+            ) {
+                if (isLoading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(if (compact) 19.dp else 22.dp),
+                        strokeWidth = 2.dp,
+                        color = lc.accent,
+                    )
+                } else {
+                    Icon(
+                        imageVector = if (signal.shuffled) {
+                            com.lmg.vk.ui.icons.LmgGlyphs.ShuffleOutline28
+                        } else {
+                            com.lmg.vk.ui.icons.LmgGlyphs.Play28
+                        },
+                        contentDescription = if (signal.shuffled) "Перемешать Сигнал" else "Слушать Сигнал",
+                        tint = if (signal.playBlockId.isNullOrBlank()) lc.textSecondary else lc.accent,
+                        modifier = Modifier.size(if (compact) 21.dp else 24.dp),
+                    )
+                }
+            }
+        }
+
+        preview?.let { item ->
+            Spacer(Modifier.height(if (compact) 12.dp else 14.dp))
+            NewTrackRow(
+                item = item,
+                rank = null,
+                compact = compact,
+                onClick = { onPlay(item.trackId ?: item.id) },
+            )
         }
     }
 }
@@ -1695,6 +1833,8 @@ private fun NewSubsectionTabs(
     onSelectTab: (String, String) -> Unit,
     onRetryTab: (String) -> Unit,
     onItemClick: (com.lmg.vk.engine.backend.HomeItem) -> Unit,
+    onPlaySignal: (com.lmg.vk.engine.backend.HomeSignalInfo, String?) -> Unit,
+    loadingSignalBlocks: Set<String>,
     onOpenSheet: (com.lmg.vk.engine.backend.HomeBlock) -> Unit,
 ) {
     val lc = LiquidTheme.colors
@@ -1745,6 +1885,8 @@ private fun NewSubsectionTabs(
                     onSelectTab = onSelectTab,
                     onRetryTab = onRetryTab,
                     onItemClick = onItemClick,
+                    onPlaySignal = onPlaySignal,
+                    loadingSignalBlocks = loadingSignalBlocks,
                     onOpenSheet = onOpenSheet,
                     // Вложенные табы внутри таба не рисуем: VK такую структуру не
                     // строит, а рекурсия здесь ничем не ограничена.

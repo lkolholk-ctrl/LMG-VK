@@ -196,6 +196,23 @@ data class VkCatalogResponse(
     val audio_followings_update_info: List<VkCatalogFollowingsUpdateInfo>? = null,
     val radio_stations: List<RadioStation>? = null,
     val audio_stream_mixes: List<AudioStreamMix>? = null,
+    /** VK Music 8.37 Catalog2 extended entity (`audio_signal_common_info`). */
+    val audio_signal_common_info: List<VkAudioSignalCommonInfo>? = null,
+)
+
+/**
+ * Server-owned Signal card from VK Music. `audios` contains VK full audio ids;
+ * the playable queue itself is resolved by the card's catalog action through
+ * `audio.getIdsBySource(source=catalog)`.
+ */
+@JsonClass(generateAdapter = true)
+data class VkAudioSignalCommonInfo(
+    val id: String = "",
+    val cover: String? = null,
+    val title: String? = null,
+    val subtitle: String? = null,
+    val current_month: String? = null,
+    val audios: List<String>? = null,
 )
 
 /** Структура Catalog2Response из одноимённого адаптера VK X. */
@@ -247,6 +264,8 @@ data class VkCatalogBlock(
     val placeholder_ids: List<String>? = null,
     val radio_stations_ids: List<String>? = null,
     val audio_stream_mixes_ids: List<String>? = null,
+    /** The official wire key is singular `_id`, but its value is an array. */
+    val audio_signal_common_info_id: List<String>? = null,
 )
 
 /**
@@ -262,6 +281,10 @@ data class VkCatalogButtonAction(
     val type: String? = null,
     val style: String? = null,
     val consume_reason: String? = null,
+    val block_id: String? = null,
+    val section_id: String? = null,
+    val title: String? = null,
+    val hint_id: String? = null,
 )
 
 @JsonClass(generateAdapter = true)
@@ -285,6 +308,8 @@ data class VkCatalogButton(
     val mix_options: String? = null,
     val description: String? = null,
     val style: String? = null,
+    /** Compatibility with flattened CatalogButton action payloads. */
+    val consume_reason: String? = null,
 )
 
 /**

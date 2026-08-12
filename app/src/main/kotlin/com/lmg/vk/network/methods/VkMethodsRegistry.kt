@@ -88,12 +88,18 @@ class VkMethodsRegistry(private val client: VkApiClient) {
      * `podcasts_popular`, `podcasts_recent`, `similar_track`, `wall`.
      * `similar_track` — готовый серверный «похожие треки».
      *
-     * Третий параметр официального клиента — `ref` (метка источника для
-     * аналитики VK). Не передаём: она нужна их статистике, а не нам.
+     * Третий параметр официального клиента — `ref`. Для Track Wave он не
+     * требуется; Catalog sources (включая Signal) передают серверную метку
+     * действия, поэтому оставляем его optional.
      */
-    suspend fun getIdsBySource(source: String, entityId: String): VkResult<List<String>> {
+    suspend fun getIdsBySource(
+        source: String,
+        entityId: String,
+        ref: String? = null,
+    ): VkResult<List<String>> {
         val method = VkMethod("audio.getIdsBySource", AudioIdsParser).apply {
             param("source", source); param("entity_id", entityId)
+            ref?.takeIf(String::isNotBlank)?.let { param("ref", it) }
         }
         return client.execute(method)
     }

@@ -87,6 +87,37 @@ object PlayerController {
     @Volatile private var mediaControllerRetryAfterMs = 0L
 
     // ── Queue ──
+    // Media3 creates one MediaSource/period per MediaItem and compares the whole
+    // concatenated timeline from its playback thread (including the preload
+    // path). Feeding a fully paginated library here can therefore exhaust the
+    // 384 MB app heap even though only one track is decoded at a time.
+    //
+    // Keep the *player* queue deliberately bounded. A tap on an item outside
+    // this window builds a fresh window around that item, while an endless
+    // source discards an already-played prefix before appending its next page.
+    internal const val MAX_PLAYER_QUEUE_ITEMS = 500
+    private const val RETAIN_PLAYED_QUEUE_ITEMS = 50
+
+    private data class BoundedQueue(
+        val tracks: List<Track>,
+        val startIndex: Int,
+        val droppedBefore: Int,
+    )
+
+    private fun boundQueue(tracks: List<Track>, startIndex: Int): BoundedQueue {
+        if (tracks.size <= MAX_PLAYER_QUEUE_ITEMS) {
+            return BoundedQueue(tracks.toList(), startIndex, 0)
+        }
+        val safeStart = startIndex.coerceIn(tracks.indices)
+        val from = (safeStart - RETAIN_PLAYED_QUEUE_ITEMS).coerceAtLeast(0)
+        val to = (from + MAX_PLAYER_QUEUE_ITEMS).coerceAtMost(tracks.size)
+        return BoundedQueue(
+            tracks = tracks.subList(from, to).toList(),
+            startIndex = safeStart - from,
+            droppedBefore = from,
+        )
+    }
+
     private var queue = listOf<Track>()
     private var currentIndex = -1
 
@@ -897,7 +928,36 @@ object PlayerController {
             val existingIds = queue.mapTo(HashSet()) { it.id }
             val fresh = newTracks.filterNot { it.id in existingIds }
             if (fresh.isEmpty()) return@launch
-            queue = queue + fresh
+
+            // Make room by releasing only an already-played prefix. This keeps
+            // Previous useful (50 tracks), preserves the whole upcoming tail,
+            // and prevents an endless Mix/Wave session from growing Media3's
+            // ConcatenatedTimeline forever.
+            val overflow = (queue.size + fresh.size - MAX_PLAYER_QUEUE_ITEMS)
+                .coerceAtLeast(0)
+            val droppablePrefix = (currentIndex - RETAIN_PLAYED_QUEUE_ITEMS)
+                .coerceAtLeast(0)
+            val dropCount = overflow.coerceAtMost(droppablePrefix)
+            if (dropCount > 0) {
+                val droppedIds = queue.take(dropCount).mapTo(HashSet()) { it.id }
+                queue = queue.drop(dropCount)
+                currentIndex -= dropCount
+                manualEnd = (manualEnd - dropCount).coerceAtLeast(0)
+                autoStart = (autoStart - dropCount).coerceAtLeast(0)
+                preShuffleOrder = preShuffleOrder?.filterNot { it in droppedIds }
+            }
+
+            val accepted = fresh.take(
+                (MAX_PLAYER_QUEUE_ITEMS - queue.size).coerceAtLeast(0)
+            )
+            if (accepted.isEmpty()) {
+                android.util.Log.w(
+                    "VOIDPIXEL_MEDIA",
+                    "[QUEUE_CAP] refill skipped: size=${queue.size}, current=$currentIndex"
+                )
+                return@launch
+            }
+            queue = queue + accepted
             _queueFlow.value = queue
             // Волна дописывает в хвост: autoStart уже стоит там, где начинается
             // подобранное, двигать его не нужно — только проверить инвариант.
@@ -908,21 +968,32 @@ object PlayerController {
             // сервера то, что уже стоит в очереди (дубль отсеется, но
             // wave/next-запрос сгорит зря).
             if (_playbackContext is PlaybackContext.Global) {
-                endlessEngine.registerTracks(fresh.map { it.id })
+                endlessEngine.registerTracks(accepted.map { it.id })
             }
 
             withContext(Dispatchers.Main) {
-                val mediaItems = fresh.map { track ->
+                val mediaItems = accepted.map { track ->
                     buildMediaItem(track, track.uri)
                 }
                 val player = controller ?: appContext?.let { getPlayer(it) }
                 if (player != null) {
+                    if (dropCount > 0) {
+                        player.removeMediaItems(
+                            0,
+                            dropCount.coerceAtMost(player.mediaItemCount)
+                        )
+                    }
                     // MediaController -> MediaSession.Callback.onAddMediaItems -> AudioService.
                     // Direct service append is only a fallback; doing both duplicates timeline items.
                     player.addMediaItems(mediaItems)
                 } else {
-                    audioServiceRef?.addToQueue(mediaItems)
+                    audioServiceRef?.addToQueue(mediaItems, removeFromStart = dropCount)
                 }
+
+                android.util.Log.d(
+                    "VOIDPIXEL_MEDIA",
+                    "[QUEUE_BOUND] dropped=$dropCount added=${accepted.size} total=${queue.size} current=$currentIndex"
+                )
 
                 // Сразу обновляем плейсхолдеры для свежих элементов
                 appContext?.let { prefetchAhead(it, currentIndex, depth = 3) }
@@ -931,7 +1002,8 @@ object PlayerController {
     }
 
     fun addTracksFromService(newTracks: List<Track>, mediaItems: List<MediaItem>) {
-        queue = queue + newTracks
+        val capacity = (MAX_PLAYER_QUEUE_ITEMS - queue.size).coerceAtLeast(0)
+        queue = queue + newTracks.take(capacity)
         _queueFlow.value = queue
         publishSections()
         appContext?.let { prefetchAhead(it, currentIndex, depth = 3) }
@@ -969,13 +1041,23 @@ object PlayerController {
         // buildMediaItem отдаёт content:// как есть, не оборачивая в liquid://.
         val startTrackId = tracks[startIndex].id
         val startKind = kindOf(tracks[startIndex])
-        @Suppress("NAME_SHADOWING") val tracks = tracks.filter { kindOf(it) == startKind }
-        if (tracks.isEmpty()) return
+        val filteredTracks = tracks.filter { kindOf(it) == startKind }
+        if (filteredTracks.isEmpty()) return
         // Индекс ищем ПО ID, а не coerceAtMost: если фильтр выбросил треки
         // ДО стартового, «обрезка» индекса заиграла бы чужой трек.
-        @Suppress("NAME_SHADOWING") val startIndex =
-            tracks.indexOfFirst { it.id == startTrackId }.coerceAtLeast(0)
+        val filteredStartIndex =
+            filteredTracks.indexOfFirst { it.id == startTrackId }.coerceAtLeast(0)
+        val sourceQueueSize = filteredTracks.size
+        val boundedQueue = boundQueue(filteredTracks, filteredStartIndex)
+        @Suppress("NAME_SHADOWING") val tracks = boundedQueue.tracks
+        @Suppress("NAME_SHADOWING") val startIndex = boundedQueue.startIndex
         val startTrack = tracks[startIndex]
+        if (sourceQueueSize > tracks.size) {
+            android.util.Log.d(
+                "VOIDPIXEL_MEDIA",
+                "[QUEUE_BOUND] initial source capped at ${tracks.size}, start=$startIndex, droppedBefore=${boundedQueue.droppedBefore}"
+            )
+        }
         DebugLog.add("PC.playFromList(EXO) n=${tracks.size} start=$startIndex online=${startTrack.isOnlineTrack} | ${DebugLog.caller()}")
 
         // Любой НЕ-YWAVE плейбек завершает волну ЯМ: её дозаправка/фидбек
@@ -1152,12 +1234,15 @@ object PlayerController {
             return
         }
         val startTrackId = tracks[startIndex].id
-        @Suppress("NAME_SHADOWING") val tracks = tracks.filter { kindOf(it) == TrackKind.LOCAL }
-        if (tracks.isEmpty()) return // онлайн-очередь в JUCE не отдаём
+        val localTracks = tracks.filter { kindOf(it) == TrackKind.LOCAL }
+        if (localTracks.isEmpty()) return // онлайн-очередь в JUCE не отдаём
         // По ID, а не coerceAtMost: отброшенные онлайн-треки ДО стартового
         // сдвигают индекс, и заиграл бы не тот трек, по которому тапнули.
-        @Suppress("NAME_SHADOWING") val startIndex =
-            tracks.indexOfFirst { it.id == startTrackId }.coerceAtLeast(0)
+        val localStartIndex =
+            localTracks.indexOfFirst { it.id == startTrackId }.coerceAtLeast(0)
+        val boundedQueue = boundQueue(localTracks, localStartIndex)
+        @Suppress("NAME_SHADOWING") val tracks = boundedQueue.tracks
+        @Suppress("NAME_SHADOWING") val startIndex = boundedQueue.startIndex
         val startTrack = tracks[startIndex]
         DebugLog.add("PC.playLocalOnJuce n=${tracks.size} start=$startIndex id=${startTrack.id} | ${DebugLog.caller()}")
 
@@ -1593,11 +1678,13 @@ object PlayerController {
 
     fun setQueue(tracks: List<Track>, startIndex: Int = 0) {
         invalidateAutoflow()
-        val immutableTracks = tracks.toList()
+        if (tracks.isEmpty()) return
+        val boundedQueue = boundQueue(tracks, startIndex.coerceIn(tracks.indices))
+        val immutableTracks = boundedQueue.tracks
         queue = immutableTracks
         _queueFlow.value = immutableTracks
-        currentIndex = startIndex
-        resetSections(startIndex, immutableTracks.size)
+        currentIndex = boundedQueue.startIndex
+        resetSections(currentIndex, immutableTracks.size)
 
         // Also register tracks to endlessEngine if context is global
         if (_playbackContext is PlaybackContext.Global) {
@@ -1672,7 +1759,30 @@ object PlayerController {
      * поставить руками трек, который уже стоит где-то дальше, — законное желание.
      */
     private fun insertManual(track: Track, at: Int) {
-        val idx = at.coerceIn(0, queue.size)
+        var idx = at.coerceIn(0, queue.size)
+        var evictedIndex: Int? = null
+        if (queue.size >= MAX_PLAYER_QUEUE_ITEMS) {
+            // Manual additions are rare but must obey the same hard bound. Drop
+            // the oldest played item when possible; otherwise replace the most
+            // distant tail item so the requested Play next/Add to queue action
+            // is never ignored.
+            val removedIndex = if (currentIndex > RETAIN_PLAYED_QUEUE_ITEMS) {
+                0
+            } else {
+                queue.lastIndex
+            }
+            evictedIndex = removedIndex
+            val removedId = queue[removedIndex].id
+            queue = queue.toMutableList().apply { removeAt(removedIndex) }
+            if (removedIndex < currentIndex) currentIndex--
+            if (removedIndex < manualEnd) manualEnd--
+            if (removedIndex < autoStart) autoStart--
+            if (removedIndex < idx) idx--
+            preShuffleOrder = preShuffleOrder?.toMutableList()?.apply {
+                val orderIndex = indexOf(removedId)
+                if (orderIndex >= 0) removeAt(orderIndex)
+            }
+        }
         queue = queue.toMutableList().apply { add(idx, track) }
         if (idx <= manualEnd) manualEnd++
         if (idx <= autoStart) autoStart++
@@ -1681,6 +1791,11 @@ object PlayerController {
         maybePreloadAutoflow()
         mainScope.launch {
             val player = controller ?: appContext?.let { getPlayer(it) }
+            evictedIndex?.let { removed ->
+                if (player != null && removed < player.mediaItemCount) {
+                    player.removeMediaItem(removed)
+                }
+            }
             if (player != null && idx <= player.mediaItemCount)
                 player.addMediaItem(idx, buildMediaItem(track, track.uri))
             else

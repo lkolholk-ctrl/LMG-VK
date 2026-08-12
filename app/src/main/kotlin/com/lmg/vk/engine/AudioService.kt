@@ -197,6 +197,16 @@ class AudioService : MediaSessionService() {
     /** Solid service-scoped queue reference — never garbage collected in background */
     private var currentQueueItems: List<MediaItem> = emptyList()
 
+    // Must match PlayerController's playback-window bound. This list is only a
+    // strong service reference; retaining removed pages here would otherwise
+    // defeat the bounded Media3 timeline and leak every endless refill batch.
+    private fun boundedQueueReference(items: List<MediaItem>): List<MediaItem> =
+        if (items.size <= PlayerController.MAX_PLAYER_QUEUE_ITEMS) {
+            items.toList()
+        } else {
+            items.takeLast(PlayerController.MAX_PLAYER_QUEUE_ITEMS)
+        }
+
     private val playerListener = object : Player.Listener {
         override fun onPlaybackStateChanged(playbackState: Int) {
             if (!exoOwnsSession()) return // события неактивного плеера — чужие
@@ -954,7 +964,7 @@ class AudioService : MediaSessionService() {
             // MediaSession сам добавит возвращённые элементы в Player. Здесь
             // держим только solid reference; повторный addMediaItems раньше
             // удваивал хвост очереди.
-            currentQueueItems = currentQueueItems + mediaItems
+            currentQueueItems = boundedQueueReference(currentQueueItems + mediaItems)
             return Futures.immediateFuture(mediaItems)
         }
 
@@ -968,9 +978,9 @@ class AudioService : MediaSessionService() {
             // MediaSession применит возвращённую очередь сам. Раньше callback
             // ставил её вручную, затем framework ставил повторно, а вызывающий
             // код ещё раз звал AudioService.setQueue().
-            currentQueueItems = mediaItems.toList()
+            currentQueueItems = boundedQueueReference(mediaItems)
             return Futures.immediateFuture(
-                MediaSession.MediaItemsWithStartPosition(currentQueueItems, startIndex, startPositionMs)
+                MediaSession.MediaItemsWithStartPosition(mediaItems, startIndex, startPositionMs)
             )
         }
 
@@ -1120,13 +1130,13 @@ class AudioService : MediaSessionService() {
     }
 
     fun setQueue(mediaItems: List<MediaItem>, startIndex: Int = 0, startPositionMs: Long = 0L) {
-        currentQueueItems = mediaItems.toList()
+        currentQueueItems = boundedQueueReference(mediaItems)
         mainScope.launch {
             cancelCrossfadeFade(resetVolume = true)
             bindExoPlayer()                            // стриминг → ExoPlayer (с JUCE при необходимости)
             player.stop()
             player.clearMediaItems()
-            activePlayer().setMediaItems(currentQueueItems, startIndex, startPositionMs)
+            activePlayer().setMediaItems(mediaItems, startIndex, startPositionMs)
             player.prepare()
             android.util.Log.d("AudioService", "[QUEUE_SET] ${currentQueueItems.size} items injected, startIndex=$startIndex")
             // ── AGGRESSIVE DEBUG: verify injection ──
@@ -1138,10 +1148,15 @@ class AudioService : MediaSessionService() {
         }
     }
 
-    fun addToQueue(mediaItems: List<MediaItem>) {
-        currentQueueItems = currentQueueItems + mediaItems
+    fun addToQueue(mediaItems: List<MediaItem>, removeFromStart: Int = 0) {
+        val dropCount = removeFromStart.coerceAtMost(currentQueueItems.size)
+        currentQueueItems = boundedQueueReference(currentQueueItems.drop(dropCount) + mediaItems)
         mainScope.launch {
-            activePlayer().addMediaItems(mediaItems)
+            val target = activePlayer()
+            if (dropCount > 0) {
+                target.removeMediaItems(0, dropCount.coerceAtMost(target.mediaItemCount))
+            }
+            target.addMediaItems(mediaItems)
             android.util.Log.d("AudioService", "[QUEUE_ADD] ${mediaItems.size} items appended. Total=${currentQueueItems.size}")
         }
     }
@@ -1228,7 +1243,7 @@ class AudioService : MediaSessionService() {
         DebugLog.add("SVC.playLocalQueue items=${mediaItems.size} start=$startIndex sessionNull=${session==null}")
         mainScope.launch {
             cancelCrossfadeFade(resetVolume = true)
-            currentQueueItems = mediaItems.toList()
+            currentQueueItems = boundedQueueReference(mediaItems)
             val juce = ensureJucePlayer()
             if (session?.player !== juce) {
                 DebugLog.add("SVC.playLocalQueue (session EXO->JUCE)")

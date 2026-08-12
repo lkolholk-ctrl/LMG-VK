@@ -663,6 +663,59 @@ object MusicBackend {
     }
 
     /**
+     * Official StartPlayCatalogSource used by VK Music Signal.
+     *
+     * VK does not page the visible Signal card itself. Its play action carries
+     * a catalog block id, which is resolved through `audio.getIdsBySource`;
+     * those ids are then hydrated with the regular `audio.getById` contract.
+     */
+    suspend fun getCatalogSourceTracks(
+        blockId: String,
+        ref: String? = null,
+    ): List<Track> {
+        requireInitialized()
+        require(blockId.isNotBlank()) { "Signal catalog block id is blank" }
+        val ids = when (
+            val result = methodsRegistry.getIdsBySource(
+                source = "catalog",
+                entityId = blockId,
+                ref = ref,
+            )
+        ) {
+            is VkResult.Success -> result.data
+            is VkResult.Error -> {
+                com.lmg.vk.debug.DebugLog.add(
+                    "VK SIGNAL api_error block=$blockId code=${result.code} message=${result.message}",
+                )
+                throw backendFailure(result.code, result.message)
+            }
+        }.map(::normalizeTrackId).filter(String::isNotBlank).distinct()
+
+        if (ids.isEmpty()) {
+            com.lmg.vk.debug.DebugLog.add("VK SIGNAL success_empty block=$blockId")
+            return emptyList()
+        }
+
+        val hydrated = buildList {
+            ids.chunked(100).forEach { page ->
+                addAll(audioApi.getById(page).requireData().map(::cacheTrack))
+            }
+        }
+        val byId = hydrated.associateBy {
+            com.lmg.vk.engine.VkAudioIdentity.stableFullId(it.fullId)
+        }
+        val tracks = ids.mapNotNull { id ->
+            byId[com.lmg.vk.engine.VkAudioIdentity.stableFullId(id)]
+                ?.takeIf { it.isAvailable }
+                ?.toEngineTrack()
+        }
+        com.lmg.vk.debug.DebugLog.add(
+            "VK SIGNAL resolved block=$blockId ids=${ids.size} tracks=${tracks.size}",
+        )
+        return tracks
+    }
+
+    /**
      * Подтверждённый VK fallback для редких ответов без CatalogKit item IDs.
      * Это не локальные карточки: оба списка приходят из audio.* текущей сессии.
      */    private suspend fun loadHomeFallbackBlocks(): List<HomeBlock> = coroutineScope {
@@ -2660,6 +2713,10 @@ object MusicBackend {
             placeholder_ids = mergeIds(placeholder_ids, other.placeholder_ids),
             radio_stations_ids = mergeIds(radio_stations_ids, other.radio_stations_ids),
             audio_stream_mixes_ids = mergeIds(audio_stream_mixes_ids, other.audio_stream_mixes_ids),
+            audio_signal_common_info_id = mergeIds(
+                audio_signal_common_info_id,
+                other.audio_signal_common_info_id,
+            ),
         )
     }
 
@@ -2692,6 +2749,7 @@ object MusicBackend {
         val audio_content_cards = flatMap { it.audio_content_cards.orEmpty() }
         val radio_stations = flatMap { it.radio_stations.orEmpty() }
         val audio_stream_mixes = flatMap { it.audio_stream_mixes.orEmpty() }
+        val signal_infos = flatMap { it.audio_signal_common_info.orEmpty() }
         val audiosById = audios.orEmpty().associateBy { it.fullId }
         val playlistsById = playlists.orEmpty().associateBy { it.fullId }
         val artistsById = artists.orEmpty().associateBy { it.id }
@@ -2726,6 +2784,7 @@ object MusicBackend {
         }
         val stationsById = radio_stations.orEmpty().associateBy { it.id.toString() }
         val streamMixesById = audio_stream_mixes.orEmpty().associateBy { it.id }
+        val signalsById = signal_infos.orEmpty().associateBy { it.id }
         val catalogPages = this
         val sectionIdByBlockId = buildMap {
             catalogPages.forEach { response ->
@@ -2772,6 +2831,35 @@ object MusicBackend {
                     ?: pendingHeaderTitle
                 return@mapNotNull null
             }
+            val signal = block.audio_signal_common_info_id.orEmpty()
+                .mapNotNull(signalsById::byCatalogId)
+                .firstOrNull()
+            val signalAudioIds = signal?.audios.orEmpty()
+            val playSignalAction = block.actions.orEmpty().firstOrNull { action ->
+                (action.action?.type ?: action.type) == "play_audios_from_block" ||
+                    (action.action?.type ?: action.type) == "play_shuffled_audios_from_block"
+            }
+            val openSignalAction = block.actions.orEmpty().firstOrNull { action ->
+                (action.action?.type ?: action.type) == "open_section"
+            }
+            val signalInfo = signal?.let { info ->
+                HomeSignalInfo(
+                    id = info.id,
+                    cover = info.cover?.takeIf(String::isNotBlank),
+                    title = info.title.orEmpty(),
+                    subtitle = info.subtitle.orEmpty(),
+                    currentMonth = info.current_month.orEmpty(),
+                    audioIds = signalAudioIds,
+                    playBlockId = (playSignalAction?.action?.block_id
+                        ?: playSignalAction?.block_id)?.takeIf(String::isNotBlank),
+                    openSectionId = (openSignalAction?.action?.section_id
+                        ?: openSignalAction?.section_id)?.takeIf(String::isNotBlank),
+                    ref = (playSignalAction?.action?.consume_reason
+                        ?: playSignalAction?.consume_reason)?.takeIf(String::isNotBlank),
+                    shuffled = (playSignalAction?.action?.type ?: playSignalAction?.type) ==
+                        "play_shuffled_audios_from_block",
+                )
+            }
             val items = buildList {
                 block.actions.orEmpty().mapNotNull { it.toPlayMixHomeItem() }
                     .forEach(::add)
@@ -2816,6 +2904,8 @@ object MusicBackend {
                     .forEach { add(it.toHomeItem()) }
                 block.audio_stream_mixes_ids.orEmpty().mapNotNull(streamMixesById::byCatalogId)
                     .forEach { add(it.toHomeItem()) }
+                signalAudioIds.mapNotNull(audiosById::byCatalogId)
+                    .forEach { add(it.toHomeItem()) }
             // Deduplicate only inside this block. VK can intentionally repeat
             // the same release in several thematic blocks; global filtering
             // made later server sections incomplete or entirely empty.
@@ -2830,6 +2920,7 @@ object MusicBackend {
                 block.catalog_banner_ids.orEmpty().isNotEmpty() -> "catalog_banners"
                 block.radio_stations_ids.orEmpty().isNotEmpty() -> "radio"
                 block.audio_stream_mixes_ids.orEmpty().isNotEmpty() -> "stream_mixes"
+                block.audio_signal_common_info_id.orEmpty().isNotEmpty() -> "signal"
                 block.audio_content_card_ids.orEmpty().isNotEmpty() -> "content_cards"
                 block.longreads_ids.orEmpty().isNotEmpty() -> "longreads"
                 block.podcast_items_ids.orEmpty().isNotEmpty() ||
@@ -2873,7 +2964,7 @@ object MusicBackend {
                         )
                     }
             }
-            items.takeIf { it.isNotEmpty() && block.id.isNotBlank() }
+            items.takeIf { (it.isNotEmpty() || signalInfo != null) && block.id.isNotBlank() }
                 ?.let {
                     HomeBlock(
                         id = block.id,
@@ -2893,6 +2984,7 @@ object MusicBackend {
                         nextFrom = block.next_from?.takeIf(String::isNotBlank),
                         catalogRef = block.ref?.takeIf(String::isNotBlank),
                         subsectionTabs = tabs,
+                        signalInfo = signalInfo,
                     )
                 }
         }

@@ -8,6 +8,7 @@ import com.lmg.vk.engine.backend.BlockPagingState
 import com.lmg.vk.engine.backend.CatalogTabState
 import com.lmg.vk.engine.backend.Chart
 import com.lmg.vk.engine.backend.HomeBlock
+import com.lmg.vk.engine.backend.HomeSignalInfo
 import com.lmg.vk.engine.backend.HomeResponse
 import com.lmg.vk.engine.backend.MusicBackend
 import com.lmg.vk.engine.backend.BackendException
@@ -86,6 +87,9 @@ class HomeViewModel : ViewModel() {
     private var mixSettingsJob: Job? = null
     private var feedbackJob: Job? = null
     private var pendingDislikeSkipJob: Job? = null
+    private var signalLoadJob: Job? = null
+    private val _loadingSignalBlocks = MutableStateFlow<Set<String>>(emptySet())
+    val loadingSignalBlocks: StateFlow<Set<String>> = _loadingSignalBlocks
 
     private val restoredMixSession =
         (PlayerController.playbackContext as? PlaybackContext.VkMix)?.session
@@ -660,6 +664,56 @@ class HomeViewModel : ViewModel() {
         }
 
         resolveCatalogMixAndStart(context, session)
+    }
+
+    /** Start VK Music Signal through its official StartPlayCatalogSource chain. */
+    fun startCatalogSignal(
+        context: Context,
+        signal: HomeSignalInfo,
+        seedTrackId: String? = null,
+    ) {
+        val blockId = signal.playBlockId?.takeIf(String::isNotBlank) ?: return
+        if (signalLoadJob?.isActive == true) return
+        _loadingSignalBlocks.value = _loadingSignalBlocks.value + blockId
+        signalLoadJob = viewModelScope.launch {
+            try {
+                val resolved = MusicBackend.getCatalogSourceTracks(blockId, signal.ref)
+                val tracks = if (signal.shuffled) resolved.shuffled() else resolved
+                if (tracks.isEmpty()) {
+                    android.widget.Toast.makeText(
+                        context,
+                        "VK не вернул треки Сигнала",
+                        android.widget.Toast.LENGTH_SHORT,
+                    ).show()
+                    return@launch
+                }
+                val stableSeed = seedTrackId?.let(com.lmg.vk.engine.VkAudioIdentity::stableFullId)
+                val startIndex = stableSeed?.let { seed ->
+                    tracks.indexOfFirst {
+                        com.lmg.vk.engine.VkAudioIdentity.stableFullId(it.id) == seed
+                    }.takeIf { it >= 0 }
+                } ?: 0
+                PlayerController.playFromList(
+                    context = context,
+                    tracks = tracks,
+                    startIndex = startIndex,
+                    playbackContext = PlaybackContext.Catalog(blockId),
+                )
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                val message = com.lmg.vk.engine.backend.backendUserMessage(e)
+                DebugLog.add("VK SIGNAL start failed: $message")
+                android.widget.Toast.makeText(
+                    context,
+                    message,
+                    android.widget.Toast.LENGTH_SHORT,
+                ).show()
+            } finally {
+                _loadingSignalBlocks.value = _loadingSignalBlocks.value - blockId
+                if (signalLoadJob === coroutineContext[Job]) signalLoadJob = null
+            }
+        }
     }
 
     /** Hydrate a CatalogKit action and preserve that operation across Retry. */

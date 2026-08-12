@@ -1104,6 +1104,22 @@ data class HomeBlock(
      * Приходят не в layout, а в `actions[0].options` — см. [HomeSubsectionTab].
      */
     @SerialName("subsectionTabs") val subsectionTabs: List<HomeSubsectionTab> = emptyList(),
+    /** Special server card used by the official VK Music Signal section. */
+    @SerialName("signalInfo") val signalInfo: HomeSignalInfo? = null,
+)
+
+@Serializable
+data class HomeSignalInfo(
+    val id: String,
+    val cover: String? = null,
+    val title: String = "",
+    val subtitle: String = "",
+    val currentMonth: String = "",
+    val audioIds: List<String> = emptyList(),
+    val playBlockId: String? = null,
+    val openSectionId: String? = null,
+    val ref: String? = null,
+    val shuffled: Boolean = false,
 )
 
 /**
