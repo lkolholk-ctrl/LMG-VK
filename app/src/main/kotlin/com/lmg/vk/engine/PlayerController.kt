@@ -17,6 +17,7 @@ import com.lmg.vk.debug.DebugLog
 import com.lmg.vk.engine.backend.BackendException
 import com.lmg.vk.engine.backend.MusicBackend
 import com.lmg.vk.engine.backend.StreamInfo
+import com.lmg.vk.engine.backend.VkAutoflowSource
 import com.lmg.vk.data.local.WaveRepository
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
@@ -42,6 +43,7 @@ import kotlin.coroutines.resume
  */
 sealed class PlaybackContext {
     object Downloads : PlaybackContext()
+    data class Catalog(val blockId: String) : PlaybackContext()
     data class Playlist(val id: String) : PlaybackContext()
     data class Album(val id: String) : PlaybackContext()
     data class Artist(val id: String) : PlaybackContext()
@@ -97,12 +99,209 @@ object PlayerController {
     val isLocalJucePlaybackActive: Boolean
         get() = _playbackBackend.value == PlaybackBackend.JUCE_LOCAL
 
+    // Official VK preloads only the future StartPlayVkMixSource near the end
+    // of a finite queue. It does not turn that queue into VK_MIX_CONFIG early.
+    private data class AutoflowSeed(
+        val playbackContext: PlaybackContext,
+        val queueCount: Int,
+        val lastAudioIds: List<String>,
+        val source: VkAutoflowSource,
+        val title: String,
+    )
+
+    private data class PrefetchedAutoflow(
+        val seed: AutoflowSeed,
+        val session: VkMixSession,
+    )
+
+    private val autoflowLock = Any()
+    private var autoflowGeneration = 0L
+    private var autoflowJob: Job? = null
+    private var autoflowJobSeed: AutoflowSeed? = null
+    private var prefetchedAutoflow: PrefetchedAutoflow? = null
+    private var autoflowTransitioning = false
+    private var failedAutoflowSeed: AutoflowSeed? = null
+
+    private const val AUTOFLOW_PRELOAD_TRACKS_LEFT = 3
+
     /** Тип трека по схеме URI: file/content — локальный файл, всё прочее — сеть. */
     enum class TrackKind { ONLINE, LOCAL }
 
     fun kindOf(track: Track): TrackKind {
         val scheme = track.uri.scheme
         return if (scheme == "file" || scheme == "content") TrackKind.LOCAL else TrackKind.ONLINE
+    }
+
+    private fun invalidateAutoflow() {
+        synchronized(autoflowLock) {
+            autoflowGeneration++
+            autoflowJob?.cancel()
+            autoflowJob = null
+            autoflowJobSeed = null
+            prefetchedAutoflow = null
+            autoflowTransitioning = false
+            failedAutoflowSeed = null
+        }
+    }
+
+    /**
+     * Reconstruct the official queue source fields from LMG's saved source.
+     * Albums are VK audio playlists on the wire; a source-less track launch is
+     * treated as a one-track playlist whose entity is that full audio id.
+     */
+    private fun currentAutoflowSeed(): AutoflowSeed? {
+        if (_playbackQueueConfig != PlaybackQueueConfig.MUSIC_CONFIG &&
+            _playbackQueueConfig != PlaybackQueueConfig.MUSIC_WITHOUT_SOURCE_CONFIG
+        ) return null
+
+        val currentQueue = queue
+        val track = currentQueue.getOrNull(currentIndex) ?: return null
+        if (kindOf(track) != TrackKind.ONLINE || !track.isAvailable) return null
+        if (!VkAudioIdentity.isFullId(track.id) || !MusicBackend.isAutoflowEligible(track.id)) return null
+
+        val playbackContext = _playbackContext
+        val source = when (playbackContext) {
+            is PlaybackContext.Catalog -> VkAutoflowSource(
+                queueType = "catalog",
+                queueEntityId = playbackContext.blockId,
+            )
+            is PlaybackContext.Playlist -> {
+                val entity = playbackContext.id.removePrefix("vk_")
+                if (entity.startsWith("local_")) return null
+                VkAutoflowSource(queueType = "playlist", queueEntityId = entity)
+            }
+            is PlaybackContext.Album -> VkAutoflowSource(
+                queueType = "playlist",
+                queueEntityId = playbackContext.id.removePrefix("vk_"),
+            )
+            is PlaybackContext.Artist -> VkAutoflowSource(
+                queueType = "artist",
+                queueEntityId = playbackContext.id.removePrefix("vk_"),
+            )
+            is PlaybackContext.Global -> VkAutoflowSource(
+                queueType = "playlist",
+                queueEntityId = MusicBackend.autoflowTrackEntityId(track.id),
+            )
+            is PlaybackContext.Downloads,
+            is PlaybackContext.VkMix -> return null
+        }
+        val lastAudioIds = currentQueue.asSequence()
+            .map(Track::id)
+            .filter(VkAudioIdentity::isFullId)
+            .toList()
+            .takeLast(50)
+        if (lastAudioIds.isEmpty()) return null
+
+        return AutoflowSeed(
+            playbackContext = playbackContext,
+            queueCount = currentQueue.size,
+            lastAudioIds = lastAudioIds,
+            source = source,
+            title = currentQueue.takeLast(50).firstOrNull()?.title ?: track.title,
+        )
+    }
+
+    /** Preload only `{mix_id, entity_id}` when the current track is in the last three. */
+    private fun maybePreloadAutoflow() {
+        val tracksIncludingCurrent = (queue.size - currentIndex).coerceAtLeast(0)
+        if (tracksIncludingCurrent > AUTOFLOW_PRELOAD_TRACKS_LEFT) return
+        val seed = currentAutoflowSeed() ?: return
+
+        val generation: Long
+        synchronized(autoflowLock) {
+            if (prefetchedAutoflow?.seed == seed) return
+            if (failedAutoflowSeed == seed) return
+            if (autoflowJobSeed == seed && autoflowJob?.isActive == true) return
+            autoflowGeneration++
+            generation = autoflowGeneration
+            autoflowJob?.cancel()
+            autoflowJobSeed = seed
+            autoflowJob = ioScope.launch {
+                val resolved = runCatching {
+                    MusicBackend.resolveAutoflowMixSession(
+                        queueCount = seed.queueCount,
+                        audioIds = seed.lastAudioIds,
+                        source = seed.source,
+                        title = seed.title,
+                    )
+                }
+                synchronized(autoflowLock) {
+                    if (generation == autoflowGeneration && currentAutoflowSeed() == seed) {
+                        resolved.onSuccess { prefetchedAutoflow = PrefetchedAutoflow(seed, it) }
+                        resolved.onFailure {
+                            failedAutoflowSeed = seed
+                            DebugLog.add("VK AUTOFLOW preload failed: ${it.message ?: it.javaClass.simpleName}")
+                        }
+                    }
+                    if (generation == autoflowGeneration) {
+                        autoflowJob = null
+                        autoflowJobSeed = null
+                    }
+                }
+            }
+        }
+    }
+
+    /** Replace an exhausted finite queue with the official VK Mix source. */
+    private suspend fun startAutoflowAtQueueEnd(context: Context): Boolean {
+        // VK may preload the future source while repeat is enabled, but its
+        // final hand-off gate requires LoopMode.NONE.
+        if (_repeatMode.value != 0) return false
+        val seed = currentAutoflowSeed() ?: return false
+        if (currentIndex + 1 < queue.size) return false
+
+        val preloadJob: Job?
+        synchronized(autoflowLock) {
+            if (autoflowTransitioning) return false
+            autoflowTransitioning = true
+            preloadJob = autoflowJob.takeIf { autoflowJobSeed == seed }
+        }
+
+        return try {
+            preloadJob?.join()
+            val session = synchronized(autoflowLock) {
+                prefetchedAutoflow?.takeIf { it.seed == seed }?.session
+            } ?: runCatching {
+                MusicBackend.resolveAutoflowMixSession(
+                    queueCount = seed.queueCount,
+                    audioIds = seed.lastAudioIds,
+                    source = seed.source,
+                    title = seed.title,
+                )
+            }.onFailure {
+                synchronized(autoflowLock) { failedAutoflowSeed = seed }
+                DebugLog.add("VK AUTOFLOW resolve failed: ${it.message ?: it.javaClass.simpleName}")
+            }.getOrNull() ?: return false
+
+            val mixSource = runCatching { MusicBackend.startVkMix(session) }
+                .onFailure {
+                    DebugLog.add("VK AUTOFLOW Mix start failed: ${it.message ?: it.javaClass.simpleName}")
+                }
+                .getOrNull() ?: return false
+            if (mixSource.tracks.isEmpty()) {
+                DebugLog.add("VK AUTOFLOW Mix start returned 0 tracks")
+                return false
+            }
+
+            withContext(Dispatchers.Main) {
+                if (currentAutoflowSeed() != seed || currentIndex + 1 < queue.size) {
+                    false
+                } else {
+                    DebugLog.add(
+                        "VK AUTOFLOW start mixId=${mixSource.mixId} tracks=${mixSource.tracks.size}",
+                    )
+                    playFromList(
+                        context = context,
+                        tracks = mixSource.tracks,
+                        startIndex = 0,
+                        playbackContext = PlaybackContext.VkMix(mixSource.session),
+                    )
+                    true
+                }
+            }
+        } finally {
+            synchronized(autoflowLock) { autoflowTransitioning = false }
+        }
     }
 
     /**
@@ -408,6 +607,7 @@ object PlayerController {
                     }
                     resetPlaybackLogging(track.durationMs)
                     prefetchAhead(context, queueIndex, depth = 3)
+                    maybePreloadAutoflow()
                 } else {
                     android.util.Log.e("VOIDPIXEL_MEDIA", "No player available for trackId=$trackId")
                     _isBuffering.value = false
@@ -626,6 +826,7 @@ object PlayerController {
         seedPool: List<String> = emptyList(),
         playbackContext: PlaybackContext? = null,
     ) {
+        invalidateAutoflow()
         if (tracks.isEmpty() || startIndex !in tracks.indices) {
             android.util.Log.e("VOIDPIXEL_MEDIA", "playFromList called with empty tracks or invalid startIndex=$startIndex")
             return
@@ -773,6 +974,7 @@ object PlayerController {
                             // пересоздаёт весь timeline в AudioService.
                             audioServiceRef?.setQueue(mediaItems, startIndex, 0L)
                         }
+                        maybePreloadAutoflow()
                     }
                     addToRecent(startTrack)
 
@@ -819,6 +1021,7 @@ object PlayerController {
         startIndex: Int = 0,
         playbackContext: PlaybackContext = PlaybackContext.Playlist("local_audio")
     ) {
+        invalidateAutoflow()
         if (tracks.isEmpty() || startIndex !in tracks.indices) {
             android.util.Log.e("VOIDPIXEL_MEDIA", "playLocalOnJuce: empty tracks or bad startIndex=$startIndex")
             return
@@ -961,6 +1164,10 @@ object PlayerController {
             val nextIndex = when {
                 currentIndex + 1 < currentQueue.size -> currentIndex + 1
                 else -> {
+                    val autoflowStarted = withContext(Dispatchers.IO) {
+                        startAutoflowAtQueueEnd(context)
+                    }
+                    if (autoflowStarted) return@launch
                     android.util.Log.w("PlayerController", "skipNext reached queue end and refill did not add a next track")
                     return@launch
                 }
@@ -1174,6 +1381,7 @@ object PlayerController {
             // Аудио следующих двух — в кэш, сразу (не ждём конца трека).
             scheduleAudioPreCache(it, index)
         }
+        maybePreloadAutoflow()
     }
 
     fun onTrackEnded() {
@@ -1182,6 +1390,9 @@ object PlayerController {
         if (nextIndex < currentQueue.size) {
             val nextTrackId = currentQueue.getOrNull(nextIndex)?.id
             android.util.Log.d("VOIDPIXEL_MEDIA", "onTrackEnded: nextIndex=$nextIndex, nextTrackId=$nextTrackId")
+        } else {
+            val context = appContext ?: return
+            ioScope.launch { startAutoflowAtQueueEnd(context) }
         }
     }
 
@@ -1241,6 +1452,7 @@ object PlayerController {
     )
 
     fun setQueue(tracks: List<Track>, startIndex: Int = 0) {
+        invalidateAutoflow()
         val immutableTracks = tracks.toList()
         queue = immutableTracks
         _queueFlow.value = immutableTracks
@@ -1276,6 +1488,7 @@ object PlayerController {
         autoStart = (autoStart - count).coerceAtLeast(lo)
         _queueFlow.value = queue
         publishSections()
+        maybePreloadAutoflow()
         mainScope.launch {
             val player = controller ?: appContext?.let { getPlayer(it) } ?: return@launch
             if (lo < player.mediaItemCount) {
@@ -1325,6 +1538,7 @@ object PlayerController {
         if (idx <= autoStart) autoStart++
         _queueFlow.value = queue
         publishSections()
+        maybePreloadAutoflow()
         mainScope.launch {
             val player = controller ?: appContext?.let { getPlayer(it) }
             if (player != null && idx <= player.mediaItemCount)
@@ -1358,6 +1572,7 @@ object PlayerController {
         queue.indexOfFirst { it.id == playingId }.takeIf { it >= 0 }?.let { currentIndex = it }
         _queueFlow.value = queue
         publishSections()
+        maybePreloadAutoflow()
         mainScope.launch {
             val player = controller ?: appContext?.let { getPlayer(it) }
             if (player != null && from < player.mediaItemCount && to < player.mediaItemCount) {
@@ -1376,6 +1591,7 @@ object PlayerController {
         queue.indexOfFirst { it.id == playingId }.takeIf { it >= 0 }?.let { currentIndex = it }
         _queueFlow.value = queue
         publishSections()
+        maybePreloadAutoflow()
         mainScope.launch {
             val player = controller ?: appContext?.let { getPlayer(it) }
             if (player != null && index < player.mediaItemCount) player.removeMediaItem(index)
@@ -1742,6 +1958,7 @@ object PlayerController {
 
         val sourceStr = when (_playbackContext) {
             is PlaybackContext.Downloads -> "downloads"
+            is PlaybackContext.Catalog -> "catalog"
             is PlaybackContext.Playlist -> "playlist"
             is PlaybackContext.Album -> "album"
             is PlaybackContext.Artist -> "artist"
@@ -2171,6 +2388,33 @@ object PlayerController {
                 DebugLog.add("WAVE track station skipped: non-VK seed ${seedTrack.id}")
             }
 
+            // VK 8.185 has two official sources behind the same menu action.
+            // Most regular tracks use track_mix; context-flagged tracks use
+            // StartPlaySimilarTracksSource (the existing path below).
+            val trackMixSession = stationSeedId?.let {
+                MusicBackend.resolveTrackWaveMixSession(it, seedTrack.title)
+            }
+            if (trackMixSession != null) {
+                val source = runCatching { MusicBackend.startVkMix(trackMixSession) }
+                    .onFailure { error ->
+                        DebugLog.add(
+                            "TRACK_WAVE track_mix failed: ${error.message ?: error.javaClass.simpleName}",
+                        )
+                    }
+                    .getOrNull()
+                val tracks = source?.tracks.orEmpty().filter { it.isAvailable }
+                if (source != null && tracks.isNotEmpty()) {
+                    playFromList(
+                        context = context,
+                        tracks = tracks,
+                        startIndex = 0,
+                        playbackContext = PlaybackContext.VkMix(source.session),
+                    )
+                    return@launch
+                }
+                DebugLog.add("TRACK_WAVE track_mix empty; falling back to recommendations")
+            }
+
             // Мгновенный старт: seed-трек играет СРАЗУ (ноль сетевых запросов),
             // станция вокруг него добирается фоном и доклеивается в очередь.
             // Если seed не Apple numeric id, по доке station недоступна: играем
@@ -2303,6 +2547,9 @@ object PlayerController {
         if (_shuffleEnabled.value == enabled) return
         _shuffleEnabled.value = enabled
         applyShuffleToQueue(enabled)
+        // VK Autoflow supports shuffled finite queues. Their reordered tail is
+        // the new source of the last 50 ids, so refresh a near-end preload.
+        maybePreloadAutoflow()
     }
 
     /**
@@ -2394,6 +2641,7 @@ object PlayerController {
         // Пока повтор был включён, дозаправка волной пропускалась — вернувшись,
         // проверяем хвост сразу, иначе очередь кончится молча.
         if (wasOn && next == 0) ensureWaveRefill()
+        if (next == 0) maybePreloadAutoflow()
     }
 
     fun setRepeatMode(mode: Int) {
@@ -2406,5 +2654,6 @@ object PlayerController {
                 else -> Player.REPEAT_MODE_OFF
             }
         }
+        if (clamped == 0) maybePreloadAutoflow()
     }
 }

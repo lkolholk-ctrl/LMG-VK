@@ -116,6 +116,12 @@ data class TrackWaveRecommendations(
     val tracks: List<Track>,
 )
 
+/** Source fields which official VK derives from the finite StartPlaySource. */
+data class VkAutoflowSource(
+    val queueType: String,
+    val queueEntityId: String,
+)
+
 object MusicBackend {
 
     private val _lastError = MutableStateFlow<String?>(null)
@@ -970,6 +976,66 @@ object MusicBackend {
     suspend fun getPersonalMixSource(): VkMixPlaybackSource =
         startVkMix(resolvePersonalMixSession())
 
+    /**
+     * Resolve the official Autoflow hand-off without loading Mix tracks yet.
+     * VK preloads this identity near the end of a finite queue and only starts
+     * `getStreamMixAudios(append=false)` after that queue is exhausted.
+     */
+    suspend fun resolveAutoflowMixSession(
+        queueCount: Int,
+        audioIds: List<String>,
+        source: VkAutoflowSource,
+        title: String,
+    ): VkMixSession {
+        requireInitialized()
+        val normalizedIds = audioIds
+            .map(::normalizeTrackId)
+            .filter { it.isVkAudioFullId() }
+            .takeLast(50)
+        require(normalizedIds.isNotEmpty()) { "Autoflow queue has no VK audio ids" }
+
+        com.lmg.vk.debug.DebugLog.add(
+            "VK AUTOFLOW request count=$queueCount queueType=${source.queueType} " +
+                "entity=${source.queueEntityId} audioIds=${normalizedIds.size}",
+        )
+        val response = audioApi.getAutoflowMixParams(
+            count = queueCount,
+            queueType = source.queueType,
+            audioIds = normalizedIds,
+            queueEntityId = source.queueEntityId,
+        ).requireData()
+        require(response.mix_id.isNotBlank() && response.entity_id.isNotBlank()) {
+            "VK returned empty Autoflow Mix identity"
+        }
+        com.lmg.vk.debug.DebugLog.add(
+            "VK AUTOFLOW resolved mixId=${response.mix_id} entityId=${response.entity_id}",
+        )
+        return VkMixSession(
+            mixId = response.mix_id,
+            isTunable = false,
+            title = title,
+            settings = null,
+            entityId = response.entity_id,
+        )
+    }
+
+    /** Mirrors the normal-audio part of official `MusicTrack.isAutoflowSuitable`. */
+    fun isAutoflowEligible(trackId: String): Boolean {
+        val cached = trackCache[streamCacheKey(trackId)] ?: return true
+        return cached.isAvailable &&
+            !cached.isPodcast &&
+            cached.nft_info == null &&
+            cached.external_audio == null &&
+            cached.audiobook_chapter == null
+    }
+
+    /** Official `MusicTrack.Bb()`: owner_audio plus access_key when present. */
+    fun autoflowTrackEntityId(trackId: String): String {
+        val bareId = streamCacheKey(trackId)
+        val accessKey = trackCache[bareId]?.access_key?.takeIf(String::isNotBlank)
+        return accessKey?.let { "${bareId}_$it" } ?: bareId
+    }
+
     /** Refresh settings exactly through `audio.getStreamMixSettings`. */
     suspend fun getVkMixSettings(session: VkMixSession): VkMixSettings? {
         requireInitialized()
@@ -1459,6 +1525,30 @@ object MusicBackend {
             )
         }
         return TrackWaveRecommendations(returnedIdsCount = response.size, tracks = resolved)
+    }
+
+    /**
+     * Official VK 8.185 chooses `track_mix` unless ContextFlags satisfy
+     * `(bit 1 && bit 2) || bit 8`; the latter keeps the recommendations route.
+     */
+    fun resolveTrackWaveMixSession(seedTrackId: String, title: String): VkMixSession? {
+        val entityId = com.lmg.vk.engine.VkAudioIdentity.bareFullId(seedTrackId) ?: return null
+        val flags = trackCache[entityId]?.flags_context ?: 0
+        val useRecommendations =
+            ((flags and 1) != 0 && (flags and 2) != 0) || (flags and 8) != 0
+        com.lmg.vk.debug.DebugLog.add(
+            "TRACK_WAVE official source flags=$flags route=" +
+                if (useRecommendations) "recommendations" else "track_mix",
+        )
+        if (useRecommendations) return null
+        return VkMixSession(
+            mixId = "track_mix",
+            isTunable = false,
+            title = title,
+            settings = null,
+            entityId = entityId,
+            sourceRef = "similar_tracks",
+        )
     }
 
     suspend fun nextTrackStation(
@@ -2092,6 +2182,7 @@ object MusicBackend {
         id = "stream_mix_$id",
         title = title,
         artist = description.takeIf(String::isNotBlank),
+        cover = image_url?.takeIf(String::isNotBlank),
         source = "vk",
         isCustom = true,
         streamMixId = playbackMixId,
@@ -2582,7 +2673,7 @@ object MusicBackend {
                             id = block.id,
                             title = title,
                             type = contentType,
-                            items = items,
+                            items = items.map { item -> item.copy(catalogBlockId = block.id) },
                             layoutName = layoutName,
                             nextFrom = block.next_from?.takeIf(String::isNotBlank),
                             catalogRef = block.ref?.takeIf(String::isNotBlank),
@@ -2596,7 +2687,7 @@ object MusicBackend {
                         id = block.id,
                         title = title,
                         type = contentType,
-                        items = it,
+                        items = it.map { item -> item.copy(catalogBlockId = block.id) },
                         layoutName = layoutName,
                         // Курсор блока раньше терялся: HomeBlock его не хранил, из-за
                         // чего шторка «показать все» навсегда оставалась с первой

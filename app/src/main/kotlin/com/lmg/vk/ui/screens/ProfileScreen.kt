@@ -921,7 +921,7 @@ private fun PlaylistRow(playlist: AudioPlaylist, compact: Boolean, onClick: () -
         ) {
             AlbumArtImage(
                 uri = null,
-                coverUrl = coverUrl.takeIf(String::isNotBlank),
+                coverUrl = coverUrl,
                 contentDescription = playlist.title,
                 modifier = Modifier.fillMaxSize(),
                 placeholderIconSize = 22.dp,

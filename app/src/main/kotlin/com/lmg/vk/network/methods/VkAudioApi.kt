@@ -12,6 +12,7 @@ import com.lmg.vk.network.VkItems
 import com.lmg.vk.network.dto.music.AudioPlaylist
 import com.lmg.vk.network.dto.music.AudioAddResponse
 import com.lmg.vk.network.dto.music.AudioAddResult
+import com.lmg.vk.network.dto.music.AudioGetAutoflowMixParamsResponse
 import com.lmg.vk.network.dto.music.AudioLyricsContainer
 import com.lmg.vk.network.dto.music.AudioRelatedArtistsResponse
 import com.lmg.vk.network.dto.music.AudioSearchMainResponse
@@ -202,6 +203,32 @@ class VkAudioApi(
             "audio.getStreamMixSettings",
             MoshiEnvelopeParser<AudioStreamMixSettingsResponse>(AudioStreamMixSettingsResponse::class.java),
         ).apply { param("mix_id", mixId) }
+        return client.execute(method)
+    }
+
+    /**
+     * Official VK 8.185 Autoflow hand-off for a finite music queue.
+     *
+     * `count` is the size of the complete queue, while `audio_ids` contains at
+     * most its last 50 full VK ids. The response is Mix identity, not tracks.
+     */
+    suspend fun getAutoflowMixParams(
+        count: Int,
+        queueType: String,
+        audioIds: List<String>,
+        queueEntityId: String? = null,
+    ): VkResult<AudioGetAutoflowMixParamsResponse> {
+        val method = VkMethod(
+            "audio.getAutoflowMixParams",
+            MoshiEnvelopeParser<AudioGetAutoflowMixParamsResponse>(
+                AudioGetAutoflowMixParamsResponse::class.java,
+            ),
+        ).apply {
+            param("count", count.coerceAtLeast(0))
+            param("queue_type", queueType)
+            param("audio_ids", audioIds.takeLast(50).joinToString(",") { it.removePrefix("vk_") })
+            param("queue_entity_id", queueEntityId)
+        }
         return client.execute(method)
     }
 

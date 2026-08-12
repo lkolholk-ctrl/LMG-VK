@@ -48,6 +48,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.lmg.vk.engine.PlayerController
+import com.lmg.vk.engine.PlaybackContext
 import com.lmg.vk.engine.Track
 import com.lmg.vk.ui.glass.AlbumArtImage
 import com.lmg.vk.ui.theme.AppFontFamily
@@ -109,11 +110,25 @@ fun NewScreen(
     val rowGap = if (compact) 10.dp else 14.dp
     val onItemClick: (com.lmg.vk.engine.backend.HomeItem) -> Unit = { homeItem ->
         when {
+            homeItem.isStreamMix -> viewModel.startCatalogVkMix(
+                context = context,
+                mixId = homeItem.streamMixId.orEmpty(),
+                title = homeItem.title,
+                isTunable = homeItem.streamMixTunable,
+                blockId = homeItem.catalogBlockId,
+                catalogItemId = homeItem.id.removePrefix("stream_mix_"),
+            )
             homeItem.isCustom -> Unit
             homeItem.isArtist -> onNavigateToArtist(homeItem.artistId ?: homeItem.id)
             homeItem.isPlaylist -> onNavigateToPlaylist(homeItem.collectionId ?: homeItem.id)
             homeItem.isAlbum -> onNavigateToAlbum(homeItem.collectionId ?: homeItem.id)
-            else -> PlayerController.playFromList(context, listOf(homeItem.toTrack()))
+            else -> PlayerController.playFromList(
+                context = context,
+                tracks = listOf(homeItem.toTrack()),
+                playbackContext = homeItem.catalogBlockId
+                    ?.takeIf(String::isNotBlank)
+                    ?.let { PlaybackContext.Catalog(it) },
+            )
         }
     }
 
@@ -492,9 +507,9 @@ private fun NewCatalogBlock(
                             wide = block.layoutName == "slider" || block.layoutName.isBlank(),
                             showRank = block.layoutName.startsWith("music_chart"),
                             rank = homeItem.rank,
-                            enabled = !homeItem.isCustom &&
+                            enabled = homeItem.isInteractive &&
                                 (!homeItem.isTrack || homeItem.isAvailable),
-                            dimWhenDisabled = !homeItem.isCustom,
+                            dimWhenDisabled = !homeItem.isInteractive,
                             onClick = { onItemClick(homeItem) }
                         )
                     }
@@ -883,8 +898,9 @@ private fun NewSectionSheet(
                             .background(lc.accent.copy(alpha = 0.16f))
                             .clickable {
                                 PlayerController.playFromList(
-                                    context,
-                                    playableItems.map { it.toTrack() },
+                                    context = context,
+                                    tracks = playableItems.map { it.toTrack() },
+                                    playbackContext = PlaybackContext.Catalog(block.id),
                                 )
                                 onDismiss()
                             }
@@ -1045,7 +1061,7 @@ private fun NewHeroBanner(
     Column(
         modifier = Modifier
             .padding(horizontal = 20.dp)
-            .clickable(enabled = !item.isCustom, onClick = onClick),
+            .clickable(enabled = item.isInteractive, onClick = onClick),
     ) {
         AlbumArtImage(
             uri = null,
@@ -1122,7 +1138,7 @@ private fun NewTrackRow(
         modifier = modifier
             .fillMaxWidth()
             .clickable(
-                enabled = !item.isCustom && (!item.isTrack || item.isAvailable),
+                enabled = item.isInteractive && (!item.isTrack || item.isAvailable),
                 onClick = onClick,
             )
             .alpha(if (item.isTrack && !item.isAvailable) 0.42f else 1f),
@@ -1196,12 +1212,12 @@ private fun NewLargeCard(
     val lc = LiquidTheme.colors
     val cardWidth = if (compact) 190.dp else 248.dp
     val imageHeight = if (compact) 140.dp else 184.dp
-    val enabled = !item.isCustom && (!item.isTrack || item.isAvailable)
+    val enabled = item.isInteractive && (!item.isTrack || item.isAvailable)
     Column(
         modifier = Modifier
             .width(cardWidth)
             .clickable(enabled = enabled && item.title.isNotBlank(), onClick = onClick)
-            .alpha(if (!enabled && !item.isCustom) 0.42f else 1f),
+            .alpha(if (!enabled && item.isInteractive) 0.42f else 1f),
     ) {
         Box {
             AlbumArtImage(
@@ -1270,12 +1286,12 @@ private fun NewExtendedCard(
 ) {
     val lc = LiquidTheme.colors
     val cardWidth = if (compact) 152.dp else 196.dp
-    val enabled = !item.isCustom && (!item.isTrack || item.isAvailable)
+    val enabled = item.isInteractive && (!item.isTrack || item.isAvailable)
     Column(
         modifier = Modifier
             .width(cardWidth)
             .clickable(enabled = enabled && item.title.isNotBlank(), onClick = onClick)
-            .alpha(if (!enabled && !item.isCustom) 0.42f else 1f),
+            .alpha(if (!enabled && item.isInteractive) 0.42f else 1f),
     ) {
         AlbumArtImage(
             uri = null,
@@ -1349,13 +1365,13 @@ private fun NewGridTile(
     val lc = LiquidTheme.colors
     val artSize = if (compact) 52.dp else 62.dp
     val tileWidth = if (compact) 208.dp else 252.dp
-    val enabled = !item.isCustom && (!item.isTrack || item.isAvailable)
+    val enabled = item.isInteractive && (!item.isTrack || item.isAvailable)
     Row(
         modifier = Modifier
             .width(tileWidth)
             .clip(RoundedCornerShape(12.dp))
             .clickable(enabled = enabled && item.title.isNotBlank(), onClick = onClick)
-            .alpha(if (!enabled && !item.isCustom) 0.42f else 1f),
+            .alpha(if (!enabled && item.isInteractive) 0.42f else 1f),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         AlbumArtImage(
@@ -1414,7 +1430,7 @@ private fun NewBannerRow(
         horizontalArrangement = Arrangement.spacedBy(rowGap),
     ) {
         items(items, key = { "${blockId}_banner_${it.id}" }) { item ->
-            val enabled = !item.isCustom
+            val enabled = item.isInteractive
             Column(
                 modifier = Modifier
                     .width(bannerWidth)
@@ -1473,7 +1489,7 @@ private fun NewCloseableBanner(
     val lc = LiquidTheme.colors
     val imageHeight = if (compact) 142.dp else 192.dp
     Box(modifier = Modifier.padding(horizontal = 20.dp)) {
-        Column(modifier = Modifier.clickable(enabled = !item.isCustom, onClick = onClick)) {
+        Column(modifier = Modifier.clickable(enabled = item.isInteractive, onClick = onClick)) {
             AlbumArtImage(
                 uri = null,
                 contentDescription = item.title,

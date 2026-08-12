@@ -621,6 +621,33 @@ class HomeViewModel : ViewModel() {
         }
     }
 
+    /** Start a concrete CatalogKit AudioStreamMix through the regular VK Mix path. */
+    fun startCatalogVkMix(
+        context: Context,
+        mixId: String,
+        title: String,
+        isTunable: Boolean,
+        blockId: String?,
+        catalogItemId: String?,
+    ) {
+        if (mixId.isBlank() || waveLoadJob?.isActive == true) return
+        mixSettingsJob?.cancel()
+        mixSettingsJob = null
+        _error.value = null
+        startKnownVkMix(
+            context = context,
+            session = VkMixSession(
+                blockId = blockId.orEmpty(),
+                mixId = mixId,
+                isTunable = isTunable,
+                title = title,
+                settings = null,
+                catalogItemId = catalogItemId,
+            ),
+            operation = VkMixOperation.START,
+        )
+    }
+
     private fun startKnownVkMix(
         context: Context,
         session: VkMixSession,

@@ -154,6 +154,13 @@ data class AudioStreamMixSettingsResponse(
     val settings: AudioStreamMixSettings? = null,
 )
 
+/** Exact response of official VK 8.185 `audio.getAutoflowMixParams`. */
+@JsonClass(generateAdapter = true)
+data class AudioGetAutoflowMixParamsResponse(
+    val mix_id: String,
+    val entity_id: String,
+)
+
 /**
  * Нужный LMG поднабор `Catalog2Response`. Неизвестные поля блоков Moshi
  * пропускает, а сущности каталога остаются типизированными.

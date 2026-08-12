@@ -1142,7 +1142,17 @@ data class HomeItem(
     /** Nested `AudioStreamMix.stream_mix.id`, not the CatalogKit item id. */
     @SerialName("streamMixId") val streamMixId: String? = null,
     @SerialName("streamMixTunable") val streamMixTunable: Boolean = false,
+    /** Catalog block which acts as StartPlayCatalogSource for Autoflow. */
+    @SerialName("catalogBlockId") val catalogBlockId: String? = null,
 ) {
+    /** A CatalogKit Mix is custom content, but unlike a promo card it is playable. */
+    val isStreamMix: Boolean
+        get() = !streamMixId.isNullOrBlank()
+
+    /** Keep action-less custom cards disabled while allowing server Mix cards. */
+    val isInteractive: Boolean
+        get() = !isCustom || isStreamMix
+
     /** Трек = не альбом, не артист и не видеоклип (клип не стримится). */
     val isTrack: Boolean
         get() = !isAlbum && !isPlaylist && !isArtist && !isClip && !isCustom

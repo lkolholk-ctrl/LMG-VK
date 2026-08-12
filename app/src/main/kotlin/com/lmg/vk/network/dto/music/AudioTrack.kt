@@ -45,6 +45,12 @@ data class AudioTrack(
     val thumb: AlbumThumb? = null,
     /** Цвет, который VK присылает вместе с обложкой для оформления плеера. */
     val main_color: String? = null,
+    /** Presence-only fields used by official VK's Autoflow suitability gate. */
+    val nft_info: Any? = null,
+    val external_audio: Any? = null,
+    val audiobook_chapter: Any? = null,
+    /** Official ContextFlags mask which selects track_mix vs similar tracks. */
+    val flags_context: Int = 0,
 ) {
     /** Полный id VK: "ownerId_audioId" — используется в audio.getById/плеере. */
     val fullId: String get() = "${owner_id}_$id"
