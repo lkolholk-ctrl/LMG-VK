@@ -278,9 +278,9 @@ fun LiquidMusicGlassTheme(
             colorScheme = materialScheme,
             typography = LiquidTypography
         ) {
-            // Bare Text() without an explicit style also inherits Golos Text.
+            // Bare Text() is UI/content text, so it inherits VK Sans Text.
             CompositionLocalProvider(
-                LocalTextStyle provides LocalTextStyle.current.copy(fontFamily = AppFontFamily),
+                LocalTextStyle provides LocalTextStyle.current.copy(fontFamily = VkSansText),
                 content = content
             )
         }
@@ -302,7 +302,7 @@ fun ForceDarkContent(content: @Composable () -> Unit) {
             typography = LiquidTypography
         ) {
             CompositionLocalProvider(
-                LocalTextStyle provides LocalTextStyle.current.copy(fontFamily = AppFontFamily),
+                LocalTextStyle provides LocalTextStyle.current.copy(fontFamily = VkSansText),
                 content = content
             )
         }

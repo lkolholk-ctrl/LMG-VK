@@ -52,6 +52,7 @@ import com.lmg.vk.engine.Track
 import com.lmg.vk.ui.glass.AlbumArtImage
 import com.lmg.vk.ui.theme.AppFontFamily
 import com.lmg.vk.ui.theme.LiquidTheme
+import com.lmg.vk.ui.theme.VkSansDisplay
 import com.lmg.vk.ui.viewmodel.HomeViewModel
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -637,7 +638,7 @@ private fun NewLoadError(
             text = "Не удалось загрузить New",
             color = lc.textPrimary,
             fontSize = if (compact) 15.sp else 17.sp,
-            fontWeight = FontWeight.Bold,
+            fontWeight = FontWeight.SemiBold,
             fontFamily = AppFontFamily,
         )
         Text(
@@ -753,8 +754,8 @@ private fun NewSectionHeader(
             text = title,
             color = LiquidTheme.colors.textPrimary,
             fontSize = if (compact) 15.sp else 20.sp,
-            fontWeight = FontWeight.Bold,
-            fontFamily = AppFontFamily,
+            fontWeight = FontWeight.SemiBold,
+            fontFamily = if (compact) AppFontFamily else VkSansDisplay,
             modifier = Modifier.weight(1f),
         )
         if (showOpenButton) {

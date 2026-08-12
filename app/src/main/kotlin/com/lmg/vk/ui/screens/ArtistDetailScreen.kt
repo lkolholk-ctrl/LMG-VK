@@ -90,6 +90,7 @@ import com.lmg.vk.ui.theme.LiquidMotion
 import com.lmg.vk.ui.theme.LiquidSurfaces
 import com.lmg.vk.ui.theme.LiquidTheme
 import com.lmg.vk.ui.theme.AppFontFamily
+import com.lmg.vk.ui.theme.VkSansDisplay
 import com.lmg.vk.ui.viewmodel.ArtistCommunitiesViewModel
 import com.lmg.vk.ui.viewmodel.ArtistCommunity
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -1179,6 +1180,7 @@ private fun ArtistHeader(
                 color = Color.White,
                 fontSize = LiquidMetrics.TitleHuge,
                 fontWeight = LiquidMetrics.TitleHugeWeight,
+                fontFamily = VkSansDisplay,
                 letterSpacing = LiquidMetrics.TitleHugeSpacing,
                 lineHeight = 44.sp,
                 maxLines = 2,

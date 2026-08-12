@@ -72,6 +72,7 @@ import com.lmg.vk.ui.theme.LiquidMetrics
 import com.lmg.vk.ui.theme.LiquidMotion
 import com.lmg.vk.ui.theme.LiquidSurfaces
 import com.lmg.vk.ui.theme.LiquidTheme
+import com.lmg.vk.ui.theme.VkSansDisplay
 import kotlinx.coroutines.launch
 
 private val DestructiveRed = Color(0xFFFC3C44)
@@ -834,6 +835,7 @@ private fun ProfileHeader(
                     color = LiquidSurfaces.onHeaderPrimary,
                     fontSize = if (compact) 32.sp else LiquidMetrics.TitleHuge,
                     fontWeight = LiquidMetrics.TitleHugeWeight,
+                    fontFamily = VkSansDisplay,
                     letterSpacing = LiquidMetrics.TitleHugeSpacing,
                     lineHeight = if (compact) 36.sp else 44.sp,
                     maxLines = 2,

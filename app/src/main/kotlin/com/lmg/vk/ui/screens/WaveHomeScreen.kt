@@ -95,6 +95,7 @@ import com.lmg.vk.ui.glass.liquidClickable
 import com.lmg.vk.ui.glass.rememberAlbumColors
 import com.lmg.vk.ui.player.AuraBackground
 import com.lmg.vk.ui.theme.AppFontFamily
+import com.lmg.vk.ui.theme.VkSansDisplay
 import com.lmg.vk.ui.theme.LiquidMotion
 import com.lmg.vk.ui.viewmodel.HomeViewModel
 import com.lmg.vk.ui.viewmodel.VkMixFeedbackState
@@ -314,8 +315,8 @@ fun WaveHomeScreen(
                             text = "My Wave",
                             color = Color.White,
                             fontSize = 46.sp,
-                            fontWeight = FontWeight.Black,
-                            fontFamily = AppFontFamily,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = VkSansDisplay,
                             textAlign = TextAlign.Center
                         )
                         VkMixInlineStatus(
@@ -344,8 +345,8 @@ fun WaveHomeScreen(
                             color = Color.White,
                             fontSize = 60.sp,
                             lineHeight = 66.sp,
-                            fontWeight = FontWeight.Black,
-                            fontFamily = AppFontFamily,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = VkSansDisplay,
                             textAlign = TextAlign.Center,
                             maxLines = 3,
                             overflow = TextOverflow.Ellipsis,
@@ -769,8 +770,8 @@ private fun VkMixSettingsSheet(
                     color = Color.White,
                     fontSize = 25.sp,
                     lineHeight = 30.sp,
-                    fontWeight = FontWeight.Black,
-                    fontFamily = AppFontFamily,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = VkSansDisplay,
                     textAlign = TextAlign.Center,
                 )
                 settings?.subtitle?.takeIf(String::isNotBlank)?.let { subtitle ->
@@ -1220,8 +1221,8 @@ private fun VkMixSheetMessage(
         text = title,
         color = Color.White,
         fontSize = 23.sp,
-        fontWeight = FontWeight.Black,
-        fontFamily = AppFontFamily,
+        fontWeight = FontWeight.Bold,
+        fontFamily = VkSansDisplay,
         textAlign = TextAlign.Center,
     )
     Spacer(Modifier.height(9.dp))
@@ -1256,8 +1257,8 @@ private fun WaveSectionHeader(title: String) {
         text = title,
         color = Color.White,
         fontSize = 22.sp,
-        fontWeight = FontWeight.Bold,
-        fontFamily = AppFontFamily,
+        fontWeight = FontWeight.SemiBold,
+        fontFamily = VkSansDisplay,
         modifier = Modifier
             .padding(horizontal = 20.dp)
             .padding(bottom = 12.dp)
@@ -1478,8 +1479,8 @@ private fun WaveTopBar(
             text = "My Wave",
             color = Color.White,
             fontSize = 18.sp,
-            fontWeight = FontWeight.Black,
-            fontFamily = AppFontFamily,
+            fontWeight = FontWeight.Bold,
+            fontFamily = VkSansDisplay,
             modifier = Modifier.align(Alignment.Center)
         )
 

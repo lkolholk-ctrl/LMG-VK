@@ -45,6 +45,7 @@ import com.lmg.vk.ui.theme.LiquidMotion
 import com.lmg.vk.ui.glass.rememberAlbumColors
 import com.lmg.vk.ui.player.AuraBackground
 import com.lmg.vk.ui.theme.LiquidTheme
+import com.lmg.vk.ui.theme.VkSansDisplay
 import com.lmg.vk.ui.viewmodel.HomeViewModel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
@@ -928,7 +929,8 @@ private fun RecommendationCard(
 private fun SectionHeader(title: String) {
     Text(
         text = title,
-        fontWeight = FontWeight.Bold,
+        fontWeight = FontWeight.SemiBold,
+        fontFamily = VkSansDisplay,
         fontSize = 22.sp,
         color = LiquidTheme.colors.textPrimary,
         modifier = Modifier.padding(horizontal = 20.dp)

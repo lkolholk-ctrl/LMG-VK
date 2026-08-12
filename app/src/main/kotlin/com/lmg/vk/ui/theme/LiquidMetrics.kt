@@ -86,7 +86,7 @@ object LiquidMetrics {
     /** Имя артиста в шапке. Плотный трекинг — иначе крупный текст выглядит рыхлым. */
     val TitleHuge = 42.sp
     val TitleHugeSpacing = (-1.8).sp
-    val TitleHugeWeight = FontWeight.ExtraBold
+    val TitleHugeWeight = FontWeight.Bold
 
     /** Заголовки разделов. */
     val SectionTitle = 20.sp

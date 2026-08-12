@@ -47,7 +47,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.lmg.vk.ui.glass.AlbumColors
-import com.lmg.vk.ui.theme.AppFontFamily
+import com.lmg.vk.ui.theme.VkSansDisplay
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sin
@@ -326,8 +326,8 @@ private fun MoodTile(
             text = mood.label,
             color = Color.White,
             fontSize = 18.sp,
-            fontWeight = FontWeight.Black,
-            fontFamily = AppFontFamily,
+            fontWeight = FontWeight.SemiBold,
+            fontFamily = VkSansDisplay,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.align(Alignment.BottomStart)

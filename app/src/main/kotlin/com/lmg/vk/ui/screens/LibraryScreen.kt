@@ -81,6 +81,7 @@ import com.lmg.vk.ui.components.TrackActionsSheet
 import com.lmg.vk.ui.theme.LiquidTheme
 import com.lmg.vk.ui.theme.LiquidSurfaces
 import com.lmg.vk.ui.viewmodel.LibraryViewModel
+import com.lmg.vk.ui.theme.VkSansDisplay
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
@@ -1836,7 +1837,7 @@ private fun SourceBadge(source: String, modifier: Modifier = Modifier) {
             text = "VK",
             color = Color.White,
             fontSize = 8.sp,
-            fontWeight = FontWeight.Black,
+            fontWeight = FontWeight.Bold,
         )
     }
 }
@@ -2039,6 +2040,7 @@ private fun SubHeader(
             text = title,
             fontSize = if (compact) 20.sp else 24.sp,
             fontWeight = FontWeight.Bold,
+            fontFamily = VkSansDisplay,
             color = lc.textPrimary,
             modifier = Modifier.weight(1f)
         )
@@ -2057,7 +2059,13 @@ private fun SectionHeader(title: String, count: Int) {
             .padding(vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(title, color = lc.textPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+        Text(
+            text = title,
+            color = lc.textPrimary,
+            fontSize = 18.sp,
+            fontWeight = FontWeight.SemiBold,
+            fontFamily = VkSansDisplay,
+        )
         Spacer(Modifier.width(8.dp))
         Box(
             modifier = Modifier

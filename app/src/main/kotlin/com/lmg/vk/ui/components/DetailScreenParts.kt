@@ -42,6 +42,7 @@ import com.lmg.vk.ui.glass.liquidClickable
 import com.lmg.vk.ui.theme.LiquidMetrics
 import com.lmg.vk.ui.theme.LiquidMotion
 import com.lmg.vk.ui.theme.LiquidSurfaces
+import com.lmg.vk.ui.theme.VkSansDisplay
 
 /**
  * Общие части экранов-подборок: альбом, плейлист, избранное, история.
@@ -165,6 +166,7 @@ fun DetailHeader(
                     color = LiquidSurfaces.onHeaderPrimary,
                     fontSize = 32.sp,
                     fontWeight = FontWeight.Bold,
+                    fontFamily = VkSansDisplay,
                     letterSpacing = (-1.2).sp,
                     lineHeight = 36.sp,
                     maxLines = 2,

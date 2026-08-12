@@ -113,6 +113,7 @@ import com.lmg.vk.ui.glass.pressScale
 import com.lmg.vk.ui.glass.rememberAlbumColors
 import com.lmg.vk.ui.liquid.LiquidSlider
 import com.lmg.vk.ui.lyrics.LyricsScreen
+import com.lmg.vk.ui.theme.VkSansDisplay
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -714,7 +715,8 @@ fun FullPlayer(
                         Text(
                             text = trackTitle,
                             color = Color.White,
-                            fontWeight = FontWeight.Bold,
+                            fontWeight = FontWeight.SemiBold,
+                            fontFamily = VkSansDisplay,
                             fontSize = 22.sp,
                             maxLines = 1,
                             // Длинное название едет бегущей строкой (как у Apple),

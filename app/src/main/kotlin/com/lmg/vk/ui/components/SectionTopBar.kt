@@ -35,6 +35,7 @@ import com.lmg.vk.ui.theme.AppFontFamily
 import com.lmg.vk.ui.theme.LiquidMotion
 import com.lmg.vk.ui.theme.LiquidSurfaces
 import com.lmg.vk.ui.theme.LiquidTheme
+import com.lmg.vk.ui.theme.VkSansDisplay
 
 /**
  * Компактная шапка системного раздела LMG VK.
@@ -93,7 +94,7 @@ fun SectionTopBar(
                 Text(
                     text = title,
                     color = colors.textPrimary,
-                    fontFamily = AppFontFamily,
+                    fontFamily = VkSansDisplay,
                     fontSize = if (compact) 22.sp else 28.sp,
                     lineHeight = if (compact) 26.sp else 32.sp,
                     fontWeight = FontWeight.Bold,

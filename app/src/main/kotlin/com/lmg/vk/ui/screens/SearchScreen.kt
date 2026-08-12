@@ -69,6 +69,7 @@ import com.lmg.vk.ui.glass.AlbumArtImage
 import com.lmg.vk.ui.glass.liquidClickable
 import com.lmg.vk.ui.theme.LiquidMotion
 import com.lmg.vk.ui.theme.LiquidTheme
+import com.lmg.vk.ui.theme.VkSansDisplay
 import com.lmg.vk.ui.viewmodel.SearchViewModel
 import kotlinx.coroutines.launch
 
@@ -189,6 +190,7 @@ fun SearchScreen(
                 Text(
                     text = "Search",
                     fontWeight = FontWeight.Bold,
+                    fontFamily = VkSansDisplay,
                     fontSize = if (compact) 22.sp else 32.sp,
                     color = LiquidTheme.colors.textPrimary
                 )

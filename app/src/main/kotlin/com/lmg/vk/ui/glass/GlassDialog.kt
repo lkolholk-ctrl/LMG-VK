@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.lmg.vk.ui.theme.LiquidMotion
 import com.lmg.vk.ui.theme.LiquidTheme
+import com.lmg.vk.ui.theme.VkSansDisplay
 
 /**
  * Reusable custom dialog that matches the "Premium Required" dialog design language.
@@ -104,7 +105,8 @@ fun GlassDialog(
                     text = title,
                     color = LiquidTheme.colors.textPrimary,
                     fontSize = 20.sp,
-                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                    fontFamily = VkSansDisplay,
                 )
                 Spacer(modifier = Modifier.height(12.dp))
 
