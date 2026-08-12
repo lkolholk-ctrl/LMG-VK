@@ -48,6 +48,8 @@ import com.lmg.vk.engine.Track
 import com.lmg.vk.ui.lyrics.MarkupPreviewView
 import com.lmg.vk.ui.theme.LiquidColors
 import com.lmg.vk.ui.theme.LiquidTheme
+import com.lmg.vk.ui.theme.VkSansDisplay
+import com.lmg.vk.ui.theme.VkSansText
 import kotlinx.coroutines.launch
 
 /**
@@ -127,7 +129,7 @@ fun LrcPublishScreen(track: Track, onBack: () -> Unit) {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                 CircleBack(lc, onBack)
                 Spacer(Modifier.width(16.dp))
-                Text("Publish lyrics", color = lc.textPrimary, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                Text("Publish lyrics", color = lc.textPrimary, fontSize = 24.sp, fontWeight = FontWeight.Bold, fontFamily = VkSansDisplay)
             }
             Text("Contribution to the open LRCLIB database for this track.",
                 color = lc.textSecondary, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp))
@@ -325,6 +327,7 @@ private fun SyncTaggingMode(
                 CircleBack(lc) { PlayerController.setPlaybackSpeed(1f); onCancel() }
                 Spacer(Modifier.width(16.dp))
                 Text("Sync", color = lc.textPrimary, fontSize = 22.sp, fontWeight = FontWeight.Bold,
+                    fontFamily = VkSansDisplay,
                     modifier = Modifier.weight(1f))
                 Text("Done", color = lc.accent, fontSize = 16.sp, fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.clip(RoundedCornerShape(8.dp))
@@ -451,6 +454,7 @@ private fun SyncWordTaggingMode(
                 CircleBack(lc) { PlayerController.setPlaybackSpeed(1f); onCancel() }
                 Spacer(Modifier.width(16.dp))
                 Text("By word", color = lc.textPrimary, fontSize = 22.sp, fontWeight = FontWeight.Bold,
+                    fontFamily = VkSansDisplay,
                     modifier = Modifier.weight(1f))
                 Text("Done", color = lc.accent, fontSize = 16.sp, fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.clip(RoundedCornerShape(8.dp))
@@ -618,7 +622,7 @@ private fun LabeledField(
     }
     BasicTextField(
         value = value, onValueChange = onValueChange,
-        textStyle = TextStyle(color = lc.textPrimary, fontSize = 15.sp),
+        textStyle = TextStyle(color = lc.textPrimary, fontSize = 15.sp, fontFamily = VkSansText),
         cursorBrush = SolidColor(lc.accent),
         singleLine = singleLine,
         keyboardOptions = if (number) KeyboardOptions(keyboardType = KeyboardType.Number) else KeyboardOptions.Default,

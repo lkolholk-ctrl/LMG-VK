@@ -51,6 +51,7 @@ import com.lmg.vk.ui.glass.AlbumArtImage
 import com.lmg.vk.ui.glass.liquidClickable
 import com.lmg.vk.ui.rememberWindowInfo
 import com.lmg.vk.ui.theme.AppFontFamily
+import com.lmg.vk.ui.theme.VkSansDisplay
 import com.lmg.vk.ui.theme.LiquidMotion
 import com.lmg.vk.ui.theme.LiquidTheme
 import com.lmg.vk.ui.viewmodel.OnboardingArtist
@@ -128,7 +129,7 @@ fun RecommendationsOnboardingScreen(
                     color = lc.textPrimary,
                     fontSize = if (compact) 20.sp else 24.sp,
                     fontWeight = FontWeight.Bold,
-                    fontFamily = AppFontFamily,
+                    fontFamily = VkSansDisplay,
                     modifier = Modifier.weight(1f),
                 )
             }

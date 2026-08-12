@@ -70,6 +70,7 @@ import com.lmg.vk.ui.glass.liquidClickable
 import com.lmg.vk.ui.theme.LiquidMotion
 import com.lmg.vk.ui.theme.LiquidTheme
 import com.lmg.vk.ui.theme.VkSansDisplay
+import com.lmg.vk.ui.theme.VkSansText
 import com.lmg.vk.ui.viewmodel.SearchViewModel
 import kotlinx.coroutines.launch
 
@@ -237,7 +238,8 @@ fun SearchScreen(
                     onValueChange = { viewModel.setQuery(it) },
                     textStyle = TextStyle(
                         color = LiquidTheme.colors.textPrimary,
-                        fontSize = 16.sp
+                        fontSize = 16.sp,
+                        fontFamily = VkSansText,
                     ),
                     singleLine = true,
                     cursorBrush = SolidColor(accentColor),
@@ -801,6 +803,7 @@ private fun SearchWelcomeState(compact: Boolean) {
             color = LiquidTheme.colors.textPrimary,
             fontSize = if (compact) 17.sp else 20.sp,
             fontWeight = FontWeight.SemiBold,
+            fontFamily = if (compact) VkSansText else VkSansDisplay,
         )
         Spacer(Modifier.height(6.dp))
         Text(
@@ -965,6 +968,7 @@ private fun SearchSectionLabel(text: String, count: Int, compact: Boolean = fals
             text = text,
             fontWeight = FontWeight.Bold,
             fontSize = if (compact) 15.sp else 20.sp,
+            fontFamily = if (compact) VkSansText else VkSansDisplay,
             color = LiquidTheme.colors.textPrimary,
             modifier = Modifier.weight(1f),
         )

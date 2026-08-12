@@ -58,6 +58,8 @@ import com.lmg.vk.ui.theme.LiquidColors
 import com.lmg.vk.ui.theme.LiquidMotion
 import com.lmg.vk.ui.theme.LiquidSurfaces
 import com.lmg.vk.ui.theme.LiquidTheme
+import com.lmg.vk.ui.theme.VkSansDisplay
+import com.lmg.vk.ui.theme.VkSansText
 import kotlinx.coroutines.delay
 
 private fun albumArt(albumId: Long): Uri = Uri.parse("content://media/external/audio/albumart/$albumId")
@@ -233,7 +235,7 @@ private fun SelectionHeader(count: Int, lc: LiquidColors, onClose: () -> Unit) {
         ) { Icon(com.lmg.vk.ui.icons.LmgGlyphs.CancelOutline28, null, tint = lc.iconDefault, modifier = Modifier.size(22.dp)) }
         Spacer(Modifier.width(14.dp))
         Text(if (count == 0) "Select Tracks" else "Selected: $count",
-            color = lc.textPrimary, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+            color = lc.textPrimary, fontSize = 22.sp, fontWeight = FontWeight.Bold, fontFamily = VkSansDisplay)
     }
 }
 
@@ -697,7 +699,11 @@ private fun SearchField(query: String, lc: LiquidColors, onChange: (String) -> U
         Spacer(Modifier.width(10.dp))
         BasicTextField(
             value = query, onValueChange = onChange, singleLine = true,
-            textStyle = TextStyle(color = lc.textPrimary, fontSize = if (compact) 14.sp else 16.sp),
+            textStyle = TextStyle(
+                color = lc.textPrimary,
+                fontSize = if (compact) 14.sp else 16.sp,
+                fontFamily = VkSansText,
+            ),
             cursorBrush = SolidColor(lc.accent), modifier = Modifier.weight(1f),
             decorationBox = { inner ->
                 Box {

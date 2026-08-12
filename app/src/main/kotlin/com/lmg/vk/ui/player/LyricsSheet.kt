@@ -45,6 +45,7 @@ import androidx.compose.ui.unit.sp
 import com.lmg.vk.engine.LyricsParser
 import com.lmg.vk.ui.glass.AlbumColors
 import com.lmg.vk.ui.theme.LiquidTheme
+import com.lmg.vk.ui.theme.VkSansDisplay
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -225,6 +226,7 @@ fun LyricsSheet(
                             style = androidx.compose.ui.text.TextStyle(
                                 fontSize = if (isCurrent) 32.sp else 30.sp,
                                 fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.SemiBold,
+                                fontFamily = VkSansDisplay,
                                 textAlign = TextAlign.Center,
                                 lineHeight = 44.sp,
                                 shadow = androidx.compose.ui.graphics.Shadow(

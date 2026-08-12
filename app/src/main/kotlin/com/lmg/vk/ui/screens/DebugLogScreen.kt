@@ -54,6 +54,7 @@ import com.lmg.vk.debug.DebugLog
 import com.lmg.vk.ui.glass.liquidClickable
 import com.lmg.vk.ui.rememberWindowInfo
 import com.lmg.vk.ui.theme.AppFontFamily
+import com.lmg.vk.ui.theme.VkSansDisplay
 import com.lmg.vk.ui.theme.LiquidMotion
 import com.lmg.vk.ui.theme.LiquidTheme
 import kotlinx.coroutines.delay
@@ -137,7 +138,7 @@ fun DebugLogScreen(onBack: () -> Unit = {}) {
                     Text(
                         text = "Отладочный лог",
                         color = lc.textPrimary,
-                        fontFamily = AppFontFamily,
+                        fontFamily = VkSansDisplay,
                         fontSize = if (compact) 20.sp else 24.sp,
                         fontWeight = FontWeight.Bold
                     )

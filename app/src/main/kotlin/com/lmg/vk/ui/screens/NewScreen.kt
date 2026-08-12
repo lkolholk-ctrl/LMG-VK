@@ -534,7 +534,7 @@ private fun NewScreenHeader(
                     color = lc.textPrimary,
                     fontSize = if (compact) 20.sp else 28.sp,
                     fontWeight = FontWeight.Bold,
-                    fontFamily = AppFontFamily,
+                    fontFamily = VkSansDisplay,
                 )
                 if (sectionCount > 0 || updatedAt != null) {
                     Text(
@@ -841,8 +841,8 @@ private fun NewSectionSheet(
                 text = block.title.ifBlank { "VK Музыка" },
                 color = lc.textPrimary,
                 fontSize = if (compact) 19.sp else 23.sp,
-                fontWeight = FontWeight.Bold,
-                fontFamily = AppFontFamily,
+                fontWeight = FontWeight.SemiBold,
+                fontFamily = VkSansDisplay,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp),

@@ -36,6 +36,7 @@ import com.lmg.vk.ui.glass.liquidClickable
 import com.lmg.vk.ui.theme.LiquidMotion
 import com.lmg.vk.ui.theme.LiquidSurfaces
 import com.lmg.vk.ui.theme.LiquidTheme
+import com.lmg.vk.ui.theme.VkSansDisplay
 
 @Composable
 fun PlaylistNameDialog(
@@ -53,7 +54,12 @@ fun PlaylistNameDialog(
         onDismissRequest = onDismiss,
         containerColor = LiquidSurfaces.sheet(colors.isDark),
         title = {
-            Text(title, color = LiquidSurfaces.textPrimary(colors.isDark), fontWeight = FontWeight.Bold)
+            Text(
+                title,
+                color = LiquidSurfaces.textPrimary(colors.isDark),
+                fontWeight = FontWeight.SemiBold,
+                fontFamily = VkSansDisplay,
+            )
         },
         text = {
             OutlinedTextField(
@@ -97,7 +103,8 @@ fun PlaylistPickerSheet(
                 "Add to playlist",
                 color = LiquidSurfaces.textPrimary(colors.isDark),
                 fontSize = 20.sp,
-                fontWeight = FontWeight.Bold,
+                fontWeight = FontWeight.SemiBold,
+                fontFamily = VkSansDisplay,
                 modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp),
             )
             if (playlists.isEmpty()) {

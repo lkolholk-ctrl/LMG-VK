@@ -58,6 +58,7 @@ import com.lmg.vk.ui.glass.AlbumArtImage
 import com.lmg.vk.ui.glass.AlbumColors
 import com.lmg.vk.ui.glass.rememberAlbumColors
 import com.lmg.vk.ui.theme.AppFontFamily
+import com.lmg.vk.ui.theme.VkSansDisplay
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -719,7 +720,7 @@ internal fun LyricLineSweep(
     val style = TextStyle(
         fontSize = fontSizeSp.sp,
         fontWeight = FontWeight.Bold,
-        fontFamily = AppFontFamily,
+        fontFamily = VkSansDisplay,
         lineHeight = (fontSizeSp * 1.375f).sp,
         textAlign = TextAlign.Start,
         platformStyle = PlatformTextStyle(includeFontPadding = false)

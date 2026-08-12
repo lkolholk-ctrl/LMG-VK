@@ -22,6 +22,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import com.lmg.vk.ui.theme.LiquidTheme
+import com.lmg.vk.ui.theme.VkSansDisplay
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -111,6 +112,7 @@ fun AuthScreen(
                     color = lc.textPrimary,
                     fontSize = 32.sp,
                     fontWeight = FontWeight.Bold,
+                    fontFamily = VkSansDisplay,
                     textAlign = TextAlign.Center
                 )
                 Text(
@@ -118,6 +120,7 @@ fun AuthScreen(
                     color = BrandRed,
                     fontSize = 32.sp,
                     fontWeight = FontWeight.Bold,
+                    fontFamily = VkSansDisplay,
                     textAlign = TextAlign.Center
                 )
 

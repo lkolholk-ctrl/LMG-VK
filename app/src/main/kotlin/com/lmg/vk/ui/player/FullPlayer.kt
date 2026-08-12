@@ -1122,6 +1122,7 @@ fun FullPlayer(
                         color = Color.White,
                         fontWeight = FontWeight.Bold,
                         fontSize = 20.sp,
+                        fontFamily = VkSansDisplay,
                         modifier = Modifier.padding(vertical = 16.dp)
                     )
                     // Artist list

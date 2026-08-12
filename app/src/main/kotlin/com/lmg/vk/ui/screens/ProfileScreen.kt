@@ -152,7 +152,7 @@ fun ProfileScreen(
     if (showSignOutConfirmation) {
         AlertDialog(
             onDismissRequest = { showSignOutConfirmation = false },
-            title = { Text("Sign out of VK?") },
+            title = { Text("Sign out of VK?", fontFamily = VkSansDisplay, fontWeight = FontWeight.SemiBold) },
             text = { Text("Your encrypted local VK session will be removed from this device.") },
             confirmButton = {
                 TextButton(
@@ -998,7 +998,7 @@ private fun ProfileSectionLabel(text: String) {
     // системных настроек, из которого экран и вытаскиваем.
     Text(
         text = text,
-        fontFamily = AppFontFamily,
+        fontFamily = VkSansDisplay,
         color = LiquidSurfaces.textPrimary(LiquidTheme.colors.isDark),
         fontSize = LiquidMetrics.SectionTitle,
         fontWeight = LiquidMetrics.SectionTitleWeight,

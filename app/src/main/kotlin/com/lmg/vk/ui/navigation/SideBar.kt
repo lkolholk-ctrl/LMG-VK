@@ -38,6 +38,7 @@ import com.lmg.vk.ui.glass.liquidClickable
 import com.lmg.vk.ui.icons.LmgDrawables
 import com.lmg.vk.ui.icons.lmgVector
 import com.lmg.vk.ui.theme.LiquidTheme
+import com.lmg.vk.ui.theme.VkSansDisplay
 
 /**
  * Боковая навигация для широких окон (телефон-альбом / планшет) — замена
@@ -87,7 +88,7 @@ fun SideBar(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.padding(start = 6.dp, bottom = 16.dp)
         ) {
-            Text("LMG", color = lc.accent, fontSize = 19.sp, fontWeight = FontWeight.Bold)
+            Text("LMG", color = lc.accent, fontSize = 19.sp, fontWeight = FontWeight.Bold, fontFamily = VkSansDisplay)
         }
 
         // Пункты навигации

@@ -33,6 +33,8 @@ import com.lmg.vk.engine.TagEditor
 import com.lmg.vk.engine.Track
 import com.lmg.vk.ui.theme.LiquidColors
 import com.lmg.vk.ui.theme.LiquidTheme
+import com.lmg.vk.ui.theme.VkSansDisplay
+import com.lmg.vk.ui.theme.VkSansText
 import kotlinx.coroutines.launch
 
 @Composable
@@ -148,7 +150,7 @@ fun TagEditScreen(track: Track, onBack: () -> Unit) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 CircleBack(lc, onBack)
                 Spacer(Modifier.width(14.dp))
-                Text("Tags", color = lc.textPrimary, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                Text("Tags", color = lc.textPrimary, fontSize = 24.sp, fontWeight = FontWeight.Bold, fontFamily = VkSansDisplay)
             }
             Spacer(Modifier.height(16.dp))
 
@@ -296,7 +298,7 @@ fun BulkTagEditScreen(tracks: List<Track>, onBack: () -> Unit) {
                 CircleBack(lc, onBack)
                 Spacer(Modifier.width(14.dp))
                 Column {
-                    Text("Bulk Tags", color = lc.textPrimary, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                    Text("Bulk Tags", color = lc.textPrimary, fontSize = 24.sp, fontWeight = FontWeight.Bold, fontFamily = VkSansDisplay)
                     Text("Selected tracks: $total", color = lc.textSecondary, fontSize = 13.sp)
                 }
             }
@@ -351,7 +353,7 @@ private fun EditField(label: String, value: String, lc: LiquidColors, number: Bo
         ) {
             BasicTextField(
                 value = value, onValueChange = onChange, singleLine = true,
-                textStyle = TextStyle(color = lc.textPrimary, fontSize = 16.sp),
+                textStyle = TextStyle(color = lc.textPrimary, fontSize = 16.sp, fontFamily = VkSansText),
                 cursorBrush = SolidColor(lc.accent), modifier = Modifier.fillMaxWidth(),
                 keyboardOptions = if (number)
                     androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number)

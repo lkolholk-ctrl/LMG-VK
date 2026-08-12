@@ -71,6 +71,7 @@ import com.lmg.vk.ui.theme.LiquidMetrics
 import com.lmg.vk.ui.theme.LiquidMotion
 import com.lmg.vk.ui.theme.LiquidSurfaces
 import com.lmg.vk.ui.theme.LiquidTheme
+import com.lmg.vk.ui.theme.VkSansDisplay
 import com.lmg.vk.ui.viewmodel.GroupUiState
 import com.lmg.vk.ui.viewmodel.GroupViewModel
 
@@ -401,7 +402,7 @@ private fun GroupHeader(
                     Text(
                         text = group?.name.orEmpty(),
                         color = LiquidSurfaces.onHeaderPrimary,
-                        fontFamily = AppFontFamily,
+                        fontFamily = VkSansDisplay,
                         fontSize = if (compact) 28.sp else 36.sp,
                         fontWeight = LiquidMetrics.TitleHugeWeight,
                         letterSpacing = LiquidMetrics.TitleHugeSpacing,

@@ -58,6 +58,7 @@ import com.lmg.vk.ui.components.DetailTrackRow
 import com.lmg.vk.ui.components.formatTotalDuration
 import com.lmg.vk.ui.glass.liquidClickable
 import com.lmg.vk.ui.theme.AppFontFamily
+import com.lmg.vk.ui.theme.VkSansDisplay
 import com.lmg.vk.ui.theme.LiquidMetrics
 import com.lmg.vk.ui.theme.LiquidMotion
 import com.lmg.vk.ui.theme.LiquidSurfaces
@@ -355,7 +356,7 @@ private fun OwnerAudioHeader(
                 Text(
                     text = title,
                     color = LiquidSurfaces.onHeaderPrimary,
-                    fontFamily = AppFontFamily,
+                    fontFamily = VkSansDisplay,
                     fontSize = if (compact) 30.sp else 38.sp,
                     fontWeight = LiquidMetrics.TitleHugeWeight,
                     letterSpacing = LiquidMetrics.TitleHugeSpacing,

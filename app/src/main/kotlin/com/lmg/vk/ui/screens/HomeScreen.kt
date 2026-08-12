@@ -345,6 +345,7 @@ fun HomeScreen(
                 Text(
                     text = "Listen Now",
                     fontWeight = FontWeight.Bold,
+                    fontFamily = VkSansDisplay,
                     fontSize = 32.sp,
                     color = LiquidTheme.colors.textPrimary
                 )

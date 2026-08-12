@@ -71,6 +71,7 @@ import com.lmg.vk.engine.Track
 import com.lmg.vk.ui.theme.LiquidMetrics
 import com.lmg.vk.ui.theme.LiquidSurfaces
 import com.lmg.vk.ui.theme.LiquidTheme
+import com.lmg.vk.ui.theme.VkSansDisplay
 import com.lmg.vk.ui.glass.AlbumArtImage
 import com.lmg.vk.ui.glass.AlbumColors
 import com.lmg.vk.ui.glass.pressScale
@@ -181,7 +182,8 @@ fun QueueSheet(
                         text = "Queue",
                         color = LiquidSurfaces.onHeaderPrimary,
                         fontSize = 22.sp,
-                        fontWeight = FontWeight.Bold,
+                        fontWeight = FontWeight.SemiBold,
+                        fontFamily = VkSansDisplay,
                         modifier = Modifier.weight(1f)
                     )
                     Box(

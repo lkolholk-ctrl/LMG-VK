@@ -5,6 +5,7 @@ import android.content.Context
 import android.net.Uri
 import android.os.Environment
 import android.provider.MediaStore
+import com.lmg.vk.R
 import com.lmg.vk.debug.DebugLog
 import java.io.File
 import java.io.FileOutputStream
@@ -26,6 +27,21 @@ object VkMixLottieStore {
     private const val CONNECT_TIMEOUT_MS = 15_000
     private const val READ_TIMEOUT_MS = 20_000
     private const val MAX_BYTES = 8L * 1024L * 1024L
+
+    /**
+     * The five mood ids are stable values from audio.getStreamMixSettings.
+     * Their original, self-contained VK compositions are bundled so the
+     * pictured mood row does not depend on the current CDN URL being alive.
+     * Unknown future option ids intentionally keep using the server URL.
+     */
+    fun bundledResource(optionId: String): Int? = when (optionId.trim().lowercase()) {
+        "active" -> R.raw.lmg_mix_mood_active
+        "calm" -> R.raw.lmg_mix_mood_calm
+        "happy" -> R.raw.lmg_mix_mood_happy
+        "love" -> R.raw.lmg_mix_mood_love
+        "sad" -> R.raw.lmg_mix_mood_sad
+        else -> null
+    }
 
     fun getOrDownload(context: Context, optionId: String, url: String): File? = runCatching {
         require(url.startsWith("https://", ignoreCase = true) || url.startsWith("http://", ignoreCase = true))

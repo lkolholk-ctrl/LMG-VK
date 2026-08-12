@@ -25,6 +25,7 @@ import com.lmg.vk.ui.glass.liquidClickable
 import com.lmg.vk.ui.theme.LiquidMotion
 import com.lmg.vk.ui.theme.LiquidSurfaces
 import com.lmg.vk.ui.theme.LiquidTheme
+import com.lmg.vk.ui.theme.VkSansDisplay
 
 /**
  * Выбор конкретного исполнителя у совместного альбома/плейлиста.
@@ -47,7 +48,8 @@ internal fun ArtistChooserDialog(
             Text(
                 text = "Choose artist",
                 color = LiquidSurfaces.textPrimary(colors.isDark),
-                fontWeight = FontWeight.Bold,
+                fontWeight = FontWeight.SemiBold,
+                fontFamily = VkSansDisplay,
             )
         },
         text = {

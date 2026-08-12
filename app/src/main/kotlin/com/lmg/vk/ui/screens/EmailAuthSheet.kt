@@ -41,6 +41,7 @@ import coil.compose.AsyncImage
 import com.lmg.vk.engine.backend.MusicAuth
 import com.lmg.vk.engine.backend.VkLoginResult
 import com.lmg.vk.ui.theme.LiquidTheme
+import com.lmg.vk.ui.theme.VkSansDisplay
 import kotlinx.coroutines.launch
 
 private val AuthBlue = Color(0xFF2688EB)
@@ -136,7 +137,8 @@ fun EmailAuthSheet(
             },
             color = lc.textPrimary,
             fontSize = 20.sp,
-            fontWeight = FontWeight.Bold,
+            fontWeight = FontWeight.SemiBold,
+            fontFamily = VkSansDisplay,
         )
         Spacer(Modifier.height(6.dp))
         Text(

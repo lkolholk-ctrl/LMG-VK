@@ -1371,6 +1371,7 @@ private fun SectionHeaderWithLink(
             color = LiquidSurfaces.textPrimary(isDark),
             fontSize = LiquidMetrics.SectionTitle,
             fontWeight = LiquidMetrics.SectionTitleWeight,
+            fontFamily = VkSansDisplay,
             letterSpacing = LiquidMetrics.SectionTitleSpacing,
             modifier = Modifier.weight(1f)
         )
@@ -1394,6 +1395,7 @@ private fun SectionHeaderThemed(isDark: Boolean, title: String) {
         color = LiquidSurfaces.textPrimary(isDark),
         fontSize = LiquidMetrics.SectionTitle,
         fontWeight = LiquidMetrics.SectionTitleWeight,
+        fontFamily = VkSansDisplay,
         letterSpacing = LiquidMetrics.SectionTitleSpacing,
         modifier = Modifier.padding(
             start = LiquidMetrics.ScreenPadding,

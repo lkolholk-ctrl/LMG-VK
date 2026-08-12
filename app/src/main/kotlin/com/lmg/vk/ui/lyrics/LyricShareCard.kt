@@ -42,6 +42,7 @@ import androidx.core.content.FileProvider
 import com.lmg.vk.ui.glass.AlbumArtImage
 import com.lmg.vk.ui.glass.AlbumColors
 import com.lmg.vk.ui.glass.liquidClickable
+import com.lmg.vk.ui.theme.VkSansDisplay
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -127,13 +128,20 @@ fun LyricShareOverlay(
                         .padding(26.dp),
                     verticalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Text("LMG", color = accent, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                    Text(
+                        "LMG",
+                        color = accent,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = VkSansDisplay,
+                    )
                     Column {
                         Text(
                             lineText,
                             color = Color.White,
                             fontSize = 26.sp,
-                            fontWeight = FontWeight.Bold,
+                            fontWeight = FontWeight.SemiBold,
+                            fontFamily = VkSansDisplay,
                             lineHeight = 32.sp
                         )
                         Spacer(Modifier.height(18.dp))

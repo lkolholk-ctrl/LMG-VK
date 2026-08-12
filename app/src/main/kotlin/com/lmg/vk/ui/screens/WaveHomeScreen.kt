@@ -827,12 +827,11 @@ private fun VkMixSettingsSheet(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .horizontalScroll(rememberScrollState()),
-                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 ) {
                                     category.options.forEach { option ->
                                         VkMixPicturedOption(
                                             option = option,
-                                            accent = accent,
                                             enabled = !state.applying,
                                             onClick = { onToggle(category.id, option.id) },
                                         )
@@ -888,22 +887,21 @@ private fun VkMixSettingsSheet(
 @Composable
 private fun VkMixPicturedOption(
     option: com.lmg.vk.engine.VkMixOption,
-    accent: Color,
     enabled: Boolean,
     onClick: () -> Unit,
 ) {
     Column(
-        modifier = Modifier.width(56.dp),
+        modifier = Modifier.width(64.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Box(
             modifier = Modifier
-                .size(56.dp)
+                .size(64.dp)
                 .clip(RoundedCornerShape(16.dp))
-                .background(
-                    if (option.isSelected) accent.copy(alpha = 0.82f)
-                    else Color.White.copy(alpha = 0.08f),
-                )
+                // VK keeps the neutral rounded tile unchanged. Selection is
+                // expressed by the server Lottie transition (frames 0..20),
+                // not by painting an accent square behind the animation.
+                .background(Color.White.copy(alpha = 0.08f))
                 .liquidClickable(
                     enabled = enabled,
                     pressedScale = LiquidMotion.PressButton,
@@ -925,15 +923,15 @@ private fun VkMixPicturedOption(
                 )
             }
 
-            if (iconUrl != null) {
-                VkMixRemoteLottieIcon(
-                    url = iconUrl,
-                    optionId = option.id,
-                    selected = option.isSelected,
-                    onReadyChanged = { lottieReady = it },
-                    modifier = Modifier.size(44.dp),
-                )
-            }
+            VkMixLottieIcon(
+                url = iconUrl,
+                optionId = option.id,
+                selected = option.isSelected,
+                onReadyChanged = { lottieReady = it },
+                // The server composition already contains optical insets in
+                // its 72x72 canvas, so the view fills the whole tile.
+                modifier = Modifier.fillMaxSize(),
+            )
 
             option.badgeIconUrl?.trim()?.takeIf { it.isRemoteUrl() }?.let { badgeUrl ->
                 AsyncImage(
@@ -951,7 +949,7 @@ private fun VkMixPicturedOption(
         Text(
             text = option.title,
             color = Color.White.copy(alpha = if (enabled) 1f else 0.55f),
-            fontSize = 11.sp,
+            fontSize = 12.sp,
             fontWeight = if (option.isSelected) FontWeight.Bold else FontWeight.Medium,
             fontFamily = AppFontFamily,
             maxLines = 1,
@@ -973,9 +971,15 @@ private class VkMixLottieViewState {
     var loaded: Boolean = false
 }
 
+private data class VkMixLottieSource(
+    val key: String,
+    val rawResource: Int? = null,
+    val file: File? = null,
+)
+
 @Composable
-private fun VkMixRemoteLottieIcon(
-    url: String,
+private fun VkMixLottieIcon(
+    url: String?,
     optionId: String,
     selected: Boolean,
     onReadyChanged: (Boolean) -> Unit,
@@ -983,12 +987,30 @@ private fun VkMixRemoteLottieIcon(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val localFile by produceState<File?>(initialValue = null, url, optionId) {
-        value = withContext(Dispatchers.IO) {
-            VkMixLottieStore.getOrDownload(context.applicationContext, optionId, url)
+    val source by produceState<VkMixLottieSource?>(initialValue = null, url, optionId) {
+        val bundledResource = VkMixLottieStore.bundledResource(optionId)
+        value = if (bundledResource != null) {
+            VkMixLottieSource(
+                key = "raw:$bundledResource",
+                rawResource = bundledResource,
+            )
+        } else {
+            val remoteUrl = url ?: return@produceState
+            withContext(Dispatchers.IO) {
+                VkMixLottieStore.getOrDownload(
+                    context.applicationContext,
+                    optionId,
+                    remoteUrl,
+                )?.let { file ->
+                    VkMixLottieSource(
+                        key = file.absolutePath,
+                        file = file,
+                    )
+                }
+            }
         }
     }
-    val file = localFile ?: return
+    val animationSource = source ?: return
 
     AndroidView(
         factory = { context ->
@@ -1050,9 +1072,9 @@ private fun VkMixRemoteLottieIcon(
                 view.tag = it
             }
             state.optionId = optionId
-            val localSource = file.absolutePath
+            val localSource = animationSource.key
             state.remoteUrl = url
-            state.sourceFile = file
+            state.sourceFile = animationSource.file
             if (state.sourceKey != localSource) {
                 state.sourceKey = localSource
                 state.selected = selected
@@ -1061,10 +1083,15 @@ private fun VkMixRemoteLottieIcon(
                 onReadyChanged(false)
                 view.cancelAnimation()
                 DebugLog.add(
-                    "VK MIX Lottie open local: option=$optionId, file=${file.name}, " +
+                    "VK MIX Lottie open local: option=$optionId, source=$localSource, " +
                         url.remoteDescriptor(),
                 )
-                view.setVkMixAnimation(file)
+                val rawResource = animationSource.rawResource
+                if (rawResource != null) {
+                    view.setAnimation(rawResource)
+                } else {
+                    animationSource.file?.let(view::setVkMixAnimation)
+                }
             } else if (state.selected != selected) {
                 state.selected = selected
                 if (state.loaded) {

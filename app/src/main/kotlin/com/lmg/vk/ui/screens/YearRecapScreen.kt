@@ -46,6 +46,7 @@ import com.lmg.vk.ui.rememberWindowInfo
 import com.lmg.vk.ui.theme.AppFontFamily
 import com.lmg.vk.ui.theme.LiquidMotion
 import com.lmg.vk.ui.theme.LiquidTheme
+import com.lmg.vk.ui.theme.VkSansDisplay
 import com.lmg.vk.ui.viewmodel.PlaylistCreationState
 import com.lmg.vk.ui.viewmodel.YearRecapBlock
 import com.lmg.vk.ui.viewmodel.YearRecapLine
@@ -121,7 +122,7 @@ fun YearRecapScreen(
                     color = lc.textPrimary,
                     fontSize = if (compact) 20.sp else 24.sp,
                     fontWeight = FontWeight.Bold,
-                    fontFamily = AppFontFamily,
+                    fontFamily = VkSansDisplay,
                     modifier = Modifier.weight(1f),
                 )
             }
@@ -322,7 +323,7 @@ private fun RecapHeadline(line: YearRecapLine, compact: Boolean) {
                 color = lc.textPrimary,
                 fontSize = if (compact) 17.sp else 20.sp,
                 fontWeight = FontWeight.Bold,
-                fontFamily = AppFontFamily,
+                fontFamily = if (compact) AppFontFamily else VkSansDisplay,
             )
         }
         line.value.takeIf { it.isNotBlank() }?.let { text ->
@@ -331,7 +332,7 @@ private fun RecapHeadline(line: YearRecapLine, compact: Boolean) {
                 color = lc.accent,
                 fontSize = if (compact) 22.sp else 28.sp,
                 fontWeight = FontWeight.Bold,
-                fontFamily = AppFontFamily,
+                fontFamily = VkSansDisplay,
             )
         }
         line.caption.takeIf { it.isNotBlank() }?.let { text ->

@@ -41,6 +41,7 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.lmg.vk.ui.glass.liquidClickable
 import com.lmg.vk.ui.theme.LiquidTheme
+import com.lmg.vk.ui.theme.VkSansDisplay
 import com.lmg.vk.data.local.LocalStorage
 import com.lmg.vk.data.local.db.FavoriteTrackEntity
 import com.lmg.vk.data.local.db.LibraryRepository
@@ -126,7 +127,8 @@ fun LandscapeHome(
                                 Text("Home", color = lc.textSecondary, fontSize = 12.sp, fontWeight = FontWeight.Medium)
                                 Text(
                                     profileName?.takeIf { it.isNotBlank() } ?: "LMG",
-                                    color = lc.textPrimary, fontSize = 20.sp, fontWeight = FontWeight.Bold
+                                    color = lc.textPrimary, fontSize = 20.sp, fontWeight = FontWeight.SemiBold,
+                                    fontFamily = VkSansDisplay,
                                 )
                             }
                             HeaderIconButton(com.lmg.vk.ui.icons.LmgGlyphs.SearchOutline28, "Search", onOpenSearch)

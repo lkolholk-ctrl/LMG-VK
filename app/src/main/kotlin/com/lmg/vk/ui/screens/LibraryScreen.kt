@@ -82,6 +82,7 @@ import com.lmg.vk.ui.theme.LiquidTheme
 import com.lmg.vk.ui.theme.LiquidSurfaces
 import com.lmg.vk.ui.viewmodel.LibraryViewModel
 import com.lmg.vk.ui.theme.VkSansDisplay
+import com.lmg.vk.ui.theme.VkSansText
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
@@ -1049,7 +1050,7 @@ fun LibraryScreen(
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                 Icon(com.lmg.vk.ui.icons.LmgGlyphs.PlaylistOutline28, null, tint = lc.iconMuted, modifier = Modifier.size(64.dp))
                                 Spacer(Modifier.height(16.dp))
-                                Text("Sync Playlists", color = lc.textPrimary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                                Text("Sync Playlists", color = lc.textPrimary, fontSize = 20.sp, fontWeight = FontWeight.SemiBold, fontFamily = VkSansDisplay)
                                 Spacer(Modifier.height(8.dp))
                                 Text(
                                     "Sign in to your account in the Profile tab to view and sync your VK playlists.",
@@ -1257,7 +1258,8 @@ private fun LibrarySectionTitle(
             },
             color = lc.textPrimary,
             fontSize = 18.sp,
-            fontWeight = FontWeight.Bold,
+            fontWeight = FontWeight.SemiBold,
+            fontFamily = VkSansDisplay,
             modifier = Modifier.weight(1f),
         )
         quickActionIcon?.let { icon ->
@@ -1528,7 +1530,7 @@ private fun LibrarySearchField(
         value = value,
         onValueChange = onValueChange,
         modifier = modifier,
-        textStyle = TextStyle(color = lc.textPrimary, fontSize = 15.sp),
+        textStyle = TextStyle(color = lc.textPrimary, fontSize = 15.sp, fontFamily = VkSansText),
         cursorBrush = SolidColor(lc.accent),
         singleLine = true,
         decorationBox = { inner ->
@@ -1916,7 +1918,7 @@ private fun LocalAudioView(
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Icon(com.lmg.vk.ui.icons.LmgGlyphs.MusicNote24, null, tint = lc.iconMuted, modifier = Modifier.size(64.dp))
                         Spacer(Modifier.height(16.dp))
-                        Text("Allow access to your music", color = lc.textPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                        Text("Allow access to your music", color = lc.textPrimary, fontSize = 18.sp, fontWeight = FontWeight.SemiBold, fontFamily = VkSansDisplay)
                         Spacer(Modifier.height(8.dp))
                         Text(
                             "Grant permission to scan and play audio stored on this device.",
