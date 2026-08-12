@@ -1142,6 +1142,15 @@ data class HomeItem(
     /** Nested `AudioStreamMix.stream_mix.id`, not the CatalogKit item id. */
     @SerialName("streamMixId") val streamMixId: String? = null,
     @SerialName("streamMixTunable") val streamMixTunable: Boolean = false,
+    @SerialName("streamMixEntityId") val streamMixEntityId: String? = null,
+    @SerialName("streamMixSectionId") val streamMixSectionId: String? = null,
+    @SerialName("streamMixCatalogItemId") val streamMixCatalogItemId: String? = null,
+    @SerialName("streamMixAnimationUrl") val streamMixAnimationUrl: String? = null,
+    @SerialName("streamMixOptions") val streamMixOptions: Map<String, List<String>> = emptyMap(),
+    /** `play_vk_mix` resolves settings before constructing StartPlayVkMixSource. */
+    @SerialName("streamMixResolveSettings") val streamMixResolveSettings: Boolean = false,
+    /** VK profile/community whose music is exposed by the catalog as a curator. */
+    @SerialName("musicOwnerId") val musicOwnerId: Long? = null,
     /** Catalog block which acts as StartPlayCatalogSource for Autoflow. */
     @SerialName("catalogBlockId") val catalogBlockId: String? = null,
 ) {
@@ -1149,9 +1158,12 @@ data class HomeItem(
     val isStreamMix: Boolean
         get() = !streamMixId.isNullOrBlank()
 
+    val isMusicOwner: Boolean
+        get() = musicOwnerId != null
+
     /** Keep action-less custom cards disabled while allowing server Mix cards. */
     val isInteractive: Boolean
-        get() = !isCustom || isStreamMix
+        get() = !isCustom || isStreamMix || isMusicOwner
 
     /** Трек = не альбом, не артист и не видеоклип (клип не стримится). */
     val isTrack: Boolean

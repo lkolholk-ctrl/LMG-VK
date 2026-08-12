@@ -124,6 +124,124 @@ data class VkAutoflowSource(
 
 object MusicBackend {
 
+    private data class VkMixPromptEvent(
+        val sequence: Long,
+        val eventType: String,
+        val eventSubtype: String,
+        val ownerId: Long,
+        val audioId: Int,
+        val blockId: String,
+        val playbackDuration: Int,
+        val eventTimestampMs: Long,
+        val trackCode: String,
+    ) {
+        fun toJson() = org.json.JSONObject()
+            .put("event_type", eventType)
+            .put("event_subtype", eventSubtype)
+            .put("owner_id", ownerId)
+            .put("audio_id", audioId)
+            .put("block_id", blockId)
+            .put("playback_duration", playbackDuration)
+            .put("event_timestamp_ms", eventTimestampMs)
+            .put("track_code", trackCode)
+    }
+
+    private data class VkMixPromptBatch(
+        val lastSequence: Long,
+        val count: Int,
+        val json: String,
+    )
+
+    private val mixPromptLock = Any()
+    private val mixPromptEvents = ArrayDeque<VkMixPromptEvent>()
+    private var mixPromptSequence = 0L
+
+    /**
+     * Same compact event object official VK derives from CommonAudioStat before
+     * calling `audio.getStreamMixAudios`. Events remain queued across failures.
+     */
+    fun recordVkMixPromptEvent(
+        session: VkMixSession,
+        track: Track,
+        eventType: String,
+        eventSubtype: String,
+    ) {
+        if (eventType !in setOf("start", "end", "pause") || eventSubtype.isBlank()) return
+        val bareId = com.lmg.vk.engine.VkAudioIdentity.bareFullId(track.id) ?: return
+        val separator = bareId.lastIndexOf('_')
+        if (separator <= 0 || separator >= bareId.lastIndex) return
+        val ownerId = bareId.substring(0, separator).toLongOrNull() ?: return
+        val audioId = bareId.substring(separator + 1).toIntOrNull() ?: return
+        val cached = trackCache[bareId]
+        synchronized(mixPromptLock) {
+            mixPromptSequence++
+            mixPromptEvents.addLast(
+                VkMixPromptEvent(
+                    sequence = mixPromptSequence,
+                    eventType = eventType,
+                    eventSubtype = eventSubtype,
+                    ownerId = ownerId,
+                    audioId = audioId,
+                    blockId = session.blockId,
+                    playbackDuration = (track.durationMs / 1_000L)
+                        .coerceIn(0L, Int.MAX_VALUE.toLong()).toInt(),
+                    eventTimestampMs = System.currentTimeMillis(),
+                    trackCode = cached?.track_code.orEmpty(),
+                ),
+            )
+            while (mixPromptEvents.size > 200) mixPromptEvents.removeFirst()
+        }
+    }
+
+    private fun snapshotVkMixPromptEvents(): VkMixPromptBatch? = synchronized(mixPromptLock) {
+        val events = mixPromptEvents.take(100)
+        if (events.isEmpty()) return@synchronized null
+        val json = org.json.JSONArray()
+        events.forEach { json.put(it.toJson()) }
+        VkMixPromptBatch(
+            lastSequence = events.last().sequence,
+            count = events.size,
+            json = json.toString(),
+        )
+    }
+
+    private fun acknowledgeVkMixPromptEvents(batch: VkMixPromptBatch) {
+        synchronized(mixPromptLock) {
+            while (
+                mixPromptEvents.isNotEmpty() &&
+                mixPromptEvents.peekFirst().sequence <= batch.lastSequence
+            ) {
+                mixPromptEvents.removeFirst()
+            }
+        }
+        com.lmg.vk.debug.DebugLog.add("VK MIX prompt events accepted=${batch.count}")
+    }
+
+    fun clearVkMixPromptEvents() {
+        synchronized(mixPromptLock) {
+            mixPromptEvents.clear()
+            mixPromptSequence = 0L
+        }
+    }
+
+    private suspend fun loadVkMixAudioTracks(
+        session: VkMixSession,
+        append: Boolean,
+    ): List<AudioTrack> {
+        val promptBatch = snapshotVkMixPromptEvents()
+        val tracks = audioApi.getStreamMixAudios(
+            mixId = session.mixId,
+            entityId = session.entityId,
+            append = append,
+            options = session.options,
+            mixOptionsId = session.mixOptionsId,
+            sourceRef = session.sourceRef,
+            promptEvents = promptBatch?.json,
+        ).requireData()
+        promptBatch?.let(::acknowledgeVkMixPromptEvents)
+        return tracks
+    }
+
     private val _lastError = MutableStateFlow<String?>(null)
     val lastError: StateFlow<String?> = _lastError
     private val _lastApiException = MutableStateFlow<BackendException?>(null)
@@ -931,14 +1049,8 @@ object MusicBackend {
             entityId = normalizedId,
             catalogItemId = catalogMix?.id,
         )
-        val tracks = audioApi.getStreamMixAudios(
-            mixId = session.mixId,
-            entityId = session.entityId,
-            append = false,
-            options = session.options,
-            mixOptionsId = session.mixOptionsId,
-            sourceRef = session.sourceRef,
-        ).requireData().map(::cacheTrack).map { it.toEngineTrack() }
+        val tracks = loadVkMixAudioTracks(session, append = false)
+            .map(::cacheTrack).map { it.toEngineTrack() }
         VkMixPlaybackSource(
             session = session,
             tracks = tracks,
@@ -962,14 +1074,8 @@ object MusicBackend {
 
     /** Start a fresh VK Mix queue with `append=false`. */
     suspend fun startVkMix(session: VkMixSession): VkMixPlaybackSource {
-        val tracks = audioApi.getStreamMixAudios(
-            mixId = session.mixId,
-            entityId = session.entityId,
-            append = false,
-            options = session.options,
-            mixOptionsId = session.mixOptionsId,
-            sourceRef = session.sourceRef,
-        ).requireData().map(::cacheTrack).map { it.toEngineTrack() }
+        val tracks = loadVkMixAudioTracks(session, append = false)
+            .map(::cacheTrack).map { it.toEngineTrack() }
         return VkMixPlaybackSource(session = session, tracks = tracks)
     }
 
@@ -1040,7 +1146,10 @@ object MusicBackend {
     suspend fun getVkMixSettings(session: VkMixSession): VkMixSettings? {
         requireInitialized()
         return when (val result = audioApi.getStreamMixSettings(session.mixId)) {
-            is VkResult.Success -> result.data.settings?.toVkMixSettings() ?: session.settings
+            is VkResult.Success -> result.data.settings
+                ?.toVkMixSettings()
+                ?.withSelectedOptions(session.options)
+                ?: session.settings
             is VkResult.Error -> {
                 // The catalog's AudioStreamMix carries the same official
                 // settings payload. Some accounts return 404 from the refresh
@@ -1059,14 +1168,7 @@ object MusicBackend {
 
     /** Continue the same VK Mix session; regular album/playlist queues never call this. */
     suspend fun appendVkMix(session: VkMixSession): List<Track> = runCatching {
-        audioApi.getStreamMixAudios(
-            mixId = session.mixId,
-            entityId = session.entityId,
-            append = true,
-            options = session.options,
-            mixOptionsId = session.mixOptionsId,
-            sourceRef = session.sourceRef,
-        ).requireData()
+        loadVkMixAudioTracks(session, append = true)
             .map(::cacheTrack)
             .map { it.toEngineTrack() }
             .filter { it.isAvailable }
@@ -2067,6 +2169,7 @@ object MusicBackend {
         cover = photo_base?.takeIf(String::isNotBlank),
         source = "vk",
         isCustom = true,
+        musicOwnerId = id.takeIf { it != 0L },
     )
 
     private fun VkCatalogLink.toHomeItem() = HomeItem(
@@ -2187,7 +2290,54 @@ object MusicBackend {
         isCustom = true,
         streamMixId = playbackMixId,
         streamMixTunable = is_tunable == true,
+        streamMixCatalogItemId = id,
+        streamMixAnimationUrl = background_animation_url?.takeIf(String::isNotBlank),
+        streamMixOptions = settings?.toVkMixSettings()?.selectedOptions().orEmpty(),
     )
+
+    private fun VkCatalogButton.toPlayMixHomeItem(): HomeItem? {
+        if ((action?.type ?: type) != "play_vk_mix") return null
+        val playbackMixId = mix_id?.takeIf(String::isNotBlank) ?: return null
+        val catalogId = id?.takeIf(String::isNotBlank)
+        val cover = (images.orEmpty() + foreground_images.orEmpty())
+            .asSequence()
+            .filter { it.url.isNotBlank() }
+            .maxByOrNull { it.width * it.height }
+            ?.url
+        return HomeItem(
+            id = "play_mix_${catalogId ?: playbackMixId}",
+            title = title?.takeIf(String::isNotBlank) ?: "VK Mix",
+            artist = description?.takeIf(String::isNotBlank),
+            cover = cover,
+            source = "vk",
+            isCustom = true,
+            streamMixId = playbackMixId,
+            streamMixTunable = !mix_options.isNullOrBlank(),
+            streamMixEntityId = entity_id?.takeIf(String::isNotBlank),
+            streamMixSectionId = section_id?.takeIf(String::isNotBlank),
+            streamMixCatalogItemId = catalogId,
+            streamMixOptions = parseMixOptions(mix_options),
+            streamMixResolveSettings = true,
+        )
+    }
+
+    private fun parseMixOptions(raw: String?): Map<String, List<String>> = runCatching {
+        val json = raw?.takeIf(String::isNotBlank)?.let { org.json.JSONObject(it) }
+            ?: return@runCatching emptyMap()
+        buildMap {
+            val keys = json.keys()
+            while (keys.hasNext()) {
+                val key = keys.next()
+                val values = json.optJSONArray(key) ?: continue
+                val selected = buildList {
+                    for (index in 0 until values.length()) {
+                        values.optString(index).takeIf(String::isNotBlank)?.let { add(it) }
+                    }
+                }
+                if (selected.isNotEmpty()) put(key, selected)
+            }
+        }
+    }.getOrDefault(emptyMap())
 
     /** Exact DTO -> editor model mapping recovered from official VK. */
     private fun AudioStreamMixSettings.toVkMixSettings() = VkMixSettings(
@@ -2211,6 +2361,23 @@ object MusicBackend {
             )
         },
     )
+
+    /** Official VK applies the CatalogKit `mix_options` JSON over fresh settings. */
+    private fun VkMixSettings.withSelectedOptions(
+        selected: Map<String, List<String>>,
+    ): VkMixSettings {
+        if (selected.isEmpty()) return this
+        return copy(
+            categories = categories.map { category ->
+                val categorySelection = selected[category.id] ?: return@map category
+                category.copy(
+                    options = category.options.map { option ->
+                        option.copy(isSelected = option.id in categorySelection)
+                    },
+                )
+            },
+        )
+    }
 
     /** VK shows the selected option before the generic and catalog titles. */
     private fun AudioStreamMix.playbackTitle(settings: VkMixSettings?): String =
@@ -2558,6 +2725,21 @@ object MusicBackend {
         }
         val stationsById = radio_stations.orEmpty().associateBy { it.id.toString() }
         val streamMixesById = audio_stream_mixes.orEmpty().associateBy { it.id }
+        val catalogPages = this
+        val sectionIdByBlockId = buildMap {
+            catalogPages.forEach { response ->
+                response.section?.let { section ->
+                    section.blocks.orEmpty().forEach { block ->
+                        if (block.id.isNotBlank() && section.id.isNotBlank()) put(block.id, section.id)
+                    }
+                }
+                response.catalog?.sections.orEmpty().forEach { section ->
+                    section.blocks.orEmpty().forEach { block ->
+                        if (block.id.isNotBlank() && section.id.isNotBlank()) put(block.id, section.id)
+                    }
+                }
+            }
+        }
 
         fun <T> Map<String, T>.byCatalogId(value: String): T? =
             this[value] ?: this[value.removePrefix("vk_")]
@@ -2568,6 +2750,7 @@ object MusicBackend {
                 orderedBlocks[block.id] = orderedBlocks[block.id]?.mergeWith(block) ?: block
             }
         fun HomeItem.catalogDedupeKey(): String = when {
+            isStreamMix -> "mix:${streamMixId}:${streamMixEntityId.orEmpty()}"
             isArtist -> "artist:$id"
             isAlbum -> "album:${collectionId ?: id}"
             isPlaylist -> "playlist:${collectionId ?: id}"
@@ -2589,6 +2772,8 @@ object MusicBackend {
                 return@mapNotNull null
             }
             val items = buildList {
+                block.actions.orEmpty().mapNotNull { it.toPlayMixHomeItem() }
+                    .forEach(::add)
                 block.audios_ids.orEmpty().mapNotNull(audiosById::byCatalogId)
                     .forEach { add(it.toHomeItem()) }
                 block.playlists_ids.orEmpty().mapNotNull(playlistsById::byCatalogId)
@@ -2673,7 +2858,13 @@ object MusicBackend {
                             id = block.id,
                             title = title,
                             type = contentType,
-                            items = items.map { item -> item.copy(catalogBlockId = block.id) },
+                            items = items.map { item ->
+                                item.copy(
+                                    catalogBlockId = block.id,
+                                    streamMixSectionId = item.streamMixSectionId
+                                        ?: sectionIdByBlockId[block.id],
+                                )
+                            },
                             layoutName = layoutName,
                             nextFrom = block.next_from?.takeIf(String::isNotBlank),
                             catalogRef = block.ref?.takeIf(String::isNotBlank),
@@ -2687,7 +2878,13 @@ object MusicBackend {
                         id = block.id,
                         title = title,
                         type = contentType,
-                        items = it.map { item -> item.copy(catalogBlockId = block.id) },
+                        items = it.map { item ->
+                            item.copy(
+                                catalogBlockId = block.id,
+                                streamMixSectionId = item.streamMixSectionId
+                                    ?: sectionIdByBlockId[block.id],
+                            )
+                        },
                         layoutName = layoutName,
                         // Курсор блока раньше терялся: HomeBlock его не хранил, из-за
                         // чего шторка «показать все» навсегда оставалась с первой
@@ -3198,6 +3395,7 @@ object MusicAuth {
         }
     }
     fun logout() {
+        MusicBackend.clearVkMixPromptEvents()
         sessionStore?.session = VkAuthSession.EMPTY
         _partnerUserId.value = null
         _isLoggedIn.value = false

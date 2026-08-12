@@ -49,6 +49,7 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.lmg.vk.engine.PlayerController
+import com.lmg.vk.engine.PlaybackContext
 import com.lmg.vk.engine.Track
 import com.lmg.vk.engine.backend.MusicBackend
 import com.lmg.vk.engine.backend.VkProfileRepository
@@ -57,8 +58,8 @@ import com.lmg.vk.ui.components.DetailTopBar
 import com.lmg.vk.ui.components.DetailTrackRow
 import com.lmg.vk.ui.components.formatTotalDuration
 import com.lmg.vk.ui.glass.liquidClickable
-import com.lmg.vk.ui.theme.AppFontFamily
 import com.lmg.vk.ui.theme.VkSansDisplay
+import com.lmg.vk.ui.theme.VkSansText
 import com.lmg.vk.ui.theme.LiquidMetrics
 import com.lmg.vk.ui.theme.LiquidMotion
 import com.lmg.vk.ui.theme.LiquidSurfaces
@@ -210,8 +211,22 @@ fun OwnerAudioScreen(
                         canPlay = playable.isNotEmpty(),
                         isDark = isDark,
                         compact = compact,
-                        onPlay = { PlayerController.play(context, playable, 0) },
-                        onShuffle = { PlayerController.play(context, playable.shuffled(), 0) },
+                        onPlay = {
+                            PlayerController.play(
+                                context,
+                                playable,
+                                0,
+                                playbackContext = PlaybackContext.OwnerAudio(state.ownerId),
+                            )
+                        },
+                        onShuffle = {
+                            PlayerController.play(
+                                context,
+                                playable.shuffled(),
+                                0,
+                                playbackContext = PlaybackContext.OwnerAudio(state.ownerId),
+                            )
+                        },
                     )
                 }
 
@@ -227,7 +242,14 @@ fun OwnerAudioScreen(
                         enabled = track.isAvailable,
                         onClick = {
                             val target = playable.indexOfFirst { it.id == track.id }
-                            if (target >= 0) PlayerController.play(context, playable, target)
+                            if (target >= 0) {
+                                PlayerController.play(
+                                    context,
+                                    playable,
+                                    target,
+                                    playbackContext = PlaybackContext.OwnerAudio(state.ownerId),
+                                )
+                            }
                         },
                     )
                 }
@@ -251,7 +273,7 @@ fun OwnerAudioScreen(
                     item {
                         Text(
                             text = message,
-                            fontFamily = AppFontFamily,
+                            fontFamily = VkSansText,
                             color = colors.textSecondary,
                             fontSize = 12.sp,
                             textAlign = TextAlign.Center,
@@ -373,7 +395,7 @@ private fun OwnerAudioHeader(
                     Text(
                         text = line,
                         color = LiquidSurfaces.onHeaderSecondary,
-                        fontFamily = AppFontFamily,
+                        fontFamily = VkSansText,
                         fontSize = LiquidMetrics.HeaderCaption,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
@@ -457,7 +479,7 @@ private fun OwnerAudioButton(
         Spacer(Modifier.size(8.dp))
         Text(
             text = label,
-            fontFamily = AppFontFamily,
+            fontFamily = VkSansText,
             color = contentColor,
             fontSize = LiquidMetrics.ActionLabel,
             fontWeight = FontWeight.SemiBold,
@@ -481,7 +503,7 @@ private fun OwnerAudioMessage(
         Spacer(Modifier.height(14.dp))
         Text(
             text = title,
-            fontFamily = AppFontFamily,
+            fontFamily = VkSansText,
             color = colors.textPrimary,
             fontSize = 17.sp,
             fontWeight = FontWeight.SemiBold,
@@ -490,7 +512,7 @@ private fun OwnerAudioMessage(
         Spacer(Modifier.height(6.dp))
         Text(
             text = message,
-            fontFamily = AppFontFamily,
+            fontFamily = VkSansText,
             color = colors.textSecondary,
             fontSize = 13.sp,
             textAlign = TextAlign.Center,

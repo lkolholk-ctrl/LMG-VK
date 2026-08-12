@@ -47,6 +47,7 @@ sealed class PlaybackContext {
     data class Playlist(val id: String) : PlaybackContext()
     data class Album(val id: String) : PlaybackContext()
     data class Artist(val id: String) : PlaybackContext()
+    data class OwnerAudio(val ownerId: Long) : PlaybackContext()
     data class VkMix(val session: VkMixSession) : PlaybackContext() {
         val mixId: String get() = session.mixId
         val entityId: String? get() = session.entityId
@@ -124,6 +125,124 @@ object PlayerController {
 
     private const val AUTOFLOW_PRELOAD_TRACKS_LEFT = 3
 
+    private data class MixPromptPlayback(
+        val session: VkMixSession,
+        val track: Track,
+    )
+
+    private enum class MixPromptDirection { NEXT, PREVIOUS }
+
+    private val mixPromptPlaybackLock = Any()
+    private var mixPromptPlayback: MixPromptPlayback? = null
+    private var pendingMixPromptDirection: MixPromptDirection? = null
+
+    private fun setMixPromptPlayback(context: PlaybackContext, track: Track) {
+        synchronized(mixPromptPlaybackLock) {
+            val previous = mixPromptPlayback
+            val session = (context as? PlaybackContext.VkMix)?.session
+            if (previous != null && (session != previous.session || track.id != previous.track.id)) {
+                MusicBackend.recordVkMixPromptEvent(
+                    session = previous.session,
+                    track = previous.track,
+                    eventType = "end",
+                    eventSubtype = "change_source",
+                )
+                mixPromptPlayback = null
+            }
+            if (session != null && mixPromptPlayback == null) {
+                MusicBackend.recordVkMixPromptEvent(
+                    session = session,
+                    track = track,
+                    eventType = "start",
+                    eventSubtype = "fastplay",
+                )
+                mixPromptPlayback = MixPromptPlayback(session, track)
+            }
+            pendingMixPromptDirection = null
+        }
+    }
+
+    private fun transitionMixPromptPlayback(mediaId: String?, reason: Int) {
+        synchronized(mixPromptPlaybackLock) {
+            val previous = mixPromptPlayback ?: return
+            if (mediaId == previous.track.id) return
+            val direction = pendingMixPromptDirection
+            pendingMixPromptDirection = null
+            val stopSubtype = when {
+                direction == MixPromptDirection.NEXT -> "next"
+                direction == MixPromptDirection.PREVIOUS -> "prev"
+                reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO -> "autoplay"
+                reason == Player.MEDIA_ITEM_TRANSITION_REASON_REPEAT -> "repeat"
+                reason == Player.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED -> "change_source"
+                else -> "unhandled_on_client"
+            }
+            MusicBackend.recordVkMixPromptEvent(
+                session = previous.session,
+                track = previous.track,
+                eventType = "end",
+                eventSubtype = stopSubtype,
+            )
+            val next = mediaId?.let { id -> queue.firstOrNull { it.id == id } }
+            val activeSession = (_playbackContext as? PlaybackContext.VkMix)?.session
+            if (next != null && activeSession != null) {
+                val startSubtype = when {
+                    direction == MixPromptDirection.NEXT -> "next_btn"
+                    direction == MixPromptDirection.PREVIOUS -> "prev_btn"
+                    reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO -> "autoplay"
+                    reason == Player.MEDIA_ITEM_TRANSITION_REASON_REPEAT -> "repeat"
+                    else -> "fastplay"
+                }
+                MusicBackend.recordVkMixPromptEvent(
+                    session = activeSession,
+                    track = next,
+                    eventType = "start",
+                    eventSubtype = startSubtype,
+                )
+                mixPromptPlayback = MixPromptPlayback(activeSession, next)
+            } else {
+                mixPromptPlayback = null
+            }
+        }
+    }
+
+    private fun recordMixPromptPause(subtype: String) {
+        synchronized(mixPromptPlaybackLock) {
+            val current = mixPromptPlayback ?: return
+            MusicBackend.recordVkMixPromptEvent(
+                session = current.session,
+                track = current.track,
+                eventType = "pause",
+                eventSubtype = subtype,
+            )
+        }
+    }
+
+    private fun recordMixPromptResume(subtype: String) {
+        synchronized(mixPromptPlaybackLock) {
+            val current = mixPromptPlayback ?: return
+            MusicBackend.recordVkMixPromptEvent(
+                session = current.session,
+                track = current.track,
+                eventType = "start",
+                eventSubtype = subtype,
+            )
+        }
+    }
+
+    private fun endMixPromptPlayback(subtype: String) {
+        synchronized(mixPromptPlaybackLock) {
+            val current = mixPromptPlayback ?: return
+            MusicBackend.recordVkMixPromptEvent(
+                session = current.session,
+                track = current.track,
+                eventType = "end",
+                eventSubtype = subtype,
+            )
+            mixPromptPlayback = null
+            pendingMixPromptDirection = null
+        }
+    }
+
     /** Тип трека по схеме URI: file/content — локальный файл, всё прочее — сеть. */
     enum class TrackKind { ONLINE, LOCAL }
 
@@ -177,6 +296,10 @@ object PlayerController {
             is PlaybackContext.Artist -> VkAutoflowSource(
                 queueType = "artist",
                 queueEntityId = playbackContext.id.removePrefix("vk_"),
+            )
+            is PlaybackContext.OwnerAudio -> VkAutoflowSource(
+                queueType = "playlist",
+                queueEntityId = "${playbackContext.ownerId}_-1",
             )
             is PlaybackContext.Global -> VkAutoflowSource(
                 queueType = "playlist",
@@ -887,6 +1010,7 @@ object PlayerController {
         ioScope.launch {
             // ── ABSOLUTE QUEUE PURGE: wipe old queue before loading ──
             withContext(Dispatchers.Main) {
+                endMixPromptPlayback("change_source")
                 val player = getPlayer(context)
                 player?.let {
                     it.stop()
@@ -959,6 +1083,7 @@ object PlayerController {
                         _durationMs.value = startTrack.durationMs
                         _currentPositionMs.value = 0L
                         _isBuffering.value = true
+                        setMixPromptPlayback(newContext, startTrack)
 
                         val player = getPlayer(context)
                         if (player != null) {
@@ -1085,6 +1210,7 @@ object PlayerController {
                 _currentPositionMs.value = 0L
                 _isBuffering.value = false
                 _isVideoClip.value = false   // локальные файлы — не видеоклип
+                setMixPromptPlayback(playbackContext, startTrack)
 
                 // Поднять сервис/контроллер (после этого audioServiceRef установлен).
                 getPlayer(context)
@@ -1099,15 +1225,23 @@ object PlayerController {
     /** Пауза без тоггла (для sleep timer): по истечении таймера музыка должна
      *  ТОЛЬКО останавливаться, никогда не включаться. */
     fun pause(context: Context) {
-        mainScope.launch { getPlayer(context)?.pause() }
+        mainScope.launch {
+            val player = getPlayer(context)
+            if (player?.isPlaying == true) {
+                recordMixPromptPause("pause_btn")
+                player.pause()
+            }
+        }
     }
 
     fun togglePlayPause(context: Context) {
         mainScope.launch {
             val player = getPlayer(context) ?: return@launch
             if (player.isPlaying) {
+                recordMixPromptPause("pause_btn")
                 player.pause()
             } else {
+                recordMixPromptResume("play_btn")
                 if (player.mediaItemCount == 0 && queue.isNotEmpty()) {
                     val trackId = queue.getOrNull(currentIndex)?.id ?: queue.firstOrNull()?.id
                     if (trackId != null) {
@@ -1173,6 +1307,9 @@ object PlayerController {
                 }
             }
             val nextTrackId = currentQueue.getOrNull(nextIndex)?.id ?: return@launch
+            synchronized(mixPromptPlaybackLock) {
+                pendingMixPromptDirection = MixPromptDirection.NEXT
+            }
             val player = getPlayer(context)
             if (player != null) {
                 val targetIndex = (0 until player.mediaItemCount).indexOfFirst {
@@ -1205,6 +1342,9 @@ object PlayerController {
                 return@launch
             }
             val prevTrackId = currentQueue.getOrNull(prevIndex)?.id ?: return@launch
+            synchronized(mixPromptPlaybackLock) {
+                pendingMixPromptDirection = MixPromptDirection.PREVIOUS
+            }
             if (player != null) {
                 val targetIndex = (0 until player.mediaItemCount).indexOfFirst {
                     player.getMediaItemAt(it).mediaId == prevTrackId
@@ -1962,6 +2102,7 @@ object PlayerController {
             is PlaybackContext.Playlist -> "playlist"
             is PlaybackContext.Album -> "album"
             is PlaybackContext.Artist -> "artist"
+            is PlaybackContext.OwnerAudio -> "playlist"
             is PlaybackContext.VkMix -> "vk_mix"
             is PlaybackContext.Global -> "wave"
         }
@@ -2007,6 +2148,7 @@ object PlayerController {
 
     fun logFinalPlayback() {
         val track = _currentTrack.value
+        endMixPromptPlayback("session_terminated")
         if (track != null && totalPlayedMs > 0L) {
             logPreviousTrack(track, totalPlayedMs)
             resetPlaybackLogging(0L)
@@ -2321,6 +2463,8 @@ object PlayerController {
         }
 
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+            val transitionedMediaId = mediaItem?.mediaId
+            transitionMixPromptPlayback(transitionedMediaId, reason)
             // ── Unified room logging for previous track ──
             val prevTrack = _currentTrack.value
             if (prevTrack != null) {

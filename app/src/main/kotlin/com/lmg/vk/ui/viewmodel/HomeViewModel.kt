@@ -30,7 +30,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlin.random.Random
 
-enum class VkMixOperation { LOAD_SETTINGS, START, APPLY }
+enum class VkMixOperation { LOAD_SETTINGS, RESOLVE_START, START, APPLY }
 
 sealed interface VkMixUiState {
     data object Idle : VkMixUiState
@@ -504,7 +504,11 @@ class HomeViewModel : ViewModel() {
                     settings = settings,
                     // A freshly resolved source with settings supplied by the
                     // dedicated endpoint starts from those server selections.
-                    options = if (session.settings == null && session.mixOptionsId == null) {
+                    options = if (
+                        session.settings == null &&
+                        session.mixOptionsId == null &&
+                        session.options.isEmpty()
+                    ) {
                         settings?.selectedOptions().orEmpty()
                     } else {
                         session.options
@@ -628,24 +632,71 @@ class HomeViewModel : ViewModel() {
         title: String,
         isTunable: Boolean,
         blockId: String?,
+        entityId: String?,
+        sectionId: String?,
         catalogItemId: String?,
+        options: Map<String, List<String>>,
+        resolveSettings: Boolean,
     ) {
         if (mixId.isBlank() || waveLoadJob?.isActive == true) return
         mixSettingsJob?.cancel()
         mixSettingsJob = null
         _error.value = null
-        startKnownVkMix(
-            context = context,
-            session = VkMixSession(
-                blockId = blockId.orEmpty(),
-                mixId = mixId,
-                isTunable = isTunable,
-                title = title,
-                settings = null,
-                catalogItemId = catalogItemId,
-            ),
-            operation = VkMixOperation.START,
+        val session = VkMixSession(
+            blockId = blockId.orEmpty(),
+            sectionId = sectionId.orEmpty(),
+            mixId = mixId,
+            isTunable = isTunable || resolveSettings,
+            title = title,
+            settings = null,
+            entityId = entityId,
+            catalogItemId = catalogItemId,
+            id = catalogItemId,
+            options = options,
         )
+        if (!resolveSettings) {
+            startKnownVkMix(context, session, VkMixOperation.START)
+            return
+        }
+
+        resolveCatalogMixAndStart(context, session)
+    }
+
+    /** Hydrate a CatalogKit action and preserve that operation across Retry. */
+    private fun resolveCatalogMixAndStart(context: Context, session: VkMixSession) {
+        // Official CatalogKit hydrates a `play_vk_mix` action first, overlays
+        // its `mix_options`, and only then creates StartPlayVkMixSource.
+        _vkMixState.value = VkMixUiState.Loading
+        mixSettingsJob = viewModelScope.launch {
+            try {
+                val settings = MusicBackend.getVkMixSettings(session)
+                val hydrated = session.copy(
+                    isTunable = settings != null,
+                    settings = settings,
+                    options = if (session.options.isEmpty()) {
+                        settings?.selectedOptions().orEmpty()
+                    } else {
+                        session.options
+                    },
+                )
+                startKnownVkMix(
+                    context = context,
+                    session = hydrated,
+                    operation = VkMixOperation.START,
+                    original = settings,
+                    draft = settings,
+                )
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _vkMixState.value = e.toVkMixError(
+                    operation = VkMixOperation.RESOLVE_START,
+                    session = session,
+                )
+            } finally {
+                if (mixSettingsJob === coroutineContext[Job]) mixSettingsJob = null
+            }
+        }
     }
 
     private fun startKnownVkMix(
@@ -682,7 +733,8 @@ class HomeViewModel : ViewModel() {
                     session,
                     accepted,
                     accepted,
-                    settingsLoaded = operation == VkMixOperation.APPLY || session.mixOptionsId != null,
+                    settingsLoaded = operation == VkMixOperation.APPLY ||
+                        session.mixOptionsId != null || session.settings != null,
                 )
                 _error.value = null
             } catch (e: CancellationException) {
@@ -707,6 +759,8 @@ class HomeViewModel : ViewModel() {
         when (val state = _vkMixState.value) {
             is VkMixUiState.Error -> when {
                 state.operation == VkMixOperation.LOAD_SETTINGS -> prepareVkMixSettings()
+                state.operation == VkMixOperation.RESOLVE_START && state.session != null ->
+                    resolveCatalogMixAndStart(context, state.session)
                 state.session != null -> startKnownVkMix(
                     context = context,
                     session = state.session,

@@ -220,6 +220,9 @@ fun LiquidNavHost(
                     onNavigateToAlbum = { navController.navigate(NavRoutes.album(NavRoutes.TAB_NEW, it)) },
                     onNavigateToPlaylist = { navController.navigate(NavRoutes.playlist(NavRoutes.TAB_NEW, it)) },
                     onNavigateToArtist = { navController.navigate(NavRoutes.artist(NavRoutes.TAB_NEW, it)) },
+                    onNavigateToMusicOwner = {
+                        navController.navigate(NavRoutes.ownerAudio(NavRoutes.TAB_NEW, it))
+                    },
                     onOpenSnippets = { navController.navigate(NavRoutes.NEW_SNIPPETS) }
                 )
             }
@@ -269,6 +272,18 @@ private fun NavGraphBuilder.musicDetailDestinations(
     tab: String,
     navController: NavHostController
 ) {
+    if (tab != NavRoutes.TAB_LIBRARY) {
+        composable(
+            NavRoutes.ownerAudioRoute(tab),
+            arguments = listOf(navArgument(NavRoutes.ARG_ID) { type = NavType.StringType }),
+        ) { entry ->
+            val ownerId = entry.arguments?.getString(NavRoutes.ARG_ID)?.toLongOrNull() ?: 0L
+            OwnerAudioRoute(
+                ownerId = ownerId,
+                onBack = { navController.popBackStack() },
+            )
+        }
+    }
     composable(
         NavRoutes.albumRoute(tab),
         arguments = listOf(navArgument(NavRoutes.ARG_ID) { type = NavType.StringType })

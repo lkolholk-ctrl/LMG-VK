@@ -1,5 +1,6 @@
 package com.lmg.vk.ui.screens
 
+import android.widget.ImageView
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -34,7 +35,9 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -47,17 +50,28 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
+import com.airbnb.lottie.LottieAnimationView
+import com.airbnb.lottie.LottieDrawable
+import com.lmg.vk.debug.DebugLog
 import com.lmg.vk.engine.PlayerController
 import com.lmg.vk.engine.PlaybackContext
 import com.lmg.vk.engine.Track
 import com.lmg.vk.ui.glass.AlbumArtImage
+import com.lmg.vk.ui.mix.VkMixLottieStore
 import com.lmg.vk.ui.theme.AppFontFamily
 import com.lmg.vk.ui.theme.LiquidTheme
 import com.lmg.vk.ui.theme.VkSansDisplay
 import com.lmg.vk.ui.viewmodel.HomeViewModel
 import java.text.SimpleDateFormat
+import java.io.File
+import java.io.FileInputStream
 import java.util.Date
 import java.util.Locale
+import java.util.zip.ZipInputStream
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * Таб «New» — главная выдача VK Music CatalogKit (`catalog.getAudioAuto`).
@@ -69,6 +83,7 @@ fun NewScreen(
     onNavigateToAlbum: (String) -> Unit = {},
     onNavigateToPlaylist: (String) -> Unit = {},
     onNavigateToArtist: (String) -> Unit = {},
+    onNavigateToMusicOwner: (Long) -> Unit = {},
     onOpenSnippets: () -> Unit = {},
 ) {
     val context = LocalContext.current
@@ -116,8 +131,13 @@ fun NewScreen(
                 title = homeItem.title,
                 isTunable = homeItem.streamMixTunable,
                 blockId = homeItem.catalogBlockId,
-                catalogItemId = homeItem.id.removePrefix("stream_mix_"),
+                entityId = homeItem.streamMixEntityId,
+                sectionId = homeItem.streamMixSectionId,
+                catalogItemId = homeItem.streamMixCatalogItemId,
+                options = homeItem.streamMixOptions,
+                resolveSettings = homeItem.streamMixResolveSettings,
             )
+            homeItem.isMusicOwner -> homeItem.musicOwnerId?.let(onNavigateToMusicOwner)
             homeItem.isCustom -> Unit
             homeItem.isArtist -> onNavigateToArtist(homeItem.artistId ?: homeItem.id)
             homeItem.isPlaylist -> onNavigateToPlaylist(homeItem.collectionId ?: homeItem.id)
@@ -487,9 +507,9 @@ private fun NewCatalogBlock(
                 items(block.items, key = { "${block.id}_${it.id}" }) { homeItem ->
                     if (block.type == "curators" || block.id.contains("curator", ignoreCase = true)) {
                         NewCuratorCard(
-                            title = homeItem.title,
-                            coverUrl = homeItem.cover,
+                            item = homeItem,
                             compact = compact,
+                            onClick = { onItemClick(homeItem) },
                         )
                     } else {
                         NewTrackCard(
@@ -1230,6 +1250,16 @@ private fun NewLargeCard(
                     .height(imageHeight)
                     .clip(RoundedCornerShape(14.dp)),
             )
+            item.streamMixAnimationUrl?.takeIf(String::isNotBlank)?.let { animationUrl ->
+                NewMixBackgroundAnimation(
+                    url = animationUrl,
+                    animationId = item.streamMixCatalogItemId ?: item.streamMixId.orEmpty(),
+                    modifier = Modifier
+                        .width(cardWidth)
+                        .height(imageHeight)
+                        .clip(RoundedCornerShape(14.dp)),
+                )
+            }
             if (showRank && item.rank != null) {
                 Box(
                     modifier = Modifier
@@ -1270,6 +1300,104 @@ private fun NewLargeCard(
                     overflow = TextOverflow.Ellipsis,
                 )
             }
+    }
+}
+
+private class NewMixAnimationViewState {
+    var sourcePath: String? = null
+    var sourceFile: File? = null
+    var remoteUrl: String = ""
+    var animationId: String = ""
+    var exportedPath: String? = null
+}
+
+/** Official VK renders `background_animation_url` as a looping remote Lottie. */
+@Composable
+private fun NewMixBackgroundAnimation(
+    url: String,
+    animationId: String,
+    modifier: Modifier = Modifier,
+) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val sourceFile by produceState<File?>(initialValue = null, url, animationId) {
+        value = withContext(Dispatchers.IO) {
+            VkMixLottieStore.getOrDownload(
+                context = context.applicationContext,
+                optionId = "background_$animationId",
+                url = url,
+            )
+        }
+    }
+    val file = sourceFile ?: return
+
+    AndroidView(
+        factory = { viewContext ->
+            LottieAnimationView(viewContext).apply {
+                scaleType = ImageView.ScaleType.CENTER_CROP
+                repeatCount = LottieDrawable.INFINITE
+                setSafeMode(true)
+                tag = NewMixAnimationViewState()
+                setFailureListener { error ->
+                    val state = tag as? NewMixAnimationViewState
+                    state?.sourceFile?.let(VkMixLottieStore::quarantine)
+                    setImageDrawable(null)
+                    DebugLog.add(
+                        "VK MIX background failed: id=${state?.animationId.orEmpty()}, " +
+                            error.javaClass.simpleName,
+                    )
+                }
+                addLottieOnCompositionLoadedListener {
+                    val state = tag as? NewMixAnimationViewState ?: return@addLottieOnCompositionLoadedListener
+                    repeatCount = LottieDrawable.INFINITE
+                    playAnimation()
+                    val path = state.sourcePath ?: return@addLottieOnCompositionLoadedListener
+                    val localFile = state.sourceFile ?: return@addLottieOnCompositionLoadedListener
+                    if (state.exportedPath != path) {
+                        state.exportedPath = path
+                        scope.launch(Dispatchers.IO) {
+                            VkMixLottieStore.exportValidated(
+                                context = viewContext.applicationContext,
+                                optionId = "background_${state.animationId}",
+                                url = state.remoteUrl,
+                                source = localFile,
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        update = { view ->
+            val state = (view.tag as? NewMixAnimationViewState)
+                ?: NewMixAnimationViewState().also { view.tag = it }
+            state.remoteUrl = url
+            state.animationId = animationId
+            state.sourceFile = file
+            if (state.sourcePath != file.absolutePath) {
+                state.sourcePath = file.absolutePath
+                view.cancelAnimation()
+                view.setNewMixAnimation(file)
+            }
+        },
+        onRelease = { view ->
+            view.cancelAnimation()
+            view.removeAllLottieOnCompositionLoadedListener()
+            view.setFailureListener(null)
+            view.setImageDrawable(null)
+        },
+        modifier = modifier,
+    )
+}
+
+private fun LottieAnimationView.setNewMixAnimation(file: File) {
+    val zipped = FileInputStream(file).use { input ->
+        input.read() == 0x50 && input.read() == 0x4B
+    }
+    val cacheKey = "vk_mix_background_${file.nameWithoutExtension}"
+    if (zipped) {
+        setAnimation(ZipInputStream(FileInputStream(file)), cacheKey)
+    } else {
+        setAnimation(FileInputStream(file), cacheKey)
     }
 }
 
@@ -1677,18 +1805,27 @@ private fun NewSubsectionSkeleton(compact: Boolean) {
 }
 
 @Composable
-private fun NewCuratorCard(title: String, coverUrl: String?, compact: Boolean) {
+private fun NewCuratorCard(
+    item: com.lmg.vk.engine.backend.HomeItem,
+    compact: Boolean,
+    onClick: () -> Unit,
+) {
     val size = if (compact) 76.dp else 94.dp
-    Column(modifier = Modifier.width(size), horizontalAlignment = Alignment.CenterHorizontally) {
+    Column(
+        modifier = Modifier
+            .width(size)
+            .clickable(enabled = item.isInteractive, onClick = onClick),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
         AlbumArtImage(
             uri = null,
-            contentDescription = title,
-            coverUrl = coverUrl,
+            contentDescription = item.title,
+            coverUrl = item.cover,
             contentScale = ContentScale.Crop,
             modifier = Modifier.size(size).clip(RoundedCornerShape(50)),
         )
         Text(
-            text = title,
+            text = item.title,
             color = LiquidTheme.colors.textPrimary,
             fontSize = if (compact) 11.sp else 12.sp,
             fontWeight = FontWeight.SemiBold,

@@ -53,6 +53,8 @@ object NavRoutes {
     // только как часть строкового аргумента — поэтому тип строковый, а не Long.
     const val OWNER_AUDIO_ROUTE = "library/owner-audio/{$ARG_ID}"
     fun ownerAudio(ownerId: Long) = "library/owner-audio/$ownerId"
+    fun ownerAudioRoute(tab: String) = "$tab/owner-audio/{$ARG_ID}"
+    fun ownerAudio(tab: String, ownerId: Long) = "$tab/owner-audio/$ownerId"
 
     // ── Экран сообщества (vk.com/club<id>, vk.com/public<id>, короткое имя) ──
     // Живёт в графе Библиотеки по той же причине, что и OWNER_AUDIO: экран один

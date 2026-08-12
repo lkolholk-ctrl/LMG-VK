@@ -258,11 +258,33 @@ data class VkCatalogBlock(
  * `ua_itaysonlab_catalogkit_objects_Catalog2ButtonJsonAdapter.java:22-42`.
  */
 @JsonClass(generateAdapter = true)
+data class VkCatalogButtonAction(
+    val type: String? = null,
+    val style: String? = null,
+    val consume_reason: String? = null,
+)
+
+@JsonClass(generateAdapter = true)
 data class VkCatalogButton(
+    /** Official CatalogKit keeps the discriminator in `action.type`. */
+    val action: VkCatalogButtonAction? = null,
+    /** Compatibility with already flattened responses from VK-derived backends. */
+    val type: String? = null,
     val section_id: String? = null,
     val title: String? = null,
     val block_id: String? = null,
     val options: List<VkCatalogReplacementOption>? = null,
+    /** Official `play_vk_mix` action payload. */
+    val hint_id: String? = null,
+    val ref_layout_name: String? = null,
+    val images: List<VkArtistPhoto>? = null,
+    val foreground_images: List<VkArtistPhoto>? = null,
+    val entity_id: String? = null,
+    val id: String? = null,
+    val mix_id: String? = null,
+    val mix_options: String? = null,
+    val description: String? = null,
+    val style: String? = null,
 )
 
 /**
