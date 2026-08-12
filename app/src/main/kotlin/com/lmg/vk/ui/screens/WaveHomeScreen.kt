@@ -1,6 +1,7 @@
 package com.lmg.vk.ui.screens
 
 import android.net.Uri
+import android.widget.ImageView
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
@@ -65,6 +66,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -72,8 +74,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.airbnb.lottie.LottieAnimationView
+import com.airbnb.lottie.LottieComposition
+import com.lmg.vk.debug.DebugLog
 import com.lmg.vk.ui.icons.LmgDrawables
 import com.lmg.vk.ui.icons.lmgVector
+import com.lmg.vk.ui.mix.VkMixLottieStore
 import com.lmg.vk.engine.backend.Chart
 import com.lmg.vk.engine.backend.HomeItem
 import com.lmg.vk.engine.backend.toTrack
@@ -94,6 +100,9 @@ import com.lmg.vk.ui.viewmodel.HomeViewModel
 import com.lmg.vk.ui.viewmodel.VkMixFeedbackState
 import com.lmg.vk.ui.viewmodel.VkMixUiState
 import java.util.Calendar
+import java.io.File
+import java.io.FileInputStream
+import java.util.zip.ZipInputStream
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.min
@@ -901,19 +910,39 @@ private fun VkMixPicturedOption(
                 ),
             contentAlignment = Alignment.Center,
         ) {
-            if (option.icon.startsWith("http", ignoreCase = true)) {
-                AsyncImage(
-                    model = option.icon,
-                    contentDescription = null,
-                    contentScale = ContentScale.Fit,
+            val iconUrl = option.icon.trim().takeIf { it.isRemoteUrl() }
+            var lottieReady by remember(iconUrl) { mutableStateOf(false) }
+
+            // Neutral fallback stays behind the transparent Lottie view. It is
+            // visible only while the remote JSON is unavailable or invalid.
+            if (!lottieReady) {
+                Box(
+                    modifier = Modifier
+                        .size(18.dp)
+                        .clip(CircleShape)
+                        .background(Color.White.copy(alpha = 0.16f)),
+                )
+            }
+
+            if (iconUrl != null) {
+                VkMixRemoteLottieIcon(
+                    url = iconUrl,
+                    optionId = option.id,
+                    selected = option.isSelected,
+                    onReadyChanged = { lottieReady = it },
                     modifier = Modifier.size(44.dp),
                 )
-            } else if (option.icon.isNotBlank()) {
-                Text(
-                    text = option.icon,
-                    color = Color.White,
-                    fontSize = 28.sp,
-                    fontFamily = AppFontFamily,
+            }
+
+            option.badgeIconUrl?.trim()?.takeIf { it.isRemoteUrl() }?.let { badgeUrl ->
+                AsyncImage(
+                    model = badgeUrl,
+                    contentDescription = null,
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(4.dp)
+                        .size(18.dp),
                 )
             }
         }
@@ -931,6 +960,177 @@ private fun VkMixPicturedOption(
         )
     }
 }
+
+private class VkMixLottieViewState {
+    var sourceKey: String? = null
+    var remoteUrl: String? = null
+    var sourceFile: File? = null
+    var exportedSourceKey: String? = null
+    var optionId: String = ""
+    var selected: Boolean = false
+    var renderedSelected: Boolean? = null
+    var loaded: Boolean = false
+}
+
+@Composable
+private fun VkMixRemoteLottieIcon(
+    url: String,
+    optionId: String,
+    selected: Boolean,
+    onReadyChanged: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val localFile by produceState<File?>(initialValue = null, url, optionId) {
+        value = withContext(Dispatchers.IO) {
+            VkMixLottieStore.getOrDownload(context.applicationContext, optionId, url)
+        }
+    }
+    val file = localFile ?: return
+
+    AndroidView(
+        factory = { context ->
+            LottieAnimationView(context).apply {
+                scaleType = ImageView.ScaleType.CENTER_INSIDE
+                repeatCount = 0
+                setSafeMode(true)
+                tag = VkMixLottieViewState()
+                setFailureListener { error ->
+                    val state = tag as? VkMixLottieViewState
+                    state?.loaded = false
+                    onReadyChanged(false)
+                    state?.sourceFile?.let(VkMixLottieStore::quarantine)
+                    DebugLog.add(
+                        "VK MIX Lottie failed: option=${state?.optionId.orEmpty()}, " +
+                            "${state?.remoteUrl.remoteDescriptor()}, ${error.javaClass.simpleName}",
+                    )
+                }
+                addLottieOnCompositionLoadedListener { composition ->
+                    val state = tag as? VkMixLottieViewState ?: return@addLottieOnCompositionLoadedListener
+                    state.loaded = true
+                    applyVkMixSelection(
+                        composition = composition,
+                        selected = state.selected,
+                        animate = false,
+                    )
+                    state.renderedSelected = state.selected
+                    onReadyChanged(true)
+                    val sourceKey = state.sourceKey
+                    val sourceFile = state.sourceFile
+                    val remoteUrl = state.remoteUrl
+                    val exportOptionId = state.optionId
+                    if (
+                        sourceKey != null &&
+                        sourceFile != null &&
+                        !remoteUrl.isNullOrBlank() &&
+                        state.exportedSourceKey != sourceKey
+                    ) {
+                        state.exportedSourceKey = sourceKey
+                        scope.launch(Dispatchers.IO) {
+                            VkMixLottieStore.exportValidated(
+                                context = context.applicationContext,
+                                optionId = exportOptionId,
+                                url = remoteUrl,
+                                source = sourceFile,
+                            )
+                        }
+                    }
+                    DebugLog.add(
+                        "VK MIX Lottie loaded: option=${state.optionId}, " +
+                            "${state.remoteUrl.remoteDescriptor()}, frames=${composition.startFrame.toInt()}.." +
+                            composition.endFrame.toInt(),
+                    )
+                }
+            }
+        },
+        update = { view ->
+            val state = (view.tag as? VkMixLottieViewState) ?: VkMixLottieViewState().also {
+                view.tag = it
+            }
+            state.optionId = optionId
+            val localSource = file.absolutePath
+            state.remoteUrl = url
+            state.sourceFile = file
+            if (state.sourceKey != localSource) {
+                state.sourceKey = localSource
+                state.selected = selected
+                state.renderedSelected = null
+                state.loaded = false
+                onReadyChanged(false)
+                view.cancelAnimation()
+                DebugLog.add(
+                    "VK MIX Lottie open local: option=$optionId, file=${file.name}, " +
+                        url.remoteDescriptor(),
+                )
+                view.setVkMixAnimation(file)
+            } else if (state.selected != selected) {
+                state.selected = selected
+                if (state.loaded) {
+                    view.composition?.let { composition ->
+                        view.applyVkMixSelection(
+                            composition = composition,
+                            selected = selected,
+                            animate = state.renderedSelected != null,
+                        )
+                        state.renderedSelected = selected
+                    }
+                }
+            }
+        },
+        onRelease = { view ->
+            view.cancelAnimation()
+            view.removeAllLottieOnCompositionLoadedListener()
+            view.setFailureListener(null)
+            view.setImageDrawable(null)
+        },
+        modifier = modifier,
+    )
+}
+
+private fun LottieAnimationView.setVkMixAnimation(file: File) {
+    val zipped = FileInputStream(file).use { input ->
+        input.read() == 0x50 && input.read() == 0x4B
+    }
+    val cacheKey = "vk_mix_${file.nameWithoutExtension}"
+    if (zipped) {
+        setAnimation(ZipInputStream(FileInputStream(file)), cacheKey)
+    } else {
+        setAnimation(FileInputStream(file), cacheKey)
+    }
+}
+
+private fun LottieAnimationView.applyVkMixSelection(
+    composition: LottieComposition,
+    selected: Boolean,
+    animate: Boolean,
+) {
+    val firstFrame = composition.startFrame.toInt().coerceAtLeast(0)
+    val lastFrame = composition.endFrame.toInt().coerceAtLeast(firstFrame)
+    val selectedFrame = VK_MIX_SELECTED_FRAME.coerceIn(firstFrame, lastFrame)
+    cancelAnimation()
+    setMinAndMaxFrame(firstFrame, selectedFrame)
+    if (!animate || firstFrame == selectedFrame) {
+        frame = if (selected) selectedFrame else firstFrame
+        return
+    }
+    speed = if (selected) 1f else -1f
+    frame = if (selected) firstFrame else selectedFrame
+    playAnimation()
+}
+
+private fun String.isRemoteUrl(): Boolean =
+    startsWith("https://", ignoreCase = true) || startsWith("http://", ignoreCase = true)
+
+/** Diagnostic shape only: never log signed query parameters or persist a concrete URL. */
+private fun String?.remoteDescriptor(): String {
+    if (this.isNullOrBlank()) return "url=blank"
+    val uri = Uri.parse(this)
+    val fileName = uri.lastPathSegment.orEmpty().substringBefore('?').takeLast(64)
+    return "scheme=${uri.scheme.orEmpty()}, host=${uri.host.orEmpty()}, file=$fileName"
+}
+
+private const val VK_MIX_SELECTED_FRAME = 20
 
 @Composable
 private fun VkMixButtonOption(

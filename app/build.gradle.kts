@@ -169,6 +169,8 @@ dependencies {
     implementation("io.github.kyant0:capsule:2.1.3")
     implementation("io.github.kyant0:fishnet:1.1.0")
     implementation("io.coil-kt:coil-compose:2.7.0")
+    // VK Mix mood icons are remote Lottie JSON returned in option.icon.
+    implementation("com.airbnb.android:lottie:6.7.1")
     implementation("androidx.palette:palette-ktx:1.0.0")
     implementation("androidx.mediarouter:mediarouter:1.7.0")
 
