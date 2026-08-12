@@ -110,6 +110,12 @@ data class VkMixPlaybackSource(
     val entityId: String? get() = session.entityId
 }
 
+/** One official VK similar-track response after conversion to the LMG model. */
+data class TrackWaveRecommendations(
+    val returnedIdsCount: Int,
+    val tracks: List<Track>,
+)
+
 object MusicBackend {
 
     private val _lastError = MutableStateFlow<String?>(null)
@@ -1388,6 +1394,73 @@ object MusicBackend {
             tracks = tracks.map { it.toWaveTrack() },
         )
     }
+
+    /**
+     * Official VK 8.185 Track Wave source.
+     *
+     * `StartPlaySimilarTracksSource` uses `MusicTrack.yb()` as the entity: an
+     * `owner_id_audio_id` string without access key. It then calls
+     * `audio.getRecommendations(target_audio=..., count=100, is_child=false)`.
+     * The response already contains full Audio DTOs, so no `audio.getById`
+     * metadata round-trip is needed.
+     */
+    suspend fun getTrackWaveRecommendations(seedTrackId: String): TrackWaveRecommendations {
+        requireInitialized()
+        val normalized = normalizeTrackId(seedTrackId)
+        val parts = normalized.split('_', limit = 3)
+        val entityId = com.lmg.vk.engine.VkAudioIdentity.bareFullId(normalized)
+            ?: throw backendFailure(400, "Некорректный VK audio id для волны")
+        val ownerId = parts.getOrNull(0).orEmpty()
+        val audioId = parts.getOrNull(1).orEmpty()
+        val accessKey = parts.getOrNull(2)?.takeIf(String::isNotBlank)
+            ?: trackCache[entityId]?.access_key?.takeIf(String::isNotBlank)
+        val accessKeyState = if (accessKey == null) "absent" else "present"
+        val requestDetails =
+            "method=audio.getRecommendations source=similar_track " +
+                "entity_id(target_audio)=$entityId ref=none " +
+                "ownerId=$ownerId audioId=$audioId accessKey=$accessKeyState"
+        com.lmg.vk.debug.DebugLog.add("TRACK_WAVE request $requestDetails")
+
+        val response = when (val result = audioApi.getSimilarTrackRecommendations(entityId)) {
+            is VkResult.Success -> result.data
+            is VkResult.Error -> {
+                com.lmg.vk.debug.DebugLog.add(
+                    "TRACK_WAVE A api_error code=${result.code} message=${result.message} $requestDetails",
+                )
+                throw backendFailure(result.code, result.message)
+            }
+        }
+
+        if (response.isEmpty()) {
+            com.lmg.vk.debug.DebugLog.add(
+                "TRACK_WAVE B success_empty returnedIds=0 resolvedTracks=0 $requestDetails",
+            )
+            return TrackWaveRecommendations(returnedIdsCount = 0, tracks = emptyList())
+        }
+
+        val resolved = buildList {
+            response.forEach { audio ->
+                runCatching { cacheTrack(audio).toEngineTrack() }
+                    .onSuccess { track -> if (track.isAvailable) add(track) }
+                    .onFailure { error ->
+                        com.lmg.vk.debug.DebugLog.add(
+                            "TRACK_WAVE metadata_failed id=${audio.fullId} " +
+                                "error=${error.message.orEmpty()}",
+                        )
+                    }
+            }
+        }
+        com.lmg.vk.debug.DebugLog.add(
+            "TRACK_WAVE response returnedIds=${response.size} resolvedTracks=${resolved.size}",
+        )
+        if (resolved.isEmpty()) {
+            com.lmg.vk.debug.DebugLog.add(
+                "TRACK_WAVE C metadata_to_queue_failed returnedIds=${response.size} resolvedTracks=0",
+            )
+        }
+        return TrackWaveRecommendations(returnedIdsCount = response.size, tracks = resolved)
+    }
+
     suspend fun nextTrackStation(
         seedTrackId: String?,
         exclude: Collection<String>? = null

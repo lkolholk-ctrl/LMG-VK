@@ -134,6 +134,29 @@ class VkAudioApi(
         return client.execute(method)
     }
 
+    /**
+     * Official VK 8.185 "similar tracks" request.
+     *
+     * Unlike the generic recommendations wrapper above, the player call site
+     * sends exactly `target_audio`, `count = 100` and `is_child`; it does not
+     * send an offset, user id, source or ref.
+     */
+    suspend fun getSimilarTrackRecommendations(
+        targetAudio: String,
+        isChild: Boolean = false,
+    ): VkResult<List<AudioTrack>> {
+        val listType = Types.newParameterizedType(List::class.java, AudioTrack::class.java)
+        val method = VkMethod(
+            "audio.getRecommendations",
+            MoshiEnvelopeParser<List<AudioTrack>>(listType),
+        ).apply {
+            param("target_audio", targetAudio.removePrefix("vk_"))
+            param("count", 100)
+            param("is_child", isChild)
+        }
+        return client.execute(method)
+    }
+
     /** `audio.getStreamMixAudios` (C13029e, id=17). */
     suspend fun getStreamMixAudios(
         mixId: String,

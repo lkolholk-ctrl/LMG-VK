@@ -256,116 +256,60 @@ class WaveRepository(context: Context) {
             )
         }
         val stationSeedId = effectiveSeedTrackId ?: return@withContext emptyList()
-
-        var attempts = 0
-        val maxAttempts = count * 6 // Fail-safe boundary limit
-        var nullStreak = 0          // подряд «нет ответа» → сеть лежит, не молотим
-        var knownStreak = 0         // подряд УЖЕ ИЗВЕСТНЫХ треков → станция пересохла
-
-        while (queue.size < count && attempts < maxAttempts) {
-            attempts++
-            try {
-                // Check if we are already rate limited before making the call
-                val lastHttpCode = MusicBackend.getLastHttpCode()
-                val lastErrCode = MusicBackend.getLastErrorCode()
-                if (lastHttpCode == 429 || lastErrCode == "rate_limited" || lastErrCode == "ip_temporarily_blocked") {
-                    Log.w(TAG, "Already rate limited (429/blocked). Skipping wave building to prevent IP bans.")
-                    break
-                }
-
-                // Add a small 150ms delay between consecutive requests to avoid burst rate limiting
-                if (attempts > 1) {
-                    kotlinx.coroutines.delay(150)
-                }
-
-                // exclude капим ПОСЛЕДНИМИ 80 id (LinkedHashSet держит порядок
-                // вставки → свежие в конце): на длинной сессии полный набор
-                // (до 550 id) раздувал GET-запрос до километрового query-string
-                // с риском 414. Сервер и так ведёт свою playback_history по
-                // нашим wave/playback-событиям — древние эксклюды избыточны.
-                val response = MusicBackend.nextTrackStation(
-                    seedTrackId = stationSeedId,
-                    exclude = excludeIds.toList().takeLast(80)
-                ).getOrNull()
-
-                if (response == null || response.status != "ok") {
-                    val code = MusicBackend.getLastHttpCode()
-                    val errorCode = MusicBackend.getLastErrorCode()
-                    if (code == 429 || errorCode == "rate_limited" || errorCode == "ip_temporarily_blocked") {
-                        Log.w(TAG, "Rate limit hit (429/blocked) during getWaveNext. Aborting queue building.")
-                        break
-                    }
-                    // Пустая станция (нет кандидатов) — прекращаем, чтоб не крутить вхолостую.
-                    if (response?.status == "empty") break
-                    // 3 «нет ответа» подряд = сеть лежит (оффлайн/обрыв): выходим,
-                    // иначе каждая дозаправка молотила бы до 60 холостых запросов.
-                    if (response == null && ++nullStreak >= 3) {
-                        Log.w(TAG, "No response 3x in a row — network looks down, aborting wave build.")
-                        break
-                    }
-                    Log.w(TAG, "Wave response status: ${response?.status ?: "null"}")
-                    continue
-                }
-                nullStreak = 0
-
-                val waveTrack = response.track ?: run {
-                    Log.w(TAG, "Wave track is null")
-                    continue
-                }
-
-                val trackId = waveTrack.id
-
-                // Клиентский анти-повтор: сервер МОЖЕТ вернуть трек из нашего
-                // exclude (пул похожих у seed-станции выжат — сервер начинает
-                // ходить по кругу). Раньше такой трек молча добавлялся в очередь
-                // → «15 песен и поехало по кругу». Теперь: дубль пропускаем, а
-                // 5 знакомых подряд = станция пересохла → обрываем сборку. Дальше
-                // caller решает: ослабить exclude, дрейфовать seed или перейти в
-                // личную волну.
-                if (trackId in excludeIds) {
-                    knownStreak++
-                    Log.d(TAG, "Server returned known track $trackId (streak=$knownStreak)")
-                    if (knownStreak >= 5) {
-                        Log.w(TAG, "Station dried up: 5 known tracks in a row, aborting build")
-                        break
-                    }
-                    continue
-                }
-                knownStreak = 0
-
-                // Единственный локальный фильтр — ПЕРСОНАЛЬНЫЙ: если юзер стабильно скипает
-                // этот трек (skipRatio > 70% за ≥2 показа), не предлагаем снова. Никаких
-                // жанровых банов — волна подстраивается под то, что юзер реально слушает.
-                val stats = playbackDao.getTrackStat(trackId)
-                if (stats != null) {
-                    val total = stats.playCount + stats.skippedCount
-                    if (total >= 2) {
-                        val skipRatio = stats.skippedCount.toFloat() / total.toFloat()
-                        if (skipRatio > 0.70f) {
-                            Log.d(TAG, "Skip-filter: excluding $trackId (skipRatio=$skipRatio)")
-                            excludeIds.add(trackId)
-                            continue
-                        }
-                    }
-                }
-
-                // Добавляем трек с unresolved URI. НЕ резолвим
-                // стрим-URL заранее: при воспроизведении StreamingDataSource
-                // резолвит свежий URL по id (resolveStreamUrlSync). Ранний getStreamUrl —
-                // это лишний сетевой round-trip на каждый трек (удваивает время сборки
-                // волны и «запекает» подписанный URL, который к моменту проигрывания
-                // может уже протухнуть). Нестримящиеся треки авто-скипаются плеером.
-                val track = waveTrack.toTrack()
-                queue.add(track)
-                excludeIds.add(trackId)
-                Log.d(TAG, "Added wave track: ${track.title} by ${track.artist}")
-
-            } catch (e: Exception) {
-                Log.e(TAG, "Error fetching wave track", e)
-            }
+        val stationExcludeIds = excludeIds
+            .mapTo(mutableSetOf(), VkAudioIdentity::stableFullId)
+        val officialBatch = try {
+            MusicBackend.getTrackWaveRecommendations(stationSeedId)
+        } catch (e: BackendException) {
+            // State A: the VK request itself failed. Keep it distinct from a
+            // successful empty response and from local queue filtering.
+            Log.e(TAG, "TRACK_WAVE A api_error code=${e.code} message=${e.message}")
+            return@withContext emptyList()
+        } catch (e: Exception) {
+            com.lmg.vk.debug.DebugLog.add(
+                "TRACK_WAVE A request_or_parse_error message=${e.message.orEmpty()}",
+            )
+            Log.e(TAG, "TRACK_WAVE A request_or_parse_error message=${e.message}", e)
+            return@withContext emptyList()
         }
 
-        Log.d(TAG, "Final wave queue: ${queue.size} tracks (attempts: $attempts)")
+        // State B is logged by MusicBackend with the exact request details.
+        if (officialBatch.returnedIdsCount == 0) return@withContext emptyList()
+
+        officialBatch.tracks.forEach { track ->
+            if (queue.size >= count) return@forEach
+            val stableId = VkAudioIdentity.stableFullId(track.id)
+            if (stableId in stationExcludeIds) return@forEach
+
+            // Preserve the existing narrow personalization filter. It does not
+            // alter VK ranking; it only removes tracks the user repeatedly skips.
+            val stats = playbackDao.getTrackStat(stableId)
+            if (stats != null) {
+                val total = stats.playCount + stats.skippedCount
+                if (total >= 2 && stats.skippedCount.toFloat() / total.toFloat() > 0.70f) {
+                    stationExcludeIds.add(stableId)
+                    return@forEach
+                }
+            }
+
+            queue += track
+            stationExcludeIds.add(stableId)
+        }
+
+        if (queue.isEmpty()) {
+            // State C: VK returned and resolved tracks, but none survived the
+            // existing queue/exclude policy.
+            com.lmg.vk.debug.DebugLog.add(
+                "TRACK_WAVE C queue_empty returnedIds=${officialBatch.returnedIdsCount} " +
+                    "resolvedTracks=${officialBatch.tracks.size} excluded=${stationExcludeIds.size}",
+            )
+        } else {
+            com.lmg.vk.debug.DebugLog.add(
+                "TRACK_WAVE queue_ready returnedIds=${officialBatch.returnedIdsCount} " +
+                    "resolvedTracks=${officialBatch.tracks.size} queued=${queue.size}",
+            )
+        }
+        Log.d(TAG, "Final official VK track wave queue: ${queue.size} tracks")
         return@withContext queue
     }
 
