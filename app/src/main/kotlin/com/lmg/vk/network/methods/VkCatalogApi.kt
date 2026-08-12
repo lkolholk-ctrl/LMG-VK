@@ -69,25 +69,22 @@ class VkCatalogApi(
     }
 
     /**
-     * Дозагрузка элементов блока по `next_from`.
-     *
-     * ВАЖНО: метода `catalog.getBlockItems` у VK **нет** — имя досталось от более
-     * раннего порта и было ошибкой (в реверсе оно встречается только в чужом
-     * дампе `vkmp3mod`, не в VK X). Настоящая пагинация каталога у VK X одна:
-     * повторный `catalog.getSection` с `start_from` (`AbstractC15876e:61-116`).
-     * Запрос по несуществующему методу возвращал ошибку, из-за чего догрузка
-     * молча заканчивалась на первой странице.
-     *
-     * Поэтому здесь идёт `getSection`. Параметр [sectionOrBlockId] назван так
-     * честно: вызывающая сторона знает про блок, но VK листает секциями, и для
-     * блоков верхнего уровня каталога их идентификаторы совпадают. Если секция
-     * неизвестна или не совпала, VK ответит ошибкой, и догрузка просто
-     * остановится — это лучше прежнего гарантированного отказа.
+     * Дозагрузка элементов одного блока по официальному контракту VK 8.185.
+     * `catalog.getSection` листает секции каталога и не взаимозаменяем с этим
+     * методом: здесь сервер ожидает именно `block_id` и курсор блока.
      */
     suspend fun getBlockItems(
-        sectionOrBlockId: String,
+        blockId: String,
         startFrom: String? = null,
-    ): VkResult<VkCatalogResponse> = getSection(sectionOrBlockId, startFrom)
+        ref: String? = null,
+    ): VkResult<VkCatalogResponse> {
+        val method = method("catalog.getBlockItems").apply {
+            param("block_id", blockId)
+            startFrom?.let { param("start_from", it) }
+            ref?.let { param("ref", it) }
+        }
+        return client.execute(method)
+    }
 
     suspend fun replaceBlocks(replacementIds: Collection<String>): VkResult<VkCatalogResponse> {
         val method = method("catalog.replaceBlocks").apply {

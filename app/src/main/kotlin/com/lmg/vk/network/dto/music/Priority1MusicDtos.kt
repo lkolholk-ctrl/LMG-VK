@@ -211,6 +211,8 @@ data class VkCatalogSection(
 data class VkCatalogBlock(
     val id: String = "",
     val data_type: String = "",
+    /** Context propagated back to catalog.getBlockItems as optional `ref`. */
+    val ref: String? = null,
     val layout: VkCatalogLayout? = null,
     /** Catalog2Block.actions: VK X extracts section_id from header actions. */
     val actions: List<VkCatalogButton>? = null,

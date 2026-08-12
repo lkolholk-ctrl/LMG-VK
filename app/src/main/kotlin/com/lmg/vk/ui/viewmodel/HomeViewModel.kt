@@ -190,6 +190,19 @@ class HomeViewModel : ViewModel() {
             return
         }
         homeLoadJob?.cancel()
+        if (force) {
+            // A forced catalog refresh can reuse block ids with completely new
+            // cursors. Keeping derived pages from the previous response would
+            // make the sheet append stale items or request an obsolete cursor.
+            tabJobs.values.forEach { it.cancel() }
+            tabJobs.clear()
+            pagingJobs.values.forEach { it.cancel() }
+            pagingJobs.clear()
+            usedCursors.clear()
+            _tabContent.value = emptyMap()
+            _selectedTab.value = emptyMap()
+            _blockPaging.value = emptyMap()
+        }
         _isLoading.value = true
         _error.value = null
         homeLoadJob = viewModelScope.launch {
@@ -372,8 +385,9 @@ class HomeViewModel : ViewModel() {
      * Догрузить следующую порцию элементов блока.
      *
      * Первый вызов подхватывает `nextFrom` из самого блока, дальше идёт по
-     * курсору из последнего ответа. Пустая порция при непустом курсоре — это
-     * конец списка (`exhausted`), а не ошибка: VK так закрывает выдачу.
+     * курсору из последнего ответа. Конец фиксируется только когда VK перестал
+     * возвращать новый курсор; пустая порция с новым курсором может быть
+     * промежуточной после серверной дедупликации.
      */
     fun loadMoreBlockItems(block: HomeBlock) {
         val blockId = block.id
@@ -392,6 +406,7 @@ class HomeViewModel : ViewModel() {
                 val page = MusicBackend.loadBlockItemsPage(
                     blockId = blockId,
                     startFrom = cursor,
+                    ref = block.catalogRef,
                     usedCursors = seen,
                 )
                 seen += cursor
@@ -407,7 +422,9 @@ class HomeViewModel : ViewModel() {
                         nextFrom = page.nextFrom,
                         isLoading = false,
                         error = null,
-                        exhausted = fresh.isEmpty() || page.nextFrom.isNullOrBlank(),
+                        // A page may consist only of the repeated tail of the
+                        // previous page while still advancing the cursor.
+                        exhausted = page.nextFrom.isNullOrBlank(),
                     )
                     )
             } catch (e: CancellationException) {

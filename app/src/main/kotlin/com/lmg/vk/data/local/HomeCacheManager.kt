@@ -49,11 +49,12 @@ object HomeCacheManager {
                         put("title", block.title)
                         put("type", block.type)
                         put("layoutName", block.layoutName)
-                        // Курсор догрузки и табы подраздела: без них после
+                        // Курсор, ref догрузки и табы подраздела: без них после
                         // холодного старта из кэша шторка «показать все» не умела
                         // листать, а блок табов приезжал пустым — до первого
                         // сетевого обновления.
                         put("nextFrom", block.nextFrom ?: JSONObject.NULL)
+                        put("catalogRef", block.catalogRef ?: JSONObject.NULL)
                         put("subsectionTabs", JSONArray().apply {
                             block.subsectionTabs.forEach { tab ->
                                 put(JSONObject().apply {
@@ -149,7 +150,10 @@ object HomeCacheManager {
                     type = blockObj.getString("type"),
                     items = items,
                     layoutName = blockObj.optString("layoutName", ""),
-                    nextFrom = blockObj.optString("nextFrom", "").takeIf { it.isNotBlank() },
+                    nextFrom = blockObj.optString("nextFrom", "")
+                        .takeIf { it.isNotBlank() && it != "null" },
+                    catalogRef = blockObj.optString("catalogRef", "")
+                        .takeIf { it.isNotBlank() && it != "null" },
                     subsectionTabs = blockObj.optJSONArray("subsectionTabs")?.let { arr ->
                         (0 until arr.length()).mapNotNull { i ->
                             val t = arr.optJSONObject(i) ?: return@mapNotNull null

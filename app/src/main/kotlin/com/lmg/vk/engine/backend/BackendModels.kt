@@ -1097,6 +1097,8 @@ data class HomeBlock(
      * показывала только первую порцию, сколько бы её ни листали.
      */
     @SerialName("nextFrom") val nextFrom: String? = null,
+    /** Optional server context for catalog.getBlockItems. */
+    @SerialName("catalogRef") val catalogRef: String? = null,
     /**
      * Табы подраздела для `layoutName == "subsection_tabs"`.
      * Приходят не в layout, а в `actions[0].options` — см. [HomeSubsectionTab].

@@ -456,36 +456,15 @@ object MusicBackend {
             }
             return pages
         }
-        suspend fun loadBlockPages(block: VkCatalogBlock): List<VkCatalogResponse> {
-            val pages = mutableListOf<VkCatalogResponse>()
-            val seenOffsets = HashSet<String>()
-            var startFrom = block.next_from?.takeIf(String::isNotBlank)
-            while (startFrom != null && pages.size < 50) {
-                if (!seenOffsets.add(startFrom)) break
-                val page = catalogApi.getBlockItems(block.id, startFrom).getOrNull() ?: break
-                pages += page
-                startFrom = (
-                    page.block?.next_from
-                        ?: page.allBlocks().firstOrNull { it.id == block.id }?.next_from
-                    )?.takeIf(String::isNotBlank)
-            }
-            return pages
-        }
         val sectionPages = coroutineScope {
             sectionIds
                 .map { sectionId -> async { loadSectionPages(sectionId) } }
                 .flatMap { it.await() }
         }
         val basePages = listOf(catalog) + sectionPages
-        val blockPages = coroutineScope {
-            basePages
-                .flatMap { it.allBlocks() }
-                .filter { it.id.isNotBlank() && !it.next_from.isNullOrBlank() }
-                .distinctBy { it.id }
-                .map { block -> async { loadBlockPages(block) } }
-                .flatMap { it.await() }
-        }
-        val catalogPages = basePages + blockPages
+        // Block pages are intentionally lazy. Eagerly walking every block here
+        // delays the whole New screen and makes its per-block cursor state stale.
+        val catalogPages = basePages
         val catalogBlocks = catalogPages.toHomeBlocks()
         val blocks = catalogBlocks.ifEmpty { loadHomeFallbackBlocks() }
         catalogPages.flatMap { it.audios.orEmpty() }
@@ -525,34 +504,26 @@ object MusicBackend {
     /**
      * Следующая порция элементов блока: `catalog.getBlockItems(block_id, start_from)`.
      *
-     * ВАЖНО про источник. В реверсе VK X отдельного `catalog.getBlockItems` НЕТ:
-     * там пагинация каталога устроена как повторный `catalog.getSection` с
-     * `start_from` (`src-deobf/AbstractC15876e.java:61-116` — единственная
-     * догрузка, `need_blocks=1` + `start_from`), а курсор берётся из
-     * `section.next_from` (`:194-204`). Имя `catalog.getBlockItems` в нашем
-     * `VkCatalogApi` — из более раннего порта, в исходниках VK X 8.12.1 оно не
-     * подтверждается. Поэтому здесь метод вызывается, но на пустой/ошибочный
-     * ответ мы не падаем, а честно отдаём «больше нет» (`exhausted`), и UI
-     * покажет это текстом, а не бесконечным спиннером.
-     *
-     * `usedCursors` защищает от зацикливания: VK умеет вернуть тот же
-     * `next_from`, и без проверки список грузил бы одну порцию по кругу.
+     * Официальный VK 8.185 отправляет `catalog.getBlockItems` с `block_id` и
+     * `start_from`; ответ содержит обновлённый `block`, extended entities и
+     * следующий `block.next_from`. Ошибка запроса должна дойти до UI, иначе она
+     * неотличима от настоящего конца списка и кнопка Retry никогда не появится.
      */
     suspend fun loadBlockItemsPage(
         blockId: String,
         startFrom: String,
+        ref: String? = null,
         usedCursors: Set<String> = emptySet(),
     ): HomeBlockPage {
         requireInitialized()
         if (blockId.isBlank() || startFrom.isBlank()) return HomeBlockPage(emptyList(), null)
-        val response = catalogApi.getBlockItems(blockId, startFrom).getOrNull()
-            ?: return HomeBlockPage(emptyList(), null)
+        val response = catalogApi.getBlockItems(blockId, startFrom, ref).requireData()
         response.audios.orEmpty().mergeAudioTracksById().also(::cacheTracks)
         // Разбираем страницу тем же путём, что и главную выдачу, а потом берём
         // элементы блока с нужным id: сущности лежат в корне ответа, и склеить их
         // с ссылками блока умеет только toHomeBlocks().
         val blocks = listOf(response).toHomeBlocks()
-        val page = blocks.firstOrNull { it.id == blockId } ?: blocks.firstOrNull()
+        val page = blocks.firstOrNull { it.id == blockId }
         val nextFrom = (
             response.block?.next_from
                 ?: response.allBlocks().firstOrNull { it.id == blockId }?.next_from
@@ -662,7 +633,7 @@ object MusicBackend {
             var startFrom = block.next_from?.takeIf(String::isNotBlank)
             while (startFrom != null && pages.size < 50) {
                 if (!seenOffsets.add(startFrom)) break
-                val page = catalogApi.getBlockItems(block.id, startFrom).getOrNull() ?: break
+                val page = catalogApi.getBlockItems(block.id, startFrom, block.ref).getOrNull() ?: break
                 pages += page
                 startFrom = (
                     page.block?.next_from
@@ -2319,6 +2290,7 @@ object MusicBackend {
             (left.orEmpty() + right.orEmpty()).distinct().takeIf { it.isNotEmpty() }
         return copy(
             data_type = data_type.ifBlank { other.data_type },
+            ref = other.ref ?: ref,
             layout = layout ?: other.layout,
             actions = (actions.orEmpty() + other.actions.orEmpty())
                 // Раньше здесь стоял distinctBy { section_id }. У кнопок-табов
@@ -2326,7 +2298,10 @@ object MusicBackend {
                 // считались одной и той же кнопкой и от блока оставалась ровно
                 // одна — вместе с ней терялись options, то есть сами табы.
                 .distinct().takeIf { it.isNotEmpty() },
-            next_from = other.next_from ?: next_from,
+            // The newest page is authoritative, including a null cursor which
+            // explicitly closes pagination. Retaining the previous cursor here
+            // caused one extra request after the final page.
+            next_from = other.next_from,
             audios_ids = mergeIds(audios_ids, other.audios_ids),
             playlists_ids = mergeIds(playlists_ids, other.playlists_ids),
             artists_ids = mergeIds(artists_ids, other.artists_ids),
@@ -2428,7 +2403,6 @@ object MusicBackend {
             .forEach { block ->
                 orderedBlocks[block.id] = orderedBlocks[block.id]?.mergeWith(block) ?: block
             }
-        val seenItemKeys = HashSet<String>()
         fun HomeItem.catalogDedupeKey(): String = when {
             isArtist -> "artist:$id"
             isAlbum -> "album:${collectionId ?: id}"
@@ -2492,7 +2466,10 @@ object MusicBackend {
                     .forEach { add(it.toHomeItem()) }
                 block.audio_stream_mixes_ids.orEmpty().mapNotNull(streamMixesById::byCatalogId)
                     .forEach { add(it.toHomeItem()) }
-            }.distinctBy(HomeItem::id).filter { seenItemKeys.add(it.catalogDedupeKey()) }
+            // Deduplicate only inside this block. VK can intentionally repeat
+            // the same release in several thematic blocks; global filtering
+            // made later server sections incomplete or entirely empty.
+            }.distinctBy { it.catalogDedupeKey() }
 
             val title = pendingHeaderTitle
                 ?: block.layout?.title?.takeIf(String::isNotBlank)
@@ -2535,6 +2512,7 @@ object MusicBackend {
                             items = items,
                             layoutName = layoutName,
                             nextFrom = block.next_from?.takeIf(String::isNotBlank),
+                            catalogRef = block.ref?.takeIf(String::isNotBlank),
                             subsectionTabs = it,
                         )
                     }
@@ -2551,6 +2529,7 @@ object MusicBackend {
                         // чего шторка «показать все» навсегда оставалась с первой
                         // порцией. Пустую строку не пропускаем — она не курсор.
                         nextFrom = block.next_from?.takeIf(String::isNotBlank),
+                        catalogRef = block.ref?.takeIf(String::isNotBlank),
                         subsectionTabs = tabs,
                     )
                 }
