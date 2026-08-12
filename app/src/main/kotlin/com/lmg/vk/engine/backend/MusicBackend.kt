@@ -35,6 +35,7 @@ import com.lmg.vk.network.dto.music.MainArtist
 import com.lmg.vk.network.dto.music.RadioStation
 import com.lmg.vk.network.dto.music.VkArtistDto
 import com.lmg.vk.network.dto.music.VkCatalogBlock
+import com.lmg.vk.network.dto.music.VkCatalogButton
 import com.lmg.vk.network.dto.music.VkCatalogBanner
 import com.lmg.vk.network.dto.music.VkAudioContentCard
 import com.lmg.vk.network.dto.music.VkCatalogLink
