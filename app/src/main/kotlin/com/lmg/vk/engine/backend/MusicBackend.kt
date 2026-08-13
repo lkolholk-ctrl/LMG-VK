@@ -557,7 +557,10 @@ object MusicBackend {
     // ---------- home / charts ----------
     suspend fun loadHomeContent(region: String? = null): HomeResponse {
         requireInitialized()
-        val catalog = catalogApi.getAudioAuto().requireData()
+        // Current VK and VK Music clients bind the root music catalog to the
+        // active account. Without owner_id VK may return only the generic
+        // Popular showcase instead of the complete personalised sections.
+        val catalog = catalogApi.getAudioAuto(currentUserId()).requireData()
         val sections = buildList {
             catalog.catalog?.sections.orEmpty().forEach { section ->
                 if (section.id.isNotBlank()) {

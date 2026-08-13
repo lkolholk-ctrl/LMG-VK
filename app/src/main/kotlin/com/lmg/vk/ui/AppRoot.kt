@@ -111,16 +111,33 @@ fun AppRoot() {
         }
         if (resetOnReselect && graph == currentGraph) {
             // Re-selecting the active tab means "back to this tab's home".
-            // Pop to the nested graph itself and create a fresh home entry:
-            // detail screens disappear, and local root state (for example an
-            // inner Settings category) is reset as well.
-            navController.navigate(home) {
-                popUpTo(graph) { inclusive = false }
+            // Do this in two explicit operations. `navigate(home)` with
+            // launchSingleTop can reuse the existing home entry when a screen
+            // (Library/Settings) keeps its inner page in `remember`, so only
+            // route-based New appeared to reset. Removing every destination
+            // above the nested graph disposes that remembered state; the next
+            // navigate creates a genuinely fresh home entry for every tab.
+            navController.popBackStack(graph, inclusive = false)
+            navController.navigate(home)
+        } else if (resetOnReselect) {
+            // Keep the independent back stack of the target tab.
+            navController.navigate(graph) {
+                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
                 launchSingleTop = true
+                restoreState = true
+            }
+            // A restored state must never leave another tab on top. If an old
+            // saved stack is inconsistent (observed as Library showing New),
+            // fall back to the concrete home represented by the clicked item.
+            if (NavRoutes.graphOf(navController.currentDestination?.route) != graph) {
+                navController.navigate(home) {
+                    popUpTo(navController.graph.findStartDestination().id)
+                    launchSingleTop = true
+                }
             }
         } else {
-            // A regular tab switch keeps the independent tab back stack and
-            // restores it when the user comes back without re-selecting it.
+            // Programmatic navigation keeps the existing per-tab back-stack
+            // behavior. It is not a bottom-navigation reselect.
             navController.navigate(graph) {
                 popUpTo(navController.graph.findStartDestination().id) { saveState = true }
                 launchSingleTop = true

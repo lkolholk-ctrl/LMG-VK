@@ -5,6 +5,7 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
@@ -106,6 +107,7 @@ fun Modifier.liquidClickable(
     onClick: () -> Unit
 ): Modifier = composed {
     var isPressed by remember { mutableStateOf(false) }
+    val currentOnClick by rememberUpdatedState(onClick)
 
     val scale by animateFloatAsState(
         targetValue = if (isPressed && enabled) pressedScale else 1f,
@@ -129,7 +131,7 @@ fun Modifier.liquidClickable(
                         isPressed = false
                     }
                 },
-                onTap = { onClick() }
+                onTap = { currentOnClick() }
             )
         }
 }

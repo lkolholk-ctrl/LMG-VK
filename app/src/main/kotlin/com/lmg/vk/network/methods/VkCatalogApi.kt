@@ -13,10 +13,17 @@ import com.lmg.vk.network.dto.music.VkCatalogResponse
 class VkCatalogApi(
     private val client: VkApiClient,
 ) {
-    /** Главная музыкальная страница: `catalog.getAudioAuto`, C4600e id=11. */
-    suspend fun getAudioAuto(): VkResult<VkCatalogResponse> {
+    /**
+     * Главная музыкальная страница: `catalog.getAudioAuto`.
+     *
+     * VK 8.185 and VK Music 8.37 send the active account as `owner_id` for
+     * the personalised root catalog. The old VK X request only sent
+     * `need_blocks`, which can now produce the minimal Popular-only showcase.
+     */
+    suspend fun getAudioAuto(ownerId: Long? = null): VkResult<VkCatalogResponse> {
         val method = method("catalog.getAudioAuto").apply {
             param("need_blocks", 1)
+            ownerId?.let { param("owner_id", it) }
         }
         return client.execute(method)
     }
