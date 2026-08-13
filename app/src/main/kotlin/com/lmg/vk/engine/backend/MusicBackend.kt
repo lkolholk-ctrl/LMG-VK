@@ -754,7 +754,13 @@ object MusicBackend {
      * Это не локальные карточки: оба списка приходят из audio.* текущей сессии.
      */    private suspend fun loadHomeFallbackBlocks(): List<HomeBlock> = coroutineScope {
         val recommendations = async {
-            audioApi.getRecommendations(count = 50).getOrNull().orEmpty().map(::cacheTrack)
+            // VK X always sends the active account id for the generic
+            // recommendations feed. Without it VK may return an empty list,
+            // leaving the catalog fallback with only `audio.getPopular`.
+            audioApi.getRecommendations(
+                count = 50,
+                userId = currentUserId(),
+            ).getOrNull().orEmpty().map(::cacheTrack)
         }
         val popular = async {
             audioApi.getPopular(count = 50).getOrNull().orEmpty().map(::cacheTrack)
