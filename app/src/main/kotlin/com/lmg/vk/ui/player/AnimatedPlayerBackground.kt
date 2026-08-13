@@ -1,6 +1,5 @@
 package com.lmg.vk.ui.player
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
@@ -69,95 +68,68 @@ fun AnimatedPlayerBackground(
         label = "boostedLightVibrant"
     )
 
-    Box(modifier = modifier.fillMaxSize().background(Color.Black)) {
-        // ── Base palette field. Cheap and deterministic on first frame. ──
-        // БАГ (исправлен): раньше radialGradient оканчивался НЕПРОЗРАЧНЫМ Color.Black,
-        // а радиус по умолчанию = min(w,h)/2 = ширина/2 на портрете → цветной «купол»
-        // покрывал только центр, а верх и низ экрана уходили в чистый чёрный («мёртвые
-        // тёмные полосы»). Теперь: радиус ~maxDimension*0.9 (купол на весь экран),
-        // внешний стоп — ТОНИРОВАННЫЙ тёмный (dominant→black 55%), плюс цветной средний
-        // стоп. drawBehind даёт размер для радиуса.
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .drawBehind {
-                    drawRect(
-                        Brush.radialGradient(
-                            colors = listOf(
-                                boostedLightVibrant.copy(alpha = 0.95f),
-                                boostedVibrant.copy(alpha = 0.75f),
-                                boostedDominant.copy(alpha = 0.55f),
-                                lerp(boostedDominant, Color.Black, 0.55f)
-                            ),
-                            center = Offset(size.width / 2f, size.height * 0.40f),
-                            radius = size.maxDimension * 0.9f
-                        )
-                    )
-                }
-        )
+    // Apple Music does not join independent top/bottom gradients. Its player
+    // builds one full-screen bitmap from three overlapping transformed copies
+    // of the artwork, then blurs that complete field. Re-decoding and blurring
+    // three artwork bitmaps here caused ANRs on local tracks, so keep the same
+    // geometry with the already extracted palette: three oversized, strongly
+    // overlapping fields are painted in one pass. Their transparent ends live
+    // outside the viewport, therefore no stop or layer boundary can form a
+    // horizontal seam in the middle of the player.
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .drawBehind {
+                val radius = size.maxDimension * 1.18f
+                val darkBase = lerp(boostedDominant, Color.Black, 0.58f)
 
-        // ── Saturation boost — цветной слой от palette ──
-        // Середина строится из ТЕХ ЖЕ dominant/vibrant, а не из muted.
-        //
-        // muted у Palette — это «приглушённый» свотч, и на одноцветной обложке
-        // (розовой, синей, зелёной) он выходит серым или сильно
-        // десатурированным. На позиции 0.65f это давало ровно то грязно-серое
-        // пятно в середине-низу, которого в самой обложке нет. Фиксированный
-        // Gray здесь тоже нельзя: цвет обязан приходить из обложки.
-        val middleColor = lerp(boostedDominant, boostedVibrant, 0.35f)
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(
+                drawRect(darkBase)
+                drawRect(
+                    Brush.radialGradient(
+                        colorStops = arrayOf(
+                            0.00f to boostedLightVibrant.copy(alpha = 0.82f),
+                            0.52f to boostedVibrant.copy(alpha = 0.50f),
+                            1.00f to Color.Transparent,
+                        ),
+                        center = Offset(size.width * 0.18f, size.height * 0.18f),
+                        radius = radius,
+                    )
+                )
+                drawRect(
+                    Brush.radialGradient(
+                        colorStops = arrayOf(
+                            0.00f to boostedVibrant.copy(alpha = 0.68f),
+                            0.58f to boostedDominant.copy(alpha = 0.44f),
+                            1.00f to Color.Transparent,
+                        ),
+                        center = Offset(size.width * 0.88f, size.height * 0.48f),
+                        radius = radius * 1.04f,
+                    )
+                )
+                drawRect(
+                    Brush.radialGradient(
+                        colorStops = arrayOf(
+                            0.00f to boostedDominant.copy(alpha = 0.62f),
+                            0.62f to boostedVibrant.copy(alpha = 0.34f),
+                            1.00f to Color.Transparent,
+                        ),
+                        center = Offset(size.width * 0.22f, size.height * 0.92f),
+                        radius = radius * 1.08f,
+                    )
+                )
+
+                // One uninterrupted readability scrim. Unlike the old
+                // 0.35/0.65/0.78 stop chain, its slope never changes midway.
+                drawRect(
                     Brush.verticalGradient(
-                        colorStops = arrayOf(
-                            0.00f to boostedVibrant.copy(alpha = 0.88f),
-                            0.35f to boostedDominant.copy(alpha = 0.72f),
-                            0.65f to middleColor.copy(alpha = 0.82f),
-                            1.00f to boostedVibrant.copy(alpha = 0.72f)
+                        colors = listOf(
+                            Color.Black.copy(alpha = 0.02f),
+                            Color.Black.copy(alpha = 0.36f),
                         )
                     )
                 )
-        )
-
-        // ── Horizontal color accent ──
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.horizontalGradient(
-                        colorStops = arrayOf(
-                            0.00f to boostedLightVibrant.copy(alpha = 0.50f),
-                            0.50f to Color.Transparent,
-                            1.00f to boostedVibrant.copy(alpha = 0.46f)
-                        )
-                    )
-                )
-        )
-
-        // ── Dark overlay for readability ──
-        // Верх/середину почти не затемняем (фон должен светиться), низ держим
-        // потемнее — под ним лежат контролы и текст, читаемость важнее.
-        //
-        // Заметное затемнение сдвинуто с 0.65f на 0.78f: раньше оно начиналось
-        // ровно там, где стоял серый muted, и складывалось с ним — пятно в
-        // середине получалось вдвойне заметным. Низ затемнён как прежде, поэтому
-        // контролы не теряют контраст.
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.verticalGradient(
-                        colorStops = arrayOf(
-                            0.00f to Color.Black.copy(alpha = 0.02f),
-                            0.55f to Color.Transparent,
-                            0.78f to Color.Black.copy(alpha = 0.10f),
-                            1.00f to Color.Black.copy(alpha = 0.38f)
-                        )
-                    )
-                )
-        )
-    }
+            }
+    )
 }
 
 /**
