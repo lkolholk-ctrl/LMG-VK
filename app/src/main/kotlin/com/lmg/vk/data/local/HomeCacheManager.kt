@@ -28,9 +28,9 @@ object HomeCacheManager {
     private const val KEY_TIMESTAMP = "cached_at"
     private const val KEY_ETAG = "etag"
     private const val CACHE_TTL_MS = 24 * 60 * 60 * 1000L // 24 hours
-    // v5 stores root sections, Catalog2 actions, Signal and playable radio/Mix
-    // metadata. Older caches would turn those entities into disabled cards.
-    private const val CACHE_SCHEMA_VERSION = 5
+    // v6 also stores actionable CatalogLink URLs. Older caches would turn
+    // server artist/curator cards back into disabled grey placeholders.
+    private const val CACHE_SCHEMA_VERSION = 6
 
     private var prefs: SharedPreferences? = null
 
@@ -125,6 +125,7 @@ object HomeCacheManager {
                                     put("isAvailable", item.isAvailable)
                                     put("musicOwnerId", item.musicOwnerId ?: JSONObject.NULL)
                                     put("catalogBlockId", item.catalogBlockId ?: JSONObject.NULL)
+                                    put("catalogUrl", item.catalogUrl ?: JSONObject.NULL)
                                     put("radioStreamUrl", item.radioStreamUrl ?: JSONObject.NULL)
                                     put("isRadio", item.isRadio)
                                     put("streamMixId", item.streamMixId ?: JSONObject.NULL)
@@ -203,6 +204,8 @@ object HomeCacheManager {
                         musicOwnerId = itemObj.optString("musicOwnerId", null)
                             ?.takeIf { it != "null" && it.isNotBlank() }?.toLongOrNull(),
                         catalogBlockId = itemObj.optString("catalogBlockId", null)
+                            ?.takeIf { it != "null" },
+                        catalogUrl = itemObj.optString("catalogUrl", null)
                             ?.takeIf { it != "null" },
                         radioStreamUrl = itemObj.optString("radioStreamUrl", null)
                             ?.takeIf { it != "null" },

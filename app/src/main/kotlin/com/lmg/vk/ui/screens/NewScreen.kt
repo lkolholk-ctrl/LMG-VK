@@ -152,6 +152,29 @@ fun NewScreen(
                     ?.let { PlaybackContext.Catalog(it) },
             )
             homeItem.isMusicOwner -> homeItem.musicOwnerId?.let(onNavigateToMusicOwner)
+            !homeItem.catalogUrl.isNullOrBlank() -> {
+                val uri = android.net.Uri.parse(homeItem.catalogUrl)
+                val path = uri.path.orEmpty()
+                val curatorId = Regex("""/music/curator/([-_a-zA-Z0-9]+)""")
+                    .find(path)
+                    ?.groupValues
+                    ?.getOrNull(1)
+                if (!curatorId.isNullOrBlank()) {
+                    viewModel.openCatalogCurator(curatorId, homeItem.title)
+                } else {
+                    when (val target = com.lmg.vk.engine.VkLinkResolver.parseOffline(uri)) {
+                        is com.lmg.vk.engine.VkLinkTarget.Artist ->
+                            onNavigateToArtist(target.idOrDomain)
+                        is com.lmg.vk.engine.VkLinkTarget.Album ->
+                            onNavigateToAlbum(target.navId)
+                        is com.lmg.vk.engine.VkLinkTarget.Playlist ->
+                            onNavigateToPlaylist(target.navId)
+                        is com.lmg.vk.engine.VkLinkTarget.OwnerAudio ->
+                            onNavigateToMusicOwner(target.ownerId)
+                        else -> Unit
+                    }
+                }
+            }
             homeItem.isCustom -> Unit
             homeItem.isArtist -> onNavigateToArtist(homeItem.artistId ?: homeItem.id)
             homeItem.isPlaylist -> onNavigateToPlaylist(homeItem.collectionId ?: homeItem.id)

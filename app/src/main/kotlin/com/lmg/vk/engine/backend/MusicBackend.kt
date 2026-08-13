@@ -588,12 +588,7 @@ object MusicBackend {
         // Official VK opens one selected catalog section. The old code fetched
         // every section (up to 50 pages each) and merged them into a single New
         // feed, which mixed unrelated showcases and delayed first content.
-        val embeddedSelected = selectedSectionId?.let { selected ->
-            catalog.catalog?.sections.orEmpty().firstOrNull { it.id == selected }
-        }
-        val firstPage = if (selectedSectionId != null &&
-            embeddedSelected?.blocks.isNullOrEmpty() && catalog.section?.id != selectedSectionId
-        ) {
+        val firstPage = if (selectedSectionId != null && catalog.section?.id != selectedSectionId) {
             catalogApi.getSection(selectedSectionId).requireData()
         } else {
             catalog
@@ -626,6 +621,23 @@ object MusicBackend {
             blocks = listOf(response).toHomeBlocks(sectionId),
             nextFrom = response.sectionNextFrom(sectionId)
                 ?.takeIf { it.isNotBlank() && it != startFrom },
+            sectionId = sectionId,
+        )
+    }
+
+    /** Initial official curator catalog; continuation uses its returned section id. */
+    suspend fun loadCuratorCatalog(curatorId: String): HomeSectionPage {
+        requireInitialized()
+        require(curatorId.isNotBlank()) { "Curator id is blank" }
+        val response = catalogApi.getAudioCurator(curatorId).requireData()
+        response.audios.orEmpty().mergeAudioTracksById().also(::cacheTracks)
+        val sectionId = response.section?.id?.takeIf(String::isNotBlank)
+            ?: response.catalog?.default_section?.takeIf(String::isNotBlank)
+            ?: response.catalog?.sections.orEmpty().firstOrNull { it.id.isNotBlank() }?.id
+        return HomeSectionPage(
+            blocks = listOf(response).toHomeBlocks(sectionId),
+            nextFrom = response.sectionNextFrom(sectionId),
+            sectionId = sectionId,
         )
     }
 
@@ -2275,7 +2287,21 @@ object MusicBackend {
         cover = coverUrl(),
         source = "vk",
         isCustom = true,
+        catalogUrl = url.takeIf(::isSupportedMusicCatalogUrl),
     )
+
+    private fun isSupportedMusicCatalogUrl(url: String): Boolean {
+        if (url.isBlank()) return false
+        val path = runCatching { android.net.Uri.parse(url).path.orEmpty() }
+            .getOrDefault(url)
+            .lowercase()
+        return path.contains("/artist/") ||
+            path.contains("/music/curator/") ||
+            path.contains("/music/album/") ||
+            path.contains("/music/playlist/") ||
+            path.contains("/audio_playlist") ||
+            Regex("""/audios-?\d+""").containsMatchIn(path)
+    }
 
     private fun VkAudioContentCard.toHomeItem() = HomeItem(
         id = "content_card_$fullId",

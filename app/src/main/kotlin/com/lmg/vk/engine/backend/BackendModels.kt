@@ -1128,6 +1128,8 @@ data class HomeCatalogSection(
 data class HomeSectionPage(
     val blocks: List<HomeBlock>,
     val nextFrom: String?,
+    /** Actual section id returned by an entity catalog (for example curator). */
+    val sectionId: String? = null,
 )
 
 @Serializable
@@ -1194,6 +1196,8 @@ data class HomeItem(
     @SerialName("isRadio") val isRadio: Boolean = false,
     /** Catalog block which acts as StartPlayCatalogSource for Autoflow. */
     @SerialName("catalogBlockId") val catalogBlockId: String? = null,
+    /** Supported server CatalogLink URL; navigation remains server-owned. */
+    @SerialName("catalogUrl") val catalogUrl: String? = null,
 ) {
     /** A CatalogKit Mix is custom content, but unlike a promo card it is playable. */
     val isStreamMix: Boolean
@@ -1204,7 +1208,7 @@ data class HomeItem(
 
     /** Keep action-less custom cards disabled while allowing server Mix cards. */
     val isInteractive: Boolean
-        get() = !isCustom || isStreamMix || isMusicOwner || isRadio
+        get() = !isCustom || isStreamMix || isMusicOwner || isRadio || !catalogUrl.isNullOrBlank()
 
     /** Трек = не альбом, не артист и не видеоклип (клип не стримится). */
     val isTrack: Boolean

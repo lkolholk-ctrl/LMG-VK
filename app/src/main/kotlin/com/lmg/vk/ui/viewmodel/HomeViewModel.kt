@@ -82,7 +82,12 @@ sealed interface CatalogSectionUiState {
         val isLoadingMore: Boolean = false,
         val error: String? = null,
     ) : CatalogSectionUiState
-    data class Failed(val sectionId: String, val title: String, val message: String) : CatalogSectionUiState
+    data class Failed(
+        val sectionId: String,
+        val title: String,
+        val message: String,
+        val curatorId: String? = null,
+    ) : CatalogSectionUiState
 }
 
 /**
@@ -868,6 +873,36 @@ class HomeViewModel : ViewModel() {
         }
     }
 
+    /** Open a server curator link through official `catalog.getAudioCurator`. */
+    fun openCatalogCurator(curatorId: String, title: String) {
+        if (curatorId.isBlank()) return
+        catalogSectionJob?.cancel()
+        catalogSectionUsedCursors.clear()
+        _catalogSectionState.value = CatalogSectionUiState.Loading(curatorId, title)
+        catalogSectionJob = viewModelScope.launch {
+            try {
+                val page = MusicBackend.loadCuratorCatalog(curatorId)
+                _catalogSectionState.value = CatalogSectionUiState.Ready(
+                    sectionId = page.sectionId ?: curatorId,
+                    title = title,
+                    blocks = page.blocks,
+                    nextFrom = page.nextFrom,
+                )
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _catalogSectionState.value = CatalogSectionUiState.Failed(
+                    curatorId,
+                    title,
+                    com.lmg.vk.engine.backend.backendUserMessage(e),
+                    curatorId = curatorId,
+                )
+            } finally {
+                if (catalogSectionJob === coroutineContext[Job]) catalogSectionJob = null
+            }
+        }
+    }
+
     fun loadMoreCatalogSection() {
         val ready = _catalogSectionState.value as? CatalogSectionUiState.Ready ?: return
         val cursor = ready.nextFrom?.takeIf(String::isNotBlank) ?: return
@@ -904,7 +939,9 @@ class HomeViewModel : ViewModel() {
 
     fun retryCatalogSection() {
         when (val state = _catalogSectionState.value) {
-            is CatalogSectionUiState.Failed -> openCatalogSection(state.sectionId, state.title)
+            is CatalogSectionUiState.Failed -> state.curatorId?.let {
+                openCatalogCurator(it, state.title)
+            } ?: openCatalogSection(state.sectionId, state.title)
             is CatalogSectionUiState.Ready -> loadMoreCatalogSection()
             else -> Unit
         }
