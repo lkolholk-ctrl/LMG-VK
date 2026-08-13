@@ -813,3 +813,56 @@ Gradle, сборка, компиляция и тестовые задачи не
 friend request/accept/delete; три social list; status track; preview playback;
 full details/buttons; status/about save; avatar upload; заранее подготовленный
 cover 2.5:1; ошибки private profile и закрытого audio.
+
+# VK ID multi-account
+
+**Текущий логический этап:** реализован только multi-account из возможностей VK
+ID. Остальные VK ID settings не переносились. SHA смотреть после отдельной
+команды владельца на commit.
+
+Архитектура:
+
+- `EncryptedVkSessionStore` теперь реализует `VkMultiSessionStore`: весь список
+  `VkAuthSession` и active user id лежат в одном AES/GCM payload под прежним
+  Android Keystore key. Старый одиночный `VkAuthSession` читается как legacy и
+  мигрирует при первой записи без потери текущего логина.
+- `VkApiClient` по-прежнему видит только `session`, поэтому методы, refresh token
+  и подпись запросов не получили параллельных token paths. `activate/remove`
+  меняют active session атомарно внутри store lock.
+- `MusicAuth.accounts` отдаёт UI только user id/name/domain/avatar/expiry и active
+  flag; access/exchange/trusted tokens наружу не выходят.
+- Profile -> VK accounts открывает picker: switch, remove и Add VK account.
+  Добавление использует существующий OAuth/OTP/captcha flow, не выкидывая текущую
+  сессию при ошибке. Sign Out удаляет только active session и выбирает следующую.
+- Поздние ответы `auth.refreshTokens`, `users.get` и ProfileRepository не могут
+  снова активировать/показать старый аккаунт: перед записью сверяется user id;
+  profile refresh нового аккаунта ставится в очередь за старым.
+- Смена аккаунта отклоняется, пока идёт cloud library/playlist operation. Это
+  предотвращает запрос старым token с записью результата в новый account scope.
+
+Изоляция данных:
+
+- `favorite_tracks` обновлён до schema v8: добавлен `accountId`, уникальность
+  стала `(accountId, trackId)` и `(accountId, cloudTrackId)`. Legacy rows с id=0
+  присваиваются первому активному аккаунту. Heart flows перечитываются при switch.
+- downloaded_tracks намеренно не менялся: скачанные файлы общие для устройства.
+- локальный Playlist получил `remoteOwnerId`; merge/push/pull/delete и очередь
+  удалений используют только active owner. Legacy remote links закрепляются за
+  исходным аккаунтом до добавления второго.
+- Home cache маркируется VK ID; Home/New/Library/Profile/Group/social screens
+  перезагружаются по изменению `MusicAuth.profileId`.
+- Mini-app token cache (year stats), broadcast status и home widget реагируют на
+  active account и не переиспользуют account-bound состояние предыдущего.
+
+Основные файлы: `EncryptedVkSessionStore.kt`, `VkApiClient.kt`, `VkAuthApi.kt`,
+`MusicBackend.kt`, `AuthScreen.kt`, `ProfileScreen.kt`, `AppRoot.kt`,
+`FavoriteTrackDatabase.kt`, `FavoriteTrackEntity.kt`, `LibraryRepository.kt`,
+`PlaylistManager.kt`, `PlaylistSyncManager.kt`, `HomeCacheManager.kt`,
+`HomeViewModel.kt`, account-sensitive screens, `VkBroadcastManager.kt`,
+`VkMiniAppTokenProvider.kt`, `LmgApplication.kt`.
+
+Проверка: `git diff --check` и точечная сверка всех изменённых сигнатур. Gradle,
+сборка и компиляция не запускались. Manual: обновление поверх v1 single session;
+Add второго аккаунта; неверный пароль не сбрасывает первый; switch A/B меняет
+профиль, каталог, favorites и cloud playlists; remove inactive/active/last;
+перезапуск сохраняет active account; switch во время sync показывает ожидание.

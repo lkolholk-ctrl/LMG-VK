@@ -152,6 +152,7 @@ fun AppRoot() {
     var lrcPublishTrack by remember { mutableStateOf<com.lmg.vk.engine.Track?>(null) }
     var tagEditTrack by remember { mutableStateOf<com.lmg.vk.engine.Track?>(null) }
     var authOpen by remember { mutableStateOf(false) }
+    var authAddingAccount by remember { mutableStateOf(false) }
     var profileOpen by remember { mutableStateOf(false) }
     // Поиск — полноэкранный ОВЕРЛЕЙ (как настройки/профиль), а НЕ пункт нав-графа.
     // Иначе экран поиска попадал в пер-таб бэкстек Волны и через saveState/
@@ -285,7 +286,10 @@ fun AppRoot() {
             tagEditTrack != null -> tagEditTrack = null
             lrcPublishTrack != null -> lrcPublishTrack = null
             settingsOpen -> settingsOpen = false
-            authOpen -> authOpen = false
+            authOpen -> {
+                authOpen = false
+                authAddingAccount = false
+            }
             profileOpen -> profileOpen = false
             searchOpen -> searchOpen = false
             expandProgress.value > 0.5f -> animateCollapse()
@@ -354,7 +358,7 @@ fun AppRoot() {
                         backdrop = rootBackdrop,
                         waveAnimationsActive = waveAnimationsActive,
                         onOpenPlayer = { animateExpand() },
-                        onOpenAuth = { authOpen = true },
+                        onOpenAuth = { authAddingAccount = false; authOpen = true },
                         onOpenProfile = { profileOpen = true },
                         onOpenSearch = { searchOpen = true }
                     )
@@ -671,7 +675,7 @@ fun AppRoot() {
             ProfileScreen(
                 onOpenSettings = { profileOpen = false; settingsOpen = true },
                 onLogout = { profileOpen = false },
-                onOpenAuth = { authOpen = true },
+                onOpenAuth = { authAddingAccount = false; authOpen = true },
                 onOpenLibrary = { profileOpen = false; switchTab(2) },
                 onOpenPlaylist = { playlistId ->
                     profileOpen = false
@@ -686,6 +690,10 @@ fun AppRoot() {
                 onOpenGroup = { ownerId ->
                     profileOpen = false
                     navController.navigate(NavRoutes.group(ownerId))
+                },
+                onAddAccount = {
+                    authAddingAccount = true
+                    authOpen = true
                 },
             )
         }
@@ -710,11 +718,20 @@ fun AppRoot() {
             AuthScreen(
                 onAuthSuccess = {
                     authOpen = false
-                    profileOpen = false
-                    // На Wave (профиль теперь иконка слева вверху, не таб).
-                    switchTab(0)
+                    if (authAddingAccount) {
+                        profileOpen = true
+                    } else {
+                        profileOpen = false
+                        // На Wave (профиль теперь иконка слева вверху, не таб).
+                        switchTab(0)
+                    }
+                    authAddingAccount = false
                 },
-                onBack = { authOpen = false }
+                onBack = {
+                    authOpen = false
+                    authAddingAccount = false
+                },
+                isAddingAccount = authAddingAccount,
             )
         }
 

@@ -131,8 +131,7 @@ object VkProfileRepository {
             _state.value = _state.value.copy(error = "No VK account id")
             return
         }
-        if (!refreshMutex.tryLock()) return
-        try {
+        refreshMutex.withLock {
             val hadData = !_state.value.isEmpty
             _state.value = _state.value.copy(
                 isLoading = !hadData,
@@ -157,6 +156,7 @@ object VkProfileRepository {
                 )
             }
 
+            if (MusicAuth.profileId.value != userId) return@withLock
             val profile = (loaded.profile as? VkResult.Success)?.data?.firstOrNull()
             val profileError = (loaded.profile as? VkResult.Error)?.let(::messageOf)
 
@@ -179,8 +179,6 @@ object VkProfileRepository {
             )
 
             logAvatarSources(_state.value)
-        } finally {
-            refreshMutex.unlock()
         }
     }
 
@@ -220,12 +218,14 @@ object VkProfileRepository {
 
     suspend fun loadMoreFriends() {
         val registry = methods ?: return
+        val accountId = MusicAuth.profileId.value
         val current = _state.value
         if (!current.hasMoreFriends) return
         if (!pagingMutex.tryLock()) return
         try {
             when (val result = registry.friendsGet(offset = current.friends.size, count = PAGE_SIZE)) {
                 is VkResult.Success -> {
+                    if (MusicAuth.profileId.value != accountId) return
                     val merged = (current.friends + result.data.items).distinctBy(VkFriend::id)
                     _state.value = _state.value.copy(
                         friends = merged,
@@ -243,12 +243,14 @@ object VkProfileRepository {
 
     suspend fun loadMoreGroups() {
         val registry = methods ?: return
+        val accountId = MusicAuth.profileId.value
         val current = _state.value
         if (!current.hasMoreGroups) return
         if (!pagingMutex.tryLock()) return
         try {
             when (val result = registry.groupsGet(offset = current.groups.size, count = PAGE_SIZE)) {
                 is VkResult.Success -> {
+                    if (MusicAuth.profileId.value != accountId) return
                     val merged = (current.groups + result.data.items).distinctBy(VkGroup::id)
                     _state.value = _state.value.copy(
                         groups = merged,

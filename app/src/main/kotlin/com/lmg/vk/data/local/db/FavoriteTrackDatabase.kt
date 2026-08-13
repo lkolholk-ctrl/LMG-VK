@@ -5,6 +5,10 @@ import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 
 /**
  * SQLite-backed database for storing favorite tracks locally and tracking downloads.
@@ -59,7 +63,8 @@ class FavoriteTrackDatabase private constructor(context: Context) : SQLiteOpenHe
             """
             CREATE TABLE IF NOT EXISTS favorite_tracks (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                trackId TEXT NOT NULL UNIQUE,
+                accountId INTEGER NOT NULL DEFAULT 0,
+                trackId TEXT NOT NULL,
                 cloudTrackId TEXT,
                 title TEXT NOT NULL,
                 artistName TEXT,
@@ -76,12 +81,16 @@ class FavoriteTrackDatabase private constructor(context: Context) : SQLiteOpenHe
                 accessKey TEXT,
                 likedAt INTEGER DEFAULT 0,
                 isSynced INTEGER DEFAULT 0,
-                pendingDelete INTEGER DEFAULT 0
+                pendingDelete INTEGER DEFAULT 0,
+                UNIQUE(accountId, trackId)
             )
             """.trimIndent()
         )
-        db.execSQL("CREATE INDEX IF NOT EXISTS idx_track_id ON favorite_tracks(trackId)")
-        db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS idx_cloud_track_id ON favorite_tracks(cloudTrackId)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS idx_track_id ON favorite_tracks(accountId, trackId)")
+        db.execSQL(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_cloud_track_id " +
+                "ON favorite_tracks(accountId, cloudTrackId) WHERE cloudTrackId IS NOT NULL",
+        )
 
         db.execSQL(
             """
@@ -152,6 +161,57 @@ class FavoriteTrackDatabase private constructor(context: Context) : SQLiteOpenHe
             }
             db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS idx_cloud_track_id ON favorite_tracks(cloudTrackId)")
         }
+        if (oldVersion < 8) {
+            db.execSQL("DROP INDEX IF EXISTS idx_track_id")
+            db.execSQL("DROP INDEX IF EXISTS idx_cloud_track_id")
+            db.execSQL(
+                """
+                CREATE TABLE favorite_tracks_v8 (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    accountId INTEGER NOT NULL DEFAULT 0,
+                    trackId TEXT NOT NULL,
+                    cloudTrackId TEXT,
+                    title TEXT NOT NULL,
+                    artistName TEXT,
+                    albumTitle TEXT,
+                    durationMs INTEGER DEFAULT 0,
+                    genre TEXT,
+                    imageUrl TEXT,
+                    streamUrl TEXT,
+                    artistId TEXT,
+                    collectionId TEXT,
+                    isExplicit INTEGER DEFAULT 0,
+                    source TEXT,
+                    isAvailable INTEGER DEFAULT 1,
+                    accessKey TEXT,
+                    likedAt INTEGER DEFAULT 0,
+                    isSynced INTEGER DEFAULT 0,
+                    pendingDelete INTEGER DEFAULT 0,
+                    UNIQUE(accountId, trackId)
+                )
+                """.trimIndent(),
+            )
+            db.execSQL(
+                """
+                INSERT INTO favorite_tracks_v8 (
+                    id, accountId, trackId, cloudTrackId, title, artistName, albumTitle,
+                    durationMs, genre, imageUrl, streamUrl, artistId, collectionId,
+                    isExplicit, source, isAvailable, accessKey, likedAt, isSynced, pendingDelete
+                )
+                SELECT id, 0, trackId, cloudTrackId, title, artistName, albumTitle,
+                    durationMs, genre, imageUrl, streamUrl, artistId, collectionId,
+                    isExplicit, source, isAvailable, accessKey, likedAt, isSynced, pendingDelete
+                FROM favorite_tracks
+                """.trimIndent(),
+            )
+            db.execSQL("DROP TABLE favorite_tracks")
+            db.execSQL("ALTER TABLE favorite_tracks_v8 RENAME TO favorite_tracks")
+            db.execSQL("CREATE INDEX idx_track_id ON favorite_tracks(accountId, trackId)")
+            db.execSQL(
+                "CREATE UNIQUE INDEX idx_cloud_track_id " +
+                    "ON favorite_tracks(accountId, cloudTrackId) WHERE cloudTrackId IS NOT NULL",
+            )
+        }
     }
 
     private fun SQLiteDatabase.hasColumn(table: String, column: String): Boolean =
@@ -163,8 +223,8 @@ class FavoriteTrackDatabase private constructor(context: Context) : SQLiteOpenHe
 
     private fun reloadFavorites() {
         val list = readableDatabase.rawQuery(
-            "SELECT * FROM favorite_tracks WHERE pendingDelete = 0 ORDER BY likedAt DESC",
-            null
+            "SELECT * FROM favorite_tracks WHERE accountId = ? AND pendingDelete = 0 ORDER BY likedAt DESC",
+            arrayOf(ACTIVE_ACCOUNT_ID.toString()),
         ).use { cursor ->
             val result = mutableListOf<FavoriteTrackEntity>()
             while (cursor.moveToNext()) {
@@ -205,8 +265,8 @@ class FavoriteTrackDatabase private constructor(context: Context) : SQLiteOpenHe
 
     fun getAllFavorites(): List<FavoriteTrackEntity> {
         return readableDatabase.rawQuery(
-            "SELECT * FROM favorite_tracks WHERE pendingDelete = 0 ORDER BY likedAt DESC",
-            null
+            "SELECT * FROM favorite_tracks WHERE accountId = ? AND pendingDelete = 0 ORDER BY likedAt DESC",
+            arrayOf(ACTIVE_ACCOUNT_ID.toString()),
         ).use { cursor ->
             val result = mutableListOf<FavoriteTrackEntity>()
             while (cursor.moveToNext()) {
@@ -218,8 +278,8 @@ class FavoriteTrackDatabase private constructor(context: Context) : SQLiteOpenHe
 
     fun getFavoriteTrackIds(): Set<String> {
         return readableDatabase.rawQuery(
-            "SELECT trackId, cloudTrackId FROM favorite_tracks WHERE pendingDelete = 0",
-            null
+            "SELECT trackId, cloudTrackId FROM favorite_tracks WHERE accountId = ? AND pendingDelete = 0",
+            arrayOf(ACTIVE_ACCOUNT_ID.toString()),
         ).use { cursor ->
             val result = mutableSetOf<String>()
             while (cursor.moveToNext()) {
@@ -232,8 +292,8 @@ class FavoriteTrackDatabase private constructor(context: Context) : SQLiteOpenHe
 
     fun getByTrackId(trackId: String): FavoriteTrackEntity? {
         return readableDatabase.rawQuery(
-            "SELECT * FROM favorite_tracks WHERE trackId = ? OR cloudTrackId = ? LIMIT 1",
-            arrayOf(trackId, trackId)
+            "SELECT * FROM favorite_tracks WHERE accountId = ? AND (trackId = ? OR cloudTrackId = ?) LIMIT 1",
+            arrayOf(ACTIVE_ACCOUNT_ID.toString(), trackId, trackId)
         ).use { cursor ->
             if (cursor.moveToFirst()) cursorToEntity(cursor) else null
         }
@@ -241,8 +301,9 @@ class FavoriteTrackDatabase private constructor(context: Context) : SQLiteOpenHe
 
     fun isFavorite(trackId: String): Boolean {
         return readableDatabase.rawQuery(
-            "SELECT 1 FROM favorite_tracks WHERE (trackId = ? OR cloudTrackId = ?) AND pendingDelete = 0 LIMIT 1",
-            arrayOf(trackId, trackId)
+            "SELECT 1 FROM favorite_tracks WHERE accountId = ? AND " +
+                "(trackId = ? OR cloudTrackId = ?) AND pendingDelete = 0 LIMIT 1",
+            arrayOf(ACTIVE_ACCOUNT_ID.toString(), trackId, trackId)
         ).use { it.moveToFirst() }
     }
 
@@ -260,6 +321,7 @@ class FavoriteTrackDatabase private constructor(context: Context) : SQLiteOpenHe
 
     fun insert(entity: FavoriteTrackEntity) {
         val values = android.content.ContentValues().apply {
+            put("accountId", entity.accountId.takeIf { it != 0L } ?: ACTIVE_ACCOUNT_ID)
             put("trackId", entity.trackId)
             put("cloudTrackId", entity.cloudTrackId)
             put("title", entity.title)
@@ -319,29 +381,32 @@ class FavoriteTrackDatabase private constructor(context: Context) : SQLiteOpenHe
             put("pendingDelete", if (entity.pendingDelete) 1 else 0)
         }
         writableDatabase.update(
-            "favorite_tracks", values, "trackId = ?",
-            arrayOf(entity.trackId)
+            "favorite_tracks", values, "accountId = ? AND trackId = ?",
+            arrayOf(ACTIVE_ACCOUNT_ID.toString(), entity.trackId)
         )
         reloadFavorites()
     }
 
     fun deleteByTrackId(trackId: String) {
         writableDatabase.execSQL(
-            "DELETE FROM favorite_tracks WHERE trackId = ? OR cloudTrackId = ?",
-            arrayOf(trackId, trackId)
+            "DELETE FROM favorite_tracks WHERE accountId = ? AND (trackId = ? OR cloudTrackId = ?)",
+            arrayOf(ACTIVE_ACCOUNT_ID, trackId, trackId)
         )
         reloadFavorites()
     }
 
     fun clearAll() {
-        writableDatabase.execSQL("DELETE FROM favorite_tracks")
+        writableDatabase.execSQL(
+            "DELETE FROM favorite_tracks WHERE accountId = ?",
+            arrayOf(ACTIVE_ACCOUNT_ID),
+        )
         reloadFavorites()
     }
 
     fun getPendingInserts(): List<FavoriteTrackEntity> {
         return readableDatabase.rawQuery(
-            "SELECT * FROM favorite_tracks WHERE isSynced = 0 AND pendingDelete = 0",
-            null
+            "SELECT * FROM favorite_tracks WHERE accountId = ? AND isSynced = 0 AND pendingDelete = 0",
+            arrayOf(ACTIVE_ACCOUNT_ID.toString()),
         ).use { cursor ->
             val result = mutableListOf<FavoriteTrackEntity>()
             while (cursor.moveToNext()) {
@@ -353,8 +418,8 @@ class FavoriteTrackDatabase private constructor(context: Context) : SQLiteOpenHe
 
     fun getPendingDeletes(): List<FavoriteTrackEntity> {
         return readableDatabase.rawQuery(
-            "SELECT * FROM favorite_tracks WHERE pendingDelete = 1",
-            null
+            "SELECT * FROM favorite_tracks WHERE accountId = ? AND pendingDelete = 1",
+            arrayOf(ACTIVE_ACCOUNT_ID.toString()),
         ).use { cursor ->
             val result = mutableListOf<FavoriteTrackEntity>()
             while (cursor.moveToNext()) {
@@ -366,22 +431,23 @@ class FavoriteTrackDatabase private constructor(context: Context) : SQLiteOpenHe
 
     fun markSynced(trackId: String) {
         writableDatabase.execSQL(
-            "UPDATE favorite_tracks SET isSynced = 1 WHERE trackId = ? OR cloudTrackId = ?",
-            arrayOf(trackId, trackId)
+            "UPDATE favorite_tracks SET isSynced = 1 WHERE accountId = ? AND (trackId = ? OR cloudTrackId = ?)",
+            arrayOf(ACTIVE_ACCOUNT_ID, trackId, trackId)
         )
     }
 
     fun clearPendingDelete(trackId: String) {
         writableDatabase.execSQL(
-            "UPDATE favorite_tracks SET pendingDelete = 0 WHERE trackId = ? OR cloudTrackId = ?",
-            arrayOf(trackId, trackId)
+            "UPDATE favorite_tracks SET pendingDelete = 0 WHERE accountId = ? AND " +
+                "(trackId = ? OR cloudTrackId = ?)",
+            arrayOf(ACTIVE_ACCOUNT_ID, trackId, trackId)
         )
     }
 
     fun getCount(): Int {
         return readableDatabase.rawQuery(
-            "SELECT COUNT(*) FROM favorite_tracks WHERE pendingDelete = 0",
-            null
+            "SELECT COUNT(*) FROM favorite_tracks WHERE accountId = ? AND pendingDelete = 0",
+            arrayOf(ACTIVE_ACCOUNT_ID.toString()),
         ).use { cursor ->
             if (cursor.moveToFirst()) cursor.getInt(0) else 0
         }
@@ -478,6 +544,10 @@ class FavoriteTrackDatabase private constructor(context: Context) : SQLiteOpenHe
     private fun cursorToEntity(cursor: android.database.Cursor): FavoriteTrackEntity {
         return FavoriteTrackEntity(
             id = cursor.getLong(cursor.getColumnIndexOrThrow("id")),
+            accountId = cursor.getColumnIndex("accountId")
+                .takeIf { it >= 0 }
+                ?.let(cursor::getLong)
+                ?: 0L,
             trackId = cursor.getString(cursor.getColumnIndexOrThrow("trackId")),
             cloudTrackId = cursor.getColumnIndex("cloudTrackId")
                 .takeIf { it >= 0 }
@@ -521,7 +591,11 @@ class FavoriteTrackDatabase private constructor(context: Context) : SQLiteOpenHe
 
     companion object {
         private const val DB_NAME = "favorite_tracks.db"
-        private const val DB_VERSION = 7
+        private const val DB_VERSION = 8
+
+        @Volatile
+        private var ACTIVE_ACCOUNT_ID: Long = 0L
+        private val ACCOUNT_SCOPE = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
         @Volatile
         private var INSTANCE: FavoriteTrackDatabase? = null
@@ -530,8 +604,28 @@ class FavoriteTrackDatabase private constructor(context: Context) : SQLiteOpenHe
             return INSTANCE ?: synchronized(this) {
                 INSTANCE ?: FavoriteTrackDatabase(context.applicationContext).also {
                     INSTANCE = it
+                    ACCOUNT_SCOPE.launch { it.activateAccountInternal(ACTIVE_ACCOUNT_ID) }
                 }
             }
         }
+
+        /** Switches only cloud favorites; downloaded tracks stay device-wide. */
+        fun activateAccount(userId: Long) {
+            ACTIVE_ACCOUNT_ID = userId.coerceAtLeast(0L)
+            INSTANCE?.let { database ->
+                ACCOUNT_SCOPE.launch { database.activateAccountInternal(ACTIVE_ACCOUNT_ID) }
+            }
+        }
+    }
+
+    private fun activateAccountInternal(userId: Long) {
+        if (userId != 0L) {
+            // v7 and guest rows belong to the first account selected after migration/login.
+            writableDatabase.execSQL(
+                "UPDATE favorite_tracks SET accountId = ? WHERE accountId = 0",
+                arrayOf(userId),
+            )
+        }
+        if (isLoaded) reloadFavorites()
     }
 }

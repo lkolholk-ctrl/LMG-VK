@@ -68,40 +68,55 @@ object PlaylistSyncManager {
 
     /** Локально удаляет сразу; неудачное VK-удаление сохраняет в офлайн-очередь. */
     suspend fun deleteEverywhere(localId: String): Result<Unit> = mutex.withLock {
-        val local = PlaylistManager.getById(localId)
-            ?: return@withLock Result.success(Unit)
-        val remoteId = local.remoteId
-        PlaylistManager.delete(localId)
-        if (remoteId != null) {
-            if (MusicBackend.deleteUserPlaylist(remoteId)) {
-                PlaylistManager.confirmRemoteDelete(remoteId)
-            } else {
-                PlaylistManager.queueRemoteDelete(remoteId)
+        _state.value = _state.value.copy(isSyncing = true, error = null)
+        try {
+            val local = PlaylistManager.getById(localId)
+                ?: return@withLock Result.success(Unit)
+            val remoteId = local.remoteId
+            val activeOwnerId = MusicAuth.profileId.value ?: 0L
+            PlaylistManager.delete(localId)
+            if (remoteId != null && local.remoteOwnerId == activeOwnerId) {
+                if (MusicBackend.deleteUserPlaylist(remoteId)) {
+                    PlaylistManager.confirmRemoteDelete(activeOwnerId, remoteId)
+                } else {
+                    PlaylistManager.queueRemoteDelete(activeOwnerId, remoteId)
+                }
             }
+            Result.success(Unit)
+        } finally {
+            _state.value = _state.value.copy(isSyncing = false)
         }
-        Result.success(Unit)
     }
 
     suspend fun deleteRemote(remoteId: String): Result<Unit> = mutex.withLock {
-        if (remoteId.isBlank()) return@withLock Result.success(Unit)
-        if (MusicBackend.deleteUserPlaylist(remoteId)) {
-            PlaylistManager.confirmRemoteDelete(remoteId)
-        } else {
-            PlaylistManager.queueRemoteDelete(remoteId)
+        _state.value = _state.value.copy(isSyncing = true, error = null)
+        try {
+            if (remoteId.isBlank()) return@withLock Result.success(Unit)
+            val activeOwnerId = MusicAuth.profileId.value
+                ?: return@withLock Result.failure(IllegalStateException("No active VK account"))
+            if (MusicBackend.deleteUserPlaylist(remoteId)) {
+                PlaylistManager.confirmRemoteDelete(activeOwnerId, remoteId)
+            } else {
+                PlaylistManager.queueRemoteDelete(activeOwnerId, remoteId)
+            }
+            Result.success(Unit)
+        } finally {
+            _state.value = _state.value.copy(isSyncing = false)
         }
-        Result.success(Unit)
     }
 
     private suspend fun merge(): SyncReport {
+        val activeOwnerId = MusicAuth.profileId.value
+            ?: throw IllegalStateException("No active VK account")
         var deleted = 0
         var failedDeletes = 0
-        PlaylistManager.pendingDeletes().forEach { remoteId ->
+        PlaylistManager.pendingDeletes(activeOwnerId).forEach { remoteId ->
             if (MusicBackend.deleteUserPlaylist(remoteId)) {
-                PlaylistManager.confirmRemoteDelete(remoteId)
+                PlaylistManager.confirmRemoteDelete(activeOwnerId, remoteId)
                 deleted++
             } else failedDeletes++
         }
-        val pendingDeletes = PlaylistManager.pendingDeletes()
+        val pendingDeletes = PlaylistManager.pendingDeletes(activeOwnerId)
         val remotePlaylists = MusicBackend.getUserPlaylists(limit = 1000).items
             .filter { playlist ->
                 playlist.id?.let { it.isNotBlank() && it !in pendingDeletes } == true
@@ -114,7 +129,9 @@ object PlaylistSyncManager {
         var failed = failedDeletes
 
         // Сначала разрешаем уже связанные пары.
-        PlaylistManager.playlists.value.filter { it.remoteId != null }.forEach { local ->
+        PlaylistManager.playlists.value.filter {
+            it.remoteId != null && it.remoteOwnerId == activeOwnerId
+        }.forEach { local ->
             val remote = remoteById[local.remoteId]
             if (remote == null) {
                 // Не удаляем и не пересоздаём: ответ мог быть неполным.
@@ -130,13 +147,13 @@ object PlaylistSyncManager {
 
             when {
                 localDirty && (!remoteDirty || local.modifiedAt >= remoteStamp) -> {
-                    if (push(local)) {
+                    if (push(local, activeOwnerId)) {
                         pushed++
                         unsupported += local.tracks.count { !it.id.isVkAudioId() }
                     } else failed++
                 }
                 remoteDirty -> {
-                    if (pull(remote)) pulled++ else failed++
+                    if (pull(remote, activeOwnerId)) pulled++ else failed++
                 }
                 else -> unchanged++
             }
@@ -144,18 +161,21 @@ object PlaylistSyncManager {
 
         // Новые локальные плейлисты создаём в текущем VK-аккаунте.
         PlaylistManager.playlists.value.filter { it.remoteId == null }.forEach { local ->
-            if (push(local)) {
+            if (push(local, activeOwnerId)) {
                 pushed++
                 unsupported += local.tracks.count { !it.id.isVkAudioId() }
             } else failed++
         }
 
         // Новые VK-плейлисты импортируем как полноценные локальные копии.
-        val linkedRemoteIds = PlaylistManager.playlists.value.mapNotNull { it.remoteId }.toSet()
+        val linkedRemoteIds = PlaylistManager.playlists.value
+            .filter { it.remoteOwnerId == activeOwnerId }
+            .mapNotNull { it.remoteId }
+            .toSet()
         remotePlaylists.filter { remote ->
             remote.id?.let { it !in linkedRemoteIds } == true
         }.forEach { remote ->
-            if (pull(remote)) pulled++ else failed++
+            if (pull(remote, activeOwnerId)) pulled++ else failed++
         }
 
         return SyncReport(
@@ -168,22 +188,22 @@ object PlaylistSyncManager {
         )
     }
 
-    private suspend fun push(local: PlaylistManager.Playlist): Boolean {
+    private suspend fun push(local: PlaylistManager.Playlist, activeOwnerId: Long): Boolean {
         val remoteId = local.remoteId
         val success = if (remoteId == null) {
             val createdId = MusicBackend.createUserPlaylist(local.name, local.trackIds)
                 ?: return false
-            PlaylistManager.markSynced(local.id, createdId)
+            PlaylistManager.markSynced(local.id, createdId, activeOwnerId)
             true
         } else {
             if (!MusicBackend.updateUserPlaylist(remoteId, local.name, local.trackIds)) return false
-            PlaylistManager.markSynced(local.id, remoteId)
+            PlaylistManager.markSynced(local.id, remoteId, activeOwnerId)
             true
         }
         return success
     }
 
-    private suspend fun pull(remote: UserPlaylist): Boolean {
+    private suspend fun pull(remote: UserPlaylist, activeOwnerId: Long): Boolean {
         val remoteId = remote.id ?: return false
         val response = MusicBackend.getUserPlaylistTracks(
             playlistId = remoteId,
@@ -201,12 +221,13 @@ object PlaylistSyncManager {
         }
         // VK принимает только owner_id_audio_id. Треки других источников остаются
         // локальной частью связанного плейлиста и не исчезают при pull.
-        val localOnlyTracks = PlaylistManager.getByRemoteId(remoteId)
+        val localOnlyTracks = PlaylistManager.getByRemoteId(remoteId, activeOwnerId)
             ?.tracks.orEmpty()
             .filter { !it.id.isVkAudioId() }
         val tracks = (remoteTracks + localOnlyTracks).distinctBy { it.id }
         PlaylistManager.applyRemote(
             remoteId = remoteId,
+            remoteOwnerId = activeOwnerId,
             name = remote.name.orEmpty().ifBlank { "Playlist" },
             tracks = tracks,
             remoteUpdatedAt = remote.remoteTimestampMs(),

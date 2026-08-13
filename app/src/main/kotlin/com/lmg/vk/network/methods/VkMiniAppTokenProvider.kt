@@ -59,6 +59,8 @@ class VkMiniAppTokenProvider(
 ) {
     @Volatile
     private var cached: String? = null
+    @Volatile
+    private var cachedUserId: Long = 0L
 
     /**
      * Токен мини-приложения «Итоги года» либо `null`, если получить не удалось.
@@ -66,19 +68,23 @@ class VkMiniAppTokenProvider(
      * честный текст, а не подставлять основной токен.
      */
     suspend fun yearStatsToken(): String? {
-        cached?.let { return it }
+        val userId = client.currentUserId
+        if (cachedUserId == userId) cached?.let { return it }
+        cached = null
         val token = requestToken(
             appId = YEAR_STATS_APP_ID,
             scope = YEAR_STATS_SCOPE,
             sourceUrl = YEAR_STATS_SOURCE_URL,
         )
         cached = token
+        cachedUserId = userId
         return token
     }
 
     /** Сбрасывает кэш — если VK ответил, что токен уже не годится. */
     fun invalidate() {
         cached = null
+        cachedUserId = 0L
     }
 
     private suspend fun requestToken(appId: Int, scope: String, sourceUrl: String): String? {

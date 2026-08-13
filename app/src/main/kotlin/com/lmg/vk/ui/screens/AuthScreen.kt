@@ -43,15 +43,16 @@ private val BrandRed = Color(0xFFFC3C44)
 @Composable
 fun AuthScreen(
     onAuthSuccess: () -> Unit = {},
-    onBack: () -> Unit = {}
+    onBack: () -> Unit = {},
+    isAddingAccount: Boolean = false,
 ) {
     val lc = LiquidTheme.colors
 
     // OAuth-флоу живёт в EmailAuthSheet. После сохранения VK-сессии состояние
     // переключается в true и экран закрывается единым путём через MusicAuth.
     val isLoggedIn by com.lmg.vk.engine.backend.MusicAuth.isLoggedIn.collectAsState()
-    LaunchedEffect(isLoggedIn) {
-        if (isLoggedIn) onAuthSuccess()
+    LaunchedEffect(isLoggedIn, isAddingAccount) {
+        if (isLoggedIn && !isAddingAccount) onAuthSuccess()
     }
 
     val showEmailSheet = remember { androidx.compose.runtime.mutableStateOf(false) }
@@ -127,7 +128,7 @@ fun AuthScreen(
                 Spacer(modifier = Modifier.height(8.dp))
 
                 Text(
-                    text = "Welcome",
+                    text = if (isAddingAccount) "Add another account" else "Welcome",
                     color = lc.textSecondary,
                     fontSize = 15.sp,
                     textAlign = TextAlign.Center
@@ -159,7 +160,7 @@ fun AuthScreen(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    "Continue with VK",
+                    if (isAddingAccount) "Sign in to another VK account" else "Continue with VK",
                     color = lc.textPrimary,
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 16.sp

@@ -183,10 +183,11 @@ fun HomeScreen(
     }
 
     val isLoggedIn by MusicAuth.isLoggedIn.collectAsState()
+    val activeAccountId by MusicAuth.profileId.collectAsState()
 
     // Load home content
-    LaunchedEffect(isLoggedIn) {
-        viewModel.loadHomeContent()
+    LaunchedEffect(isLoggedIn, activeAccountId) {
+        viewModel.loadHomeContent(force = activeAccountId != null)
     }
 
     // Extract blocks from home content

@@ -26,6 +26,7 @@ object HomeCacheManager {
     private const val PREFS_NAME = "home_cache"
     private const val KEY_BLOCKS = "blocks_json"
     private const val KEY_TIMESTAMP = "cached_at"
+    private const val KEY_ACCOUNT_ID = "account_id"
     private const val KEY_ETAG = "etag"
     private const val CACHE_TTL_MS = 24 * 60 * 60 * 1000L // 24 hours
     // v6 also stores actionable CatalogLink URLs. Older caches would turn
@@ -41,7 +42,7 @@ object HomeCacheManager {
     /**
      * Save home response to cache.
      */
-    suspend fun save(response: HomeResponse) = withContext(Dispatchers.IO) {
+    suspend fun save(response: HomeResponse, accountId: Long) = withContext(Dispatchers.IO) {
         val p = prefs ?: return@withContext
         val json = JSONObject().apply {
             put("version", CACHE_SCHEMA_VERSION)
@@ -150,6 +151,7 @@ object HomeCacheManager {
         p.edit().apply {
             putString(KEY_BLOCKS, json.toString())
             putLong(KEY_TIMESTAMP, System.currentTimeMillis())
+            putLong(KEY_ACCOUNT_ID, accountId)
             apply()
         }
     }
@@ -158,10 +160,11 @@ object HomeCacheManager {
      * Load cached home response.
      * @return Cached response or null if expired/missing.
      */
-    suspend fun load(): HomeResponse? = withContext(Dispatchers.IO) {
+    suspend fun load(accountId: Long): HomeResponse? = withContext(Dispatchers.IO) {
         val startedAt = System.currentTimeMillis()
         try {
             val p = prefs ?: return@withContext null
+            if (p.getLong(KEY_ACCOUNT_ID, Long.MIN_VALUE) != accountId) return@withContext null
             val jsonStr = p.getString(KEY_BLOCKS, null) ?: return@withContext null
             val cachedAt = p.getLong(KEY_TIMESTAMP, 0)
             if (System.currentTimeMillis() - cachedAt > CACHE_TTL_MS) return@withContext null

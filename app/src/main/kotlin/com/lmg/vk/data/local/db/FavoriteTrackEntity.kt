@@ -6,6 +6,8 @@ package com.lmg.vk.data.local.db
  */
 data class FavoriteTrackEntity(
     val id: Long = 0,
+    /** VK account owning cloud sync state; downloads remain device-wide. */
+    val accountId: Long = 0L,
     val trackId: String,
     val title: String,
     val artistName: String? = null,

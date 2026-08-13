@@ -6,6 +6,7 @@ import android.security.keystore.KeyProperties
 import android.util.Base64
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.security.KeyStore
 import javax.crypto.Cipher
@@ -17,7 +18,7 @@ import javax.crypto.spec.GCMParameterSpec
  * Постоянное хранилище VK-сессии. Токены никогда не записываются в preferences
  * открытым текстом: JSON шифруется AES/GCM ключом из Android Keystore.
  */
-class EncryptedVkSessionStore(context: Context) : VkSessionStore {
+class EncryptedVkSessionStore(context: Context) : VkMultiSessionStore {
     private val preferences = context.applicationContext.getSharedPreferences(
         PREFERENCES_NAME,
         Context.MODE_PRIVATE,
@@ -26,33 +27,106 @@ class EncryptedVkSessionStore(context: Context) : VkSessionStore {
     private val lock = Any()
 
     @Volatile
-    private var cached: VkAuthSession = readSession()
+    private var cached: VkAuthSession = VkAuthSession.EMPTY
+
+    @Volatile
+    private var cachedSessions: List<VkAuthSession> = emptyList()
+
+    init {
+        val restored = readState()
+        cached = restored.active
+        cachedSessions = restored.sessions
+    }
+
+    override val sessions: List<VkAuthSession>
+        get() = cachedSessions
 
     override var session: VkAuthSession
         get() = cached
         set(value) = synchronized(lock) {
+            val updated = cachedSessions.toMutableList()
             if (value == VkAuthSession.EMPTY) {
-                check(preferences.edit().remove(KEY_PAYLOAD).commit()) {
-                    "Unable to clear VK session"
-                }
+                updated.removeAll { sameAccount(it, cached) }
+                cached = updated.firstOrNull() ?: VkAuthSession.EMPTY
             } else {
-                val encrypted = encrypt(json.encodeToString(value))
-                check(preferences.edit().putString(KEY_PAYLOAD, encrypted).commit()) {
-                    "Unable to persist VK session"
+                val index = updated.indexOfFirst { sameAccount(it, value) }
+                if (index >= 0) {
+                    updated[index] = value
+                } else {
+                    updated.add(value)
                 }
+                cached = value
             }
-            cached = value
+            cachedSessions = updated.toList()
+            persist()
         }
 
-    private fun readSession(): VkAuthSession {
-        val payload = preferences.getString(KEY_PAYLOAD, null) ?: return VkAuthSession.EMPTY
+    override fun activate(userId: Long): VkAuthSession? = synchronized(lock) {
+        val next = cachedSessions.firstOrNull { it.userId == userId && it.accessToken.isNotBlank() }
+            ?: return@synchronized null
+        cached = next
+        persist()
+        next
+    }
+
+    override fun remove(userId: Long): VkAuthSession = synchronized(lock) {
+        val updated = cachedSessions.filterNot { it.userId == userId }
+        cachedSessions = updated
+        if (cached.userId == userId) cached = updated.firstOrNull() ?: VkAuthSession.EMPTY
+        persist()
+        cached
+    }
+
+    private fun readState(): RestoredState {
+        val payload = preferences.getString(KEY_PAYLOAD, null)
+            ?: return RestoredState(VkAuthSession.EMPTY, emptyList())
         return runCatching {
-            json.decodeFromString<VkAuthSession>(decrypt(payload))
+            val decrypted = decrypt(payload)
+            val stored = runCatching { json.decodeFromString<StoredAccounts>(decrypted) }
+                .getOrElse {
+                    val legacy = json.decodeFromString<VkAuthSession>(decrypted)
+                    StoredAccounts(legacy.userId, listOf(legacy).filter { it.accessToken.isNotBlank() })
+                }
+            val valid = stored.sessions.filter { it.accessToken.isNotBlank() }
+            val active = valid.firstOrNull { it.userId == stored.activeUserId }
+                ?: valid.firstOrNull()
+                ?: VkAuthSession.EMPTY
+            RestoredState(active, valid)
         }.getOrElse {
             preferences.edit().remove(KEY_PAYLOAD).commit()
-            VkAuthSession.EMPTY
+            RestoredState(VkAuthSession.EMPTY, emptyList())
         }
     }
+
+    private fun persist() {
+        if (cachedSessions.isEmpty()) {
+            check(preferences.edit().remove(KEY_PAYLOAD).commit()) { "Unable to clear VK sessions" }
+            return
+        }
+        val encrypted = encrypt(
+            json.encodeToString(StoredAccounts(cached.userId, cachedSessions)),
+        )
+        check(preferences.edit().putString(KEY_PAYLOAD, encrypted).commit()) {
+            "Unable to persist VK sessions"
+        }
+    }
+
+    private fun sameAccount(left: VkAuthSession, right: VkAuthSession): Boolean = when {
+        left.userId != 0L && right.userId != 0L -> left.userId == right.userId
+        left.username.isNotBlank() && right.username.isNotBlank() -> left.username == right.username
+        else -> left.accessToken.isNotBlank() && left.accessToken == right.accessToken
+    }
+
+    @Serializable
+    private data class StoredAccounts(
+        val activeUserId: Long,
+        val sessions: List<VkAuthSession>,
+    )
+
+    private data class RestoredState(
+        val active: VkAuthSession,
+        val sessions: List<VkAuthSession>,
+    )
 
     private fun encrypt(plainText: String): String {
         val cipher = Cipher.getInstance(TRANSFORMATION)

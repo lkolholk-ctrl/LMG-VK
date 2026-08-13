@@ -2,6 +2,7 @@ package com.lmg.vk.engine.backend
 
 import com.lmg.vk.engine.Track
 import com.lmg.vk.engine.LyricsParser
+import com.lmg.vk.engine.PlaylistManager
 import com.lmg.vk.engine.VkMixCategory
 import com.lmg.vk.engine.VkMixCategoryType
 import com.lmg.vk.engine.VkMixOption
@@ -9,9 +10,13 @@ import com.lmg.vk.engine.VkMixSession
 import com.lmg.vk.engine.VkMixSettings
 import com.lmg.vk.engine.backend.wave.WaveBatchResponse
 import com.lmg.vk.engine.backend.wave.WaveSessionStartResponse
+import com.lmg.vk.data.local.db.FavoriteTrackDatabase
+import com.lmg.vk.data.local.db.LibraryRepository
+import com.lmg.vk.engine.PlaylistSyncManager
 import com.lmg.vk.network.VkApiClient
 import com.lmg.vk.network.VkAuthSession
 import com.lmg.vk.network.VkResult
+import com.lmg.vk.network.VkMultiSessionStore
 import com.lmg.vk.network.VkSessionStore
 import com.lmg.vk.network.getOrNull
 import com.lmg.vk.network.dto.AuthFlowName
@@ -3217,6 +3222,15 @@ sealed interface VkLoginResult {
     data class Failure(val message: String) : VkLoginResult
 }
 
+data class VkAccountSummary(
+    val userId: Long,
+    val displayName: String,
+    val username: String,
+    val avatarUrl: String,
+    val isActive: Boolean,
+    val isExpired: Boolean,
+)
+
 /** Авторизация/подписка (бывш. IcmAuthRepository). */
 object MusicAuth {
     private val _isLoggedIn = MutableStateFlow(false)
@@ -3248,6 +3262,9 @@ object MusicAuth {
     val partnerUserId: StateFlow<Long?> = _partnerUserId
     private val _telegramId = MutableStateFlow<Long?>(null)
     val telegramId: StateFlow<Long?> = _telegramId
+    private val _accounts = MutableStateFlow<List<VkAccountSummary>>(emptyList())
+    /** Saved account metadata only. Token material never leaves the encrypted store. */
+    val accounts: StateFlow<List<VkAccountSummary>> = _accounts
 
     private var sessionStore: VkSessionStore? = null
     private var apiClient: VkApiClient? = null
@@ -3273,6 +3290,7 @@ object MusicAuth {
         apiClient = client
         methods = VkMethodsRegistry(client)
         sessionStore = store
+        PlaylistManager.claimLegacyRemoteOwnership(store.session.userId)
         applySession(store.session)
     }
 
@@ -3363,7 +3381,12 @@ object MusicAuth {
                 "VK did not issue an anonymous authorization token",
             )
         }
-        val trustedHash = sessionStore?.session?.trustedHash?.takeIf(String::isNotBlank)
+        // trusted_hash привязан к конкретному аккаунту. При добавлении второго
+        // нельзя отправлять hash активного аккаунта в validateAccount нового.
+        val trustedHash = sessionStore?.session
+            ?.takeIf { !_isLoggedIn.value }
+            ?.trustedHash
+            ?.takeIf(String::isNotBlank)
         val validation = when (val result = registry.validateAccount(
             login = username,
             anonymousToken = currentAnonymousToken,
@@ -3509,6 +3532,9 @@ object MusicAuth {
                 .orEmpty()
                 .ifBlank { return VkLoginResult.Failure("VK returned an empty exchange token") }
         }
+        if (!canChangeAccount()) {
+            return VkLoginResult.Failure("Wait for library synchronization to finish")
+        }
         val nowSeconds = System.currentTimeMillis() / 1000
         installSession(
             VkAuthSession(
@@ -3565,7 +3591,12 @@ object MusicAuth {
     /** Точка передачи аккаунта из восстанавливаемого VK auth-флоу. */
     fun installSession(session: VkAuthSession) {
         val store = checkNotNull(sessionStore) { "MusicAuth is not initialized" }
+        val previousUserId = store.session.userId
+        if (previousUserId != 0L && previousUserId != session.userId) {
+            PlaylistManager.claimLegacyRemoteOwnership(previousUserId)
+        }
         store.session = session
+        if (previousUserId != 0L && previousUserId != session.userId) clearAccountScopedState()
         applySession(session)
     }
 
@@ -3579,14 +3610,80 @@ object MusicAuth {
         _profileName.value = displayName.takeIf(String::isNotBlank)
         _avatarUrl.value = session.avatar.takeIf(String::isNotBlank)
         _profileId.value = session.userId.takeIf { it != 0L }
+        FavoriteTrackDatabase.activateAccount(session.userId)
         _profileDomain.value = session.username.takeIf(String::isNotBlank)
         _profileSessionExpiresAt.value = session.expiresAt.takeIf { it > 0L }
+        if (session.accessToken.isBlank()) {
+            _userEmail.value = null
+            _subscription.value = null
+            _premiumExpiresAt.value = null
+        }
+        updateAccountSummaries()
     }
+
+    fun switchAccount(userId: Long): Boolean {
+        if (!canChangeAccount()) return false
+        val store = sessionStore as? VkMultiSessionStore ?: return false
+        if (store.session.userId == userId) return true
+        val session = store.activate(userId) ?: return false
+        clearAccountScopedState()
+        activeAuthAttempt = null
+        applySession(session)
+        return true
+    }
+
+    fun removeAccount(userId: Long): Boolean {
+        if (!canChangeAccount()) return false
+        val store = sessionStore as? VkMultiSessionStore ?: return false
+        val wasActive = store.session.userId == userId
+        val remaining = store.remove(userId)
+        if (wasActive) {
+            clearAccountScopedState()
+            activeAuthAttempt = null
+            applySession(remaining)
+        } else {
+            updateAccountSummaries()
+        }
+        return true
+    }
+
+    private fun updateAccountSummaries() {
+        val store = sessionStore
+        val activeId = store?.session?.userId ?: 0L
+        val sessions = (store as? VkMultiSessionStore)?.sessions
+            ?: listOfNotNull(store?.session?.takeIf { it.accessToken.isNotBlank() })
+        _accounts.value = sessions
+            .filter { it.userId != 0L && it.accessToken.isNotBlank() }
+            .sortedByDescending { it.userId == activeId }
+            .map { account ->
+                VkAccountSummary(
+                    userId = account.userId,
+                    displayName = listOf(account.firstName, account.lastName)
+                        .filter(String::isNotBlank)
+                        .joinToString(" ")
+                        .ifBlank { account.username.ifBlank { "VK ID ${account.userId}" } },
+                    username = account.username,
+                    avatarUrl = account.avatar,
+                    isActive = account.userId == activeId,
+                    isExpired = account.isExpired,
+                )
+            }
+    }
+
+    private fun clearAccountScopedState() {
+        MusicBackend.clearVkMixPromptEvents()
+        MusicBackend.clearSearchCache()
+        VkProfileRepository.clear()
+    }
+
+    private fun canChangeAccount(): Boolean =
+        !LibraryRepository.isCloudSyncInProgress && !PlaylistSyncManager.state.value.isSyncing
 
     /** Refreshes only the public VK account data returned by the recovered users.get call. */
     suspend fun fetchUserData(): Boolean {
         val store = sessionStore ?: return false
-        if (store.session.accessToken.isBlank()) return false
+        val initialSession = store.session
+        if (initialSession.accessToken.isBlank()) return false
         val registry = methods ?: return false
         _isProfileRefreshing.value = true
         return try {
@@ -3595,10 +3692,11 @@ object MusicAuth {
                 is VkResult.Error -> null
             } ?: return false
 
+            if (store.session.userId != initialSession.userId) return false
             VkProfileRepository.seedProfile(profile)
-            val updated = store.session.copy(
-                userId = profile.id.takeIf { it != 0L } ?: store.session.userId,
-                username = profile.domain.ifBlank { store.session.username },
+            val updated = initialSession.copy(
+                userId = profile.id.takeIf { it != 0L } ?: initialSession.userId,
+                username = profile.domain.ifBlank { initialSession.username },
                 firstName = profile.firstName.ifBlank { profile.displayName },
                 lastName = profile.lastName,
                 avatar = profile.bestPhotoUrl,
@@ -3618,22 +3716,22 @@ object MusicAuth {
             fetchUserData()
         }
     }
-    fun logout() {
-        MusicBackend.clearVkMixPromptEvents()
-        sessionStore?.session = VkAuthSession.EMPTY
-        _partnerUserId.value = null
-        _isLoggedIn.value = false
-        _profileName.value = null
-        _avatarUrl.value = null
-        _profileId.value = null
-        _profileDomain.value = null
-        _isProfileRefreshing.value = false
-        _profileSessionExpiresAt.value = null
-        _userEmail.value = null
+    fun logout(): Boolean {
+        if (!canChangeAccount()) return false
+        val store = sessionStore
+        val currentUserId = store?.session?.userId ?: 0L
+        val next = if (store is VkMultiSessionStore && currentUserId != 0L) {
+            store.remove(currentUserId)
+        } else {
+            store?.session = VkAuthSession.EMPTY
+            VkAuthSession.EMPTY
+        }
+        clearAccountScopedState()
+        applySession(next)
         anonymousToken = ""
         anonymousTokenExpiresAt = 0L
         activeAuthAttempt = null
-        VkProfileRepository.clear()
+        return true
     }
 }
 

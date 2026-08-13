@@ -94,6 +94,7 @@ fun UserProfileScreen(
     val context = LocalContext.current
     val colors = LiquidTheme.colors
     val state by viewModel.state.collectAsState()
+    val activeAccountId by com.lmg.vk.engine.backend.MusicAuth.profileId.collectAsState()
     val listState = rememberLazyListState()
     val compact = com.lmg.vk.ui.rememberWindowInfo().useSideBySide
     var showRemoveFriendConfirm by remember { mutableStateOf(false) }
@@ -107,7 +108,7 @@ fun UserProfileScreen(
         uri?.let { viewModel.uploadOwnProfileImage(context, it, ProfileImageKind.COVER) }
     }
 
-    LaunchedEffect(userId) { viewModel.load(userId) }
+    LaunchedEffect(userId, activeAccountId) { viewModel.load(userId, force = true) }
 
     val showTopTitle by remember {
         derivedStateOf {

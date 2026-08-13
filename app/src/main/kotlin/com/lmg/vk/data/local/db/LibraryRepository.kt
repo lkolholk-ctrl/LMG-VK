@@ -10,6 +10,7 @@ import com.lmg.vk.engine.VkAudioIdentity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -50,9 +51,7 @@ class LibraryRepository private constructor(context: Context) {
         // Load DB data asynchronously on IO
         CoroutineScope(Dispatchers.IO).launch {
             db.loadAsync()
-            // Sync PlayerController's in-memory favorite IDs after load
-            val ids = db.getFavoriteTrackIds()
-            PlayerController.setFavoriteIds(ids)
+            db.favoriteIdsFlow.collectLatest { ids -> PlayerController.setFavoriteIds(ids) }
         }
     }
 
@@ -132,6 +131,7 @@ class LibraryRepository private constructor(context: Context) {
         if (!MusicBackend.isInitialized || !MusicAuth.isLoggedIn.value) {
             return@withContext Result.success(Unit)
         }
+        CLOUD_SYNCS.incrementAndGet()
         try {
             // 1. Pull cloud likes
             val cloudLikes = mutableListOf<LibraryTrack>()
@@ -295,6 +295,8 @@ class LibraryRepository private constructor(context: Context) {
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
+        } finally {
+            CLOUD_SYNCS.decrementAndGet()
         }
     }
 
@@ -302,6 +304,8 @@ class LibraryRepository private constructor(context: Context) {
      * Like a track: immediate local insert, then background cloud sync.
      */
     suspend fun likeTrack(track: Track): Result<Unit> = withContext(Dispatchers.IO) {
+        CLOUD_SYNCS.incrementAndGet()
+        var asyncOwnsSyncGuard = false
         try {
             // Track.id может нести access_key третьим сегментом (owner_audio_key).
             // Разбираем ДО поиска в БД: там trackId хранится БЕЗ ключа, и поиск
@@ -362,6 +366,7 @@ class LibraryRepository private constructor(context: Context) {
             }
 
             // Asynchronously push to cloud
+            asyncOwnsSyncGuard = true
             CoroutineScope(Dispatchers.IO).launch {
                 try {
                     val addedId = MusicBackend.addTrackToLibrary(track.id)
@@ -371,12 +376,15 @@ class LibraryRepository private constructor(context: Context) {
                 } catch (_: Exception) {
                 } finally {
                     inFlight.remove(bareId)
+                    CLOUD_SYNCS.decrementAndGet()
                 }
             }
 
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
+        } finally {
+            if (!asyncOwnsSyncGuard) CLOUD_SYNCS.decrementAndGet()
         }
     }
 
@@ -384,6 +392,8 @@ class LibraryRepository private constructor(context: Context) {
      * Unlike a track: immediate local delete (soft), then background cloud sync.
      */
     suspend fun unlikeTrack(trackId: String): Result<Unit> = withContext(Dispatchers.IO) {
+        CLOUD_SYNCS.incrementAndGet()
+        var asyncOwnsSyncGuard = false
         try {
             val stableInputId = stableTrackId(trackId)
             val existing = db.getByTrackId(stableInputId) ?: return@withContext Result.success(Unit)
@@ -397,25 +407,31 @@ class LibraryRepository private constructor(context: Context) {
             updatePlayerControllerFavorites()
 
             // Asynchronously push delete to cloud
+            asyncOwnsSyncGuard = true
             CoroutineScope(Dispatchers.IO).launch {
                 // Та же защита, что у лайка: повторный audio.delete на уже
                 // удалённый трек — лишний запрос, а при гонке с очередью ещё и
                 // снос записи, которую пользователь успел вернуть.
-                if (!inFlight.add(localId)) return@launch
+                val ownsFlight = inFlight.add(localId)
                 try {
-                    val success = MusicBackend.unlikeTrack(cloudId)
-                    if (success) {
-                        db.deleteByTrackId(localId)
+                    if (ownsFlight) {
+                        val success = MusicBackend.unlikeTrack(cloudId)
+                        if (success) {
+                            db.deleteByTrackId(localId)
+                        }
                     }
                 } catch (_: Exception) {
                 } finally {
-                    inFlight.remove(localId)
+                    if (ownsFlight) inFlight.remove(localId)
+                    CLOUD_SYNCS.decrementAndGet()
                 }
             }
 
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
+        } finally {
+            if (!asyncOwnsSyncGuard) CLOUD_SYNCS.decrementAndGet()
         }
     }
 
@@ -510,6 +526,9 @@ class LibraryRepository private constructor(context: Context) {
     }
 
     companion object {
+        private val CLOUD_SYNCS = java.util.concurrent.atomic.AtomicInteger(0)
+        val isCloudSyncInProgress: Boolean get() = CLOUD_SYNCS.get() > 0
+
         @Volatile
         private var INSTANCE: LibraryRepository? = null
 

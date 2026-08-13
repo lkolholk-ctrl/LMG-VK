@@ -56,7 +56,8 @@ fun UserConnectionsScreen(
 ) {
     val colors = LiquidTheme.colors
     val state by viewModel.state.collectAsState()
-    LaunchedEffect(userId, kind) { viewModel.load(userId, kind) }
+    val activeAccountId by com.lmg.vk.engine.backend.MusicAuth.profileId.collectAsState()
+    LaunchedEffect(userId, kind, activeAccountId) { viewModel.load(userId, kind, force = true) }
 
     Box(Modifier.fillMaxSize().background(LiquidSurfaces.sheet(colors.isDark))) {
         when {

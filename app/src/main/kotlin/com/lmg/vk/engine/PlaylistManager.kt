@@ -18,7 +18,8 @@ object PlaylistManager {
 
     private lateinit var prefs: SharedPreferences
     private const val PREFS_NAME = "playlists"
-    private val pendingRemoteDeletes = linkedSetOf<String>()
+    data class PendingRemoteDelete(val ownerId: Long, val remoteId: String)
+    private val pendingRemoteDeletes = linkedSetOf<PendingRemoteDelete>()
 
     private fun safePrefs(): SharedPreferences? {
         return if (::prefs.isInitialized) prefs else null
@@ -43,6 +44,8 @@ object PlaylistManager {
         val coverTrackId: String?, // первый трек для обложки
         /** Полный VK id (`owner_id_playlist_id`), если локальная копия связана с облаком. */
         val remoteId: String? = null,
+        /** VK account that owns [remoteId]. Null only for legacy/local entries. */
+        val remoteOwnerId: Long? = null,
         /** Время последнего локального изменения. */
         val modifiedAt: Long = createdAt,
         /** Последний известный `update_time` VK в миллисекундах. */
@@ -187,30 +190,37 @@ object PlaylistManager {
         return _playlists.value.find { it.id == playlistId }
     }
 
-    fun getByRemoteId(remoteId: String): Playlist? =
-        _playlists.value.find { it.remoteId == remoteId }
+    fun getByRemoteId(remoteId: String, ownerId: Long? = null): Playlist? =
+        _playlists.value.find {
+            it.remoteId == remoteId && (ownerId == null || it.remoteOwnerId == ownerId)
+        }
 
-    fun pendingDeletes(): Set<String> = pendingRemoteDeletes.toSet()
+    fun pendingDeletes(ownerId: Long): Set<String> = pendingRemoteDeletes
+        .filterTo(linkedSetOf()) { it.ownerId == ownerId }
+        .mapTo(linkedSetOf()) { it.remoteId }
 
-    fun queueRemoteDelete(remoteId: String) {
-        pendingRemoteDeletes += remoteId
+    fun queueRemoteDelete(ownerId: Long, remoteId: String) {
+        if (ownerId == 0L) return
+        pendingRemoteDeletes += PendingRemoteDelete(ownerId, remoteId)
         savePendingDeletes()
         _changes.tryEmit(Unit)
     }
 
-    fun confirmRemoteDelete(remoteId: String) {
-        if (pendingRemoteDeletes.remove(remoteId)) savePendingDeletes()
+    fun confirmRemoteDelete(ownerId: Long, remoteId: String) {
+        if (pendingRemoteDeletes.remove(PendingRemoteDelete(ownerId, remoteId))) savePendingDeletes()
     }
 
     /** Связать созданный в VK плейлист с его локальным оригиналом. */
     fun markSynced(
         playlistId: String,
         remoteId: String,
+        remoteOwnerId: Long,
         remoteUpdatedAt: Long = System.currentTimeMillis(),
     ) {
         update(playlistId) {
             it.copy(
                 remoteId = remoteId,
+                remoteOwnerId = remoteOwnerId,
                 remoteUpdatedAt = remoteUpdatedAt,
                 lastSyncedAt = System.currentTimeMillis(),
             )
@@ -220,11 +230,12 @@ object PlaylistManager {
     /** Применить облачную версию, не помечая её новым локальным изменением. */
     fun applyRemote(
         remoteId: String,
+        remoteOwnerId: Long,
         name: String,
         tracks: List<PlaylistTrack>,
         remoteUpdatedAt: Long,
     ): Playlist {
-        val existing = getByRemoteId(remoteId)
+        val existing = getByRemoteId(remoteId, remoteOwnerId)
         val now = System.currentTimeMillis()
         val updated = if (existing != null) {
             existing.copy(
@@ -237,12 +248,13 @@ object PlaylistManager {
             )
         } else {
             Playlist(
-                id = "pl_vk_${remoteId.replace('-', '_')}",
+                id = "pl_vk_${remoteOwnerId}_${remoteId.replace('-', '_')}",
                 name = name,
                 tracks = tracks,
                 createdAt = now,
                 coverTrackId = tracks.firstOrNull()?.id,
                 remoteId = remoteId,
+                remoteOwnerId = remoteOwnerId,
                 modifiedAt = now,
                 remoteUpdatedAt = remoteUpdatedAt,
                 lastSyncedAt = now,
@@ -254,6 +266,21 @@ object PlaylistManager {
         _playlists.value = list
         saveToPrefs()
         return updated
+    }
+
+    /** Assign single-account legacy cloud links before adding a second account. */
+    fun claimLegacyRemoteOwnership(ownerId: Long) {
+        if (ownerId == 0L) return
+        var changed = false
+        _playlists.value = _playlists.value.map { playlist ->
+            if (playlist.remoteId != null && playlist.remoteOwnerId == null) {
+                changed = true
+                playlist.copy(remoteOwnerId = ownerId)
+            } else {
+                playlist
+            }
+        }
+        if (changed) saveToPrefs()
     }
 
     private fun update(playlistId: String, transform: (Playlist) -> Playlist) {
@@ -286,6 +313,7 @@ object PlaylistManager {
                 put("created", pl.createdAt)
                 put("cover", pl.coverTrackId ?: "")
                 put("remoteId", pl.remoteId ?: "")
+                put("remoteOwnerId", pl.remoteOwnerId ?: 0L)
                 put("modifiedAt", pl.modifiedAt)
                 put("remoteUpdatedAt", pl.remoteUpdatedAt)
                 put("lastSyncedAt", pl.lastSyncedAt)
@@ -309,7 +337,14 @@ object PlaylistManager {
         val p = safePrefs() ?: return
         p.edit().putString(
             "pending_remote_deletes",
-            JSONArray(pendingRemoteDeletes.toList()).toString(),
+            JSONArray().apply {
+                pendingRemoteDeletes.forEach { pending ->
+                    put(JSONObject().apply {
+                        put("ownerId", pending.ownerId)
+                        put("remoteId", pending.remoteId)
+                    })
+                }
+            }.toString(),
         ).apply()
     }
 
@@ -319,8 +354,11 @@ object PlaylistManager {
         runCatching {
             val pending = JSONArray(p.getString("pending_remote_deletes", "[]").orEmpty())
             for (i in 0 until pending.length()) {
-                pending.optString(i).takeIf { it.isNotBlank() }?.let {
-                    pendingRemoteDeletes.add(it)
+                val item = pending.optJSONObject(i) ?: continue
+                val ownerId = item.optLong("ownerId", 0L)
+                val remoteId = item.optString("remoteId", "")
+                if (ownerId != 0L && remoteId.isNotBlank()) {
+                    pendingRemoteDeletes.add(PendingRemoteDelete(ownerId, remoteId))
                 }
             }
         }
@@ -372,6 +410,7 @@ object PlaylistManager {
                     createdAt = createdAt,
                     coverTrackId = if (coverId.isEmpty()) null else coverId,
                     remoteId = remoteId.takeIf { it.isNotEmpty() },
+                    remoteOwnerId = obj.optLong("remoteOwnerId", 0L).takeIf { it != 0L },
                     modifiedAt = obj.optLong("modifiedAt", createdAt),
                     remoteUpdatedAt = obj.optLong("remoteUpdatedAt", 0L),
                     lastSyncedAt = obj.optLong("lastSyncedAt", 0L),

@@ -106,11 +106,12 @@ fun GroupScreen(
     val isDark = colors.isDark
     val listState = rememberLazyListState()
     val state by viewModel.state.collectAsState()
+    val activeAccountId by com.lmg.vk.engine.backend.MusicAuth.profileId.collectAsState()
 
     val window = com.lmg.vk.ui.rememberWindowInfo()
     val compact = window.useSideBySide
 
-    LaunchedEffect(ownerId) { viewModel.load(ownerId) }
+    LaunchedEffect(ownerId, activeAccountId) { viewModel.load(ownerId, force = true) }
 
     // Треки конвертируются один раз на изменение списка: маппинг заодно кладёт их
     // в кэш бэкенда, без него плеер полез бы за audio.getById.

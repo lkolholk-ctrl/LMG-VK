@@ -69,6 +69,7 @@ import com.lmg.vk.ui.icons.LmgDrawables
 import com.lmg.vk.ui.icons.lmgVector
 import com.lmg.vk.debug.DebugLog
 import com.lmg.vk.engine.backend.MusicAuth
+import com.lmg.vk.engine.backend.VkAccountSummary
 import com.lmg.vk.engine.backend.VkProfileRepository
 import com.lmg.vk.network.dto.VkFriend
 import com.lmg.vk.network.dto.VkGroup
@@ -102,6 +103,7 @@ fun ProfileScreen(
     onOpenPlaylist: (String) -> Unit = {},
     onOpenUserProfile: (Long) -> Unit = {},
     onOpenGroup: (Long) -> Unit = {},
+    onAddAccount: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -111,10 +113,14 @@ fun ProfileScreen(
     val fallbackName by MusicAuth.profileName.collectAsState()
     val fallbackAvatar by MusicAuth.avatarUrl.collectAsState()
     val fallbackDomain by MusicAuth.profileDomain.collectAsState()
+    val accounts by MusicAuth.accounts.collectAsState()
     val vk by VkProfileRepository.state.collectAsState()
     val ownerAudio by VkProfileRepository.ownerAudio.collectAsState()
 
     var showSignOutConfirmation by remember { mutableStateOf(false) }
+    var showAccountsDialog by remember { mutableStateOf(false) }
+    var accountPendingRemoval by remember { mutableStateOf<VkAccountSummary?>(null) }
+    var accountActionError by remember { mutableStateOf<String?>(null) }
     var friendsExpanded by remember { mutableStateOf(false) }
     var groupsExpanded by remember { mutableStateOf(false) }
     var playlistsExpanded by remember { mutableStateOf(false) }
@@ -217,18 +223,115 @@ fun ProfileScreen(
         AlertDialog(
             onDismissRequest = { showSignOutConfirmation = false },
             title = { Text("Sign out of VK?", fontFamily = VkSansDisplay, fontWeight = FontWeight.SemiBold) },
-            text = { Text("Your encrypted local VK session will be removed from this device.") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        if (accounts.size > 1) {
+                            "This account will be removed from the device and another saved account will become active."
+                        } else {
+                            "Your encrypted local VK session will be removed from this device."
+                        },
+                    )
+                    accountActionError?.let { Text(it, color = DestructiveRed, fontSize = 12.sp) }
+                }
+            },
             confirmButton = {
                 TextButton(
                     onClick = {
-                        showSignOutConfirmation = false
-                        MusicAuth.logout()
-                        onLogout()
+                        if (MusicAuth.logout()) {
+                            showSignOutConfirmation = false
+                            onLogout()
+                        } else {
+                            accountActionError = "Wait for library synchronization to finish"
+                        }
                     },
                 ) { Text("Sign out", color = DestructiveRed) }
             },
             dismissButton = {
                 TextButton(onClick = { showSignOutConfirmation = false }) { Text("Cancel") }
+            },
+        )
+    }
+
+    if (showAccountsDialog) {
+        AlertDialog(
+            onDismissRequest = { showAccountsDialog = false },
+            title = { Text("VK accounts", fontFamily = VkSansDisplay, fontWeight = FontWeight.SemiBold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    accounts.forEach { account ->
+                        AccountPickerRow(
+                            account = account,
+                            onSelect = {
+                                if (!account.isActive && MusicAuth.switchAccount(account.userId)) {
+                                    showAccountsDialog = false
+                                } else if (!account.isActive) {
+                                    accountActionError = "Wait for library synchronization to finish"
+                                }
+                            },
+                            onRemove = {
+                                accountActionError = null
+                                showAccountsDialog = false
+                                accountPendingRemoval = account
+                            },
+                        )
+                    }
+                    accountActionError?.let { error ->
+                        Text(
+                            error,
+                            color = DestructiveRed,
+                            fontFamily = VkSansText,
+                            fontSize = 12.sp,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        )
+                    }
+                    TextButton(
+                        onClick = {
+                            showAccountsDialog = false
+                            onAddAccount()
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Icon(
+                            lmgVector(LmgDrawables.UserAddOutline28),
+                            null,
+                            modifier = Modifier.size(19.dp),
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text("Add VK account")
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showAccountsDialog = false }) { Text("Close") }
+            },
+        )
+    }
+
+    accountPendingRemoval?.let { account ->
+        AlertDialog(
+            onDismissRequest = { accountPendingRemoval = null },
+            title = { Text("Remove ${account.displayName}?") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Only this encrypted session will be removed from the device.")
+                    accountActionError?.let { Text(it, color = DestructiveRed, fontSize = 12.sp) }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        if (MusicAuth.removeAccount(account.userId)) {
+                            accountPendingRemoval = null
+                            if (!MusicAuth.isLoggedIn.value) onLogout()
+                        } else {
+                            accountActionError = "Wait for library synchronization to finish"
+                        }
+                    },
+                ) { Text("Remove", color = DestructiveRed) }
+            },
+            dismissButton = {
+                TextButton(onClick = { accountPendingRemoval = null }) { Text("Cancel") }
             },
         )
     }
@@ -420,6 +523,21 @@ fun ProfileScreen(
                 ProfileCard {
                     if (isLoggedIn) {
                         ProfileNavigationRow(
+                            icon = lmgVector(LmgDrawables.Users3Outline28),
+                            label = "VK accounts",
+                            value = when (accounts.size) {
+                                0 -> "Add another account"
+                                1 -> "1 saved account"
+                                else -> "${accounts.size} saved accounts"
+                            },
+                            compact = compact,
+                            onClick = {
+                                accountActionError = null
+                                showAccountsDialog = true
+                            },
+                        )
+                        ProfileDivider()
+                        ProfileNavigationRow(
                             icon = com.lmg.vk.ui.icons.LmgGlyphs.RefreshOutline28,
                             label = "Refresh profile",
                             value = if (vk.isRefreshing || vk.isLoading) {
@@ -517,7 +635,10 @@ fun ProfileScreen(
                             icon = lmgVector(LmgDrawables.DoorArrowLeftOutline28),
                             label = "Sign Out",
                             compact = compact,
-                            onClick = { showSignOutConfirmation = true },
+                            onClick = {
+                                accountActionError = null
+                                showSignOutConfirmation = true
+                            },
                         )
                     } else {
                         ProfileNavigationRow(
@@ -705,6 +826,77 @@ fun ProfileScreen(
                 state = audioState,
                 onBack = { VkProfileRepository.closeOwnerAudio() },
             )
+        }
+    }
+}
+
+@Composable
+private fun AccountPickerRow(
+    account: VkAccountSummary,
+    onSelect: () -> Unit,
+    onRemove: () -> Unit,
+) {
+    val colors = LiquidTheme.colors
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .liquidClickable(onClick = onSelect)
+            .padding(horizontal = 8.dp, vertical = 7.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(42.dp)
+                .clip(CircleShape)
+                .background(colors.textTertiary.copy(alpha = 0.12f)),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (account.avatarUrl.isNotBlank()) {
+                AsyncImage(
+                    model = ImageRequest.Builder(LocalContext.current)
+                        .data(account.avatarUrl)
+                        .crossfade(true)
+                        .build(),
+                    contentDescription = account.displayName,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            } else {
+                Icon(
+                    com.lmg.vk.ui.icons.LmgGlyphs.UserOutline28,
+                    null,
+                    tint = colors.iconMuted,
+                    modifier = Modifier.size(22.dp),
+                )
+            }
+        }
+        Spacer(Modifier.width(10.dp))
+        Column(Modifier.weight(1f)) {
+            Text(
+                account.displayName,
+                fontFamily = VkSansText,
+                color = colors.textPrimary,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 14.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                when {
+                    account.isActive -> "Active"
+                    account.isExpired -> "Sign-in expired"
+                    account.username.isNotBlank() -> "vk.com/${account.username}"
+                    else -> "VK ID ${account.userId}"
+                },
+                fontFamily = VkSansText,
+                color = colors.textSecondary,
+                fontSize = 12.sp,
+                maxLines = 1,
+            )
+        }
+        TextButton(onClick = onRemove) {
+            Text("Remove", color = DestructiveRed, fontSize = 12.sp)
         }
     }
 }

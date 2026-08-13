@@ -32,6 +32,7 @@ import com.lmg.vk.network.proxy.VkProxyRepository
 import com.lmg.vk.network.proxy.installVkProxy
 import com.lmg.vk.ui.DeviceTier
 import com.lmg.vk.ui.PowerSaveMonitor
+import com.lmg.vk.widget.VkMusicWidget
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -212,8 +213,12 @@ class LmgApplication : Application(), ImageLoaderFactory {
             }
         }
         appScope.launch {
-            MusicAuth.isLoggedIn.collectLatest { loggedIn ->
-                if (loggedIn) runCatching { PlaylistSyncManager.sync() }
+            MusicAuth.profileId.collectLatest { userId ->
+                VkMusicWidget.refreshAll(this@LmgApplication)
+                if (userId != null) {
+                    runCatching { PlaylistSyncManager.sync() }
+                    runCatching { LibraryRepository.getInstance(this@LmgApplication).syncWithCloud() }
+                }
             }
         }
         appScope.launch {

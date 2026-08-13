@@ -134,6 +134,7 @@ class HomeViewModel : ViewModel() {
 
     /** Когда /home успешно загружен из сети (для TTL в loadHomeContent). */
     private var homeLoadedAtMs = 0L
+    private var loadedHomeAccountId = Long.MIN_VALUE
 
     private companion object {
         const val HOME_TTL_MS = 5 * 60_000L
@@ -217,7 +218,14 @@ class HomeViewModel : ViewModel() {
      * Load home content — offline first.
      */
     fun loadHomeContent(force: Boolean = false) {
-        if (!force && homeLoadJob?.isActive == true) {
+        val accountId = MusicAuth.profileId.value ?: 0L
+        val accountChanged = loadedHomeAccountId != accountId
+        if (accountChanged) {
+            loadedHomeAccountId = accountId
+            _homeContent.value = null
+            homeLoadedAtMs = 0L
+        }
+        if (!force && !accountChanged && homeLoadJob?.isActive == true) {
             Log.d("HomeViewModel", "loadHomeContent ignored: already active; active=${activeLoadCount()}")
             return
         }
@@ -232,7 +240,7 @@ class HomeViewModel : ViewModel() {
             return
         }
         homeLoadJob?.cancel()
-        if (force) {
+        if (force || accountChanged) {
             // A forced catalog refresh can reuse block ids with completely new
             // cursors. Keeping derived pages from the previous response would
             // make the sheet append stale items or request an obsolete cursor.
@@ -259,7 +267,7 @@ class HomeViewModel : ViewModel() {
         homeLoadJob = viewModelScope.launch {
             Log.d("HomeViewModel", "homeLoadJob started; active=${activeLoadCount()}")
             try {
-                val cached = HomeCacheManager.load()
+                val cached = HomeCacheManager.load(accountId)
                 if (cached != null && _homeContent.value == null) {
                     _homeContent.value = cached
                     _selectedHomeSectionId.value = cached.selectedSectionId
@@ -269,6 +277,7 @@ class HomeViewModel : ViewModel() {
                 repeat(3) { attempt ->
                     try {
                         val response = MusicBackend.loadHomeContent()
+                        if ((MusicAuth.profileId.value ?: 0L) != accountId) return@launch
                         _homeContent.value = response
                         _selectedHomeSectionId.value = response.selectedSectionId
                         response.selectedSectionId?.let { sectionId ->
@@ -279,7 +288,7 @@ class HomeViewModel : ViewModel() {
                         }
                         homeLoadedAtMs = System.currentTimeMillis()
                         _error.value = null
-                        HomeCacheManager.save(response)
+                        HomeCacheManager.save(response, accountId)
                         // The home response already contains its charts block. Do not issue
                         // another chart search unless that block is genuinely absent.
                         if (response.blocks.none { it.type == "charts" }) loadCharts()

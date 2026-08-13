@@ -70,6 +70,9 @@ class VkAuthApi(
         return when (val result = client.execute(method)) {
             is VkResult.Success -> {
                 val token = result.data.firstOrNull() ?: return false
+                // Account could be switched while refresh was in flight. Never
+                // reactivate the old session with a late response.
+                if (sessionStore.session.userId != session.userId) return false
                 val nowSeconds = System.currentTimeMillis() / 1000
                 sessionStore.session = session.copy(
                     accessToken = token.accessToken,

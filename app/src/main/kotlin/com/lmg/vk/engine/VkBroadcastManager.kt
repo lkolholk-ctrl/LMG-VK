@@ -53,6 +53,7 @@ object VkBroadcastManager {
      * роль играл `lastWidgetTrackId`-подобный дедуп на уровне сервиса.
      */
     private var broadcastedId: String? = null
+    private var broadcastedUserId: Long? = null
 
     private val api: VkAudioApi by lazy { VkAudioApi(VkApiLocator.apiClient()) }
 
@@ -70,11 +71,12 @@ object VkBroadcastManager {
             combine(
                 PlayerController.currentTrack,
                 AppSettings.broadcastToStatus,
-            ) { track, enabled ->
-                if (enabled) broadcastableId(track) else null
+                MusicAuth.profileId,
+            ) { track, enabled, userId ->
+                userId to if (enabled) broadcastableId(track) else null
             }
                 .distinctUntilChanged()
-                .collect { targetId -> push(targetId) }
+                .collect { (userId, targetId) -> push(targetId, userId) }
         }
     }
 
@@ -105,16 +107,16 @@ object VkBroadcastManager {
      * пишем в лог и живём дальше. VK X здесь делает то же самое: вызов обёрнут в
      * `try { ... } finally { return; }`, то есть исключение проглатывается.
      */
-    private suspend fun push(audioFullId: String?) {
+    private suspend fun push(audioFullId: String?, userId: Long?) {
         // Незалогиненному ставить статус некуда. В VK X тот же гейт —
         // `C14027e.ad()` (user_id != 0) перед созданием запроса.
-        val userId = MusicAuth.profileId.value ?: return
-        if (userId == 0L) return
+        if (userId == null || userId == 0L) return
         mutex.withLock {
-            if (broadcastedId == audioFullId) return@withLock
+            if (broadcastedUserId == userId && broadcastedId == audioFullId) return@withLock
             try {
                 when (val result = api.setBroadcast(audioFullId, userId)) {
                     is VkResult.Success -> {
+                        broadcastedUserId = userId
                         broadcastedId = audioFullId
                         DebugLog.add(
                             if (audioFullId == null) "broadcast: статус снят"

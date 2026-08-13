@@ -88,7 +88,10 @@ fun NewScreen(
     onOpenSnippets: () -> Unit = {},
 ) {
     val context = LocalContext.current
-    LaunchedEffect(viewModel) { viewModel.loadHomeContent() }
+    val activeAccountId by com.lmg.vk.engine.backend.MusicAuth.profileId.collectAsState()
+    LaunchedEffect(viewModel, activeAccountId) {
+        viewModel.loadHomeContent(force = activeAccountId != null)
+    }
     // Список скрытых баннеров нужен до первой отрисовки блоков, иначе закрытый
     // баннер мигнёт при заходе на экран.
     LaunchedEffect(Unit) { NewDismissedBanners.init(context) }

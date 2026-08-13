@@ -260,6 +260,8 @@ class VkApiClient(
     // ------------------------------------------------------------------
 
     /** Возвращает валидный access_token; при истечении — обновляет под mutex. */
+    val currentUserId: Long get() = sessionStore.session.userId
+
     suspend fun getValidToken(): String {
         val current = sessionStore.session
         // VK может вернуть expires_in=0: это означает, что явный срок жизни
@@ -313,6 +315,13 @@ interface MayCarryVkError {
 /** Хранилище сессии (в jadx поля `billing`/`metrica` клиента + C6594e-флоу). */
 interface VkSessionStore {
     var session: VkAuthSession
+}
+
+/** Optional multi-account capabilities; VkApiClient still consumes one active session. */
+interface VkMultiSessionStore : VkSessionStore {
+    val sessions: List<VkAuthSession>
+    fun activate(userId: Long): VkAuthSession?
+    fun remove(userId: Long): VkAuthSession
 }
 
 /** Обёртка Ktor HttpResponse под [RawHttpResponse]. */

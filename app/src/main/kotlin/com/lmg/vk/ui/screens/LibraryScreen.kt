@@ -162,6 +162,7 @@ fun LibraryScreen(
 
     // Imported state
     val isLoggedIn by MusicAuth.isLoggedIn.collectAsState()
+    val activeAccountId by MusicAuth.profileId.collectAsState()
     var importedPlaylists by remember { mutableStateOf<List<com.lmg.vk.engine.backend.UserPlaylist>>(emptyList()) }
     var isPlaylistsLoading by remember { mutableStateOf(false) }
     var showCreatePlaylistDialog by remember { mutableStateOf(false) }
@@ -169,18 +170,22 @@ fun LibraryScreen(
     val playlistSyncState by PlaylistSyncManager.state.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
 
-    val allPlaylistCells = remember(localPlaylists, importedPlaylists) {
-        val linkedRemoteIds = localPlaylists.mapNotNull { it.remoteId }.toSet()
+    val allPlaylistCells = remember(localPlaylists, importedPlaylists, activeAccountId) {
+        val linkedRemoteIds = localPlaylists
+            .filter { it.remoteOwnerId == activeAccountId }
+            .mapNotNull { it.remoteId }
+            .toSet()
         localPlaylists.map { p ->
+            val syncedToActiveAccount = p.remoteId != null && p.remoteOwnerId == activeAccountId
             PlaylistCellData(
                 key = "local_${p.id}",
                 id = p.id,
                 name = p.name,
                 trackCount = p.tracks.size,
                 covers = p.tracks.mapNotNull { it.coverUrl }.distinct().take(4),
-                badge = if (p.remoteId != null) "Synced" else "Local",
+                badge = if (syncedToActiveAccount) "Synced" else "Local",
                 isImported = false,
-                isCloud = p.remoteId != null,
+                isCloud = syncedToActiveAccount,
             )
         } + importedPlaylists.filterNot { playlist ->
             playlist.id?.let { it in linkedRemoteIds } == true
@@ -235,11 +240,12 @@ fun LibraryScreen(
         }
     }
 
-    LaunchedEffect(isLoggedIn) {
+    LaunchedEffect(isLoggedIn, activeAccountId) {
+        importedPlaylists = emptyList()
         loadImportedPlaylists()
     }
 
-    LaunchedEffect(libraryQuery, isLoggedIn) {
+    LaunchedEffect(libraryQuery, isLoggedIn, activeAccountId) {
         viewModel.searchCurrentProfile(if (isLoggedIn) libraryQuery else "")
     }
 
