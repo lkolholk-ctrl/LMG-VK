@@ -50,7 +50,7 @@ data class RadioStation(
     val logo_png_url: String? = null,
     val background_color: String? = null,
     val is_followed: Boolean = false,
-    val is_enabled: Boolean = false,
+    val is_enabled: Boolean? = null,
     val stream_url: String? = null,
 ) {
     /** liked — рантайм-поле (в адаптере вычисляется, не из JSON). */

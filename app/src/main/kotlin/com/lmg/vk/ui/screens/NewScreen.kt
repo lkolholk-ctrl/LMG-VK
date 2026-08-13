@@ -103,6 +103,11 @@ fun NewScreen(
     val selectedTabs by viewModel.selectedTab.collectAsState()
     val blockPaging by viewModel.blockPaging.collectAsState()
     val loadingSignalBlocks by viewModel.loadingSignalBlocks.collectAsState()
+    val isLoadingHomeSection by viewModel.isLoadingHomeSection.collectAsState()
+    val isLoadingMoreHomeSection by viewModel.isLoadingMoreHomeSection.collectAsState()
+    val homeSectionError by viewModel.homeSectionError.collectAsState()
+    val selectedHomeSectionId by viewModel.selectedHomeSectionId.collectAsState()
+    val catalogSectionState by viewModel.catalogSectionState.collectAsState()
     val homeBlocks = remember(homeContent) {
         homeContent?.blocks?.filter {
             // Блок табов элементов не несёт — его «содержимое» это сами табы.
@@ -139,6 +144,13 @@ fun NewScreen(
                 options = homeItem.streamMixOptions,
                 resolveSettings = homeItem.streamMixResolveSettings,
             )
+            homeItem.isRadio && homeItem.isAvailable -> PlayerController.playFromList(
+                context = context,
+                tracks = listOf(homeItem.toTrack()),
+                playbackContext = homeItem.catalogBlockId
+                    ?.takeIf(String::isNotBlank)
+                    ?.let { PlaybackContext.Catalog(it) },
+            )
             homeItem.isMusicOwner -> homeItem.musicOwnerId?.let(onNavigateToMusicOwner)
             homeItem.isCustom -> Unit
             homeItem.isArtist -> onNavigateToArtist(homeItem.artistId ?: homeItem.id)
@@ -165,18 +177,26 @@ fun NewScreen(
             item {
                 NewScreenHeader(
                     compact = compact,
-                    // Закрытые баннеры вычитаем здесь, а не в homeBlocks: список
-                    // скрытых меняется по нажатию крестика, а `remember(homeContent)`
-                    // на это не пересчитался бы — число в шапке осталось бы прежним
-                    // до перезагрузки выдачи.
-                    sectionCount = homeBlocks.count { block ->
-                        block.layoutName != "close_catalog_banner" ||
-                            !NewDismissedBanners.isDismissed(block.id)
-                    },
+                    sectionTitle = homeContent?.sections
+                        ?.firstOrNull { it.id == selectedHomeSectionId }
+                        ?.title,
                     updatedAt = homeContent?.updatedAt,
                     isLoading = isLoading,
                     onRefresh = { viewModel.loadHomeContent(force = true) },
                 )
+            }
+
+            if (homeContent?.sections.orEmpty().size > 1) {
+                item(key = "root_sections") {
+                    NewRootSectionTabs(
+                        sections = homeContent?.sections.orEmpty(),
+                        selectedId = selectedHomeSectionId,
+                        enabled = !isLoadingHomeSection,
+                        compact = compact,
+                        onSelect = viewModel::selectHomeSection,
+                    )
+                    Spacer(Modifier.height(if (compact) 12.dp else 18.dp))
+                }
             }
 
             // При обновлении не прячем уже полученную VK-выдачу: тонкая полоса
@@ -204,9 +224,20 @@ fun NewScreen(
             }
 
             // Скелетоны только для подтверждённой VK catalog выдачи.
-            if (homeBlocks.isEmpty() && isLoading) {
+            if ((homeBlocks.isEmpty() && isLoading) || isLoadingHomeSection) {
                 items(count = 2, key = { "skeleton_$it" }) {
                     NewSectionSkeleton()
+                    Spacer(Modifier.height(sectionGap))
+                }
+            }
+
+            homeSectionError?.let { message ->
+                item(key = "section_error") {
+                    NewInlineError(
+                        message = message,
+                        compact = compact,
+                        onRetry = viewModel::retryHomeSection,
+                    )
                     Spacer(Modifier.height(sectionGap))
                 }
             }
@@ -256,7 +287,7 @@ fun NewScreen(
             }
 
             // ── Блоки CatalogKit в исходном серверном порядке. ──
-            homeBlocks.forEach { block ->
+            if (!isLoadingHomeSection) homeBlocks.forEach { block ->
                 item(key = "block_${block.id}") {
                     NewCatalogBlock(
                         block = block,
@@ -270,11 +301,40 @@ fun NewScreen(
                         onPlaySignal = { signal, seedTrackId ->
                             viewModel.startCatalogSignal(context, signal, seedTrackId)
                         },
+                        onPlayBlock = { block, seedTrackId ->
+                            viewModel.startCatalogBlock(context, block, seedTrackId)
+                        },
+                        onOpenSection = { sectionId, title ->
+                            viewModel.openCatalogSection(sectionId, title)
+                        },
                         loadingSignalBlocks = loadingSignalBlocks,
                         onOpenSheet = { sectionSheetBlock = it },
                         onOpenSnippets = onOpenSnippets,
                     )
                     Spacer(Modifier.height(sectionGap))
+                }
+            }
+
+
+            if (!isLoadingHomeSection && !homeContent?.sectionNextFrom.isNullOrBlank()) {
+                item(key = "section_next_${homeContent?.sectionNextFrom}") {
+                    LaunchedEffect(homeContent?.selectedSectionId, homeContent?.sectionNextFrom) {
+                        viewModel.loadMoreHomeSection()
+                    }
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = if (isLoadingMoreHomeSection) 18.dp else 1.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        if (isLoadingMoreHomeSection) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(22.dp),
+                                strokeWidth = 2.dp,
+                                color = lc.accent,
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -286,8 +346,25 @@ fun NewScreen(
                 onLoadMore = { viewModel.loadMoreBlockItems(block) },
                 onRetryLoadMore = { viewModel.retryBlockItems(block) },
                 onDismiss = { sectionSheetBlock = null },
+                onPlayBlock = {
+                    viewModel.startCatalogBlock(context, block)
+                    sectionSheetBlock = null
+                },
                 onItemClick = { item ->
                     sectionSheetBlock = null
+                    onItemClick(item)
+                },
+            )
+        }
+        if (catalogSectionState !is com.lmg.vk.ui.viewmodel.CatalogSectionUiState.Idle) {
+            NewCatalogSectionSheet(
+                state = catalogSectionState,
+                compact = compact,
+                onDismiss = viewModel::closeCatalogSection,
+                onRetry = viewModel::retryCatalogSection,
+                onLoadMore = viewModel::loadMoreCatalogSection,
+                onItemClick = { item ->
+                    viewModel.closeCatalogSection()
                     onItemClick(item)
                 },
             )
@@ -317,14 +394,37 @@ private fun NewCatalogBlock(
     onRetryTab: (String) -> Unit,
     onItemClick: (com.lmg.vk.engine.backend.HomeItem) -> Unit,
     onPlaySignal: (com.lmg.vk.engine.backend.HomeSignalInfo, String?) -> Unit,
+    onPlayBlock: (com.lmg.vk.engine.backend.HomeBlock, String?) -> Unit,
+    onOpenSection: (String, String) -> Unit,
     loadingSignalBlocks: Set<String>,
     onOpenSheet: (com.lmg.vk.engine.backend.HomeBlock) -> Unit,
     onOpenSnippets: () -> Unit = {},
     allowTabs: Boolean = true,
 ) {
+    val context = LocalContext.current
     val title = block.title.takeUnless {
         it == "VK Музыка" && block.layoutName.isNotBlank()
     }
+    val openBlock: () -> Unit = {
+        val sectionId = block.actions.openSectionId
+            ?: block.signalInfo?.openSectionId
+        if (!sectionId.isNullOrBlank()) {
+            onOpenSection(
+                sectionId,
+                block.actions.openSectionTitle ?: block.signalInfo?.title ?: block.title,
+            )
+        } else {
+            onOpenSheet(block)
+        }
+    }
+    val playBlock: (() -> Unit)? = block.actions.playBlockId
+        ?.takeIf(String::isNotBlank)
+        ?.let { { onPlayBlock(block, null) } }
+    val isBlockLoading = block.actions.playBlockId
+        ?.let(loadingSignalBlocks::contains) == true
+    val canOpenBlock = !block.actions.openSectionId.isNullOrBlank() ||
+        !block.signalInfo?.openSectionId.isNullOrBlank() ||
+        !block.nextFrom.isNullOrBlank()
     when {
         block.signalInfo != null -> {
             val signal = block.signalInfo
@@ -333,7 +433,93 @@ private fun NewCatalogBlock(
                 compact = compact,
                 isLoading = signal.playBlockId?.let(loadingSignalBlocks::contains) == true,
                 onPlay = { seedTrackId -> onPlaySignal(signal, seedTrackId) },
+                onOpen = openBlock.takeIf { !signal.openSectionId.isNullOrBlank() },
             )
+        }
+
+        block.isAudioCatalogBlock() -> {
+            NewSectionHeader(
+                title = title,
+                compact = compact,
+                itemCount = block.items.size,
+                showOpenButton = canOpenBlock,
+                onPlay = playBlock,
+                playShuffled = block.actions.shuffled,
+                isPlayLoading = isBlockLoading,
+                onClick = openBlock,
+            )
+            NewTrackColumns(
+                blockId = block.id,
+                homeItems = block.items,
+                compact = compact,
+                showRank = block.layoutName.startsWith("music_chart"),
+                onItemClick = onItemClick,
+            )
+        }
+
+        block.isPeopleCatalogBlock() -> {
+            NewSectionHeader(
+                title = title,
+                compact = compact,
+                itemCount = block.items.size,
+                showOpenButton = canOpenBlock,
+                onPlay = playBlock,
+                playShuffled = block.actions.shuffled,
+                isPlayLoading = isBlockLoading,
+                onClick = openBlock,
+            )
+            LazyRow(
+                contentPadding = PaddingValues(horizontal = 20.dp),
+                horizontalArrangement = Arrangement.spacedBy(if (compact) 14.dp else 18.dp),
+            ) {
+                items(block.items, key = { "${block.id}_${it.id}" }) { item ->
+                    NewCuratorCard(item, compact) { onItemClick(item) }
+                }
+            }
+        }
+
+        block.isCollectionCatalogBlock() || block.isRadioCatalogBlock() -> {
+            NewSectionHeader(
+                title = title,
+                compact = compact,
+                itemCount = block.items.size,
+                showOpenButton = canOpenBlock,
+                onPlay = playBlock,
+                playShuffled = block.actions.shuffled,
+                isPlayLoading = isBlockLoading,
+                onClick = openBlock,
+            )
+            LazyRow(
+                contentPadding = PaddingValues(horizontal = 20.dp),
+                horizontalArrangement = Arrangement.spacedBy(rowGap),
+            ) {
+                itemsIndexed(block.items, key = { _, item -> "${block.id}_${item.id}" }) { _, item ->
+                    NewTrackCard(
+                        title = item.title,
+                        subtitle = item.subtitle ?: item.artist
+                            ?: if (item.isRadio) "Радио VK" else item.displayArtist,
+                        coverUrl = item.cover,
+                        compact = compact,
+                        enabled = item.isInteractive && item.isAvailable,
+                        onClick = {
+                            if (item.isRadio) {
+                                val stations = block.items.filter { it.isRadio && it.isAvailable }
+                                val startIndex = stations.indexOfFirst { it.id == item.id }
+                                if (startIndex >= 0) {
+                                    PlayerController.playFromList(
+                                        context = context,
+                                        tracks = stations.map { it.toTrack() },
+                                        startIndex = startIndex,
+                                        playbackContext = PlaybackContext.Catalog(block.id),
+                                    )
+                                }
+                            } else {
+                                onItemClick(item)
+                            }
+                        },
+                    )
+                }
+            }
         }
 
         block.layoutName == "close_catalog_banner" -> {
@@ -344,7 +530,8 @@ private fun NewCatalogBlock(
                     title = title,
                     compact = compact,
                     itemCount = block.items.size,
-                    onClick = { onOpenSheet(block) },
+                    showOpenButton = canOpenBlock,
+                    onClick = openBlock,
                 )
                 block.items.firstOrNull()?.let { homeItem ->
                     NewCloseableBanner(
@@ -377,6 +564,8 @@ private fun NewCatalogBlock(
                     onRetryTab = onRetryTab,
                     onItemClick = onItemClick,
                     onPlaySignal = onPlaySignal,
+                    onPlayBlock = onPlayBlock,
+                    onOpenSection = onOpenSection,
                     loadingSignalBlocks = loadingSignalBlocks,
                     onOpenSheet = onOpenSheet,
                 )
@@ -416,7 +605,11 @@ private fun NewCatalogBlock(
                 title = title,
                 compact = compact,
                 itemCount = block.items.size,
-                onClick = { onOpenSheet(block) },
+                showOpenButton = canOpenBlock,
+                onPlay = playBlock,
+                playShuffled = block.actions.shuffled,
+                isPlayLoading = isBlockLoading,
+                onClick = openBlock,
             )
             // У «слайдерных» баннеров элементов больше одного, и
             // раньше все кроме первого просто терялись. Один
@@ -441,7 +634,11 @@ private fun NewCatalogBlock(
                 title = title,
                 compact = compact,
                 itemCount = block.items.size,
-                onClick = { onOpenSheet(block) },
+                showOpenButton = canOpenBlock,
+                onPlay = playBlock,
+                playShuffled = block.actions.shuffled,
+                isPlayLoading = isBlockLoading,
+                onClick = openBlock,
             )
             NewTrackColumns(
                 blockId = block.id,
@@ -457,7 +654,11 @@ private fun NewCatalogBlock(
                 title = title,
                 compact = compact,
                 itemCount = block.items.size,
-                onClick = { onOpenSheet(block) },
+                showOpenButton = canOpenBlock,
+                onPlay = playBlock,
+                playShuffled = block.actions.shuffled,
+                isPlayLoading = isBlockLoading,
+                onClick = openBlock,
             )
             LazyRow(
                 contentPadding = PaddingValues(horizontal = 20.dp),
@@ -479,7 +680,11 @@ private fun NewCatalogBlock(
                 title = title,
                 compact = compact,
                 itemCount = block.items.size,
-                onClick = { onOpenSheet(block) },
+                showOpenButton = canOpenBlock,
+                onPlay = playBlock,
+                playShuffled = block.actions.shuffled,
+                isPlayLoading = isBlockLoading,
+                onClick = openBlock,
             )
             NewDoubleGrid(
                 blockId = block.id,
@@ -495,7 +700,11 @@ private fun NewCatalogBlock(
                 title = title,
                 compact = compact,
                 itemCount = block.items.size,
-                onClick = { onOpenSheet(block) },
+                showOpenButton = canOpenBlock,
+                onPlay = playBlock,
+                playShuffled = block.actions.shuffled,
+                isPlayLoading = isBlockLoading,
+                onClick = openBlock,
             )
             LazyRow(
                 contentPadding = PaddingValues(horizontal = 20.dp),
@@ -518,7 +727,11 @@ private fun NewCatalogBlock(
                 title = title,
                 compact = compact,
                 itemCount = block.items.size,
-                onClick = { onOpenSheet(block) },
+                showOpenButton = canOpenBlock,
+                onPlay = playBlock,
+                playShuffled = block.actions.shuffled,
+                isPlayLoading = isBlockLoading,
+                onClick = openBlock,
             )
             LazyRow(
                 contentPadding = PaddingValues(horizontal = 20.dp),
@@ -570,6 +783,7 @@ private fun NewSignalCard(
     compact: Boolean,
     isLoading: Boolean,
     onPlay: (String?) -> Unit,
+    onOpen: (() -> Unit)?,
 ) {
     val signal = block.signalInfo ?: return
     val lc = LiquidTheme.colors
@@ -594,7 +808,9 @@ private fun NewSignalCard(
                 modifier = Modifier
                     .size(coverSize)
                     .clip(RoundedCornerShape(if (compact) 16.dp else 20.dp))
-                    .clickable(enabled = canPlay) { onPlay(null) },
+                    .clickable(enabled = onOpen != null || canPlay) {
+                        if (onOpen != null) onOpen() else onPlay(null)
+                    },
                 placeholderIconSize = if (compact) 28.dp else 32.dp,
             )
             Column(
@@ -677,11 +893,47 @@ private fun NewSignalCard(
     }
 }
 
-/** Заголовок New с обновлением и кратким состоянием реального VK-каталога. */
+/** Root Catalog2 sections: one selected showcase, as in the official client. */
+@Composable
+private fun NewRootSectionTabs(
+    sections: List<com.lmg.vk.engine.backend.HomeCatalogSection>,
+    selectedId: String?,
+    enabled: Boolean,
+    compact: Boolean,
+    onSelect: (String) -> Unit,
+) {
+    val lc = LiquidTheme.colors
+    LazyRow(
+        contentPadding = PaddingValues(horizontal = 20.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        items(sections, key = { it.id }) { section ->
+            val selected = section.id == selectedId
+            Text(
+                text = section.title,
+                color = if (selected) lc.accent else lc.textSecondary,
+                fontSize = if (compact) 12.sp else 13.sp,
+                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+                fontFamily = AppFontFamily,
+                maxLines = 1,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(50))
+                    .background(
+                        if (selected) lc.accent.copy(alpha = 0.14f)
+                        else LiquidSurfaces.card(lc.isDark),
+                    )
+                    .clickable(enabled = enabled && !selected) { onSelect(section.id) }
+                    .padding(horizontal = 14.dp, vertical = if (compact) 8.dp else 9.dp),
+            )
+        }
+    }
+}
+
+/** Заголовок New с выбранной серверной витриной и временем обновления. */
 @Composable
 private fun NewScreenHeader(
     compact: Boolean,
-    sectionCount: Int,
+    sectionTitle: String?,
     updatedAt: Long?,
     isLoading: Boolean,
     onRefresh: () -> Unit,
@@ -709,12 +961,12 @@ private fun NewScreenHeader(
                     fontWeight = FontWeight.Bold,
                     fontFamily = VkSansDisplay,
                 )
-                if (sectionCount > 0 || updatedAt != null) {
+                if (!sectionTitle.isNullOrBlank() || updatedAt != null) {
                     Text(
                         text = buildString {
-                            if (sectionCount > 0) append("$sectionCount ${newSectionsWord(sectionCount)} VK")
+                            append(sectionTitle?.takeIf(String::isNotBlank) ?: "Каталог VK Музыки")
                             formatNewUpdatedAt(updatedAt)?.let {
-                                if (isNotEmpty()) append("  ·  ")
+                                append("  ·  ")
                                 append(it)
                             }
                         },
@@ -913,6 +1165,9 @@ private fun NewSectionHeader(
     itemCount: Int = 0,
     /** Блок табов открывать в шторке нечего — там был бы пустой список. */
     showOpenButton: Boolean = true,
+    onPlay: (() -> Unit)? = null,
+    playShuffled: Boolean = false,
+    isPlayLoading: Boolean = false,
     onClick: () -> Unit = {},
 ) {
     if (title.isNullOrBlank()) return
@@ -931,6 +1186,36 @@ private fun NewSectionHeader(
             fontFamily = if (compact) AppFontFamily else VkSansDisplay,
             modifier = Modifier.weight(1f),
         )
+        if (onPlay != null) {
+            Box(
+                modifier = Modifier
+                    .padding(end = 8.dp)
+                    .size(if (compact) 40.dp else 44.dp)
+                    .clip(RoundedCornerShape(50))
+                    .background(LiquidTheme.colors.accent.copy(alpha = 0.14f))
+                    .clickable(enabled = !isPlayLoading, onClick = onPlay),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (isPlayLoading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(if (compact) 18.dp else 20.dp),
+                        strokeWidth = 2.dp,
+                        color = LiquidTheme.colors.accent,
+                    )
+                } else {
+                    Icon(
+                        imageVector = if (playShuffled) {
+                            com.lmg.vk.ui.icons.LmgGlyphs.ShuffleOutline28
+                        } else {
+                            com.lmg.vk.ui.icons.LmgGlyphs.Play28
+                        },
+                        contentDescription = if (playShuffled) "Перемешать раздел" else "Слушать раздел",
+                        tint = LiquidTheme.colors.accent,
+                        modifier = Modifier.size(if (compact) 19.dp else 21.dp),
+                    )
+                }
+            }
+        }
         if (showOpenButton) {
             Box(
                 modifier = Modifier
@@ -966,6 +1251,7 @@ private fun NewSectionSheet(
     onLoadMore: () -> Unit,
     onRetryLoadMore: () -> Unit,
     onDismiss: () -> Unit,
+    onPlayBlock: () -> Unit,
     onItemClick: (com.lmg.vk.engine.backend.HomeItem) -> Unit,
 ) {
     val lc = LiquidTheme.colors
@@ -1032,51 +1318,42 @@ private fun NewSectionSheet(
                         // Пока курсор жив, точное число элементов неизвестно —
                         // «+» честнее, чем выдавать первую порцию за весь список.
                         if (hasCursor && !exhausted) append("+")
-                        if (block.layoutName.isNotBlank()) append("  ·  ${newLayoutLabel(block.layoutName)}")
-                        // Техническое имя layout'а рядом с человеческим: без него
-                        // невозможно понять, ЧТО именно присылает VK этому
-                        // аккаунту, а от layoutName зависит вся вёрстка блока.
-                        // Прочитать выдачу иначе нечем — токен лежит в шифрованном
-                        // хранилище приложения.
-                        if (block.layoutName.isNotBlank()) append("  ·  ${block.layoutName}")
                     },
                     color = lc.textSecondary,
                     fontSize = if (compact) 11.sp else 12.sp,
-                    // Две строки: техническое имя layout'а длинное
-                    // (`music_chart_triple_stacked_slider`), в одну не влезает и
-                    // обрезалось бы ровно на той части, ради которой добавлено.
-                    maxLines = 2,
+                    maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f),
                 )
-                if (playableItems.isNotEmpty()) {
-                    Row(
+                if (!block.actions.playBlockId.isNullOrBlank() || playableItems.isNotEmpty()) {
+                    Box(
                         modifier = Modifier
-                            .clip(RoundedCornerShape(10.dp))
+                            .size(if (compact) 40.dp else 44.dp)
+                            .clip(RoundedCornerShape(50))
                             .background(lc.accent.copy(alpha = 0.16f))
                             .clickable {
-                                PlayerController.playFromList(
-                                    context = context,
-                                    tracks = playableItems.map { it.toTrack() },
-                                    playbackContext = PlaybackContext.Catalog(block.id),
-                                )
-                                onDismiss()
-                            }
-                            .padding(horizontal = 10.dp, vertical = 7.dp),
-                        verticalAlignment = Alignment.CenterVertically,
+                                if (!block.actions.playBlockId.isNullOrBlank()) {
+                                    onPlayBlock()
+                                } else {
+                                    PlayerController.playFromList(
+                                        context = context,
+                                        tracks = playableItems.map { it.toTrack() },
+                                        playbackContext = PlaybackContext.Catalog(block.id),
+                                    )
+                                    onDismiss()
+                                }
+                            },
+                        contentAlignment = Alignment.Center,
                     ) {
                         Icon(
-                            imageVector = com.lmg.vk.ui.icons.LmgGlyphs.Play28,
-                            contentDescription = "Слушать все",
+                            imageVector = if (block.actions.shuffled) {
+                                com.lmg.vk.ui.icons.LmgGlyphs.ShuffleOutline28
+                            } else {
+                                com.lmg.vk.ui.icons.LmgGlyphs.Play28
+                            },
+                            contentDescription = if (block.actions.shuffled) "Перемешать" else "Слушать всё",
                             tint = lc.accent,
-                            modifier = Modifier.size(17.dp),
-                        )
-                        Text(
-                            text = "Слушать все",
-                            color = lc.accent,
-                            fontSize = if (compact) 11.sp else 12.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier.padding(start = 4.dp),
+                            modifier = Modifier.size(if (compact) 19.dp else 21.dp),
                         )
                     }
                 }
@@ -1134,6 +1411,122 @@ private fun NewSectionSheet(
                         )
                     }
                 }
+            }
+        }
+    }
+}
+
+/** Official `open_section` destination backed by `catalog.getSection`. */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+private fun NewCatalogSectionSheet(
+    state: com.lmg.vk.ui.viewmodel.CatalogSectionUiState,
+    compact: Boolean,
+    onDismiss: () -> Unit,
+    onRetry: () -> Unit,
+    onLoadMore: () -> Unit,
+    onItemClick: (com.lmg.vk.engine.backend.HomeItem) -> Unit,
+) {
+    val lc = LiquidTheme.colors
+    val title = when (state) {
+        is com.lmg.vk.ui.viewmodel.CatalogSectionUiState.Loading -> state.title
+        is com.lmg.vk.ui.viewmodel.CatalogSectionUiState.Ready -> state.title
+        is com.lmg.vk.ui.viewmodel.CatalogSectionUiState.Failed -> state.title
+        com.lmg.vk.ui.viewmodel.CatalogSectionUiState.Idle -> "VK Музыка"
+    }.ifBlank { "VK Музыка" }
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = lc.settingsBackground,
+    ) {
+        Column(modifier = Modifier.fillMaxWidth().padding(bottom = 20.dp)) {
+            Text(
+                text = title,
+                color = lc.textPrimary,
+                fontSize = if (compact) 19.sp else 23.sp,
+                fontWeight = FontWeight.SemiBold,
+                fontFamily = VkSansDisplay,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
+            )
+            when (state) {
+                is com.lmg.vk.ui.viewmodel.CatalogSectionUiState.Loading -> Box(
+                    modifier = Modifier.fillMaxWidth().height(220.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(24.dp),
+                        strokeWidth = 2.dp,
+                        color = lc.accent,
+                    )
+                }
+
+                is com.lmg.vk.ui.viewmodel.CatalogSectionUiState.Failed -> NewLoadError(
+                    message = state.message,
+                    compact = compact,
+                    onRetry = onRetry,
+                )
+
+                is com.lmg.vk.ui.viewmodel.CatalogSectionUiState.Ready -> {
+                    val entries = remember(state.blocks) {
+                        state.blocks.flatMap { block ->
+                            block.items.map { item -> block.id to item }
+                        }
+                    }
+                    val listState = androidx.compose.foundation.lazy.rememberLazyListState()
+                    val nearEnd by remember(entries.size) {
+                        androidx.compose.runtime.derivedStateOf {
+                            val last = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
+                            last >= entries.size - 6
+                        }
+                    }
+                    LaunchedEffect(nearEnd, state.nextFrom, state.isLoadingMore, state.error) {
+                        if (nearEnd && !state.nextFrom.isNullOrBlank() &&
+                            !state.isLoadingMore && state.error == null
+                        ) {
+                            onLoadMore()
+                        }
+                    }
+                    LazyColumn(
+                        state = listState,
+                        modifier = Modifier.fillMaxWidth().fillMaxHeight(0.8f),
+                        contentPadding = PaddingValues(bottom = 24.dp),
+                    ) {
+                        itemsIndexed(
+                            entries,
+                            key = { index, entry -> "section_${entry.first}_${entry.second.id}_$index" },
+                        ) { _, entry ->
+                            NewTrackRow(
+                                item = entry.second,
+                                rank = null,
+                                compact = compact,
+                                modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp),
+                                onClick = { onItemClick(entry.second) },
+                            )
+                        }
+                        if (state.isLoadingMore) {
+                            item(key = "catalog_section_loading") {
+                                Box(
+                                    modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(22.dp),
+                                        strokeWidth = 2.dp,
+                                        color = lc.accent,
+                                    )
+                                }
+                            }
+                        }
+                        state.error?.let { message ->
+                            item(key = "catalog_section_error") {
+                                NewInlineError(message, compact, onRetry)
+                            }
+                        }
+                    }
+                }
+
+                com.lmg.vk.ui.viewmodel.CatalogSectionUiState.Idle -> Unit
             }
         }
     }
@@ -1834,6 +2227,8 @@ private fun NewSubsectionTabs(
     onRetryTab: (String) -> Unit,
     onItemClick: (com.lmg.vk.engine.backend.HomeItem) -> Unit,
     onPlaySignal: (com.lmg.vk.engine.backend.HomeSignalInfo, String?) -> Unit,
+    onPlayBlock: (com.lmg.vk.engine.backend.HomeBlock, String?) -> Unit,
+    onOpenSection: (String, String) -> Unit,
     loadingSignalBlocks: Set<String>,
     onOpenSheet: (com.lmg.vk.engine.backend.HomeBlock) -> Unit,
 ) {
@@ -1886,6 +2281,8 @@ private fun NewSubsectionTabs(
                     onRetryTab = onRetryTab,
                     onItemClick = onItemClick,
                     onPlaySignal = onPlaySignal,
+                    onPlayBlock = onPlayBlock,
+                    onOpenSection = onOpenSection,
                     loadingSignalBlocks = loadingSignalBlocks,
                     onOpenSheet = onOpenSheet,
                     // Вложенные табы внутри таба не рисуем: VK такую структуру не
@@ -1984,39 +2381,24 @@ private fun formatNewDuration(durationMs: Long): String {
     return "%d:%02d".format(seconds / 60L, seconds % 60L)
 }
 
-/**
- * Склонение слова «раздел» по числу: 1 раздел, 2 раздела, 18 разделов.
- * Русские правила, а не `if (n == 1)`: иначе в шапке появлялось «22 разделов».
- */
-private fun newSectionsWord(count: Int): String {
-    val mod100 = count % 100
-    if (mod100 in 11..14) return "разделов"
-    return when (count % 10) {
-        1 -> "раздел"
-        2, 3, 4 -> "раздела"
-        else -> "разделов"
-    }
-}
+private fun com.lmg.vk.engine.backend.HomeBlock.isAudioCatalogBlock(): Boolean =
+    type in setOf("music_audios", "audios", "charts", "recommendations") ||
+        (items.isNotEmpty() && items.all { it.isTrack })
 
-private fun newLayoutLabel(layoutName: String): String = when (layoutName) {
-    "music_chart_list", "music_chart_triple_stacked_slider", "music_chart_large_slider" -> "чарт"
-    "triple_stacked_slider" -> "треки"
-    "promo_banners_slider", "snippets_banner", "banner" -> "подборка"
-    "podcast_banners_slider" -> "подкасты"
-    // smart_banner и close_catalog_banner отсюда убраны: первого в VK 8.185 не
-    // существует вовсе, второй — не вёрстка блока, а ДЕЙСТВИЕ (сверено с
-    // официальным клиентом: SYNTHETIC_ACTION_CLOSE_BANNER).
-    "help_hint_banner", "assistant_banner", "small_banner_offer" -> "баннер"
-    "crop_slider" -> "истории"
-    "subsection_tabs" -> "разделы"
-    "music_exclusive_slider" -> "эксклюзив"
-    "recomms_slider" -> "рекомендации"
-    "large_slider", "audio_content_card_extended_slider" -> "подборки"
-    "entity_double_grid" -> "сетка"
-    "categories_grid" -> "жанры"
-    "list", "listened_list", "small_list", "compact_list", "large_list", "double_list" -> "список"
-    else -> layoutName.replace('_', ' ')
-}
+private fun com.lmg.vk.engine.backend.HomeBlock.isPeopleCatalogBlock(): Boolean =
+    type in setOf("artist", "artists", "curator", "curators", "music_owners", "groups") ||
+        (items.isNotEmpty() && items.all { it.isArtist || it.isMusicOwner })
+
+private fun com.lmg.vk.engine.backend.HomeBlock.isCollectionCatalogBlock(): Boolean =
+    type in setOf(
+        "music_playlists",
+        "music_recommended_playlists",
+        "playlists",
+        "albums",
+    ) || (items.isNotEmpty() && items.all { it.isAlbum || it.isPlaylist })
+
+private fun com.lmg.vk.engine.backend.HomeBlock.isRadioCatalogBlock(): Boolean =
+    type in setOf("radiostations", "radio") || items.any { it.isRadio }
 
 private val NEW_HERO_LAYOUTS = setOf(
     "banner",
@@ -2116,7 +2498,11 @@ private fun com.lmg.vk.engine.backend.HomeItem.toTrack(): Track = Track(
     title = title,
     artist = displayArtist,
     albumName = album.orEmpty(),
-    uri = com.lmg.vk.engine.VkAudioIdentity.playbackUri(),
+    uri = if (isRadio) {
+        android.net.Uri.parse(radioStreamUrl.orEmpty())
+    } else {
+        com.lmg.vk.engine.VkAudioIdentity.playbackUri()
+    },
     durationMs = durationMs,
     albumId = collectionId?.hashCode()?.toLong() ?: id.hashCode().toLong(),
     coverUrl = cover,

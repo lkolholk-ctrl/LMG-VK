@@ -71,6 +71,20 @@ sealed interface VkMixFeedbackState {
     ) : VkMixFeedbackState
 }
 
+sealed interface CatalogSectionUiState {
+    data object Idle : CatalogSectionUiState
+    data class Loading(val sectionId: String, val title: String) : CatalogSectionUiState
+    data class Ready(
+        val sectionId: String,
+        val title: String,
+        val blocks: List<HomeBlock>,
+        val nextFrom: String?,
+        val isLoadingMore: Boolean = false,
+        val error: String? = null,
+    ) : CatalogSectionUiState
+    data class Failed(val sectionId: String, val title: String, val message: String) : CatalogSectionUiState
+}
+
 /**
  * ViewModel for the Home (Listen Now) screen.
  * 
@@ -81,6 +95,7 @@ sealed interface VkMixFeedbackState {
 class HomeViewModel : ViewModel() {
 
     private var homeLoadJob: Job? = null
+    private var homeSectionJob: Job? = null
     private var chartsLoadJob: Job? = null
     private var genresLoadJob: Job? = null
     private var waveLoadJob: Job? = null
@@ -88,8 +103,12 @@ class HomeViewModel : ViewModel() {
     private var feedbackJob: Job? = null
     private var pendingDislikeSkipJob: Job? = null
     private var signalLoadJob: Job? = null
+    private var catalogSectionJob: Job? = null
+    private val catalogSectionUsedCursors = HashSet<String>()
     private val _loadingSignalBlocks = MutableStateFlow<Set<String>>(emptySet())
     val loadingSignalBlocks: StateFlow<Set<String>> = _loadingSignalBlocks
+    private val _catalogSectionState = MutableStateFlow<CatalogSectionUiState>(CatalogSectionUiState.Idle)
+    val catalogSectionState: StateFlow<CatalogSectionUiState> = _catalogSectionState
 
     private val restoredMixSession =
         (PlayerController.playbackContext as? PlaybackContext.VkMix)?.session
@@ -138,6 +157,18 @@ class HomeViewModel : ViewModel() {
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error
 
+    private val _isLoadingHomeSection = MutableStateFlow(false)
+    val isLoadingHomeSection: StateFlow<Boolean> = _isLoadingHomeSection
+    private val _isLoadingMoreHomeSection = MutableStateFlow(false)
+    val isLoadingMoreHomeSection: StateFlow<Boolean> = _isLoadingMoreHomeSection
+    private val _homeSectionError = MutableStateFlow<String?>(null)
+    val homeSectionError: StateFlow<String?> = _homeSectionError
+    private val _selectedHomeSectionId = MutableStateFlow<String?>(null)
+    val selectedHomeSectionId: StateFlow<String?> = _selectedHomeSectionId
+    private val homeSectionCache = LinkedHashMap<String, com.lmg.vk.engine.backend.HomeSectionPage>()
+    private val usedHomeSectionCursors = HashMap<String, MutableSet<String>>()
+    private var failedHomeSectionId: String? = null
+
     // ─── Wave State ───
 
     private val _waveTracks = MutableStateFlow<List<Track>>(emptyList())
@@ -159,7 +190,9 @@ class HomeViewModel : ViewModel() {
     private val _topGenres = MutableStateFlow<List<String>>(emptyList())
     val topGenres: StateFlow<List<String>> = _topGenres
 
-    private fun activeLoadCount(): Int = listOf(homeLoadJob, chartsLoadJob, genresLoadJob, waveLoadJob).count { it?.isActive == true }
+    private fun activeLoadCount(): Int =
+        listOf(homeLoadJob, homeSectionJob, chartsLoadJob, genresLoadJob, waveLoadJob)
+            .count { it?.isActive == true }
 
     fun cancelHomeLoad() {
         if (homeLoadJob?.isActive == true) Log.d("HomeViewModel", "homeLoadJob cancelled; active=${activeLoadCount()}")
@@ -203,6 +236,15 @@ class HomeViewModel : ViewModel() {
             pagingJobs.values.forEach { it.cancel() }
             pagingJobs.clear()
             usedCursors.clear()
+            usedHomeSectionCursors.clear()
+            homeSectionCache.clear()
+            homeSectionJob?.cancel()
+            homeSectionJob = null
+            _isLoadingHomeSection.value = false
+            _isLoadingMoreHomeSection.value = false
+            _homeSectionError.value = null
+            failedHomeSectionId = null
+            _selectedHomeSectionId.value = null
             _tabContent.value = emptyMap()
             _selectedTab.value = emptyMap()
             _blockPaging.value = emptyMap()
@@ -213,13 +255,23 @@ class HomeViewModel : ViewModel() {
             Log.d("HomeViewModel", "homeLoadJob started; active=${activeLoadCount()}")
             try {
                 val cached = HomeCacheManager.load()
-                if (cached != null && _homeContent.value == null) _homeContent.value = cached
+                if (cached != null && _homeContent.value == null) {
+                    _homeContent.value = cached
+                    _selectedHomeSectionId.value = cached.selectedSectionId
+                }
 
                 var lastException: Exception? = null
                 repeat(3) { attempt ->
                     try {
                         val response = MusicBackend.loadHomeContent()
                         _homeContent.value = response
+                        _selectedHomeSectionId.value = response.selectedSectionId
+                        response.selectedSectionId?.let { sectionId ->
+                            homeSectionCache[sectionId] = com.lmg.vk.engine.backend.HomeSectionPage(
+                                blocks = response.blocks,
+                                nextFrom = response.sectionNextFrom,
+                            )
+                        }
                         homeLoadedAtMs = System.currentTimeMillis()
                         _error.value = null
                         HomeCacheManager.save(response)
@@ -290,10 +342,115 @@ class HomeViewModel : ViewModel() {
         pagingJobs.values.forEach { it.cancel() }
         pagingJobs.clear()
         usedCursors.clear()
+        usedHomeSectionCursors.clear()
+        homeSectionCache.clear()
+        homeSectionJob?.cancel()
+        homeSectionJob = null
+        _isLoadingHomeSection.value = false
+        _isLoadingMoreHomeSection.value = false
+        _homeSectionError.value = null
+        failedHomeSectionId = null
+        _selectedHomeSectionId.value = null
         _tabContent.value = emptyMap()
         _selectedTab.value = emptyMap()
         _blockPaging.value = emptyMap()
         loadHomeContent(force = true)
+    }
+
+    /** Switch the root VK Music showcase without merging it with other sections. */
+    fun selectHomeSection(sectionId: String) {
+        val current = _homeContent.value ?: return
+        if (sectionId.isBlank()) return
+        if (sectionId == _selectedHomeSectionId.value &&
+            (sectionId == current.selectedSectionId || homeSectionJob?.isActive == true)
+        ) return
+
+        // A user can tap back to the visible section while another section is
+        // still loading. Cancel first even when the requested id equals the
+        // content currently on screen, otherwise the stale request wins later.
+        homeSectionJob?.cancel()
+        homeSectionJob = null
+        _isLoadingHomeSection.value = false
+        _isLoadingMoreHomeSection.value = false
+        _selectedHomeSectionId.value = sectionId
+        _homeSectionError.value = null
+        failedHomeSectionId = null
+        if (sectionId == current.selectedSectionId) return
+        homeSectionCache[sectionId]?.let { cached ->
+            _homeContent.value = current.copy(
+                blocks = cached.blocks,
+                selectedSectionId = sectionId,
+                sectionNextFrom = cached.nextFrom,
+            )
+            _homeSectionError.value = null
+            return
+        }
+        _isLoadingHomeSection.value = true
+        homeSectionJob = viewModelScope.launch {
+            try {
+                val page = MusicBackend.loadHomeSection(sectionId)
+                homeSectionCache[sectionId] = page
+                _homeContent.value = (_homeContent.value ?: current).copy(
+                    blocks = page.blocks,
+                    selectedSectionId = sectionId,
+                    sectionNextFrom = page.nextFrom,
+                )
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _selectedHomeSectionId.value = current.selectedSectionId
+                failedHomeSectionId = sectionId
+                _homeSectionError.value = com.lmg.vk.engine.backend.backendUserMessage(e)
+            } finally {
+                if (homeSectionJob === coroutineContext[Job]) {
+                    _isLoadingHomeSection.value = false
+                    homeSectionJob = null
+                }
+            }
+        }
+    }
+
+    /** Append the next vertical page of the currently selected catalog section. */
+    fun loadMoreHomeSection() {
+        val current = _homeContent.value ?: return
+        val sectionId = current.selectedSectionId ?: return
+        val cursor = current.sectionNextFrom?.takeIf(String::isNotBlank) ?: return
+        if (_isLoadingMoreHomeSection.value || homeSectionJob?.isActive == true) return
+        val seen = usedHomeSectionCursors.getOrPut(sectionId) { HashSet() }
+        if (cursor in seen) return
+        _isLoadingMoreHomeSection.value = true
+        _homeSectionError.value = null
+        failedHomeSectionId = null
+        homeSectionJob = viewModelScope.launch {
+            try {
+                val page = MusicBackend.loadHomeSection(sectionId, cursor)
+                seen += cursor
+                val latest = _homeContent.value ?: current
+                if (latest.selectedSectionId != sectionId) return@launch
+                val merged = mergeCatalogBlocks(latest.blocks, page.blocks)
+                val nextFrom = page.nextFrom?.takeIf { it !in seen }
+                val updated = latest.copy(blocks = merged, sectionNextFrom = nextFrom)
+                _homeContent.value = updated
+                homeSectionCache[sectionId] = com.lmg.vk.engine.backend.HomeSectionPage(
+                    blocks = merged,
+                    nextFrom = nextFrom,
+                )
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _homeSectionError.value = com.lmg.vk.engine.backend.backendUserMessage(e)
+            } finally {
+                if (homeSectionJob === coroutineContext[Job]) {
+                    _isLoadingMoreHomeSection.value = false
+                    homeSectionJob = null
+                }
+            }
+        }
+    }
+
+    fun retryHomeSection() {
+        val failedSection = failedHomeSectionId
+        if (failedSection != null) selectHomeSection(failedSection) else loadMoreHomeSection()
     }
 
     /**
@@ -673,16 +830,159 @@ class HomeViewModel : ViewModel() {
         seedTrackId: String? = null,
     ) {
         val blockId = signal.playBlockId?.takeIf(String::isNotBlank) ?: return
+        startCatalogSource(
+            context = context,
+            blockId = blockId,
+            ref = signal.ref,
+            shuffled = signal.shuffled,
+            emptyMessage = "VK не вернул треки Сигнала",
+            seedTrackId = seedTrackId,
+        )
+    }
+
+    fun openCatalogSection(sectionId: String, title: String) {
+        if (sectionId.isBlank()) return
+        catalogSectionJob?.cancel()
+        catalogSectionUsedCursors.clear()
+        _catalogSectionState.value = CatalogSectionUiState.Loading(sectionId, title)
+        catalogSectionJob = viewModelScope.launch {
+            try {
+                val page = MusicBackend.loadHomeSection(sectionId)
+                _catalogSectionState.value = CatalogSectionUiState.Ready(
+                    sectionId = sectionId,
+                    title = title,
+                    blocks = page.blocks,
+                    nextFrom = page.nextFrom,
+                )
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _catalogSectionState.value = CatalogSectionUiState.Failed(
+                    sectionId,
+                    title,
+                    com.lmg.vk.engine.backend.backendUserMessage(e),
+                )
+            } finally {
+                if (catalogSectionJob === coroutineContext[Job]) catalogSectionJob = null
+            }
+        }
+    }
+
+    fun loadMoreCatalogSection() {
+        val ready = _catalogSectionState.value as? CatalogSectionUiState.Ready ?: return
+        val cursor = ready.nextFrom?.takeIf(String::isNotBlank) ?: return
+        if (ready.isLoadingMore || catalogSectionJob?.isActive == true ||
+            cursor in catalogSectionUsedCursors
+        ) return
+        _catalogSectionState.value = ready.copy(isLoadingMore = true, error = null)
+        catalogSectionJob = viewModelScope.launch {
+            try {
+                val page = MusicBackend.loadHomeSection(ready.sectionId, cursor)
+                val current = _catalogSectionState.value as? CatalogSectionUiState.Ready ?: return@launch
+                catalogSectionUsedCursors += cursor
+                _catalogSectionState.value = current.copy(
+                    blocks = mergeCatalogBlocks(current.blocks, page.blocks),
+                    nextFrom = page.nextFrom?.takeIf { it !in catalogSectionUsedCursors },
+                    isLoadingMore = false,
+                    error = null,
+                )
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                val current = _catalogSectionState.value as? CatalogSectionUiState.Ready
+                if (current != null) {
+                    _catalogSectionState.value = current.copy(
+                        isLoadingMore = false,
+                        error = com.lmg.vk.engine.backend.backendUserMessage(e),
+                    )
+                }
+            } finally {
+                if (catalogSectionJob === coroutineContext[Job]) catalogSectionJob = null
+            }
+        }
+    }
+
+    fun retryCatalogSection() {
+        when (val state = _catalogSectionState.value) {
+            is CatalogSectionUiState.Failed -> openCatalogSection(state.sectionId, state.title)
+            is CatalogSectionUiState.Ready -> loadMoreCatalogSection()
+            else -> Unit
+        }
+    }
+
+    fun closeCatalogSection() {
+        catalogSectionJob?.cancel()
+        catalogSectionJob = null
+        catalogSectionUsedCursors.clear()
+        _catalogSectionState.value = CatalogSectionUiState.Idle
+    }
+
+    /** Merge a section page without losing continuation items of a repeated block. */
+    private fun mergeCatalogBlocks(
+        current: List<HomeBlock>,
+        incoming: List<HomeBlock>,
+    ): List<HomeBlock> {
+        if (incoming.isEmpty()) return current
+        val merged = LinkedHashMap<String, HomeBlock>()
+        current.forEach { merged[it.id] = it }
+        incoming.forEach { next ->
+            val previous = merged[next.id]
+            merged[next.id] = if (previous == null) {
+                next
+            } else {
+                previous.copy(
+                    title = next.title.ifBlank { previous.title },
+                    type = next.type.ifBlank { previous.type },
+                    items = (previous.items + next.items).distinctBy { it.id },
+                    layoutName = next.layoutName.ifBlank { previous.layoutName },
+                    nextFrom = next.nextFrom,
+                    catalogRef = next.catalogRef ?: previous.catalogRef,
+                    subsectionTabs = (previous.subsectionTabs + next.subsectionTabs)
+                        .distinctBy { it.replacementId },
+                    signalInfo = next.signalInfo ?: previous.signalInfo,
+                    actions = next.actions.takeUnless {
+                        it == com.lmg.vk.engine.backend.HomeCatalogActions()
+                    } ?: previous.actions,
+                )
+            }
+        }
+        return merged.values.toList()
+    }
+
+    fun startCatalogBlock(
+        context: Context,
+        block: HomeBlock,
+        seedTrackId: String? = null,
+    ) {
+        val blockId = block.actions.playBlockId?.takeIf(String::isNotBlank) ?: return
+        startCatalogSource(
+            context = context,
+            blockId = blockId,
+            ref = block.actions.playRef,
+            shuffled = block.actions.shuffled,
+            emptyMessage = "VK не вернул треки раздела",
+            seedTrackId = seedTrackId,
+        )
+    }
+
+    private fun startCatalogSource(
+        context: Context,
+        blockId: String,
+        ref: String?,
+        shuffled: Boolean,
+        emptyMessage: String,
+        seedTrackId: String?,
+    ) {
         if (signalLoadJob?.isActive == true) return
         _loadingSignalBlocks.value = _loadingSignalBlocks.value + blockId
         signalLoadJob = viewModelScope.launch {
             try {
-                val resolved = MusicBackend.getCatalogSourceTracks(blockId, signal.ref)
-                val tracks = if (signal.shuffled) resolved.shuffled() else resolved
+                val resolved = MusicBackend.getCatalogSourceTracks(blockId, ref)
+                val tracks = if (shuffled) resolved.shuffled() else resolved
                 if (tracks.isEmpty()) {
                     android.widget.Toast.makeText(
                         context,
-                        "VK не вернул треки Сигнала",
+                        emptyMessage,
                         android.widget.Toast.LENGTH_SHORT,
                     ).show()
                     return@launch
@@ -703,7 +1003,7 @@ class HomeViewModel : ViewModel() {
                 throw e
             } catch (e: Exception) {
                 val message = com.lmg.vk.engine.backend.backendUserMessage(e)
-                DebugLog.add("VK SIGNAL start failed: $message")
+                DebugLog.add("VK CATALOG SOURCE start failed: $message")
                 android.widget.Toast.makeText(
                     context,
                     message,

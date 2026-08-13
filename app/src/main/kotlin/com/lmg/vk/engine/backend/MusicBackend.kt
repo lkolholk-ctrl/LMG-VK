@@ -21,6 +21,7 @@ import com.lmg.vk.network.dto.music.AudioPlaylist
 import com.lmg.vk.network.dto.music.AudioAlbum
 import com.lmg.vk.network.dto.music.AlbumThumb
 import com.lmg.vk.network.dto.music.AudioPlaylistDto
+import com.lmg.vk.network.dto.music.AudioRecommendedPlaylistDto
 import com.lmg.vk.network.dto.music.AudioAudioDto
 import com.lmg.vk.network.dto.music.AudioArtistDto
 import com.lmg.vk.network.dto.music.AudioPhotoDto
@@ -557,46 +558,48 @@ object MusicBackend {
     suspend fun loadHomeContent(region: String? = null): HomeResponse {
         requireInitialized()
         val catalog = catalogApi.getAudioAuto().requireData()
-        // `getAudioAuto` нередко содержит только список section id. VK X после
-        // него запрашивает сами секции через catalog.getSection; без этого New
-        // видит layout блоков, но не их реальные треки/альбомы/артистов.
-        val sectionIds = buildList {
-            catalog.catalog?.default_section?.takeIf(String::isNotBlank)?.let(::add)
-            catalog.section?.id?.takeIf(String::isNotBlank)?.let(::add)
-            catalog.catalog?.sections.orEmpty().map { it.id }.filter(String::isNotBlank).forEach(::add)
-            // В VK X C14914e.loadAd() берёт section_id из actions header-блоков
-            // ответа getAudioAuto, а C18378e затем вызывает getSection для
-            // каждого выбранного пункта. Это и есть вход в полные витрины New.
-            catalog.allBlocks()
-                .flatMap { it.actions.orEmpty() }
-                .mapNotNull { it.section_id?.takeIf(String::isNotBlank) }
-                .forEach(::add)
-        }.distinct()
-        suspend fun loadSectionPages(sectionId: String): List<VkCatalogResponse> {
-            val pages = mutableListOf<VkCatalogResponse>()
-            val seenOffsets = HashSet<String>()
-            var startFrom: String? = null
-            while (pages.size < 50) {
-                val page = catalogApi.getSection(sectionId, startFrom).getOrNull() ?: break
-                pages += page
-                val next = page.section?.next_from?.takeIf(String::isNotBlank)
-                    ?: page.catalog?.sections.orEmpty().firstOrNull { it.id == sectionId }?.next_from
-                    ?: break
-                if (!seenOffsets.add(next)) break
-                startFrom = next
+        val sections = buildList {
+            catalog.catalog?.sections.orEmpty().forEach { section ->
+                if (section.id.isNotBlank()) {
+                    add(HomeCatalogSection(section.id, section.title.ifBlank { "VK Музыка" }))
+                }
             }
-            return pages
+            // Some accounts receive root navigation as header actions rather
+            // than populated catalog.sections. Only header actions are root
+            // tabs; regular block open_section buttons remain show-all links.
+            catalog.allBlocks()
+                .filter { it.layout?.name.orEmpty().startsWith("header") }
+                .forEach { header ->
+                    header.actions.orEmpty().forEach buttonLoop@{ button ->
+                        val id = (button.action?.section_id ?: button.section_id)
+                            ?.takeIf(String::isNotBlank) ?: return@buttonLoop
+                        val title = (button.action?.title ?: button.title)
+                            ?.takeIf(String::isNotBlank)
+                            ?: header.layout?.title?.takeIf(String::isNotBlank)
+                            ?: "VK Музыка"
+                        add(HomeCatalogSection(id, title))
+                    }
+                }
+        }.distinctBy { it.id }
+        val selectedSectionId = catalog.catalog?.default_section?.takeIf(String::isNotBlank)
+            ?: catalog.section?.id?.takeIf(String::isNotBlank)
+            ?: sections.firstOrNull()?.id
+
+        // Official VK opens one selected catalog section. The old code fetched
+        // every section (up to 50 pages each) and merged them into a single New
+        // feed, which mixed unrelated showcases and delayed first content.
+        val embeddedSelected = selectedSectionId?.let { selected ->
+            catalog.catalog?.sections.orEmpty().firstOrNull { it.id == selected }
         }
-        val sectionPages = coroutineScope {
-            sectionIds
-                .map { sectionId -> async { loadSectionPages(sectionId) } }
-                .flatMap { it.await() }
+        val firstPage = if (selectedSectionId != null &&
+            embeddedSelected?.blocks.isNullOrEmpty() && catalog.section?.id != selectedSectionId
+        ) {
+            catalogApi.getSection(selectedSectionId).requireData()
+        } else {
+            catalog
         }
-        val basePages = listOf(catalog) + sectionPages
-        // Block pages are intentionally lazy. Eagerly walking every block here
-        // delays the whole New screen and makes its per-block cursor state stale.
-        val catalogPages = basePages
-        val catalogBlocks = catalogPages.toHomeBlocks()
+        val catalogPages = if (firstPage === catalog) listOf(catalog) else listOf(catalog, firstPage)
+        val catalogBlocks = catalogPages.toHomeBlocks(selectedSectionId)
         val blocks = catalogBlocks.ifEmpty { loadHomeFallbackBlocks() }
         catalogPages.flatMap { it.audios.orEmpty() }
             .mergeAudioTracksById()
@@ -604,6 +607,25 @@ object MusicBackend {
         return HomeResponse(
             blocks = blocks,
             updatedAt = System.currentTimeMillis(),
+            sections = sections,
+            selectedSectionId = selectedSectionId,
+            sectionNextFrom = firstPage.sectionNextFrom(selectedSectionId),
+        )
+    }
+
+    /** One page of a selected root catalog section (`catalog.getSection`). */
+    suspend fun loadHomeSection(
+        sectionId: String,
+        startFrom: String? = null,
+    ): HomeSectionPage {
+        requireInitialized()
+        require(sectionId.isNotBlank()) { "Catalog section id is blank" }
+        val response = catalogApi.getSection(sectionId, startFrom).requireData()
+        response.audios.orEmpty().mergeAudioTracksById().also(::cacheTracks)
+        return HomeSectionPage(
+            blocks = listOf(response).toHomeBlocks(sectionId),
+            nextFrom = response.sectionNextFrom(sectionId)
+                ?.takeIf { it.isNotBlank() && it != startFrom },
         )
     }
 
@@ -674,7 +696,7 @@ object MusicBackend {
         ref: String? = null,
     ): List<Track> {
         requireInitialized()
-        require(blockId.isNotBlank()) { "Signal catalog block id is blank" }
+        require(blockId.isNotBlank()) { "Catalog block id is blank" }
         val ids = when (
             val result = methodsRegistry.getIdsBySource(
                 source = "catalog",
@@ -685,14 +707,14 @@ object MusicBackend {
             is VkResult.Success -> result.data
             is VkResult.Error -> {
                 com.lmg.vk.debug.DebugLog.add(
-                    "VK SIGNAL api_error block=$blockId code=${result.code} message=${result.message}",
+                    "VK CATALOG SOURCE api_error block=$blockId code=${result.code} message=${result.message}",
                 )
                 throw backendFailure(result.code, result.message)
             }
         }.map(::normalizeTrackId).filter(String::isNotBlank).distinct()
 
         if (ids.isEmpty()) {
-            com.lmg.vk.debug.DebugLog.add("VK SIGNAL success_empty block=$blockId")
+            com.lmg.vk.debug.DebugLog.add("VK CATALOG SOURCE success_empty block=$blockId")
             return emptyList()
         }
 
@@ -710,7 +732,7 @@ object MusicBackend {
                 ?.toEngineTrack()
         }
         com.lmg.vk.debug.DebugLog.add(
-            "VK SIGNAL resolved block=$blockId ids=${ids.size} tracks=${tracks.size}",
+            "VK CATALOG SOURCE resolved block=$blockId ids=${ids.size} tracks=${tracks.size}",
         )
         return tracks
     }
@@ -2226,6 +2248,26 @@ object MusicBackend {
         musicOwnerId = id.takeIf { it != 0L },
     )
 
+    private fun VkCatalogProfile.toGroupHomeItem() = toHomeItem().copy(
+        musicOwnerId = id.takeIf { it != 0L }?.let { if (it > 0L) -it else it },
+    )
+
+    private fun AudioRecommendedPlaylistDto.toHomeItem(): HomeItem? {
+        val fullId = fullId ?: return null
+        val match = percentage_title?.takeIf(String::isNotBlank)
+            ?: percentage?.takeIf { it > 0f }?.let { "Совпадение ${it.toInt()}%" }
+            ?: "Рекомендация VK"
+        return HomeItem(
+            id = "recommended_playlist_$fullId",
+            title = match,
+            artist = "Рекомендованный плейлист",
+            cover = cover?.takeIf(String::isNotBlank) ?: photo?.bestUrl,
+            collectionId = fullId,
+            source = "vk",
+            isPlaylist = true,
+        )
+    }
+
     private fun VkCatalogLink.toHomeItem() = HomeItem(
         id = "catalog_link_$id",
         title = title.ifBlank { "VK Музыка" },
@@ -2331,8 +2373,11 @@ object MusicBackend {
         id = "radio_$id",
         title = name,
         cover = logo_png_url?.takeIf(String::isNotBlank) ?: logo_url,
-        source = "vk",
+        source = "vk_radio",
         isCustom = true,
+        isAvailable = is_enabled != false && !stream_url.isNullOrBlank(),
+        radioStreamUrl = stream_url?.takeIf(String::isNotBlank),
+        isRadio = true,
     )
 
     private fun AudioStreamMix.toHomeItem() = HomeItem(
@@ -2639,6 +2684,26 @@ object MusicBackend {
         catalog?.sections.orEmpty().flatMap { it.blocks.orEmpty() }.let(::addAll)
     }.distinctBy { it.id }
 
+    private fun VkCatalogButton.actionType(): String? = action?.type ?: type
+
+    private fun VkCatalogResponse.blocksForSection(sectionId: String?): List<VkCatalogBlock> {
+        if (sectionId.isNullOrBlank()) return allBlocks()
+        return buildList {
+            block?.let(::add)
+            section?.takeIf { it.id == sectionId }?.blocks.orEmpty().let(::addAll)
+            catalog?.sections.orEmpty()
+                .firstOrNull { it.id == sectionId }
+                ?.blocks.orEmpty()
+                .let(::addAll)
+        }.distinctBy { it.id }
+    }
+
+    private fun VkCatalogResponse.sectionNextFrom(sectionId: String?): String? =
+        section?.takeIf { sectionId == null || it.id == sectionId }?.next_from
+            ?.takeIf(String::isNotBlank)
+            ?: catalog?.sections.orEmpty().firstOrNull { it.id == sectionId }?.next_from
+                ?.takeIf(String::isNotBlank)
+
     /**
      * Табы блока `subsection_tabs`.
      *
@@ -2725,12 +2790,15 @@ object MusicBackend {
      * resolving each block's entity IDs against the response payload. Keep that
      * server order and titles instead of synthesising a few local categories.
      */
-    private fun List<VkCatalogResponse>.toHomeBlocks(): List<HomeBlock> {
+    private fun List<VkCatalogResponse>.toHomeBlocks(
+        sectionId: String? = null,
+    ): List<HomeBlock> {
         val first = firstOrNull() ?: return emptyList()
         val audios = flatMap { it.audios.orEmpty() }
             .mergeAudioTracksById()
             .map(::cacheTrack)
         val playlists = flatMap { it.playlists.orEmpty() }
+        val recommended_playlists = flatMap { it.recommended_playlists.orEmpty() }
         val artists = flatMap { it.artists.orEmpty() }
         val artist_videos = flatMap { it.artist_videos.orEmpty() }
         val videos = flatMap { it.videos.orEmpty() }
@@ -2752,6 +2820,9 @@ object MusicBackend {
         val signal_infos = flatMap { it.audio_signal_common_info.orEmpty() }
         val audiosById = audios.orEmpty().associateBy { it.fullId }
         val playlistsById = playlists.orEmpty().associateBy { it.fullId }
+        val recommendedPlaylistsById = recommended_playlists.mapNotNull { recommended ->
+            recommended.fullId?.let { it to recommended }
+        }.toMap()
         val artistsById = artists.orEmpty().associateBy { it.id }
         val videosById = buildMap {
             (artist_videos + videos).forEach { video ->
@@ -2803,8 +2874,12 @@ object MusicBackend {
 
         fun <T> Map<String, T>.byCatalogId(value: String): T? =
             this[value] ?: this[value.removePrefix("vk_")]
+        fun Map<String, VkCatalogProfile>.byGroupCatalogId(value: String): VkCatalogProfile? {
+            val numeric = value.removePrefix("vk_").removePrefix("-")
+            return byCatalogId(value) ?: this[numeric] ?: this["-$numeric"]
+        }
         val orderedBlocks = linkedMapOf<String, VkCatalogBlock>()
-        flatMap { it.allBlocks() }
+        flatMap { it.blocksForSection(sectionId) }
             .filter { it.id.isNotBlank() }
             .forEach { block ->
                 orderedBlocks[block.id] = orderedBlocks[block.id]?.mergeWith(block) ?: block
@@ -2835,13 +2910,30 @@ object MusicBackend {
                 .mapNotNull(signalsById::byCatalogId)
                 .firstOrNull()
             val signalAudioIds = signal?.audios.orEmpty()
-            val playSignalAction = block.actions.orEmpty().firstOrNull { action ->
-                (action.action?.type ?: action.type) == "play_audios_from_block" ||
-                    (action.action?.type ?: action.type) == "play_shuffled_audios_from_block"
+            val playBlockAction = block.actions.orEmpty().firstOrNull { action ->
+                action.actionType() in setOf(
+                    "play_audios_from_block",
+                    "play_shuffled_audios_from_block",
+                    "play_shuffled_audio_from_block",
+                )
             }
-            val openSignalAction = block.actions.orEmpty().firstOrNull { action ->
-                (action.action?.type ?: action.type) == "open_section"
+            val openSectionAction = block.actions.orEmpty().firstOrNull { action ->
+                action.actionType() == "open_section"
             }
+            val catalogActions = HomeCatalogActions(
+                playBlockId = (playBlockAction?.action?.block_id
+                    ?: playBlockAction?.block_id)?.takeIf(String::isNotBlank),
+                playRef = (playBlockAction?.action?.consume_reason
+                    ?: playBlockAction?.consume_reason)?.takeIf(String::isNotBlank),
+                shuffled = playBlockAction?.actionType() in setOf(
+                    "play_shuffled_audios_from_block",
+                    "play_shuffled_audio_from_block",
+                ),
+                openSectionId = (openSectionAction?.action?.section_id
+                    ?: openSectionAction?.section_id)?.takeIf(String::isNotBlank),
+                openSectionTitle = (openSectionAction?.action?.title
+                    ?: openSectionAction?.title)?.takeIf(String::isNotBlank),
+            )
             val signalInfo = signal?.let { info ->
                 HomeSignalInfo(
                     id = info.id,
@@ -2850,14 +2942,10 @@ object MusicBackend {
                     subtitle = info.subtitle.orEmpty(),
                     currentMonth = info.current_month.orEmpty(),
                     audioIds = signalAudioIds,
-                    playBlockId = (playSignalAction?.action?.block_id
-                        ?: playSignalAction?.block_id)?.takeIf(String::isNotBlank),
-                    openSectionId = (openSignalAction?.action?.section_id
-                        ?: openSignalAction?.section_id)?.takeIf(String::isNotBlank),
-                    ref = (playSignalAction?.action?.consume_reason
-                        ?: playSignalAction?.consume_reason)?.takeIf(String::isNotBlank),
-                    shuffled = (playSignalAction?.action?.type ?: playSignalAction?.type) ==
-                        "play_shuffled_audios_from_block",
+                    playBlockId = catalogActions.playBlockId,
+                    openSectionId = catalogActions.openSectionId,
+                    ref = catalogActions.playRef,
+                    shuffled = catalogActions.shuffled,
                 )
             }
             val items = buildList {
@@ -2865,8 +2953,10 @@ object MusicBackend {
                     .forEach(::add)
                 block.audios_ids.orEmpty().mapNotNull(audiosById::byCatalogId)
                     .forEach { add(it.toHomeItem()) }
-                block.playlists_ids.orEmpty().mapNotNull(playlistsById::byCatalogId)
-                    .forEach { add(it.toHomeItem()) }
+                block.playlists_ids.orEmpty().forEach { id ->
+                    playlistsById.byCatalogId(id)?.let { add(it.toHomeItem()) }
+                        ?: recommendedPlaylistsById.byCatalogId(id)?.toHomeItem()?.let(::add)
+                }
                 block.artists_ids.orEmpty().mapNotNull(artistsById::byCatalogId)
                     .forEach { add(it.toHomeItem()) }
                 block.artist_videos_ids.orEmpty().mapNotNull(videosById::byCatalogId)
@@ -2879,8 +2969,8 @@ object MusicBackend {
                     .forEach { add(it.toHomeItem()) }
                 block.curators_ids.orEmpty().mapNotNull(curatorsById::byCatalogId)
                     .forEach { add(it.toHomeItem()) }
-                block.group_ids.orEmpty().mapNotNull(groupsById::byCatalogId)
-                    .forEach { add(it.toHomeItem()) }
+                block.group_ids.orEmpty().mapNotNull(groupsById::byGroupCatalogId)
+                    .forEach { add(it.toGroupHomeItem()) }
                 block.music_owners_ids.orEmpty().mapNotNull(ownersById::byCatalogId)
                     .forEach { add(it.toHomeItem()) }
                 block.podcast_items_ids.orEmpty().mapNotNull(podcastsById::byCatalogId)
@@ -2961,6 +3051,7 @@ object MusicBackend {
                             nextFrom = block.next_from?.takeIf(String::isNotBlank),
                             catalogRef = block.ref?.takeIf(String::isNotBlank),
                             subsectionTabs = it,
+                            actions = catalogActions,
                         )
                     }
             }
@@ -2985,6 +3076,7 @@ object MusicBackend {
                         catalogRef = block.ref?.takeIf(String::isNotBlank),
                         subsectionTabs = tabs,
                         signalInfo = signalInfo,
+                        actions = catalogActions,
                     )
                 }
         }

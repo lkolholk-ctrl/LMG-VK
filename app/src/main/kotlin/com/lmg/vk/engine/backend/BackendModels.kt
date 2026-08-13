@@ -1106,6 +1106,28 @@ data class HomeBlock(
     @SerialName("subsectionTabs") val subsectionTabs: List<HomeSubsectionTab> = emptyList(),
     /** Special server card used by the official VK Music Signal section. */
     @SerialName("signalInfo") val signalInfo: HomeSignalInfo? = null,
+    /** Server actions belong to a block, independently from its visual layout. */
+    val actions: HomeCatalogActions = HomeCatalogActions(),
+)
+
+@Serializable
+data class HomeCatalogActions(
+    val playBlockId: String? = null,
+    val playRef: String? = null,
+    val shuffled: Boolean = false,
+    val openSectionId: String? = null,
+    val openSectionTitle: String? = null,
+)
+
+@Serializable
+data class HomeCatalogSection(
+    val id: String,
+    val title: String,
+)
+
+data class HomeSectionPage(
+    val blocks: List<HomeBlock>,
+    val nextFrom: String?,
 )
 
 @Serializable
@@ -1167,6 +1189,9 @@ data class HomeItem(
     @SerialName("streamMixResolveSettings") val streamMixResolveSettings: Boolean = false,
     /** VK profile/community whose music is exposed by the catalog as a curator. */
     @SerialName("musicOwnerId") val musicOwnerId: Long? = null,
+    /** VK radio is a direct external stream, not an audio.getById entity. */
+    @SerialName("radioStreamUrl") val radioStreamUrl: String? = null,
+    @SerialName("isRadio") val isRadio: Boolean = false,
     /** Catalog block which acts as StartPlayCatalogSource for Autoflow. */
     @SerialName("catalogBlockId") val catalogBlockId: String? = null,
 ) {
@@ -1179,11 +1204,11 @@ data class HomeItem(
 
     /** Keep action-less custom cards disabled while allowing server Mix cards. */
     val isInteractive: Boolean
-        get() = !isCustom || isStreamMix || isMusicOwner
+        get() = !isCustom || isStreamMix || isMusicOwner || isRadio
 
     /** Трек = не альбом, не артист и не видеоклип (клип не стримится). */
     val isTrack: Boolean
-        get() = !isAlbum && !isPlaylist && !isArtist && !isClip && !isCustom
+        get() = !isAlbum && !isPlaylist && !isArtist && !isClip && !isCustom && !isRadio
 
     /** Пусто — значит исполнителя нет; UI прячет строку, а не пишет заглушку. */
     val displayArtist: String
@@ -1205,7 +1230,10 @@ data class HomeItem(
 @Serializable
 data class HomeResponse(
     val blocks: List<HomeBlock> = emptyList(),
-    @SerialName("updated_at") val updatedAt: Long? = null
+    @SerialName("updated_at") val updatedAt: Long? = null,
+    val sections: List<HomeCatalogSection> = emptyList(),
+    val selectedSectionId: String? = null,
+    val sectionNextFrom: String? = null,
 )
 
 // ─── Subscription ───

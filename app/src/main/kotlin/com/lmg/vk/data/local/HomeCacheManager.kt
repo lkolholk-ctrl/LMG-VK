@@ -3,8 +3,11 @@ package com.lmg.vk.data.local
 import android.content.Context
 import android.content.SharedPreferences
 import com.lmg.vk.engine.backend.HomeBlock
+import com.lmg.vk.engine.backend.HomeCatalogActions
+import com.lmg.vk.engine.backend.HomeCatalogSection
 import com.lmg.vk.engine.backend.HomeItem
 import com.lmg.vk.engine.backend.HomeResponse
+import com.lmg.vk.engine.backend.HomeSignalInfo
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withContext
@@ -25,9 +28,9 @@ object HomeCacheManager {
     private const val KEY_TIMESTAMP = "cached_at"
     private const val KEY_ETAG = "etag"
     private const val CACHE_TTL_MS = 24 * 60 * 60 * 1000L // 24 hours
-    // v3 also stores the playlist/album discriminator. Old caches would make
-    // editorial VK playlists look like playable albums, so invalidate them.
-    private const val CACHE_SCHEMA_VERSION = 4
+    // v5 stores root sections, Catalog2 actions, Signal and playable radio/Mix
+    // metadata. Older caches would turn those entities into disabled cards.
+    private const val CACHE_SCHEMA_VERSION = 5
 
     private var prefs: SharedPreferences? = null
 
@@ -42,6 +45,17 @@ object HomeCacheManager {
         val p = prefs ?: return@withContext
         val json = JSONObject().apply {
             put("version", CACHE_SCHEMA_VERSION)
+            put("updatedAt", response.updatedAt ?: JSONObject.NULL)
+            put("selectedSectionId", response.selectedSectionId ?: JSONObject.NULL)
+            put("sectionNextFrom", response.sectionNextFrom ?: JSONObject.NULL)
+            put("sections", JSONArray().apply {
+                response.sections.forEach { section ->
+                    put(JSONObject().apply {
+                        put("id", section.id)
+                        put("title", section.title)
+                    })
+                }
+            })
             put("blocks", JSONArray().apply {
                 response.blocks.forEach { block ->
                     put(JSONObject().apply {
@@ -55,6 +69,27 @@ object HomeCacheManager {
                         // сетевого обновления.
                         put("nextFrom", block.nextFrom ?: JSONObject.NULL)
                         put("catalogRef", block.catalogRef ?: JSONObject.NULL)
+                        put("actions", JSONObject().apply {
+                            put("playBlockId", block.actions.playBlockId ?: JSONObject.NULL)
+                            put("playRef", block.actions.playRef ?: JSONObject.NULL)
+                            put("shuffled", block.actions.shuffled)
+                            put("openSectionId", block.actions.openSectionId ?: JSONObject.NULL)
+                            put("openSectionTitle", block.actions.openSectionTitle ?: JSONObject.NULL)
+                        })
+                        block.signalInfo?.let { signal ->
+                            put("signalInfo", JSONObject().apply {
+                                put("id", signal.id)
+                                put("cover", signal.cover ?: JSONObject.NULL)
+                                put("title", signal.title)
+                                put("subtitle", signal.subtitle)
+                                put("currentMonth", signal.currentMonth)
+                                put("audioIds", JSONArray(signal.audioIds))
+                                put("playBlockId", signal.playBlockId ?: JSONObject.NULL)
+                                put("openSectionId", signal.openSectionId ?: JSONObject.NULL)
+                                put("ref", signal.ref ?: JSONObject.NULL)
+                                put("shuffled", signal.shuffled)
+                            })
+                        }
                         put("subsectionTabs", JSONArray().apply {
                             block.subsectionTabs.forEach { tab ->
                                 put(JSONObject().apply {
@@ -71,6 +106,7 @@ object HomeCacheManager {
                                     put("id", item.id)
                                     put("title", item.title)
                                     put("artist", item.artist)
+                                    put("artistName", item.artistName ?: JSONObject.NULL)
                                     put("artistId", item.artistId ?: JSONObject.NULL)
                                     put("cover", item.cover ?: JSONObject.NULL)
                                     put("duration", item.duration ?: JSONObject.NULL)
@@ -78,12 +114,31 @@ object HomeCacheManager {
                                     put("collectionId", item.collectionId ?: JSONObject.NULL)
                                     put("album", item.album ?: JSONObject.NULL)
                                     put("genre", item.genre ?: JSONObject.NULL)
+                                    put("trackId", item.trackId ?: JSONObject.NULL)
+                                    put("subtitle", item.subtitle ?: JSONObject.NULL)
+                                    put("isExplicit", item.isExplicit)
                                     put("isAlbum", item.isAlbum)
                                     put("isPlaylist", item.isPlaylist)
                                     put("isArtist", item.isArtist)
                                     put("isClip", item.isClip)
                                     put("isCustom", item.isCustom)
                                     put("isAvailable", item.isAvailable)
+                                    put("musicOwnerId", item.musicOwnerId ?: JSONObject.NULL)
+                                    put("catalogBlockId", item.catalogBlockId ?: JSONObject.NULL)
+                                    put("radioStreamUrl", item.radioStreamUrl ?: JSONObject.NULL)
+                                    put("isRadio", item.isRadio)
+                                    put("streamMixId", item.streamMixId ?: JSONObject.NULL)
+                                    put("streamMixTunable", item.streamMixTunable)
+                                    put("streamMixEntityId", item.streamMixEntityId ?: JSONObject.NULL)
+                                    put("streamMixSectionId", item.streamMixSectionId ?: JSONObject.NULL)
+                                    put("streamMixCatalogItemId", item.streamMixCatalogItemId ?: JSONObject.NULL)
+                                    put("streamMixAnimationUrl", item.streamMixAnimationUrl ?: JSONObject.NULL)
+                                    put("streamMixResolveSettings", item.streamMixResolveSettings)
+                                    put("streamMixOptions", JSONObject().apply {
+                                        item.streamMixOptions.forEach { (category, values) ->
+                                            put(category, JSONArray(values))
+                                        }
+                                    })
                                 })
                             }
                         })
@@ -126,6 +181,7 @@ object HomeCacheManager {
                         id = itemObj.getString("id"),
                         title = itemObj.getString("title"),
                         artist = itemObj.optString("artist", ""),
+                        artistName = itemObj.optString("artistName", null)?.takeIf { it != "null" },
                         artistId = itemObj.optString("artistId", null)?.takeIf { it != "null" },
                         cover = itemObj.optString("cover", null)?.takeIf { it != "null" },
                         duration = itemObj.optString("duration", null)
@@ -135,15 +191,50 @@ object HomeCacheManager {
                         collectionId = itemObj.optString("collectionId", null)?.takeIf { it != "null" },
                         album = itemObj.optString("album", null)?.takeIf { it != "null" },
                         genre = itemObj.optString("genre", null)?.takeIf { it != "null" },
+                        trackId = itemObj.optString("trackId", null)?.takeIf { it != "null" },
+                        subtitle = itemObj.optString("subtitle", null)?.takeIf { it != "null" },
+                        isExplicit = itemObj.optBoolean("isExplicit", false),
                         isAlbum = itemObj.optBoolean("isAlbum", false),
                         isPlaylist = itemObj.optBoolean("isPlaylist", false),
                         isArtist = itemObj.optBoolean("isArtist", false),
                         isClip = itemObj.optBoolean("isClip", false),
                         isCustom = itemObj.optBoolean("isCustom", false),
                         isAvailable = itemObj.optBoolean("isAvailable", true),
+                        musicOwnerId = itemObj.optString("musicOwnerId", null)
+                            ?.takeIf { it != "null" && it.isNotBlank() }?.toLongOrNull(),
+                        catalogBlockId = itemObj.optString("catalogBlockId", null)
+                            ?.takeIf { it != "null" },
+                        radioStreamUrl = itemObj.optString("radioStreamUrl", null)
+                            ?.takeIf { it != "null" },
+                        isRadio = itemObj.optBoolean("isRadio", false),
+                        streamMixId = itemObj.optString("streamMixId", null)?.takeIf { it != "null" },
+                        streamMixTunable = itemObj.optBoolean("streamMixTunable", false),
+                        streamMixEntityId = itemObj.optString("streamMixEntityId", null)
+                            ?.takeIf { it != "null" },
+                        streamMixSectionId = itemObj.optString("streamMixSectionId", null)
+                            ?.takeIf { it != "null" },
+                        streamMixCatalogItemId = itemObj.optString("streamMixCatalogItemId", null)
+                            ?.takeIf { it != "null" },
+                        streamMixAnimationUrl = itemObj.optString("streamMixAnimationUrl", null)
+                            ?.takeIf { it != "null" },
+                        streamMixResolveSettings = itemObj.optBoolean("streamMixResolveSettings", false),
+                        streamMixOptions = itemObj.optJSONObject("streamMixOptions")?.let { options ->
+                            buildMap {
+                                val keys = options.keys()
+                                while (keys.hasNext()) {
+                                    val key = keys.next()
+                                    val values = options.optJSONArray(key) ?: continue
+                                    put(key, (0 until values.length()).mapNotNull { index ->
+                                        values.optString(index).takeIf(String::isNotBlank)
+                                    })
+                                }
+                            }
+                        }.orEmpty(),
                     ))
                 }
                 
+                val actionsObj = blockObj.optJSONObject("actions")
+                val signalObj = blockObj.optJSONObject("signalInfo")
                 blocks.add(HomeBlock(
                     id = blockObj.getString("id"),
                     title = blockObj.getString("title"),
@@ -168,11 +259,59 @@ object HomeCacheManager {
                                 selected = t.optBoolean("selected", false),
                             )
                         }
-                    } ?: emptyList()
+                    } ?: emptyList(),
+                    signalInfo = signalObj?.let { signal ->
+                        HomeSignalInfo(
+                            id = signal.optString("id", ""),
+                            cover = signal.optString("cover", null)?.takeIf { it != "null" },
+                            title = signal.optString("title", ""),
+                            subtitle = signal.optString("subtitle", ""),
+                            currentMonth = signal.optString("currentMonth", ""),
+                            audioIds = signal.optJSONArray("audioIds")?.let { ids ->
+                                (0 until ids.length()).mapNotNull { index ->
+                                    ids.optString(index).takeIf(String::isNotBlank)
+                                }
+                            }.orEmpty(),
+                            playBlockId = signal.optString("playBlockId", null)
+                                ?.takeIf { it != "null" },
+                            openSectionId = signal.optString("openSectionId", null)
+                                ?.takeIf { it != "null" },
+                            ref = signal.optString("ref", null)?.takeIf { it != "null" },
+                            shuffled = signal.optBoolean("shuffled", false),
+                        )
+                    },
+                    actions = HomeCatalogActions(
+                        playBlockId = actionsObj?.optString("playBlockId", null)
+                            ?.takeIf { it != "null" },
+                        playRef = actionsObj?.optString("playRef", null)?.takeIf { it != "null" },
+                        shuffled = actionsObj?.optBoolean("shuffled", false) == true,
+                        openSectionId = actionsObj?.optString("openSectionId", null)
+                            ?.takeIf { it != "null" },
+                        openSectionTitle = actionsObj?.optString("openSectionTitle", null)
+                            ?.takeIf { it != "null" },
+                    ),
                 ))
             }
-            
-            HomeResponse(blocks = blocks)
+
+            val sections = json.optJSONArray("sections")?.let { array ->
+                (0 until array.length()).mapNotNull { index ->
+                    val section = array.optJSONObject(index) ?: return@mapNotNull null
+                    val id = section.optString("id", "")
+                    if (id.isBlank()) return@mapNotNull null
+                    HomeCatalogSection(id, section.optString("title", "VK Музыка"))
+                }
+            }.orEmpty()
+            HomeResponse(
+                blocks = blocks,
+                updatedAt = json.optString("updatedAt", null)
+                    ?.takeIf { it != "null" && it.isNotBlank() }
+                    ?.toLongOrNull(),
+                sections = sections,
+                selectedSectionId = json.optString("selectedSectionId", null)
+                    ?.takeIf { it != "null" },
+                sectionNextFrom = json.optString("sectionNextFrom", null)
+                    ?.takeIf { it != "null" },
+            )
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {

@@ -183,6 +183,8 @@ data class VkCatalogResponse(
     val audio_content_cards: List<VkAudioContentCard>? = null,
     val music_owners: List<VkCatalogProfile>? = null,
     val audios: List<AudioTrack>? = null,
+    /** VK Music `music_recommended_playlists` extended entities. */
+    val recommended_playlists: List<AudioRecommendedPlaylistDto>? = null,
     val playlists: List<AudioPlaylist>? = null,
     val artists: List<VkArtistDto>? = null,
     val suggestions: List<VkCatalogSuggestion>? = null,
@@ -199,6 +201,25 @@ data class VkCatalogResponse(
     /** VK Music 8.37 Catalog2 extended entity (`audio_signal_common_info`). */
     val audio_signal_common_info: List<VkAudioSignalCommonInfo>? = null,
 )
+
+/** Exact useful subset of official VK Music `AudioRecommendedPlaylistDto`. */
+@JsonClass(generateAdapter = true)
+data class AudioRecommendedPlaylistDto(
+    val id: Int? = null,
+    val owner_id: Long? = null,
+    val percentage: Float? = null,
+    val percentage_title: String? = null,
+    val is_curator: Boolean? = null,
+    val audios: List<String>? = null,
+    val color: String? = null,
+    val cover: String? = null,
+    val photo: AudioPhotoDto? = null,
+    val withOwner: Boolean? = null,
+) {
+    val fullId: String? get() = owner_id?.let { ownerId ->
+        id?.let { playlistId -> "${ownerId}_$playlistId" }
+    }
+}
 
 /**
  * Server-owned Signal card from VK Music. `audios` contains VK full audio ids;
