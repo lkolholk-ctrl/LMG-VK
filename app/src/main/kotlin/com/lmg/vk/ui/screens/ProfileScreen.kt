@@ -100,6 +100,8 @@ fun ProfileScreen(
     onOpenAuth: () -> Unit = {},
     onOpenLibrary: () -> Unit = {},
     onOpenPlaylist: (String) -> Unit = {},
+    onOpenUserProfile: (Long) -> Unit = {},
+    onOpenGroup: (Long) -> Unit = {},
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -169,8 +171,10 @@ fun ProfileScreen(
     val lastSeenLabel = remember(profile?.isOnline, profile?.onlineInfo, profile?.lastSeen) {
         formatPresenceLabel(
             isOnline = profile?.isOnline == true,
-            onlineLastSeen = profile?.onlineInfo?.lastSeen,
-            lastSeenTime = profile?.lastSeen?.time,
+            onlineLastSeen = profile?.onlineInfo?.takeIf { it.visible }?.lastSeen,
+            lastSeenTime = profile?.lastSeen?.time?.takeIf {
+                profile.onlineInfo?.visible != false
+            },
         )
     }
     val profileLink = remember(slug, profileId) {
@@ -365,7 +369,7 @@ fun ProfileScreen(
                 item { Spacer(Modifier.height(16.dp)) }
 
                 // SOCIAL: плитки кликабельные — тап открывает полный список.
-                // Online-strip сверху — быстрый вход в музыку друзей, которые
+                // Online-strip сверху — быстрый вход в профили друзей, которые
                 // сейчас в сети (из уже загруженной первой страницы friends.get).
                 item {
                     ProfileCard {
@@ -379,7 +383,7 @@ fun ProfileScreen(
                                     friendsExpanded = true
                                 },
                                 onFriendClick = { friend ->
-                                    scope.launch { VkProfileRepository.openFriendAudio(friend) }
+                                    onOpenUserProfile(friend.id)
                                 },
                             )
                             ProfileDivider()
@@ -434,6 +438,17 @@ fun ProfileScreen(
                             },
                         )
                         ProfileDivider()
+                        val editableProfileId = profile?.id ?: profileId
+                        if (editableProfileId != null && editableProfileId != 0L) {
+                            ProfileNavigationRow(
+                                icon = lmgVector(LmgDrawables.UserPenOutline28),
+                                label = "Edit VK profile",
+                                value = "Status, about and full profile",
+                                compact = compact,
+                                onClick = { onOpenUserProfile(editableProfileId) },
+                            )
+                            ProfileDivider()
+                        }
                         if (profileLink != null) {
                             ProfileNavigationRow(
                                 icon = com.lmg.vk.ui.icons.LmgGlyphs.CopyOutline28,
@@ -595,7 +610,7 @@ fun ProfileScreen(
                     friend = friend,
                     compact = compact,
                     onClick = {
-                        scope.launch { VkProfileRepository.openFriendAudio(friend) }
+                        onOpenUserProfile(friend.id)
                     },
                 )
             }
@@ -634,7 +649,7 @@ fun ProfileScreen(
                     group = group,
                     compact = compact,
                     onClick = {
-                        scope.launch { VkProfileRepository.openGroupAudio(group) }
+                        onOpenGroup(group.audioOwnerId)
                     },
                 )
             }
@@ -854,8 +869,10 @@ private fun FriendRow(friend: VkFriend, compact: Boolean, onClick: () -> Unit) {
     val colors = LiquidTheme.colors
     val presence = formatPresenceLabel(
         isOnline = friend.isOnline,
-        onlineLastSeen = friend.onlineInfo?.lastSeen,
-        lastSeenTime = friend.lastSeen?.time,
+        onlineLastSeen = friend.onlineInfo?.takeIf { it.visible }?.lastSeen,
+        lastSeenTime = friend.lastSeen?.time?.takeIf {
+            friend.onlineInfo?.visible != false
+        },
     )
     val subtitle = when {
         !friend.isActive -> if (friend.deactivated == "banned") "Banned" else "Deleted"
@@ -864,7 +881,7 @@ private fun FriendRow(friend: VkFriend, compact: Boolean, onClick: () -> Unit) {
         !presence.isNullOrBlank() -> presence
         friend.screenName.isNotBlank() -> "vk.com/${friend.screenName}"
         friend.domain.isNotBlank() -> "vk.com/${friend.domain}"
-        else -> "Tap to open audio"
+        else -> "Open VK profile"
     }
     OwnerRow(
         avatarUrl = friend.avatarUrl,
@@ -883,7 +900,7 @@ private fun GroupRow(group: VkGroup, compact: Boolean, onClick: () -> Unit) {
     val subtitle = when {
         group.membersCount != null -> "${formatCount(group.membersCount!!)} members"
         group.screenName.isNotBlank() -> "vk.com/${group.screenName}"
-        else -> "Tap to open audio"
+        else -> "Open community"
     }
     OwnerRow(
         avatarUrl = group.avatarUrl,

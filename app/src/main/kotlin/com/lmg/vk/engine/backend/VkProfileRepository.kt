@@ -15,6 +15,7 @@ import com.lmg.vk.network.methods.VkAudioApi
 import com.lmg.vk.network.methods.VkMethodsRegistry
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -346,26 +347,58 @@ object VkProfileRepository {
     suspend fun openOwnerAudioById(ownerId: Long) {
         if (ownerId == 0L) return
         val isGroup = ownerId < 0
-        openOwnerAudio(
-            ownerId = ownerId,
-            title = if (isGroup) "club${-ownerId}" else "id$ownerId",
-            subtitle = "",
-            avatarUrl = "",
-        )
-        // Имя грузим ПОСЛЕ треков: для сообществ метода в реестре нет (есть только
-        // groups.get по своим), поэтому уточнить можно лишь пользователя.
-        if (isGroup) return
         val registry = methods ?: return
-        val profile = (runCatching { registry.usersGetProfile(ownerId) }.getOrNull()
-            as? VkResult.Success)?.data?.firstOrNull() ?: return
-        // Экран могли закрыть или сменить владельца, пока шёл запрос.
-        val current = _ownerAudio.value?.takeIf { it.ownerId == ownerId } ?: return
-        _ownerAudio.value = current.copy(
-            title = profile.displayName.ifBlank { current.title },
-            subtitle = profile.addressSlug,
-            avatarUrl = profile.bestPhotoUrl,
-        )
+        coroutineScope {
+            // UNDISTPATCHED гарантирует, что placeholder-состояние установлено до
+            // быстрого ответа metadata-запроса; сама сеть после этого идёт параллельно.
+            val audioTask = async(start = CoroutineStart.UNDISPATCHED) {
+                openOwnerAudio(
+                    ownerId = ownerId,
+                    title = if (isGroup) "club${-ownerId}" else "id$ownerId",
+                    subtitle = "",
+                    avatarUrl = "",
+                )
+            }
+            val metadata = async {
+                if (isGroup) {
+                    (runCatching { registry.groupsGetById(ownerId) }.getOrNull()
+                        as? VkResult.Success)?.data?.group?.let { group ->
+                        OwnerMetadata(
+                            title = group.name,
+                            subtitle = group.addressSlug,
+                            avatarUrl = group.coverUrl ?: group.bigAvatarUrl,
+                        )
+                    }
+                } else {
+                    (runCatching { registry.usersGetProfile(ownerId) }.getOrNull()
+                        as? VkResult.Success)?.data?.firstOrNull()?.let { profile ->
+                        OwnerMetadata(
+                            title = profile.displayName,
+                            subtitle = profile.addressSlug,
+                            avatarUrl = profile.largePhotoUrl.ifBlank { profile.bestPhotoUrl },
+                        )
+                    }
+                }
+            }.await()
+
+            // Экран могли закрыть или сменить владельца, пока шёл запрос.
+            val current = _ownerAudio.value?.takeIf { it.ownerId == ownerId }
+            if (metadata != null && current != null) {
+                _ownerAudio.value = current.copy(
+                    title = metadata.title.ifBlank { current.title },
+                    subtitle = metadata.subtitle,
+                    avatarUrl = metadata.avatarUrl,
+                )
+            }
+            audioTask.await()
+        }
     }
+
+    private data class OwnerMetadata(
+        val title: String,
+        val subtitle: String,
+        val avatarUrl: String,
+    )
 
     private suspend fun openOwnerAudio(
         ownerId: Long,

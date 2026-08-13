@@ -33,6 +33,7 @@ object NavRoutes {
     // ── Аргументы ──
     const val ARG_ID = "id"
     const val ARG_NAME = "name"
+    const val ARG_KIND = "kind"
 
     /** Роут детали альбома внутри вкладки [tab] (tab = "wave"/"library"/"new"). */
     fun albumRoute(tab: String) = "$tab/album/{$ARG_ID}"
@@ -63,6 +64,12 @@ object NavRoutes {
     // а минус NavType.LongType не сматчил бы.
     const val GROUP_ROUTE = "library/group/{$ARG_ID}"
     fun group(ownerId: Long) = "library/group/$ownerId"
+
+    // ── Публичный профиль пользователя VK ──
+    const val USER_PROFILE_ROUTE = "library/user/{$ARG_ID}"
+    fun userProfile(userId: Long) = "library/user/$userId"
+    const val USER_CONNECTIONS_ROUTE = "library/user/{$ARG_ID}/connections/{$ARG_KIND}"
+    fun userConnections(userId: Long, kind: String) = "library/user/$userId/connections/$kind"
 
     // ── Онбординг рекомендаций (открывается из Настроек) ──
     const val RECOMMENDATIONS_ONBOARDING = "settings/recommendations-onboarding"

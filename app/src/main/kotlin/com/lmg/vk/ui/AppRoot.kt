@@ -223,12 +223,12 @@ fun AppRoot() {
             // один, состояние в VkProfileRepository одно), поэтому вкладку здесь
             // НЕ подставляем — навигация сама переключит граф.
             is com.lmg.vk.engine.VkLinkTarget.OwnerAudio ->
-                // Ссылка на само сообщество (`/club123`, короткое имя) открывает
-                // его экран; ссылка именно на аудиозаписи (`/audios-123`) — список
-                // треков. Подменять одно другим нельзя: пользователь открывал
-                // разные вещи.
-                if (target.isGroup && target.wantsProfile) {
-                    NavRoutes.group(target.ownerId)
+                if (target.wantsProfile) {
+                    if (target.isGroup) {
+                        NavRoutes.group(target.ownerId)
+                    } else {
+                        NavRoutes.userProfile(target.ownerId)
+                    }
                 } else {
                     NavRoutes.ownerAudio(target.ownerId)
                 }
@@ -678,6 +678,14 @@ fun AppRoot() {
                     navController.navigate(
                         NavRoutes.playlist(NavRoutes.TAB_LIBRARY, playlistId),
                     )
+                },
+                onOpenUserProfile = { userId ->
+                    profileOpen = false
+                    navController.navigate(NavRoutes.userProfile(userId))
+                },
+                onOpenGroup = { ownerId ->
+                    profileOpen = false
+                    navController.navigate(NavRoutes.group(ownerId))
                 },
             )
         }

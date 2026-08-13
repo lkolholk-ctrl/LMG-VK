@@ -123,12 +123,14 @@ object VkLinkResolver {
 
         parseOffline(uri)?.let { return VkLinkResolution.Resolved(it) }
 
-        val path = uri.path?.lowercase().orEmpty()
+        val path = uri.path?.lowercase().orEmpty().trimEnd('/')
 
         // id123 / club123 — владелец известен без запроса.
         NUMERIC_USER.find(path)?.let { m ->
             val id = m.groupValues[1].toLongOrNull() ?: return VkLinkResolution.Unsupported(path)
-            return VkLinkResolution.Resolved(VkLinkTarget.OwnerAudio(id, isGroup = false))
+            return VkLinkResolution.Resolved(
+                VkLinkTarget.OwnerAudio(id, isGroup = false, wantsProfile = true),
+            )
         }
         NUMERIC_GROUP.find(path)?.let { m ->
             val id = m.groupValues[1].toLongOrNull() ?: return VkLinkResolution.Unsupported(path)
@@ -181,7 +183,7 @@ object VkLinkResolver {
 
         return when (type) {
             "user" -> VkLinkResolution.Resolved(
-                VkLinkTarget.OwnerAudio(objectId, isGroup = false),
+                VkLinkTarget.OwnerAudio(objectId, isGroup = false, wantsProfile = true),
             )
             // Набор значений `type` в спеке не подтверждён, поэтому группой
             // считаем все известные «сообществные» варианты.
@@ -397,10 +399,8 @@ sealed interface VkLinkTarget {
      * Аудиозаписи владельца (`/audios-123`, `/audios123`).
      *
      * [isGroup] — владелец это сообщество (отрицательный owner_id).
-     * [wantsProfile] — ссылка вела на само сообщество (`/club123`), а не на его
-     * аудио: тогда правильнее открыть экран сообщества, а не сразу список
-     * треков. Различие смысловое: `/audios-123` пользователь открывал ради
-     * музыки, `/club123` — ради сообщества.
+     * [wantsProfile] — ссылка вела на пользователя/сообщество (`/id123`,
+     * `/club123`, короткое имя), а не прямо на его аудио.
      */
     data class OwnerAudio(
         val ownerId: Long,

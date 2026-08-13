@@ -255,5 +255,6 @@ data class AudioPlaylistMetaDto(val view: String? = null)
 @JsonClass(generateAdapter = true)
 data class AudioChartInfoDto(
     val position: Int? = null,
-    val state: String? = null,
+    /** Official VK 8.185 enum: 0 unchanged, 1 up, 2 down, 3 new. */
+    val state: Int? = null,
 )

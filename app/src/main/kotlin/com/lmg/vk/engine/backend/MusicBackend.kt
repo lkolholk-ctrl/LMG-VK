@@ -1819,6 +1819,10 @@ object MusicBackend {
         return tracks.map(::cacheTrack).map { it.toSearchItem() }
     }
 
+    /** Full generated audio DTOs embedded in profile status blocks. */
+    fun adoptAudioDtos(tracks: Collection<AudioAudioDto>): List<SearchItem> =
+        adoptTracks(tracks.map { it.toAudioTrack() })
+
     private fun cacheTracks(tracks: Collection<AudioTrack>) {
         tracks.forEach(::cacheTrack)
     }

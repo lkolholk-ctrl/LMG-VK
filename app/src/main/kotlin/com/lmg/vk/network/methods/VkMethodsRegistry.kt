@@ -29,7 +29,14 @@ import com.lmg.vk.network.dto.RequestTokenResponse
 import com.lmg.vk.network.dto.VKError
 import com.lmg.vk.network.dto.VkAccountProfile
 import com.lmg.vk.network.dto.VkFriend
+import com.lmg.vk.network.dto.VkFollowersPage
+import com.lmg.vk.network.dto.VkFriendsDeleteResponse
 import com.lmg.vk.network.dto.VkGroup
+import com.lmg.vk.network.dto.VkSubscriptionsPage
+import com.lmg.vk.network.dto.VkSaveProfileInfoResponse
+import com.lmg.vk.network.dto.VkOwnerUploadServer
+import com.lmg.vk.network.dto.VkSaveOwnerCoverResponse
+import com.lmg.vk.network.dto.VkSaveOwnerPhotoResponse
 import com.lmg.vk.network.dto.gen.auth.ValidatePhoneResponse
 import com.lmg.vk.network.dto.music.AudioAudioDto
 import com.lmg.vk.network.dto.music.AudioPlaylistReorderAction
@@ -312,15 +319,35 @@ class VkMethodsRegistry(private val client: VkApiClient) {
         return client.execute(method)
     }
 
-    /** Профиль другого пользователя с тем же набором полей, что и у себя. */
+    /** Публичный профиль пользователя с полями страницы профиля VK. */
     suspend fun usersGetProfile(userId: Long): VkResult<List<VkAccountProfile>> {
         val listType = Types.newParameterizedType(List::class.java, VkAccountProfile::class.java)
         val method = VkMethod(
             "users.get",
             MoshiEnvelopeParser<List<VkAccountProfile>>(listType),
         ).apply {
-            param("fields", CURRENT_PROFILE_FIELDS)
+            param("fields", PUBLIC_PROFILE_FIELDS)
             param("user_ids", userId)
+        }
+        return client.execute(method)
+    }
+
+    /** Full profile contract used by the official VK profile screen. */
+    suspend fun usersGetFullProfile(
+        userId: Long,
+        isCurrentUser: Boolean,
+    ): VkResult<VkAccountProfile> {
+        val method = VkMethod(
+            "users.getFullProfile",
+            MoshiEnvelopeParser<VkAccountProfile>(VkAccountProfile::class.java),
+        ).apply {
+            param("user_id", userId)
+            param("user_fields", FULL_PROFILE_FIELDS)
+            param("current_user", isCurrentUser)
+            param("need_friends_block", 0)
+            param("need_recommendations_block", false)
+            param("source", "profile")
+            param("ref", "profile")
         }
         return client.execute(method)
     }
@@ -356,6 +383,141 @@ class VkMethodsRegistry(private val client: VkApiClient) {
             param("count", count)
             param("fields", FRIEND_FIELDS)
             param("order", order)
+        }
+        return client.execute(method)
+    }
+
+    /** Send a friend request or accept an incoming request. */
+    suspend fun friendsAdd(userId: Long): VkResult<Int> {
+        val method = VkMethod(
+            "friends.add",
+            MoshiEnvelopeParser<Int>(Int::class.javaObjectType),
+        ).apply { param("user_id", userId) }
+        return client.execute(method)
+    }
+
+    /** Remove a friend or cancel an incoming/outgoing request. */
+    suspend fun friendsDelete(userId: Long): VkResult<VkFriendsDeleteResponse> {
+        val method = VkMethod(
+            "friends.delete",
+            MoshiEnvelopeParser<VkFriendsDeleteResponse>(VkFriendsDeleteResponse::class.java),
+        ).apply { param("user_id", userId) }
+        return client.execute(method)
+    }
+
+    /** IDs of friends shared by the current account and [targetUserId]. */
+    suspend fun friendsGetMutual(
+        targetUserId: Long,
+        count: Int = 100,
+    ): VkResult<List<Long>> {
+        val listType = Types.newParameterizedType(List::class.java, Long::class.javaObjectType)
+        val method = VkMethod(
+            "friends.getMutual",
+            MoshiEnvelopeParser<List<Long>>(listType),
+        ).apply {
+            param("target_uid", targetUserId)
+            param("count", count)
+        }
+        return client.execute(method)
+    }
+
+    /** Resolve user IDs returned by methods such as `friends.getMutual`. */
+    suspend fun usersGetConnections(userIds: Collection<Long>): VkResult<List<VkFriend>> {
+        if (userIds.isEmpty()) return VkResult.Success(emptyList())
+        val listType = Types.newParameterizedType(List::class.java, VkFriend::class.java)
+        val method = VkMethod(
+            "users.get",
+            MoshiEnvelopeParser<List<VkFriend>>(listType),
+        ).apply {
+            param("user_ids", userIds.joinToString(","))
+            param("fields", CONNECTION_FIELDS)
+        }
+        return client.execute(method)
+    }
+
+    suspend fun usersGetFollowers(
+        userId: Long,
+        offset: Int = 0,
+        count: Int = 40,
+    ): VkResult<VkFollowersPage> {
+        val method = VkMethod(
+            "users.getFollowers",
+            MoshiEnvelopeParser<VkFollowersPage>(VkFollowersPage::class.java),
+        ).apply {
+            param("user_id", userId)
+            param("offset", offset)
+            param("count", count)
+            param("fields", CONNECTION_FIELDS)
+            param("ref", "profile")
+        }
+        return client.execute(method)
+    }
+
+    suspend fun usersGetSubscriptions(
+        userId: Long,
+        offset: Int = 0,
+        count: Int = 40,
+    ): VkResult<VkSubscriptionsPage> {
+        val method = VkMethod("users.getSubscriptions", SubscriptionsParser).apply {
+            param("user_id", userId)
+            param("offset", offset)
+            param("count", count)
+            param("extended", 1)
+            param("fields", CONNECTION_FIELDS + ",members_count")
+            param("from", "profile")
+        }
+        return client.execute(method)
+    }
+
+    /** Confirmed own-profile writes from the official VK 8.185 client. */
+    suspend fun statusSet(text: String): VkResult<Unit> =
+        executeUnit("status.set") { param("text", text) }
+
+    suspend fun accountSaveProfileAbout(about: String): VkResult<VkSaveProfileInfoResponse> {
+        val method = VkMethod(
+            "account.saveProfileInfo",
+            MoshiEnvelopeParser<VkSaveProfileInfoResponse>(VkSaveProfileInfoResponse::class.java),
+        ).apply { param("about", about) }
+        return client.execute(method)
+    }
+
+    suspend fun photosGetOwnerPhotoUploadServer(): VkResult<VkOwnerUploadServer> {
+        val method = VkMethod(
+            "photos.getOwnerPhotoUploadServer",
+            MoshiEnvelopeParser<VkOwnerUploadServer>(VkOwnerUploadServer::class.java),
+        ).apply { param("upload_v2", true) }
+        return client.execute(method)
+    }
+
+    suspend fun photosSaveOwnerPhoto(uploadResponse: String): VkResult<VkSaveOwnerPhotoResponse> {
+        val method = VkMethod(
+            "photos.saveOwnerPhoto",
+            MoshiEnvelopeParser<VkSaveOwnerPhotoResponse>(VkSaveOwnerPhotoResponse::class.java),
+        ).apply {
+            param("photo", uploadResponse)
+            param("skip_post", true)
+            param("upload_v2", true)
+        }
+        return client.execute(method)
+    }
+
+    suspend fun photosGetOwnerCoverUploadServer(): VkResult<VkOwnerUploadServer> {
+        val method = VkMethod(
+            "photos.getOwnerCoverPhotoUploadServer",
+            MoshiEnvelopeParser<VkOwnerUploadServer>(VkOwnerUploadServer::class.java),
+        ).apply { param("upload_v2", true) }
+        return client.execute(method)
+    }
+
+    suspend fun photosSaveOwnerCover(uploadResponse: String): VkResult<VkSaveOwnerCoverResponse> {
+        val method = VkMethod(
+            "photos.saveOwnerCoverPhoto",
+            MoshiEnvelopeParser<VkSaveOwnerCoverResponse>(VkSaveOwnerCoverResponse::class.java),
+        ).apply {
+            param("hash", "")
+            param("photo", "")
+            param("response_json", uploadResponse)
+            param("upload_v2", true)
         }
         return client.execute(method)
     }
@@ -908,6 +1070,39 @@ class VkMethodsRegistry(private val client: VkApiClient) {
         }
     }
 
+    /** Extended subscriptions contain users and groups in one `items` array. */
+    private object SubscriptionsParser : VkResponseParser<VkSubscriptionsPage> {
+        private val userAdapter = VkJson.moshi.adapter(VkFriend::class.java)
+        private val groupAdapter = VkJson.moshi.adapter(VkGroup::class.java)
+        private val errorAdapter = VkJson.moshi.adapter(VKError::class.java)
+
+        override suspend fun parse(raw: RawHttpResponse): VkParsedResponse<VkSubscriptionsPage> {
+            val root = JSONObject(raw.bodyText())
+            root.optJSONObject("error")?.let { error ->
+                return VkParsedResponse(null, errorAdapter.fromJson(error.toString()))
+            }
+            val response = root.optJSONObject("response")
+            val items = response?.optJSONArray("items") ?: JSONArray()
+            val users = ArrayList<VkFriend>(items.length())
+            val groups = ArrayList<VkGroup>()
+            for (index in 0 until items.length()) {
+                val item = items.optJSONObject(index) ?: continue
+                when (item.optString("type").lowercase()) {
+                    "page", "group", "event" -> groupAdapter.fromJson(item.toString())?.let(groups::add)
+                    else -> userAdapter.fromJson(item.toString())?.let(users::add)
+                }
+            }
+            return VkParsedResponse(
+                VkSubscriptionsPage(
+                    count = response?.optInt("count", items.length()) ?: items.length(),
+                    users = users,
+                    groups = groups,
+                ),
+                null,
+            )
+        }
+    }
+
     private companion object {
         const val VKX_STORAGE_APP_ID = 52384530
         const val PROFILE_FIELDS =
@@ -927,6 +1122,20 @@ class VkMethodsRegistry(private val client: VkApiClient) {
             "online,online_info,last_seen,verified,sex"
 
         /**
+         * Поля публичного профиля сверены с `UsersFieldsDto` и
+         * `UsersUserFullProfileDto` официального VK 8.185. Стена и сообщения не
+         * запрашиваются; URL-кнопки приходят только в отдельном full-profile вызове.
+         */
+        const val PUBLIC_PROFILE_FIELDS = CURRENT_PROFILE_FIELDS +
+            ",about,activities,interests,music,occupation,site,home_town," +
+            "common_count,is_friend,friend_status,can_send_friend_request,can_see_audio," +
+            "cover,animated_avatar,image_status"
+
+        const val FULL_PROFILE_FIELDS = PUBLIC_PROFILE_FIELDS +
+            ",career,schools,universities,relatives,relation,personal,contacts," +
+            "description,descriptions,profile_buttons"
+
+        /**
          * `photo_base` ОБЯЗАТЕЛЕН и стоит первым: с токеном официального клиента
          * `photo_100`/`photo_200` приходят ПУСТЫМИ (лог с устройства: «friends:
          * 0/40 с ссылкой»), аватар отдаётся именно через `photo_base`. Так же
@@ -937,6 +1146,9 @@ class VkMethodsRegistry(private val client: VkApiClient) {
         const val FRIEND_FIELDS =
             "photo_base,photo_100,photo_200,domain,screen_name,online,online_info," +
                 "last_seen,verified,sex,can_see_audio"
+
+        const val CONNECTION_FIELDS = FRIEND_FIELDS +
+            ",is_closed,is_friend,friend_status,can_send_friend_request"
 
         /** `photo_base` первым — см. [FRIEND_FIELDS]: остальные поля фото пустые. */
         const val GROUP_FIELDS =

@@ -1,5 +1,7 @@
 package com.lmg.vk.network.dto
 
+import com.lmg.vk.network.dto.music.AudioAudioDto
+import com.lmg.vk.network.dto.music.BaseImageDto
 import com.squareup.moshi.Json
 import com.squareup.moshi.JsonClass
 
@@ -44,16 +46,49 @@ data class VkAccountProfile(
     val domain: String = "",
     @Json(name = "screen_name") val screenName: String = "",
     val status: String = "",
+    @Json(name = "status_audio") val statusAudio: AudioAudioDto? = null,
+    @Json(name = "extended_status") val extendedStatus: VkExtendedStatus? = null,
     val bdate: String = "",
     val city: VkPlace? = null,
     val country: VkPlace? = null,
     @Json(name = "followers_count") val followersCount: Int? = null,
+    @Json(name = "common_count") val commonCount: Int? = null,
     val counters: VkProfileCounters? = null,
     val online: Int? = null,
     @Json(name = "online_info") val onlineInfo: VkOnlineInfo? = null,
     @Json(name = "last_seen") val lastSeen: VkLastSeen? = null,
     val verified: Int? = null,
     val sex: Int? = null,
+    val about: String? = null,
+    val activities: String? = null,
+    val interests: String? = null,
+    val music: String? = null,
+    val occupation: VkOccupation? = null,
+    val site: String? = null,
+    @Json(name = "home_town") val homeTown: String? = null,
+    @Json(name = "is_friend") val isFriend: Int? = null,
+    @Json(name = "friend_status") val friendStatus: Int? = null,
+    @Json(name = "can_send_friend_request") val canSendFriendRequest: Int? = null,
+    @Json(name = "can_see_audio") val canSeeAudio: Int? = null,
+    @Json(name = "is_closed") val isClosed: Boolean? = null,
+    @Json(name = "can_access_closed") val canAccessClosed: Boolean? = null,
+    val deactivated: String? = null,
+    val cover: VkOwnerCover? = null,
+    @Json(name = "animated_avatar") val animatedAvatar: BaseImageDto? = null,
+    @Json(name = "image_status") val imageStatus: VkImageStatus? = null,
+    val description: String? = null,
+    val descriptions: List<String> = emptyList(),
+    val career: List<VkCareer> = emptyList(),
+    val schools: List<VkSchool> = emptyList(),
+    val universities: List<VkUniversity> = emptyList(),
+    val relatives: List<VkRelative> = emptyList(),
+    val relation: Int? = null,
+    @Json(name = "relation_partner") val relationPartner: VkUserMin? = null,
+    val personal: VkPersonal? = null,
+    @Json(name = "mobile_phone") val mobilePhone: String? = null,
+    @Json(name = "home_phone") val homePhone: String? = null,
+    val skype: String? = null,
+    @Json(name = "profile_buttons") val profileButtons: List<List<VkProfileButton>> = emptyList(),
 ) {
     val displayName: String
         get() = name.ifBlank {
@@ -93,10 +128,28 @@ data class VkAccountProfile(
         get() = screenName.ifBlank { domain }.ifBlank { if (id != 0L) "id$id" else "" }
 
     val isOnline: Boolean
-        get() = onlineInfo?.isOnline ?: (online == 1)
+        get() = onlineInfo?.let { info ->
+            if (!info.visible) false else info.isOnline ?: (online == 1)
+        } ?: (online == 1)
 
     val isVerified: Boolean
         get() = verified == 1
+
+    /** `false` only when VK explicitly closed this user's audio. */
+    val isAudioVisible: Boolean
+        get() = canSeeAudio != 0
+
+    val isAccessible: Boolean
+        get() = isClosed != true || canAccessClosed == true
+
+    val actualStatusAudio: AudioAudioDto?
+        get() = extendedStatus?.audio ?: statusAudio
+
+    val coverUrl: String?
+        get() = cover?.bestUrl
+
+    val animatedAvatarUrl: String?
+        get() = animatedAvatar?.url?.takeIf(String::isNotBlank)
 
     /** `Город, Страна` — только из тех частей, что VK реально вернул. */
     val locationLabel: String
@@ -104,6 +157,140 @@ data class VkAccountProfile(
             .filter(String::isNotBlank)
             .joinToString(", ")
 }
+
+/** Current job or study place from the official VK `users.get` profile model. */
+@JsonClass(generateAdapter = true)
+data class VkOccupation(
+    val id: Long = 0L,
+    val name: String = "",
+    val type: String = "",
+)
+
+@JsonClass(generateAdapter = true)
+data class VkExtendedStatus(
+    val text: String? = null,
+    val audio: AudioAudioDto? = null,
+)
+
+@JsonClass(generateAdapter = true)
+data class VkOwnerCover(
+    val enabled: Int? = null,
+    val images: List<BaseImageDto> = emptyList(),
+) {
+    val bestUrl: String?
+        get() = images
+            .filter { it.url.isNotBlank() }
+            .maxByOrNull { it.width * it.height }
+            ?.url
+            ?.takeIf { enabled != 0 }
+}
+
+@JsonClass(generateAdapter = true)
+data class VkImageStatus(
+    val id: Int? = null,
+    val name: String? = null,
+    val images: List<BaseImageDto> = emptyList(),
+)
+
+@JsonClass(generateAdapter = true)
+data class VkCareer(
+    @Json(name = "city_id") val cityId: Int? = null,
+    @Json(name = "city_name") val cityName: String? = null,
+    val company: String? = null,
+    val from: Int? = null,
+    val position: String? = null,
+    val until: Int? = null,
+)
+
+@JsonClass(generateAdapter = true)
+data class VkSchool(
+    val id: String? = null,
+    val name: String? = null,
+    val speciality: String? = null,
+    @Json(name = "type_str") val typeLabel: String? = null,
+    @Json(name = "year_from") val yearFrom: Int? = null,
+    @Json(name = "year_to") val yearTo: Int? = null,
+    @Json(name = "year_graduated") val yearGraduated: Int? = null,
+)
+
+@JsonClass(generateAdapter = true)
+data class VkUniversity(
+    val id: Int? = null,
+    val name: String? = null,
+    @Json(name = "faculty_name") val facultyName: String? = null,
+    @Json(name = "chair_name") val chairName: String? = null,
+    val graduation: Int? = null,
+    @Json(name = "education_form") val educationForm: String? = null,
+    @Json(name = "education_status") val educationStatus: String? = null,
+)
+
+@JsonClass(generateAdapter = true)
+data class VkRelative(
+    val type: String = "",
+    @Json(name = "birth_date") val birthDate: String? = null,
+    val id: Long? = null,
+    val name: String? = null,
+)
+
+@JsonClass(generateAdapter = true)
+data class VkUserMin(
+    val id: Long = 0L,
+    @Json(name = "first_name") val firstName: String = "",
+    @Json(name = "last_name") val lastName: String = "",
+) {
+    val displayName: String get() = listOf(firstName, lastName).filter(String::isNotBlank).joinToString(" ")
+}
+
+@JsonClass(generateAdapter = true)
+data class VkPersonal(
+    val alcohol: Int? = null,
+    @Json(name = "inspired_by") val inspiredBy: String? = null,
+    val langs: List<String> = emptyList(),
+    @Json(name = "life_main") val lifeMain: Int? = null,
+    @Json(name = "people_main") val peopleMain: Int? = null,
+    val political: Int? = null,
+    val religion: String? = null,
+    val smoking: Int? = null,
+)
+
+@JsonClass(generateAdapter = true)
+data class VkProfileButton(
+    val action: VkProfileButtonAction = VkProfileButtonAction(),
+    val text: String = "",
+    val uid: String? = null,
+    @Json(name = "badge_counter") val badgeCounter: Int? = null,
+)
+
+@JsonClass(generateAdapter = true)
+data class VkProfileButtonAction(
+    val type: String? = null,
+    val url: String? = null,
+)
+
+@JsonClass(generateAdapter = true)
+data class VkSaveProfileInfoResponse(
+    val changed: Int = 0,
+)
+
+@JsonClass(generateAdapter = true)
+data class VkOwnerUploadServer(
+    @Json(name = "upload_url") val uploadUrl: String,
+    @Json(name = "fallback_upload_url") val fallbackUploadUrl: String? = null,
+)
+
+@JsonClass(generateAdapter = true)
+data class VkSaveOwnerPhotoResponse(
+    @Json(name = "photo_hash") val photoHash: String? = null,
+    @Json(name = "photo_src") val photoSrc: String? = null,
+    @Json(name = "photo_src_big") val photoSrcBig: String? = null,
+    @Json(name = "photo_src_small") val photoSrcSmall: String? = null,
+    val saved: Int? = null,
+)
+
+@JsonClass(generateAdapter = true)
+data class VkSaveOwnerCoverResponse(
+    val images: List<BaseImageDto> = emptyList(),
+)
 
 /**
  * Поднять `cs` в ссылке VK до самого крупного размера из `as`.

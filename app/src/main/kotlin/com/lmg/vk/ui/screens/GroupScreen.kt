@@ -98,7 +98,7 @@ fun GroupScreen(
     ownerId: Long,
     onBack: () -> Unit,
     onOpenPlaylist: (String) -> Unit,
-    onOpenMemberAudio: (Long) -> Unit = {},
+    onOpenMemberProfile: (Long) -> Unit = {},
     viewModel: GroupViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
 ) {
     val context = LocalContext.current
@@ -205,7 +205,7 @@ fun GroupScreen(
                         item {
                             GroupMembersRow(
                                 members = state.members,
-                                onOpenMember = onOpenMemberAudio,
+                                onOpenMember = onOpenMemberProfile,
                             )
                         }
                     }

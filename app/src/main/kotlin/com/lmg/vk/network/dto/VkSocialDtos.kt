@@ -40,6 +40,10 @@ data class VkFriend(
      * `null` означает «неизвестно», и решение принимается по ответу `audio.get`.
      */
     @Json(name = "can_see_audio") val canSeeAudio: Int? = null,
+    @Json(name = "is_closed") val isClosed: Boolean? = null,
+    @Json(name = "is_friend") val isFriend: Int? = null,
+    @Json(name = "friend_status") val friendStatus: Int? = null,
+    @Json(name = "can_send_friend_request") val canSendFriendRequest: Int? = null,
 ) {
     val displayName: String
         get() = listOf(firstName, lastName)
@@ -62,7 +66,9 @@ data class VkFriend(
         get() = avatarUrl.withLargestVkSize()
 
     val isOnline: Boolean
-        get() = onlineInfo?.isOnline ?: (online == 1)
+        get() = onlineInfo?.let { info ->
+            if (!info.visible) false else info.isOnline ?: (online == 1)
+        } ?: (online == 1)
 
     val isActive: Boolean
         get() = deactivated.isNullOrBlank()
@@ -71,6 +77,31 @@ data class VkFriend(
     val audioProbablyVisible: Boolean
         get() = canSeeAudio != 0
 }
+
+/** Detailed result of the official VK `friends.delete` method. */
+@JsonClass(generateAdapter = true)
+data class VkFriendsDeleteResponse(
+    val success: Int = 0,
+    @Json(name = "friend_deleted") val friendDeleted: Int? = null,
+    @Json(name = "out_request_deleted") val outgoingRequestDeleted: Int? = null,
+    @Json(name = "in_request_deleted") val incomingRequestDeleted: Int? = null,
+    @Json(name = "suggestion_deleted") val suggestionDeleted: Int? = null,
+)
+
+/** Page returned by `users.getFollowers?fields=...`. */
+@JsonClass(generateAdapter = true)
+data class VkFollowersPage(
+    val count: Int = 0,
+    val items: List<VkFriend> = emptyList(),
+    @Json(name = "friends_count") val friendsCount: Int? = null,
+)
+
+/** Mixed extended page returned by `users.getSubscriptions`. */
+data class VkSubscriptionsPage(
+    val count: Int,
+    val users: List<VkFriend>,
+    val groups: List<VkGroup>,
+)
 
 /**
  * Элемент `groups.get?extended=1` и `groups.getById`. В `owner_id` для аудио

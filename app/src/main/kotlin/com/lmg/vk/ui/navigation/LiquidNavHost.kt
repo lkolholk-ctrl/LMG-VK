@@ -178,9 +178,43 @@ fun LiquidNavHost(
                     onOpenPlaylist = {
                         navController.navigate(NavRoutes.playlist(NavRoutes.TAB_LIBRARY, it))
                     },
-                    // Тап по участнику ведёт в его аудиозаписи: экран музыкальный,
-                    // и профиля пользователя как отдельного экрана в проекте нет.
-                    onOpenMemberAudio = { navController.navigate(NavRoutes.ownerAudio(it)) }
+                    onOpenMemberProfile = { navController.navigate(NavRoutes.userProfile(it)) }
+                )
+            }
+            composable(
+                NavRoutes.USER_PROFILE_ROUTE,
+                arguments = listOf(navArgument(NavRoutes.ARG_ID) { type = NavType.StringType })
+            ) { entry ->
+                val userId = entry.arguments?.getString(NavRoutes.ARG_ID)?.toLongOrNull() ?: 0L
+                com.lmg.vk.ui.screens.UserProfileScreen(
+                    userId = userId,
+                    onBack = { navController.popBackStack() },
+                    onOpenMusic = { navController.navigate(NavRoutes.ownerAudio(it)) },
+                    onOpenConnections = { kind ->
+                        navController.navigate(NavRoutes.userConnections(userId, kind))
+                    },
+                    onOpenPlaylist = {
+                        navController.navigate(NavRoutes.playlist(NavRoutes.TAB_LIBRARY, it))
+                    },
+                )
+            }
+            composable(
+                NavRoutes.USER_CONNECTIONS_ROUTE,
+                arguments = listOf(
+                    navArgument(NavRoutes.ARG_ID) { type = NavType.StringType },
+                    navArgument(NavRoutes.ARG_KIND) { type = NavType.StringType },
+                ),
+            ) { entry ->
+                val userId = entry.arguments?.getString(NavRoutes.ARG_ID)?.toLongOrNull() ?: 0L
+                val kind = com.lmg.vk.ui.viewmodel.UserConnectionsKind.fromRoute(
+                    entry.arguments?.getString(NavRoutes.ARG_KIND).orEmpty(),
+                ) ?: com.lmg.vk.ui.viewmodel.UserConnectionsKind.FOLLOWERS
+                com.lmg.vk.ui.screens.UserConnectionsScreen(
+                    userId = userId,
+                    kind = kind,
+                    onBack = { navController.popBackStack() },
+                    onOpenUser = { navController.navigate(NavRoutes.userProfile(it)) },
+                    onOpenGroup = { navController.navigate(NavRoutes.group(it)) },
                 )
             }
             composable(

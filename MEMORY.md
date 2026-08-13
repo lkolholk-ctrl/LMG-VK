@@ -666,3 +666,150 @@ UI, ресурсы и исходную логику необходимо **в п
   `HomeViewModel.kt`, `VkMixSettingsTest.kt`, `docs/vkx-port/01-music.md`.
 - Проверка: только `git diff --check` и статическая сверка вызовов/nullable-типа.
   Локальный Gradle/build запрещён и не запускался.
+
+# Публичные профили пользователей VK
+
+**Текущий логический этап:** усиление профильной части без переписывания уже
+работающего экрана собственного аккаунта. SHA смотреть после отдельной команды
+владельца на commit.
+
+- Основной источник — оригинальный VK 8.185 из
+  `/root/VK_8.185_55039_analysis`: `UsersFieldsDto.java`,
+  `UsersUserFullProfileDto.java`, `FriendsFriendStatusStatusDto.java` и
+  `dto/user/UserProfile.java`. Они подтверждают поля `users.get`, статусы дружбы,
+  поведение скрытого online и состав публичного профиля.
+- `VkAccountProfile` расширен только используемыми подтверждёнными полями:
+  `about`, `activities`, `interests`, `music`, `occupation`, `site`,
+  `home_town`, `common_count`, `is_friend`, `friend_status`, `can_see_audio`,
+  а также базовыми признаками закрытого/деактивированного профиля.
+- Добавлены `UserProfileViewModel` и нативный `UserProfileScreen` в UI LMG VK:
+  крупное фото, имя, verified, status/presence, факты профиля, публичные детали,
+  VK/site links, Share и переход к существующему экрану музыки владельца.
+- Друзья текущего аккаунта и участники сообщества открывают публичный профиль;
+  сообщества из профиля открывают полный `GroupScreen`, а не только их аудио.
+- `library/user/{id}` зарегистрирован в графе Library. Ссылки на пользователя и
+  сообщество ведут в профиль, `/audios...` сохраняет прямой вход в музыку.
+- `openOwnerAudioById()` параллельно получает метаданные владельца через
+  `users.get`/`groups.getById`, поэтому прямой аудиоэкран заменяет `id123` или
+  `club123` реальным именем и крупным изображением.
+- `online_info.visible=false` теперь блокирует показ online/last seen у текущего
+  профиля, публичного профиля и друзей, как в `UserProfile.P()` оригинального VK.
+
+Изменены: `VkAccountProfile.kt`, `VkSocialDtos.kt`, `VkMethodsRegistry.kt`,
+`UserProfileViewModel.kt`, `UserProfileScreen.kt`, `ProfileScreen.kt`,
+`GroupScreen.kt`, `VkProfileRepository.kt`, `VkLinkResolver.kt`, `NavRoutes.kt`,
+`LiquidNavHost.kt`, `AppRoot.kt`, `docs/PLAN.md`, `MEMORY.md`.
+
+Проверка: `git diff --check`, отдельный whitespace-check двух новых Kotlin-файлов,
+точечная сверка route/callback/API symbols и статический review изменённых файлов.
+Gradle, сборка, компиляция и тестовые задачи не запускались по правилу владельца.
+Ручная проверка: Profile -> Friends -> пользователь -> Music -> Back; Profile ->
+Communities -> сообщество; Group -> участник; открыть `vk.com/id.../` и
+`vk.com/club.../`; проверить закрытый профиль и пользователя со скрытым online.
+
+# Профиль VK: публичные страницы пользователей
+
+**Текущий логический этап:** усиление профильной части без замены существующего
+экрана текущего аккаунта и без переноса UI официального VK. SHA смотреть после
+отдельной команды владельца на commit.
+
+Подтверждённые источники официального VK 8.185:
+
+- `/root/VK_8.185_55039_analysis/jadx/sources/com/p056vk/api/generated/users/dto/UsersFieldsDto.java`
+  подтверждает имена запрашиваемых полей `users.get`;
+- `/root/VK_8.185_55039_analysis/jadx_parts/part16/sources/com/vk/api/generated/users/dto/UsersUserFullProfileDto.java`
+  подтверждает wire-типы публичного профиля;
+- `/root/VK_8.185_55039_analysis/jadx/sources/com/p056vk/api/generated/friends/dto/FriendsFriendStatusStatusDto.java`
+  подтверждает значения friend status 0/1/2/3;
+- `/root/VK_8.185_55039_analysis/jadx_parts/part11/sources/com/vk/dto/user/UserProfile.java`
+  подтверждает разбор `photo_base`, `crop_photo`, статуса, online visibility,
+  friend state, followers и public/private/deactivated состояний.
+
+Что сделано:
+
+1. `VkAccountProfile` расширен только подтверждёнными публичными полями: about,
+   activities, interests, music, occupation, site, hometown, common friends,
+   friend state и доступность аудио.
+2. `VkMethodsRegistry.usersGetProfile()` использует отдельный
+   `PUBLIC_PROFILE_FIELDS`; служебные profile buttons, сообщения и стена не
+   запрашиваются.
+3. Добавлены `UserProfileViewModel` и нативный `UserProfileScreen` в UI LMG VK:
+   фото, имя, verified, статус, присутствие, реальные факты и details, share,
+   внешний VK URL и отдельное действие Music через существующий OwnerAudio.
+4. Добавлен маршрут `library/user/{id}`. Друзья текущего аккаунта и участники
+   сообщества открывают публичный профиль; сообщества из Profile открывают
+   существующий полноценный `GroupScreen`.
+5. Ссылки на пользователя/сообщество отличены от `/audios...`: профильная ссылка
+   ведёт на профиль, аудиоссылка — сразу к трекам. Завершающий `/` принимается.
+6. `openOwnerAudioById()` параллельно получает metadata владельца; для сообщества
+   использует `groups.getById`, поэтому direct audio screen больше не обязан
+   оставаться с `club123` и пустой обложкой.
+7. `online_info.visible=false` учитывается у текущего аккаунта, друзей и публичной
+   страницы: скрытое присутствие и last seen не раскрываются.
+
+Основные файлы: `VkAccountProfile.kt`, `VkSocialDtos.kt`,
+`VkMethodsRegistry.kt`, `UserProfileViewModel.kt`, `UserProfileScreen.kt`,
+`ProfileScreen.kt`, `GroupScreen.kt`, `VkProfileRepository.kt`,
+`VkLinkResolver.kt`, `NavRoutes.kt`, `LiquidNavHost.kt`, `AppRoot.kt`,
+`docs/PLAN.md`, `MEMORY.md`.
+
+Проверка: `git diff --check`, отдельная whitespace-проверка двух новых Kotlin-
+файлов и статическая сверка route/callback/API-field цепочек. Gradle, компиляция,
+тестовые задачи и тяжёлые команды не запускались по прямому правилу владельца.
+
+Ручная проверка владельцем: Profile -> Friends -> пользователь; открыть Music и
+вернуться; Profile -> Communities -> сообщество; в Group нажать участника; затем
+проверить приватный/удалённый профиль и пользователя со скрытым online status.
+
+# Расширенный профиль VK: 10 функций оригинала
+
+**Текущий логический этап:** все десять согласованных направлений реализованы в
+коде поверх публичного профиля. Runtime-проверка на живом аккаунте обязательна;
+SHA смотреть только после отдельной команды владельца на commit.
+
+Подтверждённые источники VK 8.185:
+
+- generated `friends.add`, `friends.delete`, `friends.getMutual`,
+  `users.getFollowers`, `users.getSubscriptions` и их response DTO;
+- `UsersUserFullProfileDto`, `UsersFieldsDto`, `UsersCareerDto`,
+  `UsersSchoolDto`, `UsersUniversityDto`, `UsersRelativeDto`,
+  `UsersProfileButtonDto`/`ActionDto`;
+- `xsna/bjq.java`: точный `users.getFullProfile` с `user_fields`,
+  `current_user`, friends/recommendations flags;
+- `xsna/gs.java` и `xsna/k4m.java`: подтверждённые записи
+  `account.saveProfileInfo(about)` и `status.set(text)`;
+- `upload/impl/tasks/u.java`, `t.java`, `xsna/lha0.java`: owner image flow,
+  multipart-поле `photo`, raw upload response и save endpoints.
+
+Реализовано:
+
+1. Friend state 0/1/2/3: отправка, принятие, отмена заявки и удаление с
+   подтверждением результата VK.
+2. Mutual friends через `friends.getMutual` с последующим typed `users.get`.
+3. Пагинируемый `users.getFollowers`.
+4. Пагинируемый extended `users.getSubscriptions` со смешанными пользователями
+   и сообществами и внутренней навигацией.
+5. Первые треки и плейлисты владельца прямо в профиле; play идёт через
+   `MusicBackend.adoptTracks` и штатный `PlayerController`.
+6. `status_audio`/`extended_status.audio` с обложкой и воспроизведением.
+7. `cover`, `animated_avatar`, `image_status`; cover становится фоном шапки,
+   avatar остаётся отдельным кругом.
+8. Career, universities, schools, relation/partner, relatives, personal,
+   contacts и descriptions из `users.getFullProfile`.
+9. Server `profile_buttons` показываются только при безопасном URL action
+   (`http`, `https`, `vk`); неизвестные action без URL не симулируются.
+10. Свой профиль: status/about edit и owner photo/cover upload. Upload повторяет
+    get-server -> signed multipart field `photo` -> save; cover проверяется на
+    минимум 960x384, максимум 7000x7000, близкий к VK ratio 2.5:1, GIF запрещён.
+
+Добавлены `UserConnectionsScreen.kt`, `UserConnectionsViewModel.kt`,
+`VkProfileMediaUploader.kt`; расширены `UserProfileScreen.kt`,
+`UserProfileViewModel.kt`, `VkAccountProfile.kt`, `VkSocialDtos.kt`,
+`VkMethodsRegistry.kt`, `NavRoutes.kt`, `LiquidNavHost.kt`, `ProfileScreen.kt`,
+`MusicBackend.kt`, `Priority2MusicDtos.kt`, `docs/PLAN.md`.
+
+Проверка: `git diff --check` и отдельный whitespace-check каждого нового файла.
+Gradle, сборка, компиляция и тестовые задачи не запускались. Обязательный manual:
+friend request/accept/delete; три social list; status track; preview playback;
+full details/buttons; status/about save; avatar upload; заранее подготовленный
+cover 2.5:1; ошибки private profile и закрытого audio.
