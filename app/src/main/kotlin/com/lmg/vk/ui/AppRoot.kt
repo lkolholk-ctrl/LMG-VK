@@ -102,17 +102,30 @@ fun AppRoot() {
 
     val onWaveHome = currentRoute == NavRoutes.WAVE_HOME
 
-    fun switchTab(index: Int) {
-        val graph = when (index) {
-            2 -> NavRoutes.GRAPH_LIBRARY
-            3 -> NavRoutes.GRAPH_SETTINGS
-            4 -> NavRoutes.GRAPH_NEW
-            else -> NavRoutes.GRAPH_WAVE
+    fun switchTab(index: Int, resetOnReselect: Boolean = false) {
+        val (graph, home) = when (index) {
+            2 -> NavRoutes.GRAPH_LIBRARY to NavRoutes.LIBRARY_HOME
+            3 -> NavRoutes.GRAPH_SETTINGS to NavRoutes.SETTINGS_HOME
+            4 -> NavRoutes.GRAPH_NEW to NavRoutes.NEW_HOME
+            else -> NavRoutes.GRAPH_WAVE to NavRoutes.WAVE_HOME
         }
-        navController.navigate(graph) {
-            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-            launchSingleTop = true
-            restoreState = true
+        if (resetOnReselect && graph == currentGraph) {
+            // Re-selecting the active tab means "back to this tab's home".
+            // Pop to the nested graph itself and create a fresh home entry:
+            // detail screens disappear, and local root state (for example an
+            // inner Settings category) is reset as well.
+            navController.navigate(home) {
+                popUpTo(graph) { inclusive = false }
+                launchSingleTop = true
+            }
+        } else {
+            // A regular tab switch keeps the independent tab back stack and
+            // restores it when the user comes back without re-selecting it.
+            navController.navigate(graph) {
+                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                launchSingleTop = true
+                restoreState = true
+            }
         }
         AppSettings.setLastScreen(index)
     }
@@ -304,7 +317,11 @@ fun AppRoot() {
                         onItemSelected = { index ->
                             // Поиск — оверлей (не переключение вкладки), поэтому не
                             // трогает бэкстек и не прилипает к вкладкам.
-                            if (index == 1) searchOpen = true else switchTab(index)
+                            if (index == 1) {
+                                searchOpen = true
+                            } else {
+                                switchTab(index, resetOnReselect = true)
+                            }
                         },
                         onOpenProfile = { profileOpen = true },
                         profileName = sideProfileName,
@@ -442,7 +459,7 @@ fun AppRoot() {
                             selectedIndex = selectedIndex,
                             onItemSelected = { index ->
                                 waveBarPokes++                 // взаимодействие — перезапуск таймера
-                                switchTab(index)
+                                switchTab(index, resetOnReselect = true)
                             }
                         )
                     }
