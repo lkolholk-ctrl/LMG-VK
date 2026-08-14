@@ -68,6 +68,8 @@ object NavRoutes {
     // ── Публичный профиль пользователя VK ──
     const val USER_PROFILE_ROUTE = "library/user/{$ARG_ID}"
     fun userProfile(userId: Long) = "library/user/$userId"
+    const val USER_PROFILE_DETAILS_ROUTE = "library/user/{$ARG_ID}/details"
+    fun userProfileDetails(userId: Long) = "library/user/$userId/details"
     const val USER_CONNECTIONS_ROUTE = "library/user/{$ARG_ID}/connections/{$ARG_KIND}"
     fun userConnections(userId: Long, kind: String) = "library/user/$userId/connections/$kind"
 

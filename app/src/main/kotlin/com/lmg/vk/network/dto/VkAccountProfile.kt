@@ -89,6 +89,7 @@ data class VkAccountProfile(
     @Json(name = "home_phone") val homePhone: String? = null,
     val skype: String? = null,
     @Json(name = "profile_buttons") val profileButtons: List<List<VkProfileButton>> = emptyList(),
+    @Json(name = "friends") val friendsBlock: VkProfileFriendsBlock? = null,
 ) {
     val displayName: String
         get() = name.ifBlank {
@@ -265,6 +266,12 @@ data class VkProfileButton(
 data class VkProfileButtonAction(
     val type: String? = null,
     val url: String? = null,
+)
+
+@JsonClass(generateAdapter = true)
+data class VkProfileFriendsBlock(
+    val offset: Int? = null,
+    val friends: List<VkFriend> = emptyList(),
 )
 
 @JsonClass(generateAdapter = true)

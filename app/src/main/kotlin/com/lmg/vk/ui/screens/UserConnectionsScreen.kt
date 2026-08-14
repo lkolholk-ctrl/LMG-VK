@@ -76,6 +76,7 @@ fun UserConnectionsScreen(
             state.items.isEmpty() -> ConnectionsMessage(
                 title = "Nothing here yet",
                 message = when (kind) {
+                    UserConnectionsKind.FRIENDS -> "VK did not return public friends."
                     UserConnectionsKind.MUTUAL -> "You don't have mutual friends with this user."
                     UserConnectionsKind.FOLLOWERS -> "VK did not return public followers."
                     UserConnectionsKind.SUBSCRIPTIONS -> "VK did not return public subscriptions."

@@ -53,7 +53,7 @@ class UserProfileViewModel : ViewModel() {
 
     private var loadJob: Job? = null
 
-    fun load(userId: Long, force: Boolean = false) {
+    fun load(userId: Long, force: Boolean = false, loadMusic: Boolean = true) {
         if (userId <= 0L) {
             _state.value = UserProfileUiState(userId = userId, error = "Invalid VK user id")
             return
@@ -97,10 +97,42 @@ class UserProfileViewModel : ViewModel() {
                 )
             }
             val profile = _state.value.profile
-            if (profile != null && profile.isAccessible && profile.isAudioVisible) {
-                loadMusicPreview(userId)
+            if (profile != null) {
+                coroutineScope {
+                    val friendsTask = if (profile.friendsBlock == null) {
+                        async { loadFriendsPreview(userId) }
+                    } else null
+                    val musicTask = if (loadMusic && profile.isAccessible && profile.isAudioVisible) {
+                        async { loadMusicPreview(userId) }
+                    } else null
+                    friendsTask?.await()
+                    musicTask?.await()
+                }
             }
         }
+    }
+
+    private suspend fun loadFriendsPreview(userId: Long) {
+        val result = runCatching {
+            registry.friendsGet(offset = 0, count = FRIENDS_PREVIEW, userId = userId)
+        }.getOrNull() ?: return
+        val page = when (result) {
+            is VkResult.Success -> result.data
+            is VkResult.Error -> return
+        }
+        val latest = _state.value
+        if (latest.userId != userId) return
+        val profile = latest.profile ?: return
+        _state.value = latest.copy(
+            profile = profile.copy(
+                friendsBlock = com.lmg.vk.network.dto.VkProfileFriendsBlock(
+                    offset = page.items.size,
+                    friends = page.items,
+                ),
+                counters = profile.counters?.copy(friends = page.count)
+                    ?: com.lmg.vk.network.dto.VkProfileCounters(friends = page.count),
+            ),
+        )
     }
 
     private suspend fun loadMusicPreview(userId: Long) = coroutineScope {
@@ -250,5 +282,6 @@ class UserProfileViewModel : ViewModel() {
     private companion object {
         const val MUSIC_PREVIEW_TRACKS = 3
         const val MUSIC_PREVIEW_PLAYLISTS = 2
+        const val FRIENDS_PREVIEW = 3
     }
 }

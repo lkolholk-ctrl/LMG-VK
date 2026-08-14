@@ -196,6 +196,22 @@ fun LiquidNavHost(
                     onOpenPlaylist = {
                         navController.navigate(NavRoutes.playlist(NavRoutes.TAB_LIBRARY, it))
                     },
+                    onOpenDetails = {
+                        navController.navigate(NavRoutes.userProfileDetails(userId))
+                    },
+                )
+            }
+            composable(
+                NavRoutes.USER_PROFILE_DETAILS_ROUTE,
+                arguments = listOf(navArgument(NavRoutes.ARG_ID) { type = NavType.StringType }),
+            ) { entry ->
+                val userId = entry.arguments?.getString(NavRoutes.ARG_ID)?.toLongOrNull() ?: 0L
+                com.lmg.vk.ui.screens.UserProfileDetailsScreen(
+                    userId = userId,
+                    onBack = { navController.popBackStack() },
+                    onOpenConnections = { kind ->
+                        navController.navigate(NavRoutes.userConnections(userId, kind))
+                    },
                 )
             }
             composable(

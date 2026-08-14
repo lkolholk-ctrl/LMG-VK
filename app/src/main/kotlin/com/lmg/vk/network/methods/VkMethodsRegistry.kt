@@ -344,7 +344,7 @@ class VkMethodsRegistry(private val client: VkApiClient) {
             param("user_id", userId)
             param("user_fields", FULL_PROFILE_FIELDS)
             param("current_user", isCurrentUser)
-            param("need_friends_block", 0)
+            param("need_friends_block", 1)
             param("need_recommendations_block", false)
             param("source", "profile")
             param("ref", "profile")
@@ -372,12 +372,14 @@ class VkMethodsRegistry(private val client: VkApiClient) {
         offset: Int,
         count: Int = 40,
         order: String = "hints",
+        userId: Long? = null,
     ): VkResult<VkItems<VkFriend>> {
         val itemsType = Types.newParameterizedType(VkItems::class.java, VkFriend::class.java)
         val method = VkMethod(
             "friends.get",
             MoshiEnvelopeParser<VkItems<VkFriend>>(itemsType),
         ).apply {
+            userId?.takeIf { it != 0L }?.let { param("user_id", it) }
             param("extended", 1)
             param("offset", offset)
             param("count", count)

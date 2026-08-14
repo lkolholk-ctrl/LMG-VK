@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 enum class UserConnectionsKind(val routeValue: String, val title: String) {
+    FRIENDS("friends", "Friends"),
     MUTUAL("mutual", "Mutual friends"),
     FOLLOWERS("followers", "Followers"),
     SUBSCRIPTIONS("subscriptions", "Subscriptions");
@@ -76,6 +77,21 @@ class UserConnectionsViewModel : ViewModel() {
         val offset = if (reset) 0 else start.items.size
         try {
             when (start.kind) {
+                UserConnectionsKind.FRIENDS -> {
+                    when (val result = registry.friendsGet(
+                        offset = offset,
+                        count = PAGE_SIZE,
+                        userId = start.userId,
+                    )) {
+                        is VkResult.Success -> publish(
+                            start = start,
+                            reset = reset,
+                            newItems = result.data.items.map { UserConnectionEntry.User(it) },
+                            total = result.data.count ?: result.data.items.size,
+                        )
+                        is VkResult.Error -> publishError(start, result)
+                    }
+                }
                 UserConnectionsKind.MUTUAL -> loadMutual(start)
                 UserConnectionsKind.FOLLOWERS -> {
                     when (val result = registry.usersGetFollowers(start.userId, offset, PAGE_SIZE)) {

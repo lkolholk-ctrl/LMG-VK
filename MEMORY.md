@@ -882,3 +882,28 @@ Add второго аккаунта; неверный пароль не сбра
   release считаются errors. Все три bind arrays явно объявлены `arrayOf<Any?>`.
 - Проверка: только `git diff --check` и статическая сверка. Локальная сборка и
   Gradle не запускались по правилу владельца.
+
+# Public profile structure from VK screenshot
+
+Референс владельца: два JPEG из
+`/storage/emulated/0/Download/Screenshot_20260814_161930_com_vkontakte_android_FragmentWrapperActivity.zip`.
+От VK взята только структура/API, визуальные компоненты остаются LMG VK.
+
+- Основной публичный профиль: cover, центрированный avatar с online dot, имя,
+  status/domain/presence, строка More information, actions Music/Friend и
+  компактная friends card. Стена, messages, calls, posts и VK tabs не переносились.
+- `users.getFullProfile` теперь запрашивает `need_friends_block=1`. Wire shape
+  подтверждён `UsersUserFullProfileFriendsBlockDto`: top-level `friends` object,
+  внутри `offset` и `friends: List<UsersUserFullDto>`.
+- Добавлен `VkProfileFriendsBlock`; если full-profile block отсутствует, preview
+  честно догружается `friends.get(user_id, extended=1, count=3)`.
+- Friends card показывает реальный total, mutual count и до трёх avatars; тап
+  открывает пагинируемый новый kind `UserConnectionsKind.FRIENDS`.
+- More information ведёт на отдельный route `library/user/{id}/details`, как на
+  втором скриншоте. Там находятся status/domain, birthday/location/occupation,
+  friends/mutual/followers/subscriptions, career/education/relation/relatives,
+  contacts, languages, worldview, life/people priorities, smoking/alcohol,
+  server URL actions и links.
+- Собственный `ProfileScreen` визуально не менялся.
+- Проверка: `git diff --check` и статическая сверка route/API/exhaustive branches;
+  Gradle и локальная сборка не запускались.

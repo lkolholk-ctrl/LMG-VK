@@ -89,6 +89,7 @@ fun UserProfileScreen(
     onOpenMusic: (Long) -> Unit,
     onOpenConnections: (String) -> Unit,
     onOpenPlaylist: (String) -> Unit,
+    onOpenDetails: () -> Unit,
     viewModel: UserProfileViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
 ) {
     val context = LocalContext.current
@@ -99,7 +100,6 @@ fun UserProfileScreen(
     val compact = com.lmg.vk.ui.rememberWindowInfo().useSideBySide
     var showRemoveFriendConfirm by remember { mutableStateOf(false) }
     var showEditProfile by remember { mutableStateOf(false) }
-    var showFullDetails by remember { mutableStateOf(false) }
     var editStatus by remember { mutableStateOf("") }
     var editAbout by remember { mutableStateOf("") }
     val avatarPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
@@ -109,7 +109,9 @@ fun UserProfileScreen(
         uri?.let { viewModel.uploadOwnProfileImage(context, it, ProfileImageKind.COVER) }
     }
 
-    LaunchedEffect(userId, activeAccountId) { viewModel.load(userId, force = true) }
+    LaunchedEffect(userId, activeAccountId) {
+        viewModel.load(userId, force = true)
+    }
 
     val showTopTitle by remember {
         derivedStateOf {
@@ -133,8 +135,6 @@ fun UserProfileScreen(
             state.profile != null -> {
                 val profile = state.profile!!
                 val profileUrl = "https://vk.com/${profile.addressSlug.ifBlank { "id$userId" }}"
-                val facts = remember(profile) { profileFacts(profile) }
-                val details = remember(profile) { profileDetails(profile) }
                 val friendLabel = when {
                     state.isOwnProfile && state.isSavingProfile -> "Saving..."
                     state.isOwnProfile -> "Edit profile"
@@ -173,6 +173,7 @@ fun UserProfileScreen(
                                 (state.isOwnProfile || profile.friendStatus != 0 ||
                                     profile.canSendFriendRequest != 0),
                             onOpenMusic = { onOpenMusic(profile.id) },
+                            onOpenDetails = onOpenDetails,
                             onFriendship = {
                                 if (state.isOwnProfile) {
                                     editStatus = profile.status
@@ -216,34 +217,17 @@ fun UserProfileScreen(
                         item { UserProfileNotice(error) }
                     }
 
-                    if (facts.isNotEmpty()) {
-                        item { UserProfileSectionTitle("PROFILE") }
-                        item { UserProfileFacts(facts) }
-                    }
-
-                    item { UserProfileSectionTitle("SOCIAL") }
-                    profile.commonCount?.takeIf { it > 0 }?.let { count ->
+                    val friendPreview = profile.friendsBlock?.friends.orEmpty()
+                    val friendCount = profile.counters?.friends ?: friendPreview.size
+                    if (friendCount > 0 || friendPreview.isNotEmpty()) {
                         item {
-                            UserProfileLinkRow(
-                                title = "Mutual friends",
-                                value = formatProfileCount(count),
-                                onClick = { onOpenConnections("mutual") },
+                            CompactFriendsCard(
+                                count = friendCount,
+                                mutualCount = profile.commonCount ?: 0,
+                                friends = friendPreview,
+                                onOpenAll = { onOpenConnections("friends") },
                             )
                         }
-                    }
-                    item {
-                        UserProfileLinkRow(
-                            title = "Followers",
-                            value = profile.followersCount?.let(::formatProfileCount) ?: "View list",
-                            onClick = { onOpenConnections("followers") },
-                        )
-                    }
-                    item {
-                        UserProfileLinkRow(
-                            title = "Subscriptions",
-                            value = "People and communities",
-                            onClick = { onOpenConnections("subscriptions") },
-                        )
                     }
 
                     profile.actualStatusAudio?.let { statusAudio ->
@@ -321,86 +305,6 @@ fun UserProfileScreen(
                     }
                     state.musicPreviewError?.let { error ->
                         item { UserProfileNotice(error) }
-                    }
-                    if (details.isNotEmpty()) {
-                        item {
-                            UserProfileLinkRow(
-                                title = if (showFullDetails) "Hide information" else "More information",
-                                value = "${details.size} profile fields",
-                                onClick = { showFullDetails = !showFullDetails },
-                            )
-                        }
-                        if (showFullDetails) {
-                            item { UserProfileDetails(details) }
-                        }
-                    }
-
-                    val serverActions = profile.profileButtons.flatten().filter { button ->
-                        button.text.isNotBlank() && isSupportedProfileActionUrl(button.action.url)
-                    }
-                    if (serverActions.isNotEmpty()) {
-                        item { UserProfileSectionTitle("ACTIONS") }
-                        serverActions.forEach { button ->
-                            item(key = "profile-action:${button.uid}:${button.text}") {
-                                UserProfileLinkRow(
-                                    title = button.text,
-                                    value = button.action.type.orEmpty(),
-                                    onClick = {
-                                        runCatching {
-                                            context.startActivity(
-                                                Intent(Intent.ACTION_VIEW, Uri.parse(button.action.url.orEmpty())),
-                                            )
-                                        }
-                                    },
-                                )
-                            }
-                        }
-                    }
-
-                    item { UserProfileSectionTitle("LINKS") }
-                    item {
-                        UserProfileLinkRow(
-                            title = "Share profile",
-                            value = profileUrl.removePrefix("https://"),
-                            onClick = {
-                                val intent = Intent(Intent.ACTION_SEND).apply {
-                                    type = "text/plain"
-                                    putExtra(Intent.EXTRA_TEXT, profileUrl)
-                                }
-                                runCatching {
-                                    context.startActivity(Intent.createChooser(intent, "Share VK profile"))
-                                }
-                            },
-                        )
-                    }
-                    item {
-                        UserProfileLinkRow(
-                            title = "Open in VK",
-                            value = profileUrl.removePrefix("https://"),
-                            onClick = {
-                                runCatching {
-                                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(profileUrl)))
-                                }
-                            },
-                        )
-                    }
-                    profile.site?.takeIf(String::isNotBlank)?.let { site ->
-                        item {
-                            UserProfileLinkRow(
-                                title = "Website",
-                                value = site,
-                                onClick = {
-                                    val normalized = if (site.startsWith("http://") || site.startsWith("https://")) {
-                                        site
-                                    } else {
-                                        "https://$site"
-                                    }
-                                    runCatching {
-                                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(normalized)))
-                                    }
-                                },
-                            )
-                        }
                     }
                 }
             }
@@ -496,6 +400,154 @@ fun UserProfileScreen(
     }
 }
 
+/** Separate information sheet matching the original VK profile structure. */
+@Composable
+fun UserProfileDetailsScreen(
+    userId: Long,
+    onBack: () -> Unit,
+    onOpenConnections: (String) -> Unit,
+    viewModel: UserProfileViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
+) {
+    val context = LocalContext.current
+    val colors = LiquidTheme.colors
+    val state by viewModel.state.collectAsState()
+    val activeAccountId by com.lmg.vk.engine.backend.MusicAuth.profileId.collectAsState()
+    LaunchedEffect(userId, activeAccountId) {
+        viewModel.load(userId, force = true, loadMusic = false)
+    }
+
+    Box(Modifier.fillMaxSize().background(LiquidSurfaces.sheet(colors.isDark))) {
+        when {
+            state.isLoading && state.profile == null -> UserProfileLoading()
+            state.notFound -> UserProfileMessage(
+                title = "Profile not found",
+                message = "VK did not return a user with id $userId.",
+            )
+            state.error != null && state.profile == null -> UserProfileMessage(
+                title = "Couldn't open information",
+                message = state.error!!,
+                actionLabel = "Retry",
+                onAction = { viewModel.load(userId, force = true, loadMusic = false) },
+            )
+            state.profile != null -> {
+                val profile = state.profile!!
+                val facts = remember(profile) { profileFacts(profile) }
+                val details = remember(profile) { profileDetails(profile) }
+                val profileUrl = "https://vk.com/${profile.addressSlug.ifBlank { "id$userId" }}"
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize().widthIn(max = 640.dp).align(Alignment.TopCenter),
+                    contentPadding = PaddingValues(top = 68.dp, bottom = 120.dp),
+                ) {
+                    item {
+                        Column(Modifier.fillMaxWidth().padding(horizontal = LiquidMetrics.ScreenPadding, vertical = 12.dp)) {
+                            profile.status.takeIf(String::isNotBlank)?.let {
+                                Text(it, fontFamily = VkSansText, color = colors.textPrimary, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+                                Spacer(Modifier.height(8.dp))
+                            }
+                            Text(
+                                "@${profile.addressSlug.ifBlank { "id${profile.id}" }}",
+                                fontFamily = VkSansText,
+                                color = Color(0xFF2787F5),
+                                fontSize = 14.sp,
+                            )
+                        }
+                    }
+                    if (facts.isNotEmpty()) {
+                        item { UserProfileSectionTitle("PROFILE") }
+                        item { UserProfileFacts(facts) }
+                    }
+                    item { UserProfileSectionTitle("SOCIAL") }
+                    item {
+                        UserProfileLinkRow(
+                            title = "Friends",
+                            value = formatProfileCount(profile.counters?.friends ?: profile.friendsBlock?.friends?.size ?: 0),
+                            onClick = { onOpenConnections("friends") },
+                        )
+                    }
+                    profile.commonCount?.takeIf { it > 0 }?.let { count ->
+                        item {
+                            UserProfileLinkRow(
+                                title = "Mutual friends",
+                                value = formatProfileCount(count),
+                                onClick = { onOpenConnections("mutual") },
+                            )
+                        }
+                    }
+                    item {
+                        UserProfileLinkRow(
+                            title = "Followers",
+                            value = profile.followersCount?.let(::formatProfileCount) ?: "View list",
+                            onClick = { onOpenConnections("followers") },
+                        )
+                    }
+                    item {
+                        UserProfileLinkRow(
+                            title = "Subscriptions",
+                            value = "People and communities",
+                            onClick = { onOpenConnections("subscriptions") },
+                        )
+                    }
+                    if (details.isNotEmpty()) {
+                        item { UserProfileSectionTitle("INFORMATION") }
+                        item { UserProfileDetails(details) }
+                    }
+                    val serverActions = profile.profileButtons.flatten().filter { button ->
+                        button.text.isNotBlank() && isSupportedProfileActionUrl(button.action.url)
+                    }
+                    if (serverActions.isNotEmpty()) {
+                        item { UserProfileSectionTitle("ACTIONS") }
+                        serverActions.forEach { button ->
+                            item(key = "details-action:${button.uid}:${button.text}") {
+                                UserProfileLinkRow(
+                                    title = button.text,
+                                    value = button.action.type.orEmpty(),
+                                    onClick = {
+                                        runCatching {
+                                            context.startActivity(
+                                                Intent(Intent.ACTION_VIEW, Uri.parse(button.action.url.orEmpty())),
+                                            )
+                                        }
+                                    },
+                                )
+                            }
+                        }
+                    }
+                    item { UserProfileSectionTitle("LINKS") }
+                    item {
+                        UserProfileLinkRow(
+                            title = "Open in VK",
+                            value = profileUrl.removePrefix("https://"),
+                            onClick = {
+                                runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(profileUrl))) }
+                            },
+                        )
+                    }
+                    profile.site?.takeIf(String::isNotBlank)?.let { site ->
+                        item {
+                            UserProfileLinkRow(
+                                title = "Website",
+                                value = site,
+                                onClick = {
+                                    val normalized = if (site.startsWith("http")) site else "https://$site"
+                                    runCatching {
+                                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(normalized)))
+                                    }
+                                },
+                            )
+                        }
+                    }
+                }
+            }
+        }
+        DetailTopBar(
+            title = "More information",
+            showTitle = true,
+            isDark = colors.isDark,
+            onBack = onBack,
+        )
+    }
+}
+
 private data class ProfileFact(val label: String, val value: String)
 private data class ProfileDetail(val label: String, val value: String)
 
@@ -557,6 +609,18 @@ private fun profileDetails(profile: VkAccountProfile): List<ProfileDetail> = bui
         add(ProfileDetail("Languages", it.joinToString(", ")))
     }
     profile.personal?.religion?.takeIf(String::isNotBlank)?.let { add(ProfileDetail("Worldview", it)) }
+    profile.personal?.lifeMain?.let(::lifePriorityLabel)?.takeIf(String::isNotBlank)?.let {
+        add(ProfileDetail("Main in life", it))
+    }
+    profile.personal?.peopleMain?.let(::peoplePriorityLabel)?.takeIf(String::isNotBlank)?.let {
+        add(ProfileDetail("Main in people", it))
+    }
+    profile.personal?.smoking?.let(::habitLabel)?.takeIf(String::isNotBlank)?.let {
+        add(ProfileDetail("Attitude to smoking", it))
+    }
+    profile.personal?.alcohol?.let(::habitLabel)?.takeIf(String::isNotBlank)?.let {
+        add(ProfileDetail("Attitude to alcohol", it))
+    }
     profile.mobilePhone?.takeIf(String::isNotBlank)?.let { add(ProfileDetail("Mobile phone", it)) }
     profile.homePhone?.takeIf(String::isNotBlank)?.let { add(ProfileDetail("Home phone", it)) }
     profile.skype?.takeIf(String::isNotBlank)?.let { add(ProfileDetail("Skype", it)) }
@@ -571,6 +635,7 @@ private fun UserProfileHeader(
     friendshipIcon: ImageVector,
     friendshipEnabled: Boolean,
     onOpenMusic: () -> Unit,
+    onOpenDetails: () -> Unit,
     onFriendship: () -> Unit,
     onShare: () -> Unit,
 ) {
@@ -579,49 +644,46 @@ private fun UserProfileHeader(
     val avatarPhoto = profile.animatedAvatarUrl ?: profile.largePhotoUrl.takeIf(String::isNotBlank)
     val presence = profilePresence(profile)
     val bannerHeight = if (coverPhoto != null) 132.dp else 70.dp
+    val avatarSize = if (compact) 82.dp else 92.dp
 
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .background(LiquidSurfaces.sheet(colors.isDark)),
     ) {
-        Box(modifier = Modifier.fillMaxWidth().height(bannerHeight).clipToBounds()) {
-            if (coverPhoto != null) {
-                AsyncImage(
-                    model = ImageRequest.Builder(LocalContext.current).data(coverPhoto).crossfade(true).build(),
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize(),
-                )
-                Box(
-                    Modifier.fillMaxSize().background(
-                        Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.12f), Color.Black.copy(alpha = 0.38f))),
-                    ),
-                )
-            } else {
-                Box(
-                    Modifier.fillMaxSize().background(
-                        Brush.horizontalGradient(
-                            listOf(
-                                colors.textTertiary.copy(alpha = 0.12f),
-                                colors.textTertiary.copy(alpha = 0.04f),
+        Box(modifier = Modifier.fillMaxWidth().height(bannerHeight + avatarSize / 2)) {
+            Box(modifier = Modifier.fillMaxWidth().height(bannerHeight).clipToBounds()) {
+                if (coverPhoto != null) {
+                    AsyncImage(
+                        model = ImageRequest.Builder(LocalContext.current).data(coverPhoto).crossfade(true).build(),
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                    Box(
+                        Modifier.fillMaxSize().background(
+                            Brush.verticalGradient(
+                                listOf(Color.Black.copy(alpha = 0.12f), Color.Black.copy(alpha = 0.38f)),
                             ),
                         ),
-                    ),
-                )
+                    )
+                } else {
+                    Box(
+                        Modifier.fillMaxSize().background(
+                            Brush.horizontalGradient(
+                                listOf(
+                                    colors.textTertiary.copy(alpha = 0.12f),
+                                    colors.textTertiary.copy(alpha = 0.04f),
+                                ),
+                            ),
+                        ),
+                    )
+                }
             }
-        }
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = LiquidMetrics.ScreenPadding)
-                .padding(top = 10.dp),
-            verticalAlignment = Alignment.Top,
-        ) {
             Box(
                 modifier = Modifier
-                    .size(if (compact) 76.dp else 84.dp)
+                    .align(Alignment.BottomCenter)
+                    .size(avatarSize)
                     .clip(CircleShape)
                     .background(colors.textTertiary.copy(alpha = 0.14f)),
                 contentAlignment = Alignment.Center,
@@ -634,65 +696,90 @@ private fun UserProfileHeader(
                         modifier = Modifier.fillMaxSize(),
                     )
                 } else {
-                    Icon(LmgGlyphs.UserOutline28, null, tint = colors.iconMuted, modifier = Modifier.size(34.dp))
+                    Icon(LmgGlyphs.UserOutline28, null, tint = colors.iconMuted, modifier = Modifier.size(36.dp))
+                }
+                if (profile.isOnline) {
+                    Box(
+                        Modifier
+                            .align(Alignment.BottomEnd)
+                            .size(14.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFF4BB34B)),
+                    )
                 }
             }
-            Spacer(Modifier.width(14.dp))
-            Column(modifier = Modifier.weight(1f).padding(top = 2.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = profile.displayName.ifBlank { "id${profile.id}" },
-                        color = colors.textPrimary,
-                        fontFamily = VkSansDisplay,
-                        fontSize = if (compact) 21.sp else 23.sp,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f),
-                    )
-                    if (profile.isVerified) {
-                        Spacer(Modifier.width(8.dp))
-                        Icon(
-                            lmgVector(LmgDrawables.CheckCircleOutline28),
-                            contentDescription = "Verified",
-                            tint = Color(0xFF2787F5),
-                            modifier = Modifier.size(20.dp),
-                        )
-                    }
-                }
-                val subtitle = listOfNotNull(
-                    profile.addressSlug.takeIf(String::isNotBlank)?.let { "vk.com/$it" },
-                    presence,
-                ).joinToString(" • ")
-                if (subtitle.isNotBlank()) {
-                    Spacer(Modifier.height(3.dp))
-                    Text(
-                        text = subtitle,
-                        color = colors.textSecondary,
-                        fontFamily = VkSansText,
-                        fontSize = 12.sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
+        }
+
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = LiquidMetrics.ScreenPadding),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = profile.displayName.ifBlank { "id${profile.id}" },
+                    color = colors.textPrimary,
+                    fontFamily = VkSansDisplay,
+                    fontSize = if (compact) 22.sp else 24.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                if (profile.isVerified) {
+                    Spacer(Modifier.width(7.dp))
+                    Icon(
+                        lmgVector(LmgDrawables.CheckCircleOutline28),
+                        contentDescription = "Verified",
+                        tint = Color(0xFF2787F5),
+                        modifier = Modifier.size(19.dp),
                     )
                 }
-                profile.status.takeIf(String::isNotBlank)?.let { status ->
-                    Spacer(Modifier.height(5.dp))
-                    Text(
-                        text = status,
-                        color = colors.textPrimary,
-                        fontFamily = VkSansText,
-                        fontSize = 12.5.sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
+            }
+            profile.status.takeIf(String::isNotBlank)?.let { status ->
+                Spacer(Modifier.height(7.dp))
+                Text(
+                    text = status,
+                    color = colors.textPrimary,
+                    fontFamily = VkSansText,
+                    fontSize = 13.sp,
+                    lineHeight = 18.sp,
+                    textAlign = TextAlign.Center,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            val subtitle = listOfNotNull(
+                profile.addressSlug.takeIf(String::isNotBlank)?.let { "@$it" },
+                presence,
+            ).joinToString(" · ")
+            if (subtitle.isNotBlank()) {
+                Spacer(Modifier.height(5.dp))
+                Text(
+                    subtitle,
+                    color = colors.textSecondary,
+                    fontFamily = VkSansText,
+                    fontSize = 12.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            Row(
+                modifier = Modifier
+                    .clip(CircleShape)
+                    .liquidClickable(onClick = onOpenDetails)
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(LmgGlyphs.InfoCircleOutline28, null, tint = colors.iconMuted, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(6.dp))
+                Text("More information", color = colors.textSecondary, fontFamily = VkSansText, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
             }
         }
 
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = LiquidMetrics.ScreenPadding, vertical = 12.dp),
+                .padding(horizontal = LiquidMetrics.ScreenPadding)
+                .padding(bottom = 12.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             UserProfileActionButton(
@@ -765,6 +852,74 @@ private fun UserProfileActionButton(
             fontWeight = FontWeight.SemiBold,
             maxLines = 1,
         )
+    }
+}
+
+@Composable
+private fun CompactFriendsCard(
+    count: Int,
+    mutualCount: Int,
+    friends: List<com.lmg.vk.network.dto.VkFriend>,
+    onOpenAll: () -> Unit,
+) {
+    val colors = LiquidTheme.colors
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = LiquidMetrics.ScreenPadding, vertical = 8.dp)
+            .clip(RoundedCornerShape(18.dp))
+            .background(colors.textTertiary.copy(alpha = 0.08f))
+            .liquidClickable(onClick = onOpenAll)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                "${formatProfileCount(count)} friends",
+                fontFamily = VkSansText,
+                color = colors.textPrimary,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Text(
+                if (mutualCount > 0) "${formatProfileCount(mutualCount)} mutual"
+                else "No mutual friends",
+                fontFamily = VkSansText,
+                color = colors.textSecondary,
+                fontSize = 12.sp,
+            )
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+            friends.take(3).forEach { friend ->
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .background(colors.textTertiary.copy(alpha = 0.12f)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    if (friend.avatarUrl.isNotBlank()) {
+                        AsyncImage(
+                            model = ImageRequest.Builder(LocalContext.current)
+                                .data(friend.avatarUrl)
+                                .crossfade(true)
+                                .build(),
+                            contentDescription = friend.displayName,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                    } else {
+                        Icon(LmgGlyphs.UserOutline28, null, tint = colors.iconMuted, modifier = Modifier.size(18.dp))
+                    }
+                }
+            }
+            Icon(
+                LmgGlyphs.ChevronRightOutline24,
+                null,
+                tint = colors.textTertiary,
+                modifier = Modifier.align(Alignment.CenterVertically).size(18.dp),
+            )
+        }
     }
 }
 
@@ -1005,6 +1160,37 @@ private fun relationLabel(value: Int): String = when (value) {
     6 -> "Actively searching"
     7 -> "In love"
     8 -> "In a civil union"
+    else -> ""
+}
+
+private fun lifePriorityLabel(value: Int): String = when (value) {
+    1 -> "Family and children"
+    2 -> "Career and money"
+    3 -> "Entertainment and leisure"
+    4 -> "Science and research"
+    5 -> "Improving the world"
+    6 -> "Personal development"
+    7 -> "Beauty and art"
+    8 -> "Fame and influence"
+    else -> ""
+}
+
+private fun peoplePriorityLabel(value: Int): String = when (value) {
+    1 -> "Intellect and creativity"
+    2 -> "Kindness and honesty"
+    3 -> "Health and beauty"
+    4 -> "Wealth and power"
+    5 -> "Courage and persistence"
+    6 -> "Humor and love of life"
+    else -> ""
+}
+
+private fun habitLabel(value: Int): String = when (value) {
+    1 -> "Very negative"
+    2 -> "Negative"
+    3 -> "Neutral"
+    4 -> "Compromise"
+    5 -> "Positive"
     else -> ""
 }
 
