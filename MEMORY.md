@@ -866,3 +866,19 @@ ID. Остальные VK ID settings не переносились. SHA смо�
 Add второго аккаунта; неверный пароль не сбрасывает первый; switch A/B меняет
 профиль, каталог, favorites и cloud playlists; remove inactive/active/last;
 перезапуск сохраняет active account; switch во время sync показывает ожидание.
+
+# Compact public profile + multi-account CI fix
+
+- Собственный `ProfileScreen` по прямому указанию владельца визуально НЕ менялся;
+  multi-account picker в нём сохранён.
+- Компактным сделан только `UserProfileScreen` другого пользователя: hero 320/400
+  dp заменён низкой cover-полосой, avatar 76/84 dp, одной строкой имени/status и
+  двумя action-кнопками высотой 40 dp.
+- Music preview ограничен 3 tracks и 2 playlists. Full profile details закрыты
+  строкой `More information` и разворачиваются по запросу; дубли followers,
+  mutual и friendship убраны из PROFILE facts, потому что они уже есть в SOCIAL.
+- Ошибка CI run `31709706523` была не в multi-account логике: Kotlin 2.2 вывел
+  intersection type для трёх SQLite `arrayOf(Long, String, String)`, а warnings в
+  release считаются errors. Все три bind arrays явно объявлены `arrayOf<Any?>`.
+- Проверка: только `git diff --check` и статическая сверка. Локальная сборка и
+  Gradle не запускались по правилу владельца.

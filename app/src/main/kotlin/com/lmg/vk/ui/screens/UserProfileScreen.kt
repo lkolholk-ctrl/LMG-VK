@@ -99,6 +99,7 @@ fun UserProfileScreen(
     val compact = com.lmg.vk.ui.rememberWindowInfo().useSideBySide
     var showRemoveFriendConfirm by remember { mutableStateOf(false) }
     var showEditProfile by remember { mutableStateOf(false) }
+    var showFullDetails by remember { mutableStateOf(false) }
     var editStatus by remember { mutableStateOf("") }
     var editAbout by remember { mutableStateOf("") }
     val avatarPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
@@ -322,8 +323,16 @@ fun UserProfileScreen(
                         item { UserProfileNotice(error) }
                     }
                     if (details.isNotEmpty()) {
-                        item { UserProfileSectionTitle("DETAILS") }
-                        item { UserProfileDetails(details) }
+                        item {
+                            UserProfileLinkRow(
+                                title = if (showFullDetails) "Hide information" else "More information",
+                                value = "${details.size} profile fields",
+                                onClick = { showFullDetails = !showFullDetails },
+                            )
+                        }
+                        if (showFullDetails) {
+                            item { UserProfileDetails(details) }
+                        }
                     }
 
                     val serverActions = profile.profileButtons.flatten().filter { button ->
@@ -496,15 +505,6 @@ private fun profileFacts(profile: VkAccountProfile): List<ProfileFact> = buildLi
     profile.bdate.takeIf(String::isNotBlank)?.let { add(ProfileFact("Birthday", it)) }
     profile.occupation?.name?.takeIf(String::isNotBlank)?.let { add(ProfileFact("Occupation", it)) }
     profile.imageStatus?.name?.takeIf(String::isNotBlank)?.let { add(ProfileFact("Image status", it)) }
-    profile.followersCount?.let { add(ProfileFact("Followers", formatProfileCount(it))) }
-    profile.commonCount?.takeIf { it > 0 }?.let { add(ProfileFact("Mutual friends", formatProfileCount(it))) }
-    val connection = when (profile.friendStatus) {
-        1 -> "Request sent"
-        2 -> "Request received"
-        3 -> "VK friend"
-        else -> if (profile.isFriend == 1) "VK friend" else null
-    }
-    connection?.let { add(ProfileFact("Connection", it)) }
 }
 
 private fun profileDetails(profile: VkAccountProfile): List<ProfileDetail> = buildList {
@@ -574,78 +574,81 @@ private fun UserProfileHeader(
     onFriendship: () -> Unit,
     onShare: () -> Unit,
 ) {
-    val isDark = LiquidTheme.colors.isDark
+    val colors = LiquidTheme.colors
     val coverPhoto = profile.coverUrl
     val avatarPhoto = profile.animatedAvatarUrl ?: profile.largePhotoUrl.takeIf(String::isNotBlank)
-    val photo = coverPhoto ?: avatarPhoto
     val presence = profilePresence(profile)
+    val bannerHeight = if (coverPhoto != null) 132.dp else 70.dp
 
-    Box(modifier = Modifier.fillMaxWidth()) {
-        Box(modifier = Modifier.fillMaxWidth().height(if (compact) 320.dp else 400.dp)) {
-            Box(modifier = Modifier.fillMaxSize().clipToBounds()) {
-                if (photo != null) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(LiquidSurfaces.sheet(colors.isDark)),
+    ) {
+        Box(modifier = Modifier.fillMaxWidth().height(bannerHeight).clipToBounds()) {
+            if (coverPhoto != null) {
+                AsyncImage(
+                    model = ImageRequest.Builder(LocalContext.current).data(coverPhoto).crossfade(true).build(),
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
+                )
+                Box(
+                    Modifier.fillMaxSize().background(
+                        Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.12f), Color.Black.copy(alpha = 0.38f))),
+                    ),
+                )
+            } else {
+                Box(
+                    Modifier.fillMaxSize().background(
+                        Brush.horizontalGradient(
+                            listOf(
+                                colors.textTertiary.copy(alpha = 0.12f),
+                                colors.textTertiary.copy(alpha = 0.04f),
+                            ),
+                        ),
+                    ),
+                )
+            }
+        }
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = LiquidMetrics.ScreenPadding)
+                .padding(top = 10.dp),
+            verticalAlignment = Alignment.Top,
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(if (compact) 76.dp else 84.dp)
+                    .clip(CircleShape)
+                    .background(colors.textTertiary.copy(alpha = 0.14f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (avatarPhoto != null) {
                     AsyncImage(
-                        model = ImageRequest.Builder(LocalContext.current).data(photo).crossfade(true).build(),
+                        model = ImageRequest.Builder(LocalContext.current).data(avatarPhoto).crossfade(true).build(),
                         contentDescription = profile.displayName,
                         contentScale = ContentScale.Crop,
                         modifier = Modifier.fillMaxSize(),
                     )
                 } else {
-                    Box(
-                        modifier = Modifier.fillMaxSize().background(Color(0xFF29292D)),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Icon(
-                            LmgGlyphs.UserOutline28,
-                            null,
-                            tint = Color.White.copy(alpha = 0.30f),
-                            modifier = Modifier.size(96.dp),
-                        )
-                    }
+                    Icon(LmgGlyphs.UserOutline28, null, tint = colors.iconMuted, modifier = Modifier.size(34.dp))
                 }
-                Box(
-                    modifier = Modifier.fillMaxSize().background(
-                        Brush.verticalGradient(
-                            0f to Color.Black.copy(alpha = 0.30f),
-                            0.35f to Color.Transparent,
-                            0.62f to Color.Black.copy(alpha = 0.30f),
-                            1f to Color.Black.copy(alpha = 0.90f),
-                        ),
-                    ),
-                )
             }
-
-            Column(
-                modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .fillMaxWidth()
-                    .padding(horizontal = LiquidMetrics.ScreenPadding)
-                    .padding(bottom = LiquidMetrics.SheetOverlap + 8.dp),
-            ) {
-                if (coverPhoto != null && avatarPhoto != null) {
-                    AsyncImage(
-                        model = ImageRequest.Builder(LocalContext.current).data(avatarPhoto).crossfade(true).build(),
-                        contentDescription = profile.displayName,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier
-                            .size(if (compact) 76.dp else 92.dp)
-                            .clip(CircleShape)
-                            .background(Color(0xFF29292D)),
-                    )
-                    Spacer(Modifier.height(10.dp))
-                }
+            Spacer(Modifier.width(14.dp))
+            Column(modifier = Modifier.weight(1f).padding(top = 2.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         text = profile.displayName.ifBlank { "id${profile.id}" },
-                        color = LiquidSurfaces.onHeaderPrimary,
+                        color = colors.textPrimary,
                         fontFamily = VkSansDisplay,
-                        fontSize = if (compact) 30.sp else 38.sp,
-                        fontWeight = LiquidMetrics.TitleHugeWeight,
-                        letterSpacing = LiquidMetrics.TitleHugeSpacing,
-                        lineHeight = if (compact) 34.sp else 42.sp,
-                        maxLines = 2,
+                        fontSize = if (compact) 21.sp else 23.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f, fill = false),
+                        modifier = Modifier.weight(1f),
                     )
                     if (profile.isVerified) {
                         Spacer(Modifier.width(8.dp))
@@ -662,74 +665,51 @@ private fun UserProfileHeader(
                     presence,
                 ).joinToString(" • ")
                 if (subtitle.isNotBlank()) {
-                    Spacer(Modifier.height(6.dp))
+                    Spacer(Modifier.height(3.dp))
                     Text(
                         text = subtitle,
-                        color = LiquidSurfaces.onHeaderSecondary,
+                        color = colors.textSecondary,
                         fontFamily = VkSansText,
-                        fontSize = LiquidMetrics.HeaderCaption,
-                        maxLines = 2,
+                        fontSize = 12.sp,
+                        maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
                 profile.status.takeIf(String::isNotBlank)?.let { status ->
-                    Spacer(Modifier.height(6.dp))
+                    Spacer(Modifier.height(5.dp))
                     Text(
                         text = status,
-                        color = LiquidSurfaces.onHeaderSecondary,
+                        color = colors.textPrimary,
                         fontFamily = VkSansText,
                         fontSize = 12.5.sp,
-                        maxLines = 2,
+                        maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
-                }
-                Spacer(Modifier.height(16.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    UserProfileActionButton(
-                        label = if (profile.canSeeAudio == 0) "Music closed" else "Music",
-                        icon = if (profile.canSeeAudio == 0) LmgGlyphs.LockOutline28 else LmgGlyphs.MusicNote24,
-                        enabled = canOpenMusic,
-                        filled = true,
-                        modifier = Modifier.weight(1f),
-                        onClick = onOpenMusic,
-                    )
-                    if (friendshipLabel != null) {
-                        UserProfileActionButton(
-                            label = friendshipLabel,
-                            icon = friendshipIcon,
-                            enabled = friendshipEnabled,
-                            filled = false,
-                            modifier = Modifier.weight(1f),
-                            onClick = onFriendship,
-                        )
-                    } else {
-                        UserProfileActionButton(
-                            label = "Share",
-                            icon = LmgGlyphs.ShareOutline28,
-                            enabled = true,
-                            filled = false,
-                            modifier = Modifier.weight(1f),
-                            onClick = onShare,
-                        )
-                    }
                 }
             }
         }
 
-        Box(
+        Row(
             modifier = Modifier
-                .align(Alignment.BottomCenter)
                 .fillMaxWidth()
-                .clip(LiquidMetrics.SheetShape)
-                .background(LiquidSurfaces.sheet(isDark))
-                .padding(top = 12.dp, bottom = 4.dp),
-            contentAlignment = Alignment.TopCenter,
+                .padding(horizontal = LiquidMetrics.ScreenPadding, vertical = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Box(
-                modifier = Modifier
-                    .size(width = 36.dp, height = 5.dp)
-                    .clip(CircleShape)
-                    .background(LiquidSurfaces.grabber(isDark)),
+            UserProfileActionButton(
+                label = if (profile.canSeeAudio == 0) "Music closed" else "Music",
+                icon = if (profile.canSeeAudio == 0) LmgGlyphs.LockOutline28 else LmgGlyphs.MusicNote24,
+                enabled = canOpenMusic,
+                filled = true,
+                modifier = Modifier.weight(1f),
+                onClick = onOpenMusic,
+            )
+            UserProfileActionButton(
+                label = friendshipLabel ?: "Share",
+                icon = friendshipIcon.takeIf { friendshipLabel != null } ?: LmgGlyphs.ShareOutline28,
+                enabled = if (friendshipLabel != null) friendshipEnabled else true,
+                filled = false,
+                modifier = Modifier.weight(1f),
+                onClick = if (friendshipLabel != null) onFriendship else onShare,
             )
         }
     }
@@ -744,14 +724,15 @@ private fun UserProfileActionButton(
     modifier: Modifier,
     onClick: () -> Unit,
 ) {
+    val colors = LiquidTheme.colors
     val contentColor = when {
-        !enabled -> Color.White.copy(alpha = 0.45f)
-        filled -> Color.Black
-        else -> Color.White
+        !enabled -> colors.textTertiary
+        filled -> Color.White
+        else -> colors.textPrimary
     }
     Row(
         modifier = modifier
-            .height(LiquidMetrics.ActionButtonHeight)
+            .height(40.dp)
             .shadow(
                 elevation = if (filled) LiquidMetrics.ButtonElevation else 2.dp,
                 shape = CircleShape,
@@ -761,9 +742,9 @@ private fun UserProfileActionButton(
             .clip(CircleShape)
             .background(
                 when {
-                    !enabled -> Color.White.copy(alpha = 0.10f)
-                    filled -> Color.White
-                    else -> LiquidSurfaces.glassAction
+                    !enabled -> colors.textTertiary.copy(alpha = 0.08f)
+                    filled -> Color(0xFF2787F5)
+                    else -> colors.textTertiary.copy(alpha = 0.12f)
                 },
             )
             .liquidClickable(
@@ -873,7 +854,7 @@ private fun UserProfileSectionTitle(text: String) {
         fontSize = 11.sp,
         fontWeight = FontWeight.SemiBold,
         letterSpacing = 0.8.sp,
-        modifier = Modifier.fillMaxWidth().padding(horizontal = LiquidMetrics.ScreenPadding, vertical = 12.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = LiquidMetrics.ScreenPadding, vertical = 8.dp),
     )
 }
 
@@ -884,7 +865,7 @@ private fun UserProfileLinkRow(title: String, value: String, onClick: () -> Unit
         modifier = Modifier
             .fillMaxWidth()
             .liquidClickable(onClick = onClick)
-            .padding(horizontal = LiquidMetrics.ScreenPadding, vertical = 13.dp),
+            .padding(horizontal = LiquidMetrics.ScreenPadding, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {

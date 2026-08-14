@@ -390,7 +390,7 @@ class FavoriteTrackDatabase private constructor(context: Context) : SQLiteOpenHe
     fun deleteByTrackId(trackId: String) {
         writableDatabase.execSQL(
             "DELETE FROM favorite_tracks WHERE accountId = ? AND (trackId = ? OR cloudTrackId = ?)",
-            arrayOf(ACTIVE_ACCOUNT_ID, trackId, trackId)
+            arrayOf<Any?>(ACTIVE_ACCOUNT_ID, trackId, trackId)
         )
         reloadFavorites()
     }
@@ -432,7 +432,7 @@ class FavoriteTrackDatabase private constructor(context: Context) : SQLiteOpenHe
     fun markSynced(trackId: String) {
         writableDatabase.execSQL(
             "UPDATE favorite_tracks SET isSynced = 1 WHERE accountId = ? AND (trackId = ? OR cloudTrackId = ?)",
-            arrayOf(ACTIVE_ACCOUNT_ID, trackId, trackId)
+            arrayOf<Any?>(ACTIVE_ACCOUNT_ID, trackId, trackId)
         )
     }
 
@@ -440,7 +440,7 @@ class FavoriteTrackDatabase private constructor(context: Context) : SQLiteOpenHe
         writableDatabase.execSQL(
             "UPDATE favorite_tracks SET pendingDelete = 0 WHERE accountId = ? AND " +
                 "(trackId = ? OR cloudTrackId = ?)",
-            arrayOf(ACTIVE_ACCOUNT_ID, trackId, trackId)
+            arrayOf<Any?>(ACTIVE_ACCOUNT_ID, trackId, trackId)
         )
     }
 

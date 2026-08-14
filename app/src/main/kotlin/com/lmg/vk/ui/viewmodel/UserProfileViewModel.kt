@@ -248,7 +248,7 @@ class UserProfileViewModel : ViewModel() {
     }
 
     private companion object {
-        const val MUSIC_PREVIEW_TRACKS = 5
-        const val MUSIC_PREVIEW_PLAYLISTS = 4
+        const val MUSIC_PREVIEW_TRACKS = 3
+        const val MUSIC_PREVIEW_PLAYLISTS = 2
     }
 }
