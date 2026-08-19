@@ -23,11 +23,14 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import com.lmg.vk.ui.glass.GlassCustomDialog
+import com.lmg.vk.ui.glass.GlassDialog
+import com.lmg.vk.ui.glass.GlassDialogButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -319,84 +322,209 @@ fun UserProfileScreen(
     }
 
     if (showRemoveFriendConfirm) {
-        AlertDialog(
-            onDismissRequest = { showRemoveFriendConfirm = false },
-            title = { Text("Remove friend?") },
-            text = { Text("The user will remain available in followers if VK keeps the subscription.") },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        showRemoveFriendConfirm = false
-                        viewModel.changeFriendship()
-                    },
-                ) { Text("Remove") }
-            },
-            dismissButton = {
-                TextButton(onClick = { showRemoveFriendConfirm = false }) { Text("Cancel") }
-            },
+        GlassDialog(
+            visible = showRemoveFriendConfirm,
+            onDismiss = { showRemoveFriendConfirm = false },
+            icon = lmgVector(LmgDrawables.UserOutline28),
+            iconTint = Color(0xFFFC3C44),
+            title = "Remove friend?",
+            message = "The user will remain available in followers if VK keeps the subscription.",
+            primaryButton = GlassDialogButton(
+                text = "Remove",
+                backgroundColor = Color(0xFFFC3C44),
+                onClick = {
+                    showRemoveFriendConfirm = false
+                    viewModel.changeFriendship()
+                },
+            ),
+            secondaryButton = GlassDialogButton(
+                text = "Cancel",
+                onClick = { showRemoveFriendConfirm = false },
+            ),
         )
     }
+
     if (showEditProfile) {
-        AlertDialog(
-            onDismissRequest = {
+        val colors = LiquidTheme.colors
+        val isDark = colors.isDark
+
+        GlassCustomDialog(
+            visible = showEditProfile,
+            onDismiss = {
                 if (!state.isSavingProfile && !state.isUploadingImage) showEditProfile = false
             },
-            title = { Text("Edit VK profile") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    OutlinedTextField(
-                        value = editStatus,
-                        onValueChange = { editStatus = it },
-                        label = { Text("Status") },
-                        maxLines = 3,
-                    )
-                    OutlinedTextField(
-                        value = editAbout,
-                        onValueChange = { editAbout = it },
-                        label = { Text("About") },
-                        minLines = 3,
-                        maxLines = 7,
-                    )
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        TextButton(
-                            enabled = !state.isUploadingImage,
-                            onClick = { avatarPicker.launch("image/*") },
-                        ) { Text("Change photo") }
-                        TextButton(
-                            enabled = !state.isUploadingImage,
-                            onClick = { coverPicker.launch("image/*") },
-                        ) { Text("Change cover") }
-                    }
-                    if (state.isUploadingImage) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
-                            Spacer(Modifier.width(8.dp))
-                            Text("Uploading image...", fontSize = 12.sp)
+            icon = lmgVector(LmgDrawables.EditOutline28),
+            iconTint = colors.accent,
+            title = "Edit VK profile",
+            subtitle = "Update status and bio on your VK profile",
+            dismissible = !state.isSavingProfile && !state.isUploadingImage,
+            primaryButton = GlassDialogButton(
+                text = "Save",
+                backgroundColor = colors.accent,
+                enabled = !state.isSavingProfile && !state.isUploadingImage,
+                onClick = {
+                    viewModel.saveOwnProfile(editStatus.trim(), editAbout.trim())
+                    showEditProfile = false
+                },
+            ),
+            secondaryButton = GlassDialogButton(
+                text = "Cancel",
+                enabled = !state.isSavingProfile && !state.isUploadingImage,
+                onClick = { showEditProfile = false },
+            ),
+        ) {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                OutlinedTextField(
+                    value = editStatus,
+                    onValueChange = { editStatus = it },
+                    label = { Text("Status", fontFamily = VkSansText) },
+                    maxLines = 3,
+                    shape = RoundedCornerShape(16.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = colors.accent,
+                        unfocusedBorderColor = if (isDark) Color.White.copy(alpha = 0.12f) else Color.Black.copy(alpha = 0.10f),
+                        focusedTextColor = colors.textPrimary,
+                        unfocusedTextColor = colors.textPrimary,
+                        focusedContainerColor = LiquidSurfaces.card(isDark),
+                        unfocusedContainerColor = LiquidSurfaces.card(isDark),
+                    ),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+
+                OutlinedTextField(
+                    value = editAbout,
+                    onValueChange = { editAbout = it },
+                    label = { Text("About", fontFamily = VkSansText) },
+                    minLines = 3,
+                    maxLines = 7,
+                    shape = RoundedCornerShape(16.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = colors.accent,
+                        unfocusedBorderColor = if (isDark) Color.White.copy(alpha = 0.12f) else Color.Black.copy(alpha = 0.10f),
+                        focusedTextColor = colors.textPrimary,
+                        unfocusedTextColor = colors.textPrimary,
+                        focusedContainerColor = LiquidSurfaces.card(isDark),
+                        unfocusedContainerColor = LiquidSurfaces.card(isDark),
+                    ),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(if (isDark) Color.White.copy(alpha = 0.08f) else Color(0xFFF2F2F7))
+                            .border(
+                                1.dp,
+                                if (isDark) Color.White.copy(alpha = 0.08f) else Color.Black.copy(alpha = 0.06f),
+                                RoundedCornerShape(16.dp),
+                            )
+                            .liquidClickable(
+                                pressedScale = LiquidMotion.PressButton,
+                                enabled = !state.isUploadingImage,
+                                onClick = { avatarPicker.launch("image/*") },
+                            )
+                            .padding(vertical = 11.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            Icon(
+                                imageVector = lmgVector(LmgDrawables.PictureOutline28),
+                                contentDescription = null,
+                                tint = colors.accent,
+                                modifier = Modifier.size(18.dp),
+                            )
+                            Text(
+                                text = "Change photo",
+                                fontFamily = VkSansText,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = colors.textPrimary,
+                            )
                         }
                     }
-                    Text(
-                        "Cover images must already be prepared close to VK's 2.5:1 format.",
-                        color = LiquidTheme.colors.textSecondary,
-                        fontSize = 12.sp,
-                    )
+
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(if (isDark) Color.White.copy(alpha = 0.08f) else Color(0xFFF2F2F7))
+                            .border(
+                                1.dp,
+                                if (isDark) Color.White.copy(alpha = 0.08f) else Color.Black.copy(alpha = 0.06f),
+                                RoundedCornerShape(16.dp),
+                            )
+                            .liquidClickable(
+                                pressedScale = LiquidMotion.PressButton,
+                                enabled = !state.isUploadingImage,
+                                onClick = { coverPicker.launch("image/*") },
+                            )
+                            .padding(vertical = 11.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            Icon(
+                                imageVector = lmgVector(LmgDrawables.PictureStackOutline28),
+                                contentDescription = null,
+                                tint = colors.accent,
+                                modifier = Modifier.size(18.dp),
+                            )
+                            Text(
+                                text = "Change cover",
+                                fontFamily = VkSansText,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = colors.textPrimary,
+                            )
+                        }
+                    }
                 }
-            },
-            confirmButton = {
-                TextButton(
-                    enabled = !state.isSavingProfile && !state.isUploadingImage,
-                    onClick = {
-                        viewModel.saveOwnProfile(editStatus.trim(), editAbout.trim())
-                        showEditProfile = false
-                    },
-                ) { Text("Save") }
-            },
-            dismissButton = {
-                TextButton(
-                    enabled = !state.isSavingProfile && !state.isUploadingImage,
-                    onClick = { showEditProfile = false },
-                ) { Text("Cancel") }
-            },
-        )
+
+                if (state.isUploadingImage) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center,
+                    ) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            strokeWidth = 2.dp,
+                            color = colors.accent,
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            text = "Uploading image...",
+                            fontFamily = VkSansText,
+                            fontSize = 13.sp,
+                            color = colors.textSecondary,
+                        )
+                    }
+                }
+
+                Text(
+                    text = "Cover images must already be prepared close to VK's 2.5:1 format.",
+                    color = colors.textTertiary,
+                    fontFamily = VkSansText,
+                    fontSize = 12.sp,
+                    lineHeight = 16.sp,
+                )
+            }
+        }
     }
 }
 

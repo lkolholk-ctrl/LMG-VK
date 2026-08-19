@@ -30,11 +30,13 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import com.lmg.vk.ui.components.VkAccountsDialog
+import com.lmg.vk.ui.glass.GlassDialog
+import com.lmg.vk.ui.glass.GlassDialogButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -220,119 +222,99 @@ fun ProfileScreen(
     }
 
     if (showSignOutConfirmation) {
-        AlertDialog(
-            onDismissRequest = { showSignOutConfirmation = false },
-            title = { Text("Sign out of VK?", fontFamily = VkSansDisplay, fontWeight = FontWeight.SemiBold) },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(
-                        if (accounts.size > 1) {
-                            "This account will be removed from the device and another saved account will become active."
-                        } else {
-                            "Your encrypted local VK session will be removed from this device."
-                        },
-                    )
-                    accountActionError?.let { Text(it, color = DestructiveRed, fontSize = 12.sp) }
-                }
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        if (MusicAuth.logout()) {
-                            showSignOutConfirmation = false
-                            onLogout()
-                        } else {
-                            accountActionError = "Wait for library synchronization to finish"
-                        }
-                    },
-                ) { Text("Sign out", color = DestructiveRed) }
-            },
-            dismissButton = {
-                TextButton(onClick = { showSignOutConfirmation = false }) { Text("Cancel") }
-            },
+        val signOutMessage = buildString {
+            if (accounts.size > 1) {
+                append("This account will be removed from the device and another saved account will become active.")
+            } else {
+                append("Your encrypted local VK session will be removed from this device.")
+            }
+            if (!accountActionError.isNullOrBlank()) {
+                append("\n\n")
+                append(accountActionError)
+            }
+        }
+        GlassDialog(
+            visible = showSignOutConfirmation,
+            onDismiss = { showSignOutConfirmation = false },
+            icon = lmgVector(LmgDrawables.DoorArrowLeftOutline28),
+            iconTint = DestructiveRed,
+            title = "Sign out of VK?",
+            message = signOutMessage,
+            primaryButton = GlassDialogButton(
+                text = "Sign out",
+                backgroundColor = DestructiveRed,
+                onClick = {
+                    if (MusicAuth.logout()) {
+                        showSignOutConfirmation = false
+                        onLogout()
+                    } else {
+                        accountActionError = "Wait for library synchronization to finish"
+                    }
+                },
+            ),
+            secondaryButton = GlassDialogButton(
+                text = "Cancel",
+                onClick = { showSignOutConfirmation = false },
+            ),
         )
     }
 
     if (showAccountsDialog) {
-        AlertDialog(
-            onDismissRequest = { showAccountsDialog = false },
-            title = { Text("VK accounts", fontFamily = VkSansDisplay, fontWeight = FontWeight.SemiBold) },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    accounts.forEach { account ->
-                        AccountPickerRow(
-                            account = account,
-                            onSelect = {
-                                if (!account.isActive && MusicAuth.switchAccount(account.userId)) {
-                                    showAccountsDialog = false
-                                } else if (!account.isActive) {
-                                    accountActionError = "Wait for library synchronization to finish"
-                                }
-                            },
-                            onRemove = {
-                                accountActionError = null
-                                showAccountsDialog = false
-                                accountPendingRemoval = account
-                            },
-                        )
-                    }
-                    accountActionError?.let { error ->
-                        Text(
-                            error,
-                            color = DestructiveRed,
-                            fontFamily = VkSansText,
-                            fontSize = 12.sp,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                        )
-                    }
-                    TextButton(
-                        onClick = {
-                            showAccountsDialog = false
-                            onAddAccount()
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Icon(
-                            lmgVector(LmgDrawables.UserAddOutline28),
-                            null,
-                            modifier = Modifier.size(19.dp),
-                        )
-                        Spacer(Modifier.width(8.dp))
-                        Text("Add VK account")
-                    }
+        VkAccountsDialog(
+            visible = showAccountsDialog,
+            accounts = accounts,
+            errorMessage = accountActionError,
+            onSelectAccount = { account ->
+                if (!account.isActive && MusicAuth.switchAccount(account.userId)) {
+                    showAccountsDialog = false
+                } else if (!account.isActive) {
+                    accountActionError = "Wait for library synchronization to finish"
                 }
             },
-            confirmButton = {
-                TextButton(onClick = { showAccountsDialog = false }) { Text("Close") }
+            onRemoveAccount = { account ->
+                accountActionError = null
+                showAccountsDialog = false
+                accountPendingRemoval = account
             },
+            onAddAccount = {
+                showAccountsDialog = false
+                onAddAccount()
+            },
+            onDismiss = { showAccountsDialog = false },
         )
     }
 
     accountPendingRemoval?.let { account ->
-        AlertDialog(
-            onDismissRequest = { accountPendingRemoval = null },
-            title = { Text("Remove ${account.displayName}?") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Only this encrypted session will be removed from the device.")
-                    accountActionError?.let { Text(it, color = DestructiveRed, fontSize = 12.sp) }
-                }
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        if (MusicAuth.removeAccount(account.userId)) {
-                            accountPendingRemoval = null
-                            if (!MusicAuth.isLoggedIn.value) onLogout()
-                        } else {
-                            accountActionError = "Wait for library synchronization to finish"
-                        }
-                    },
-                ) { Text("Remove", color = DestructiveRed) }
-            },
-            dismissButton = {
-                TextButton(onClick = { accountPendingRemoval = null }) { Text("Cancel") }
-            },
+        val removeMessage = buildString {
+            append("Only this encrypted session will be removed from the device.")
+            if (!accountActionError.isNullOrBlank()) {
+                append("\n\n")
+                append(accountActionError)
+            }
+        }
+        GlassDialog(
+            visible = true,
+            onDismiss = { accountPendingRemoval = null },
+            icon = lmgVector(LmgDrawables.DeleteOutline28),
+            iconTint = DestructiveRed,
+            title = "Remove ${account.displayName}?",
+            message = removeMessage,
+            primaryButton = GlassDialogButton(
+                text = "Remove",
+                backgroundColor = DestructiveRed,
+                onClick = {
+                    if (MusicAuth.removeAccount(account.userId)) {
+                        accountPendingRemoval = null
+                        if (!MusicAuth.isLoggedIn.value) onLogout()
+                    } else {
+                        accountActionError = "Wait for library synchronization to finish"
+                    }
+                },
+            ),
+            secondaryButton = GlassDialogButton(
+                text = "Cancel",
+                onClick = { accountPendingRemoval = null },
+            ),
         )
     }
 
@@ -830,76 +812,6 @@ fun ProfileScreen(
     }
 }
 
-@Composable
-private fun AccountPickerRow(
-    account: VkAccountSummary,
-    onSelect: () -> Unit,
-    onRemove: () -> Unit,
-) {
-    val colors = LiquidTheme.colors
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
-            .liquidClickable(onClick = onSelect)
-            .padding(horizontal = 8.dp, vertical = 7.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(
-            modifier = Modifier
-                .size(42.dp)
-                .clip(CircleShape)
-                .background(colors.textTertiary.copy(alpha = 0.12f)),
-            contentAlignment = Alignment.Center,
-        ) {
-            if (account.avatarUrl.isNotBlank()) {
-                AsyncImage(
-                    model = ImageRequest.Builder(LocalContext.current)
-                        .data(account.avatarUrl)
-                        .crossfade(true)
-                        .build(),
-                    contentDescription = account.displayName,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize(),
-                )
-            } else {
-                Icon(
-                    com.lmg.vk.ui.icons.LmgGlyphs.UserOutline28,
-                    null,
-                    tint = colors.iconMuted,
-                    modifier = Modifier.size(22.dp),
-                )
-            }
-        }
-        Spacer(Modifier.width(10.dp))
-        Column(Modifier.weight(1f)) {
-            Text(
-                account.displayName,
-                fontFamily = VkSansText,
-                color = colors.textPrimary,
-                fontWeight = FontWeight.SemiBold,
-                fontSize = 14.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                when {
-                    account.isActive -> "Active"
-                    account.isExpired -> "Sign-in expired"
-                    account.username.isNotBlank() -> "vk.com/${account.username}"
-                    else -> "VK ID ${account.userId}"
-                },
-                fontFamily = VkSansText,
-                color = colors.textSecondary,
-                fontSize = 12.sp,
-                maxLines = 1,
-            )
-        }
-        TextButton(onClick = onRemove) {
-            Text("Remove", color = DestructiveRed, fontSize = 12.sp)
-        }
-    }
-}
 
 // ------------------------------- строки списков -------------------------------
 
