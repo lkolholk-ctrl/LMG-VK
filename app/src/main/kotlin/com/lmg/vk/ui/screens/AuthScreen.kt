@@ -19,11 +19,11 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsTopHeight
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -78,16 +78,15 @@ import kotlinx.coroutines.launch
 private val VkBlue = Color(0xFF0077FF)
 private val DestructiveRed = Color(0xFFFC3C44)
 
-private enum class AuthStep { Credentials, TwoFactor, Captcha }
+private enum class AuthStep { Phone, TwoFactor, Password, Captcha }
 
 /**
- * Liquid Glass Authorization Screen for VK ID OAuth flow.
+ * Liquid Glass пошаговый экран авторизации VK (как в VK X).
  *
- * Fully reactive and self-contained with:
- * - Credentials entry (phone/email + password) with show/hide toggle
- * - Two-Factor authentication / OTP check
- * - Visual captcha security check
- * - Keystore security disclaimer and smooth step transitions
+ * 1. Номер телефона (Phone)
+ * 2. Интерактивная SmartCaptcha («Я не робот» через GlobalCaptchaManager)
+ * 3. Код подтверждения из СМС/Push (TwoFactor)
+ * 4. Пароль (Password, если требуется)
  */
 @Composable
 fun AuthScreen(
@@ -105,7 +104,7 @@ fun AuthScreen(
         if (isLoggedIn && !isAddingAccount) onAuthSuccess()
     }
 
-    var step by remember { mutableStateOf(AuthStep.Credentials) }
+    var step by remember { mutableStateOf(AuthStep.Phone) }
     var login by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
@@ -118,58 +117,83 @@ fun AuthScreen(
     var expectedCodeLength by remember { mutableIntStateOf(0) }
     var error by remember { mutableStateOf<String?>(null) }
     var isLoading by remember { mutableStateOf(false) }
-    var showWebAuth by remember { mutableStateOf(false) }
 
-    val passwordFocusRequester = remember { FocusRequester() }
+    val phoneFocusRequester = remember { FocusRequester() }
     val codeFocusRequester = remember { FocusRequester() }
+    val passwordFocusRequester = remember { FocusRequester() }
     val captchaFocusRequester = remember { FocusRequester() }
 
-    val canSubmit = !isLoading && when (step) {
-        AuthStep.Credentials -> login.isNotBlank() && password.isNotBlank()
-        AuthStep.TwoFactor -> verificationCode.isNotBlank()
-        AuthStep.Captcha -> captchaKey.isNotBlank()
+    LaunchedEffect(Unit) {
+        phoneFocusRequester.requestFocus()
     }
 
-    val submit = {
-        if (canSubmit) {
-            keyboardController?.hide()
-            isLoading = true
-            error = null
-            scope.launch {
-                when (val result = MusicAuth.signIn(
-                    username = login,
-                    password = password,
-                    validationSid = validationSid,
-                    code = verificationCode.takeIf(String::isNotBlank),
-                    captchaSid = captchaSid,
-                    captchaKey = captchaKey.takeIf(String::isNotBlank),
-                )) {
-                    VkLoginResult.Success -> {
-                        password = ""
-                        onAuthSuccess()
-                    }
-                    is VkLoginResult.TwoFactor -> {
-                        validationSid = result.validationSid
-                        destination = result.destination
-                        expectedCodeLength = result.codeLength
-                        verificationCode = ""
-                        captchaSid = null
-                        captchaKey = ""
-                        step = AuthStep.TwoFactor
-                    }
-                    is VkLoginResult.Captcha -> {
-                        captchaSid = result.captchaSid
-                        captchaUrl = result.imageUrl
-                        captchaKey = ""
-                        verificationCode = ""
-                        step = AuthStep.Captcha
-                    }
-                    is VkLoginResult.Failure -> {
-                        error = result.message
-                    }
+    fun submit() {
+        if (isLoading) return
+        val currentLogin = login.trim()
+        if (currentLogin.isBlank()) {
+            error = "Введите номер телефона или логин"
+            return
+        }
+
+        if (step == AuthStep.TwoFactor && verificationCode.isBlank()) {
+            error = "Введите код из сообщения"
+            return
+        }
+
+        if (step == AuthStep.Password && password.isBlank()) {
+            error = "Введите пароль"
+            return
+        }
+
+        if (step == AuthStep.Captcha && captchaKey.isBlank()) {
+            error = "Введите символы с картинки"
+            return
+        }
+
+        keyboardController?.hide()
+        isLoading = true
+        error = null
+        scope.launch {
+            when (val result = MusicAuth.signIn(
+                username = currentLogin,
+                password = if (step == AuthStep.Password) password else "",
+                validationSid = validationSid,
+                code = verificationCode.takeIf(String::isNotBlank),
+                captchaSid = captchaSid,
+                captchaKey = captchaKey.takeIf(String::isNotBlank),
+            )) {
+                VkLoginResult.Success -> {
+                    password = ""
+                    onAuthSuccess()
                 }
-                isLoading = false
+                is VkLoginResult.TwoFactor -> {
+                    validationSid = result.validationSid
+                    destination = result.destination
+                    expectedCodeLength = result.codeLength
+                    verificationCode = ""
+                    captchaSid = null
+                    captchaKey = ""
+                    step = AuthStep.TwoFactor
+                }
+                is VkLoginResult.NeedPassword -> {
+                    validationSid = result.validationSid
+                    password = ""
+                    captchaSid = null
+                    captchaKey = ""
+                    step = AuthStep.Password
+                }
+                is VkLoginResult.Captcha -> {
+                    captchaSid = result.captchaSid
+                    captchaUrl = result.imageUrl
+                    captchaKey = ""
+                    verificationCode = ""
+                    step = AuthStep.Captcha
+                }
+                is VkLoginResult.Failure -> {
+                    error = result.message
+                }
             }
+            isLoading = false
         }
     }
 
@@ -207,11 +231,11 @@ fun AuthScreen(
                         .liquidClickable(
                             pressedScale = LiquidMotion.PressIcon,
                             onClick = {
-                                if (step == AuthStep.Credentials) {
+                                if (step == AuthStep.Phone) {
                                     password = ""
                                     onBack()
                                 } else {
-                                    step = AuthStep.Credentials
+                                    step = AuthStep.Phone
                                     verificationCode = ""
                                     validationSid = null
                                     captchaSid = null
@@ -239,9 +263,10 @@ fun AuthScreen(
                 ) {
                     Text(
                         text = when (step) {
-                            AuthStep.Credentials -> if (isAddingAccount) "Add account" else "VK ID"
-                            AuthStep.TwoFactor -> "2-Step verification"
-                            AuthStep.Captcha -> "Security check"
+                            AuthStep.Phone -> if (isAddingAccount) "Добавить аккаунт" else "Вход в VK"
+                            AuthStep.TwoFactor -> "Код подтверждения"
+                            AuthStep.Password -> "Пароль"
+                            AuthStep.Captcha -> "Проверка"
                         },
                         fontFamily = VkSansText,
                         fontSize = 13.sp,
@@ -258,13 +283,15 @@ fun AuthScreen(
 
             // ─── Hero Header & Logo ───
             val heroIconTint = when (step) {
-                AuthStep.Credentials -> VkBlue
+                AuthStep.Phone -> VkBlue
                 AuthStep.TwoFactor -> Color(0xFFFF9500)
+                AuthStep.Password -> VkBlue
                 AuthStep.Captcha -> DestructiveRed
             }
             val heroIcon = when (step) {
-                AuthStep.Credentials -> lmgVector(LmgDrawables.UserCircleOutline28)
+                AuthStep.Phone -> lmgVector(LmgDrawables.UserCircleOutline28)
                 AuthStep.TwoFactor -> lmgVector(LmgDrawables.PincodeLockOutline28)
+                AuthStep.Password -> lmgVector(LmgDrawables.LockOutline28)
                 AuthStep.Captcha -> lmgVector(LmgDrawables.CheckShieldOutline28)
             }
 
@@ -288,9 +315,10 @@ fun AuthScreen(
 
             Text(
                 text = when (step) {
-                    AuthStep.Credentials -> if (isAddingAccount) "Add VK account" else "Sign in with VK ID"
-                    AuthStep.TwoFactor -> "Verification code"
-                    AuthStep.Captcha -> "Security confirmation"
+                    AuthStep.Phone -> if (isAddingAccount) "Добавить аккаунт" else "Войти в VK"
+                    AuthStep.TwoFactor -> "Код подтверждения"
+                    AuthStep.Password -> "Введите пароль"
+                    AuthStep.Captcha -> "Проверка безопасности"
                 },
                 color = lc.textPrimary,
                 fontSize = 24.sp,
@@ -303,14 +331,14 @@ fun AuthScreen(
 
             Text(
                 text = when (step) {
-                    AuthStep.Credentials -> "Access your music library, personalized recommendations, and playlists."
+                    AuthStep.Phone -> "используя ваш аккаунт VK"
                     AuthStep.TwoFactor -> buildString {
-                        append("Enter the confirmation code sent to ")
-                        append(destination.ifBlank { "your VK account" })
-                        if (expectedCodeLength > 0) append(" ($expectedCodeLength digits)")
-                        append('.')
+                        append("Введите код подтверждения, отправленный на ")
+                        append(destination.ifBlank { "ваш аккаунт VK" })
+                        if (expectedCodeLength > 0) append(" ($expectedCodeLength цифр)")
                     }
-                    AuthStep.Captcha -> "Enter the characters shown in the security image below."
+                    AuthStep.Password -> "Введите пароль от вашей страницы ВКонтакте"
+                    AuthStep.Captcha -> "Введите символы с картинки"
                 },
                 color = lc.textSecondary,
                 fontSize = 14.sp,
@@ -351,38 +379,16 @@ fun AuthScreen(
                         verticalArrangement = Arrangement.spacedBy(14.dp),
                     ) {
                         when (currentStep) {
-                            AuthStep.Credentials -> {
+                            AuthStep.Phone -> {
                                 GlassAuthField(
                                     value = login,
                                     onValueChange = { login = it.trim(); error = null },
-                                    label = "Phone number or email",
+                                    label = "Телефон или логин",
                                     leadingIcon = lmgVector(LmgDrawables.UserOutline28),
-                                    keyboardType = KeyboardType.Email,
-                                    autoCorrect = false,
-                                    imeAction = ImeAction.Next,
-                                    keyboardActions = KeyboardActions(
-                                        onNext = { passwordFocusRequester.requestFocus() },
-                                    ),
-                                )
-
-                                GlassAuthField(
-                                    value = password,
-                                    onValueChange = { input ->
-                                        // Only ASCII printable characters: English letters, digits, and symbols
-                                        password = input.filter { it.code in 32..126 }
-                                        error = null
-                                    },
-                                    label = "Password",
-                                    leadingIcon = lmgVector(LmgDrawables.LockOutline28),
-                                    trailingIcon = lmgVector(
-                                        if (passwordVisible) LmgDrawables.HideOutline28 else LmgDrawables.ViewOutline28
-                                    ),
-                                    onTrailingIconClick = { passwordVisible = !passwordVisible },
-                                    keyboardType = KeyboardType.Password,
+                                    keyboardType = KeyboardType.Phone,
                                     autoCorrect = false,
                                     imeAction = ImeAction.Done,
-                                    visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                                    modifier = Modifier.focusRequester(passwordFocusRequester),
+                                    modifier = Modifier.focusRequester(phoneFocusRequester),
                                     keyboardActions = KeyboardActions(
                                         onDone = { submit() },
                                     ),
@@ -396,7 +402,6 @@ fun AuthScreen(
                                 GlassAuthField(
                                     value = verificationCode,
                                     onValueChange = { input ->
-                                        // Strictly numeric keyboard and digits only
                                         val digits = input.filter(Char::isDigit)
                                         verificationCode = if (expectedCodeLength > 0) {
                                             digits.take(expectedCodeLength)
@@ -406,12 +411,39 @@ fun AuthScreen(
                                             submit()
                                         }
                                     },
-                                    label = "Confirmation code",
+                                    label = "Код подтверждения",
                                     leadingIcon = lmgVector(LmgDrawables.KeyOutline28),
                                     keyboardType = KeyboardType.NumberPassword,
                                     autoCorrect = false,
                                     imeAction = ImeAction.Done,
                                     modifier = Modifier.focusRequester(codeFocusRequester),
+                                    keyboardActions = KeyboardActions(
+                                        onDone = { submit() },
+                                    ),
+                                )
+                            }
+                            AuthStep.Password -> {
+                                LaunchedEffect(Unit) {
+                                    passwordFocusRequester.requestFocus()
+                                }
+
+                                GlassAuthField(
+                                    value = password,
+                                    onValueChange = { input ->
+                                        password = input.filter { it.code in 32..126 }
+                                        error = null
+                                    },
+                                    label = "Пароль",
+                                    leadingIcon = lmgVector(LmgDrawables.LockOutline28),
+                                    trailingIcon = lmgVector(
+                                        if (passwordVisible) LmgDrawables.HideOutline28 else LmgDrawables.ViewOutline28
+                                    ),
+                                    onTrailingIconClick = { passwordVisible = !passwordVisible },
+                                    keyboardType = KeyboardType.Password,
+                                    autoCorrect = false,
+                                    imeAction = ImeAction.Done,
+                                    visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                                    modifier = Modifier.focusRequester(passwordFocusRequester),
                                     keyboardActions = KeyboardActions(
                                         onDone = { submit() },
                                     ),
@@ -453,7 +485,7 @@ fun AuthScreen(
                                         captchaKey = input.filter { it.code in 33..126 }
                                         error = null
                                     },
-                                    label = "Characters from image",
+                                    label = "Символы с картинки",
                                     leadingIcon = lmgVector(LmgDrawables.KeySquareOutline28),
                                     keyboardType = KeyboardType.Ascii,
                                     autoCorrect = false,
@@ -463,37 +495,6 @@ fun AuthScreen(
                                         onDone = { submit() },
                                     ),
                                 )
-
-                                // Alternative verification via VK ID Web Gateway
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clip(RoundedCornerShape(14.dp))
-                                        .background(VkBlue.copy(alpha = if (isDark) 0.16f else 0.10f))
-                                        .border(1.dp, VkBlue.copy(alpha = 0.25f), RoundedCornerShape(14.dp))
-                                        .liquidClickable(
-                                            pressedScale = LiquidMotion.PressButton,
-                                            onClick = { showWebAuth = true },
-                                        )
-                                        .padding(horizontal = 14.dp, vertical = 12.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.Center,
-                                ) {
-                                    Icon(
-                                        imageVector = lmgVector(LmgDrawables.UserCircleOutline28),
-                                        contentDescription = null,
-                                        tint = VkBlue,
-                                        modifier = Modifier.size(20.dp),
-                                    )
-                                    Spacer(Modifier.width(8.dp))
-                                    Text(
-                                        text = "Pass verification via VK ID",
-                                        color = VkBlue,
-                                        fontFamily = VkSansText,
-                                        fontWeight = FontWeight.SemiBold,
-                                        fontSize = 14.sp,
-                                    )
-                                }
                             }
                         }
                     }
@@ -518,13 +519,14 @@ fun AuthScreen(
                                 imageVector = lmgVector(LmgDrawables.ErrorShield20),
                                 contentDescription = null,
                                 tint = DestructiveRed,
-                                modifier = Modifier.size(20.dp),
+                                modifier = Modifier.size(18.dp),
                             )
                             Text(
-                                text = error ?: "",
+                                text = error.orEmpty(),
                                 color = DestructiveRed,
                                 fontFamily = VkSansText,
                                 fontSize = 13.sp,
+                                fontWeight = FontWeight.Medium,
                                 lineHeight = 18.sp,
                             )
                         }
@@ -533,18 +535,16 @@ fun AuthScreen(
 
                 Spacer(modifier = Modifier.height(20.dp))
 
-                // ─── Primary Submit Button ───
+                // ─── Primary Submit Button with Glass Elevation ───
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(52.dp)
                         .clip(RoundedCornerShape(26.dp))
-                        .background(
-                            if (canSubmit) VkBlue else VkBlue.copy(alpha = 0.35f)
-                        )
+                        .background(VkBlue)
                         .liquidClickable(
+                            enabled = !isLoading,
                             pressedScale = LiquidMotion.PressButton,
-                            enabled = canSubmit,
                             onClick = { submit() },
                         ),
                     contentAlignment = Alignment.Center,
@@ -553,75 +553,26 @@ fun AuthScreen(
                         CircularProgressIndicator(
                             color = Color.White,
                             strokeWidth = 2.5.dp,
-                            modifier = Modifier.size(22.dp),
+                            modifier = Modifier.size(24.dp),
                         )
                     } else {
                         Text(
                             text = when (step) {
-                                AuthStep.Credentials -> if (isAddingAccount) "Add account" else "Sign in"
-                                AuthStep.TwoFactor -> "Verify & Continue"
-                                AuthStep.Captcha -> "Submit code"
+                                AuthStep.Phone -> "Войти"
+                                AuthStep.TwoFactor -> "Подтвердить"
+                                AuthStep.Password -> "Войти"
+                                AuthStep.Captcha -> "Отправить"
                             },
                             color = Color.White,
                             fontFamily = VkSansText,
-                            fontWeight = FontWeight.SemiBold,
+                            fontWeight = FontWeight.Bold,
                             fontSize = 16.sp,
                         )
                     }
                 }
 
-                // ─── VK ID Web OAuth Button for Credentials Step ───
-                if (step == AuthStep.Credentials) {
-                    Spacer(modifier = Modifier.height(14.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    ) {
-                        Box(modifier = Modifier.weight(1f).height(1.dp).background(if (isDark) Color.White.copy(alpha = 0.08f) else Color.Black.copy(alpha = 0.06f)))
-                        Text("or", fontFamily = VkSansText, fontSize = 12.sp, color = lc.textTertiary)
-                        Box(modifier = Modifier.weight(1f).height(1.dp).background(if (isDark) Color.White.copy(alpha = 0.08f) else Color.Black.copy(alpha = 0.06f)))
-                    }
-
-                    Spacer(modifier = Modifier.height(14.dp))
-
-                    val vkIdBg = if (isDark) Color(0xFF192338) else Color(0xFFEBF2FC)
-                    val vkIdBorder = if (isDark) VkBlue.copy(alpha = 0.35f) else VkBlue.copy(alpha = 0.25f)
-
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(50.dp)
-                            .clip(RoundedCornerShape(25.dp))
-                            .background(vkIdBg)
-                            .border(1.dp, vkIdBorder, RoundedCornerShape(25.dp))
-                            .liquidClickable(
-                                pressedScale = LiquidMotion.PressButton,
-                                onClick = { showWebAuth = true },
-                            ),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center,
-                    ) {
-                        Icon(
-                            imageVector = lmgVector(LmgDrawables.UserCircleOutline28),
-                            contentDescription = null,
-                            tint = VkBlue,
-                            modifier = Modifier.size(22.dp),
-                        )
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            text = if (isAddingAccount) "Sign in with VK ID" else "Continue with VK ID",
-                            color = VkBlue,
-                            fontFamily = VkSansText,
-                            fontWeight = FontWeight.SemiBold,
-                            fontSize = 15.sp,
-                        )
-                    }
-                }
-
                 // ─── Secondary Back Option for 2FA/Captcha ───
-                if (step != AuthStep.Credentials) {
+                if (step != AuthStep.Phone) {
                     Spacer(modifier = Modifier.height(12.dp))
                     Box(
                         modifier = Modifier
@@ -631,7 +582,7 @@ fun AuthScreen(
                                 interactionSource = remember { MutableInteractionSource() },
                                 indication = null,
                             ) {
-                                step = AuthStep.Credentials
+                                step = AuthStep.Phone
                                 verificationCode = ""
                                 validationSid = null
                                 captchaSid = null
@@ -641,7 +592,7 @@ fun AuthScreen(
                             .padding(horizontal = 14.dp, vertical = 6.dp),
                     ) {
                         Text(
-                            text = "Back to credentials",
+                            text = "Назад к вводу телефона",
                             color = lc.textSecondary,
                             fontFamily = VkSansText,
                             fontSize = 14.sp,
@@ -653,42 +604,59 @@ fun AuthScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // ─── Security and Privacy Trust Footer ───
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.padding(horizontal = 16.dp),
+            // ─── Security & Keystore Guarantee Banner (как в VK X) ───
+            val bannerBg = if (isDark) Color(0xFF141416) else Color(0xFFF2F3F5)
+            val bannerBorder = if (isDark) Color.White.copy(alpha = 0.06f) else Color.Black.copy(alpha = 0.04f)
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(bannerBg)
+                    .border(1.dp, bannerBorder, RoundedCornerShape(20.dp))
+                    .padding(16.dp),
             ) {
-                Icon(
-                    imageVector = lmgVector(LmgDrawables.CheckShieldOutline28),
-                    contentDescription = null,
-                    tint = lc.textTertiary,
-                    modifier = Modifier.size(16.dp),
-                )
-                Text(
-                    text = "Encrypted in Android Keystore • Passwords are never stored",
-                    color = lc.textTertiary,
-                    fontFamily = VkSansText,
-                    fontSize = 12.sp,
-                    textAlign = TextAlign.Center,
-                )
+                Row(
+                    verticalAlignment = Alignment.Top,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Icon(
+                        imageVector = lmgVector(LmgDrawables.LockOutline28),
+                        contentDescription = null,
+                        tint = lc.textSecondary,
+                        modifier = Modifier
+                            .padding(top = 2.dp)
+                            .size(20.dp),
+                    )
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        Text(
+                            text = "Ваш аккаунт в безопасности",
+                            fontFamily = VkSansText,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 14.sp,
+                            color = lc.textPrimary,
+                        )
+                        Text(
+                            text = "LMG только отправляет ваши данные на сервера VK и сохраняет их в зашифрованной форме в Android Keystore.",
+                            fontFamily = VkSansText,
+                            fontSize = 12.sp,
+                            lineHeight = 17.sp,
+                            color = lc.textSecondary,
+                        )
+                    }
+                }
             }
 
             Spacer(modifier = Modifier.height(32.dp))
         }
-
-        com.lmg.vk.ui.components.VkWebAuthDialog(
-            visible = showWebAuth,
-            onDismiss = { showWebAuth = false },
-            onSuccess = { session ->
-                showWebAuth = false
-                MusicAuth.installSession(session)
-                onAuthSuccess()
-            },
-        )
     }
 }
 
+/**
+ * Reusable Glass TextField with Liquid styling for auth inputs.
+ */
 @Composable
 private fun GlassAuthField(
     value: String,
@@ -699,29 +667,37 @@ private fun GlassAuthField(
     trailingIcon: ImageVector? = null,
     onTrailingIconClick: (() -> Unit)? = null,
     keyboardType: KeyboardType = KeyboardType.Text,
-    autoCorrect: Boolean = false,
-    imeAction: ImeAction = ImeAction.Default,
+    imeAction: ImeAction = ImeAction.Next,
     visualTransformation: VisualTransformation = VisualTransformation.None,
+    autoCorrect: Boolean = true,
     keyboardActions: KeyboardActions = KeyboardActions.Default,
 ) {
     val lc = LiquidTheme.colors
     val isDark = lc.isDark
 
+    val containerColor = if (isDark) Color(0xFF161618) else Color(0xFFF7F8FA)
+    val focusedBorderColor = VkBlue
+    val unfocusedBorderColor = if (isDark) Color.White.copy(alpha = 0.10f) else Color.Black.copy(alpha = 0.08f)
+
     OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        singleLine = true,
         label = {
             Text(
                 text = label,
                 fontFamily = VkSansText,
+                fontSize = 14.sp,
             )
         },
         leadingIcon = {
             Icon(
                 imageVector = leadingIcon,
                 contentDescription = null,
-                tint = lc.iconDefault,
-                modifier = Modifier.size(22.dp),
+                tint = if (value.isNotBlank()) VkBlue else lc.iconSecondary,
+                modifier = Modifier.size(20.dp),
             )
         },
         trailingIcon = trailingIcon?.let { icon ->
@@ -730,42 +706,39 @@ private fun GlassAuthField(
                     modifier = Modifier
                         .size(36.dp)
                         .clip(CircleShape)
-                        .clickable(
-                            enabled = onTrailingIconClick != null,
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                        ) { onTrailingIconClick?.invoke() },
+                        .liquidClickable(
+                            pressedScale = LiquidMotion.PressIcon,
+                            onClick = { onTrailingIconClick?.invoke() },
+                        ),
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
                         imageVector = icon,
                         contentDescription = null,
-                        tint = lc.iconDefault,
-                        modifier = Modifier.size(22.dp),
+                        tint = lc.iconSecondary,
+                        modifier = Modifier.size(20.dp),
                     )
                 }
             }
         },
-        singleLine = true,
-        shape = RoundedCornerShape(16.dp),
+        visualTransformation = visualTransformation,
         keyboardOptions = KeyboardOptions(
             keyboardType = keyboardType,
-            autoCorrect = autoCorrect,
             imeAction = imeAction,
+            autoCorrectEnabled = autoCorrect,
         ),
         keyboardActions = keyboardActions,
-        visualTransformation = visualTransformation,
         colors = OutlinedTextFieldDefaults.colors(
-            focusedTextColor = lc.textPrimary,
-            unfocusedTextColor = lc.textPrimary,
-            focusedContainerColor = if (isDark) Color(0xFF141416) else Color(0xFFF2F2F7),
-            unfocusedContainerColor = if (isDark) Color(0xFF141416) else Color(0xFFF2F2F7),
-            focusedBorderColor = VkBlue,
-            unfocusedBorderColor = if (isDark) Color.White.copy(alpha = 0.08f) else Color.Black.copy(alpha = 0.05f),
+            focusedContainerColor = containerColor,
+            unfocusedContainerColor = containerColor,
+            disabledContainerColor = containerColor,
+            focusedBorderColor = focusedBorderColor,
+            unfocusedBorderColor = unfocusedBorderColor,
             focusedLabelColor = VkBlue,
             unfocusedLabelColor = lc.textSecondary,
+            focusedTextColor = lc.textPrimary,
+            unfocusedTextColor = lc.textPrimary,
             cursorColor = VkBlue,
         ),
-        modifier = modifier.fillMaxWidth(),
     )
 }

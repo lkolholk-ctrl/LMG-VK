@@ -3223,6 +3223,10 @@ sealed interface VkLoginResult {
         val imageUrl: String,
     ) : VkLoginResult
 
+    data class NeedPassword(
+        val validationSid: String,
+    ) : VkLoginResult
+
     data class Failure(val message: String) : VkLoginResult
 }
 
@@ -3354,6 +3358,9 @@ object MusicAuth {
                             "without_password"
                         } else {
                             "phone_confirmation_sid"
+                        }
+                        if (!attempt.canSkipPassword && password.isBlank()) {
+                            return@withLock VkLoginResult.NeedPassword(attempt.sid)
                         }
                     }
                 }

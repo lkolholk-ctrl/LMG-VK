@@ -130,13 +130,16 @@ class VkApiClient(
                 }
 
                 VkErrorCodes.CAPTCHA_REQUIRED -> {
+                    val redirect = error.redirectUri
                     val img = error.captchaImg
-                    val extra = if (!img.isNullOrEmpty()) {
+                    val extra = if (!redirect.isNullOrBlank()) {
+                        validationHandler?.invoke(redirect)
+                    } else if (!img.isNullOrEmpty()) {
                         captchaHandler?.invoke(img, error.captchaSid)
                     } else null
                     if (extra != null) {
                         method.params.putAll(extra)
-                        return execute(method) // ретрай с captcha_key
+                        return execute(method) // ретрай с captcha_key или SmartCaptcha
                     }
                     VkResult.Error(error.error_code, error.error_msg)
                 }
