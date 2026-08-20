@@ -53,8 +53,11 @@ import com.lmg.vk.ui.theme.VkSansText
 
 private val VkBlue = Color(0xFF0077FF)
 
+// Standalone Client ID (Kate Mobile) для веб-авторизации VK ID с полными правами (audio, offline)
+private const val VK_WEB_CLIENT_ID = "2685278"
+
 private const val VK_OAUTH_URL =
-    "https://oauth.vk.ru/authorize?client_id=${RecoveredServiceConfig.VK_ANDROID_CLIENT_ID}&scope=all&redirect_uri=https://oauth.vk.com/blank.html&response_type=token&display=mobile&v=5.131"
+    "https://oauth.vk.ru/authorize?client_id=$VK_WEB_CLIENT_ID&scope=audio,offline,status,friends,wall,groups,video,photos&redirect_uri=https://oauth.vk.com/blank.html&response_type=token&display=mobile&v=5.131"
 
 /**
  * Стеклянный диалог быстрой авторизации через официальный шлюз VK ID Web.
