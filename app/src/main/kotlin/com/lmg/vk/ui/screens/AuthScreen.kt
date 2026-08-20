@@ -696,7 +696,7 @@ private fun GlassAuthField(
             Icon(
                 imageVector = leadingIcon,
                 contentDescription = null,
-                tint = if (value.isNotBlank()) VkBlue else lc.iconSecondary,
+                tint = if (value.isNotBlank()) VkBlue else lc.iconMuted,
                 modifier = Modifier.size(20.dp),
             )
         },
@@ -715,7 +715,7 @@ private fun GlassAuthField(
                     Icon(
                         imageVector = icon,
                         contentDescription = null,
-                        tint = lc.iconSecondary,
+                        tint = lc.iconMuted,
                         modifier = Modifier.size(20.dp),
                     )
                 }

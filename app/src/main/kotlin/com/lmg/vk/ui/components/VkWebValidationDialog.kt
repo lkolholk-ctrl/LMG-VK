@@ -153,7 +153,7 @@ fun VkWebValidationDialog(
                                         override fun onPageFinished(view: WebView?, url: String?) {
                                             super.onPageFinished(view, url)
                                             isLoading = false
-                                            checkRedirect(url)
+                                            checkRedirect(url.orEmpty())
                                         }
 
                                         override fun shouldOverrideUrlLoading(
@@ -199,11 +199,7 @@ fun VkWebValidationDialog(
                             modifier = Modifier.fillMaxSize(),
                         )
 
-                        AnimatedVisibility(
-                            visible = isLoading,
-                            enter = fadeIn(),
-                            exit = fadeOut(),
-                        ) {
+                        if (isLoading) {
                             Box(
                                 modifier = Modifier
                                     .fillMaxSize()
