@@ -3306,14 +3306,14 @@ object MusicAuth {
     /** Полный VK ID-флоу: anonymous token → validateAccount → OTP → token. */
     suspend fun signIn(
         username: String,
-        password: String,
+        password: String = "",
         validationSid: String? = null,
         code: String? = null,
         captchaSid: String? = null,
         captchaKey: String? = null,
     ): VkLoginResult {
-        if (username.isBlank() || password.isBlank()) {
-            return VkLoginResult.Failure("Enter your phone or email and password")
+        if (username.isBlank()) {
+            return VkLoginResult.Failure("Введите номер телефона или логин")
         }
 
         val registry = methods ?: return VkLoginResult.Failure("VK API is not initialized")
@@ -3323,10 +3323,12 @@ object MusicAuth {
             val isOtpContinuation = !isCaptchaContinuation &&
                 !code.isNullOrBlank() &&
                 !validationSid.isNullOrBlank()
+            val isPasswordContinuation = !isCaptchaContinuation && !isOtpContinuation &&
+                !validationSid.isNullOrBlank() && password.isNotBlank()
 
-            if (!isOtpContinuation && !isCaptchaContinuation) {
+            if (!isOtpContinuation && !isCaptchaContinuation && !isPasswordContinuation) {
                 activeAuthAttempt = null
-                startAuthAttempt(registry, normalizedUsername)?.let { return@withLock it }
+                startAuthAttempt(registry, normalizedUsername, password)?.let { return@withLock it }
             }
 
             val attempt = activeAuthAttempt
@@ -3386,6 +3388,7 @@ object MusicAuth {
     private suspend fun startAuthAttempt(
         registry: VkMethodsRegistry,
         username: String,
+        password: String = "",
     ): VkLoginResult? {
         val currentAnonymousToken = when (val result = getAnonymousToken(registry)) {
             is VkResult.Success -> result.data
@@ -3434,6 +3437,9 @@ object MusicAuth {
 
         if (method != AuthVerificationMethod.PASSWORD) {
             return prepareTwoFactor(registry, attempt)
+        }
+        if (password.isBlank()) {
+            return VkLoginResult.NeedPassword(attempt.sid)
         }
         return null
     }
