@@ -98,7 +98,7 @@ class VkApiClient(
             // OAuth `token` возвращает полезный JSON (2FA/captcha/client_error)
             // и вместе с HTTP 4xx. Его обязан разобрать RequestTokenParser;
             // иначе UI видит только голый "HTTP 401" и теряет следующий шаг.
-            val hasStructuredOAuthError = method.endpoint == VkEndpoint.OAUTH && method.name == "token"
+            val hasStructuredOAuthError = (method.endpoint == VkEndpoint.OAUTH || method.endpoint == VkEndpoint.API_OAUTH) && method.name == "token"
             if (raw.statusCode !in 200..299 && !hasStructuredOAuthError) {
                 return VkResult.Error(raw.statusCode, "HTTP ${raw.statusCode}: ${raw.url}")
             }

@@ -804,6 +804,8 @@ class VkMethodsRegistry(private val client: VkApiClient) {
             param("sid", sid)
             param("code", code)
             param("verification_method", verificationMethod.ifBlank { "codegen" })
+            param("flow_type", "tg_flow")
+            param("sak_version", "1.142")
             param("access_token", anonymousToken)
             userAgent = VkUserAgents.auth
         }
@@ -820,6 +822,8 @@ class VkMethodsRegistry(private val client: VkApiClient) {
             MoshiEnvelopeParser<EcosystemSendOtpResponse>(EcosystemSendOtpResponse::class.java),
         ).apply {
             param("sid", sid)
+            param("flow_type", "tg_flow")
+            param("sak_version", "1.142")
             param("access_token", anonymousToken)
             userAgent = VkUserAgents.auth
         }
@@ -837,6 +841,8 @@ class VkMethodsRegistry(private val client: VkApiClient) {
             ),
         ).apply {
             param("sid", sid)
+            param("flow_type", "tg_flow")
+            param("sak_version", "1.142")
             param("access_token", anonymousToken)
             userAgent = VkUserAgents.auth
         }
@@ -890,20 +896,23 @@ class VkMethodsRegistry(private val client: VkApiClient) {
         extraParams: Map<String, String> = emptyMap(),
     ): VkResult<RequestTokenResponse> {
         val method = VkMethod("token", RequestTokenParser).apply {
-            endpoint = VkEndpoint.OAUTH
-            httpMethod = VkHttpMethod.GET
+            endpoint = VkEndpoint.API_OAUTH
+            httpMethod = VkHttpMethod.POST
             userAgent = VkUserAgents.api
+            param("libverify_support", true)
+            param("scope", "all")
+            param("device_trusted_hash_support", true)
+            if (sid.isNotBlank()) param("sid", sid)
             param("grant_type", grantType)
             param("username", username)
             param("password", password)
-            param("scope", "all")
+            param("2fa_supported", true)
+            param("supported_ways", "push,email")
+            if (anonymousToken.isNotBlank()) param("anonymous_token", anonymousToken)
             param("client_id", VkApiClient.VK_ANDROID_CLIENT_ID)
             param("client_secret", RecoveredServiceConfig.VK_ANDROID_CLIENT_SECRET)
-            param("2fa_supported", true)
-            param("vk_connect_auth", true)
-            param("libverify_support", false)
-            param("sid", sid)
-            param("anonymous_token", anonymousToken)
+            param("flow_type", "tg_flow")
+            param("sak_version", "1.142")
             params.putAll(extraParams)
         }
         return client.execute(method)
