@@ -117,6 +117,7 @@ fun AuthScreen(
     var expectedCodeLength by remember { mutableIntStateOf(0) }
     var error by remember { mutableStateOf<String?>(null) }
     var isLoading by remember { mutableStateOf(false) }
+    var showWebAuth by remember { mutableStateOf(false) }
 
     val passwordFocusRequester = remember { FocusRequester() }
     val codeFocusRequester = remember { FocusRequester() }
@@ -461,6 +462,37 @@ fun AuthScreen(
                                         onDone = { submit() },
                                     ),
                                 )
+
+                                // Alternative verification via VK ID Web Gateway
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(14.dp))
+                                        .background(VkBlue.copy(alpha = if (isDark) 0.16f else 0.10f))
+                                        .border(1.dp, VkBlue.copy(alpha = 0.25f), RoundedCornerShape(14.dp))
+                                        .liquidClickable(
+                                            pressedScale = LiquidMotion.PressButton,
+                                            onClick = { showWebAuth = true },
+                                        )
+                                        .padding(horizontal = 14.dp, vertical = 12.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.Center,
+                                ) {
+                                    Icon(
+                                        imageVector = lmgVector(LmgDrawables.UserCircleOutline28),
+                                        contentDescription = null,
+                                        tint = VkBlue,
+                                        modifier = Modifier.size(20.dp),
+                                    )
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(
+                                        text = "Pass verification via VK ID",
+                                        color = VkBlue,
+                                        fontFamily = VkSansText,
+                                        fontWeight = FontWeight.SemiBold,
+                                        fontSize = 14.sp,
+                                    )
+                                }
                             }
                         }
                     }
@@ -537,6 +569,56 @@ fun AuthScreen(
                     }
                 }
 
+                // ─── VK ID Web OAuth Button for Credentials Step ───
+                if (step == AuthStep.Credentials) {
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        Box(modifier = Modifier.weight(1f).height(1.dp).background(if (isDark) Color.White.copy(alpha = 0.08f) else Color.Black.copy(alpha = 0.06f)))
+                        Text("or", fontFamily = VkSansText, fontSize = 12.sp, color = lc.textTertiary)
+                        Box(modifier = Modifier.weight(1f).height(1.dp).background(if (isDark) Color.White.copy(alpha = 0.08f) else Color.Black.copy(alpha = 0.06f)))
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    val vkIdBg = if (isDark) Color(0xFF192338) else Color(0xFFEBF2FC)
+                    val vkIdBorder = if (isDark) VkBlue.copy(alpha = 0.35f) else VkBlue.copy(alpha = 0.25f)
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(50.dp)
+                            .clip(RoundedCornerShape(25.dp))
+                            .background(vkIdBg)
+                            .border(1.dp, vkIdBorder, RoundedCornerShape(25.dp))
+                            .liquidClickable(
+                                pressedScale = LiquidMotion.PressButton,
+                                onClick = { showWebAuth = true },
+                            ),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center,
+                    ) {
+                        Icon(
+                            imageVector = lmgVector(LmgDrawables.UserCircleOutline28),
+                            contentDescription = null,
+                            tint = VkBlue,
+                            modifier = Modifier.size(22.dp),
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            text = if (isAddingAccount) "Sign in with VK ID" else "Continue with VK ID",
+                            color = VkBlue,
+                            fontFamily = VkSansText,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 15.sp,
+                        )
+                    }
+                }
+
                 // ─── Secondary Back Option for 2FA/Captcha ───
                 if (step != AuthStep.Credentials) {
                     Spacer(modifier = Modifier.height(12.dp))
@@ -593,6 +675,16 @@ fun AuthScreen(
 
             Spacer(modifier = Modifier.height(32.dp))
         }
+
+        com.lmg.vk.ui.components.VkWebAuthDialog(
+            visible = showWebAuth,
+            onDismiss = { showWebAuth = false },
+            onSuccess = { session ->
+                showWebAuth = false
+                MusicAuth.installSession(session)
+                onAuthSuccess()
+            },
+        )
     }
 }
 
