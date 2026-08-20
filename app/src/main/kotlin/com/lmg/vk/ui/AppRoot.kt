@@ -72,6 +72,11 @@ import com.lmg.vk.ui.screens.ProfileScreen
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.lmg.vk.ui.components.VkAccountsDialog
+import com.lmg.vk.ui.glass.GlassDialog
+import com.lmg.vk.ui.glass.GlassDialogButton
+import com.lmg.vk.ui.icons.LmgDrawables
+import com.lmg.vk.ui.icons.lmgVector
 import com.lmg.vk.ui.theme.ForceDarkContent
 import com.lmg.vk.ui.theme.LiquidTheme
 import kotlinx.coroutines.launch
@@ -154,6 +159,10 @@ fun AppRoot() {
     var authOpen by remember { mutableStateOf(false) }
     var authAddingAccount by remember { mutableStateOf(false) }
     var profileOpen by remember { mutableStateOf(false) }
+    var accountsDialogOpen by remember { mutableStateOf(false) }
+    var accountActionError by remember { mutableStateOf<String?>(null) }
+    var accountPendingRemoval by remember { mutableStateOf<com.lmg.vk.engine.backend.VkAccountSummary?>(null) }
+    val accounts by com.lmg.vk.engine.backend.MusicAuth.accounts.collectAsState()
     // Поиск — полноэкранный ОВЕРЛЕЙ (как настройки/профиль), а НЕ пункт нав-графа.
     // Иначе экран поиска попадал в пер-таб бэкстек Волны и через saveState/
     // restoreState «прилипал» к вкладке — при возврате на таб вместо его старта
@@ -345,6 +354,10 @@ fun AppRoot() {
                             }
                         },
                         onOpenProfile = { profileOpen = true },
+                        onOpenAccounts = {
+                            accountActionError = null
+                            accountsDialogOpen = true
+                        },
                         profileName = sideProfileName,
                         avatarUrl = sideAvatarUrl
                      )
@@ -360,6 +373,10 @@ fun AppRoot() {
                         onOpenPlayer = { animateExpand() },
                         onOpenAuth = { authAddingAccount = false; authOpen = true },
                         onOpenProfile = { profileOpen = true },
+                        onOpenAccounts = {
+                            accountActionError = null
+                            accountsDialogOpen = true
+                        },
                         onOpenSearch = { searchOpen = true }
                     )
                 }
@@ -653,6 +670,10 @@ fun AppRoot() {
                 // Экран аудиоэффектов удалён — колбэк пустой (см. выше).
                 onOpenEqualizer = {},
                 onOpenProfile = { profileOpen = true; settingsOpen = false },
+                onOpenAccounts = {
+                    accountActionError = null
+                    accountsDialogOpen = true
+                },
                 // Оверлей закрываем перед переходом: экран лога живёт в NavHost,
                 // то есть ПОД оверлеем — иначе переход просто не было бы видно.
                 onOpenDebugLog = { settingsOpen = false; navController.navigate(NavRoutes.DEBUG_LOG) },
@@ -732,6 +753,68 @@ fun AppRoot() {
                     authAddingAccount = false
                 },
                 isAddingAccount = authAddingAccount,
+            )
+        }
+
+        if (accountsDialogOpen) {
+            VkAccountsDialog(
+                visible = accountsDialogOpen,
+                accounts = accounts,
+                errorMessage = accountActionError,
+                onSelectAccount = { account ->
+                    if (!account.isActive && com.lmg.vk.engine.backend.MusicAuth.switchAccount(account.userId)) {
+                        accountsDialogOpen = false
+                    } else if (!account.isActive) {
+                        accountActionError = "Wait for library synchronization to finish"
+                    }
+                },
+                onRemoveAccount = { account ->
+                    accountActionError = null
+                    accountsDialogOpen = false
+                    accountPendingRemoval = account
+                },
+                onAddAccount = {
+                    accountsDialogOpen = false
+                    authAddingAccount = true
+                    authOpen = true
+                },
+                onDismiss = { accountsDialogOpen = false },
+            )
+        }
+
+        accountPendingRemoval?.let { account ->
+            val removeMessage = buildString {
+                append("Only this encrypted session will be removed from the device.")
+                if (!accountActionError.isNullOrBlank()) {
+                    append("\n\n")
+                    append(accountActionError)
+                }
+            }
+            GlassDialog(
+                visible = true,
+                onDismiss = { accountPendingRemoval = null },
+                icon = lmgVector(LmgDrawables.DeleteOutline28),
+                iconTint = Color(0xFFFC3C44),
+                title = "Remove ${account.displayName}?",
+                message = removeMessage,
+                primaryButton = GlassDialogButton(
+                    text = "Remove",
+                    backgroundColor = Color(0xFFFC3C44),
+                    onClick = {
+                        if (com.lmg.vk.engine.backend.MusicAuth.removeAccount(account.userId)) {
+                            accountPendingRemoval = null
+                            if (!com.lmg.vk.engine.backend.MusicAuth.isLoggedIn.value) {
+                                profileOpen = false
+                            }
+                        } else {
+                            accountActionError = "Wait for library synchronization to finish"
+                        }
+                    },
+                ),
+                secondaryButton = GlassDialogButton(
+                    text = "Cancel",
+                    onClick = { accountPendingRemoval = null },
+                ),
             )
         }
 

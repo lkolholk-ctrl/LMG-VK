@@ -80,6 +80,7 @@ fun SettingsScreen(
     onBack: () -> Unit,
     onOpenEqualizer: () -> Unit = {},
     onOpenProfile: () -> Unit = {},
+    onOpenAccounts: () -> Unit = {},
     onOpenRecommendationsOnboarding: () -> Unit = {},
     onOpenDebugLog: () -> Unit = {},
     showBack: Boolean = true,
@@ -103,6 +104,7 @@ fun SettingsScreen(
     val increaseContrast by PlayerSettings.increaseContrast.collectAsState()
     val broadcastToStatus by AppSettings.broadcastToStatus.collectAsState()
     val vkLoggedIn by com.lmg.vk.engine.backend.MusicAuth.isLoggedIn.collectAsState()
+    val accounts by com.lmg.vk.engine.backend.MusicAuth.accounts.collectAsState()
     val proxyEnabled by com.lmg.vk.network.proxy.VkProxyRepository.enabled.collectAsState()
     val proxyState by com.lmg.vk.network.proxy.VkProxyRepository.state.collectAsState()
 
@@ -159,13 +161,17 @@ fun SettingsScreen(
             Column(modifier = Modifier.padding(horizontal = 20.dp)) {
                 when (page) {
                     SettingsPage.ROOT -> {
-                        SettingsProfileCard(onClick = onOpenProfile)
+                        SettingsProfileCard(
+                            onClick = onOpenProfile,
+                            onOpenAccounts = onOpenAccounts,
+                        )
                         Spacer(Modifier.height(sectionGap))
                         PlainCard {
                             SettingsCategoryItem(
                                 title = "VK and profile",
                                 subtitle = if (vkLoggedIn) {
-                                    "Status, recommendations and account"
+                                    if (accounts.size > 1) "${accounts.size} saved accounts · Status & settings"
+                                    else "Status, recommendations and account"
                                 } else {
                                     "Sign in and configure VK Music"
                                 },
@@ -209,9 +215,22 @@ fun SettingsScreen(
                             SettingsActionItem(
                                 title = "VK profile",
                                 subtitle = if (vkLoggedIn) "Profile and account data" else "Sign in to VK",
-                                icon = com.lmg.vk.ui.icons.LmgGlyphs.UserOutline28,
+                                icon = lmgVector(LmgDrawables.UserOutline28),
                                 onClick = onOpenProfile,
                             )
+                            if (vkLoggedIn || accounts.isNotEmpty()) {
+                                PlainDivider()
+                                SettingsActionItem(
+                                    title = "VK accounts",
+                                    subtitle = when (accounts.size) {
+                                        0 -> "Add VK account"
+                                        1 -> "1 saved account · Switch profile"
+                                        else -> "${accounts.size} saved accounts · Switch profile"
+                                    },
+                                    icon = lmgVector(LmgDrawables.Users3Outline28),
+                                    onClick = onOpenAccounts,
+                                )
+                            }
                         }
 
                         Spacer(Modifier.height(sectionGap))
@@ -369,12 +388,14 @@ fun SettingsScreen(
 @Composable
 private fun SettingsProfileCard(
     onClick: () -> Unit,
+    onOpenAccounts: (() -> Unit)? = null,
 ) {
     val colors = LiquidTheme.colors
     val compact = rememberWindowInfo().useSideBySide
     val avatarUrl by com.lmg.vk.engine.backend.MusicAuth.avatarUrl.collectAsState()
     val profileName by com.lmg.vk.engine.backend.MusicAuth.profileName.collectAsState()
     val userEmail by com.lmg.vk.engine.backend.MusicAuth.userEmail.collectAsState()
+    val accounts by com.lmg.vk.engine.backend.MusicAuth.accounts.collectAsState()
     val displayName = when {
         !profileName.isNullOrBlank() -> profileName.orEmpty()
         !userEmail.isNullOrBlank() -> userEmail.orEmpty().substringBefore("@")
@@ -387,7 +408,10 @@ private fun SettingsProfileCard(
             .fillMaxWidth()
             .clip(RoundedCornerShape(28.dp))
             .background(LiquidSurfaces.card(colors.isDark))
-            .liquidClickable(onClick = onClick)
+            .liquidClickable(
+                onLongClick = onOpenAccounts,
+                onClick = onClick,
+            )
             .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -407,7 +431,7 @@ private fun SettingsProfileCard(
                 )
             } else {
                 Icon(
-                    imageVector = com.lmg.vk.ui.icons.LmgGlyphs.UserOutline28,
+                    imageVector = lmgVector(LmgDrawables.UserOutline28),
                     contentDescription = null,
                     tint = colors.iconMuted,
                     modifier = Modifier.size(28.dp),
@@ -424,16 +448,42 @@ private fun SettingsProfileCard(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
+            val subText = when {
+                accounts.size > 1 -> "${accounts.size} saved accounts · Long tap to switch"
+                profileName != null -> "Profile and VK account"
+                else -> "Sign in to VK Music"
+            }
             Text(
-                text = "Profile and VK account",
+                text = subText,
                 color = colors.textSecondary,
                 fontSize = 13.sp,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
         }
+        if (accounts.size > 1 && onOpenAccounts != null) {
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .background(colors.accent.copy(alpha = 0.12f))
+                    .liquidClickable(
+                        pressedScale = LiquidMotion.PressButton,
+                        onClick = onOpenAccounts,
+                    ),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = lmgVector(LmgDrawables.Users3Outline28),
+                    contentDescription = "Switch account",
+                    tint = colors.accent,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+            Spacer(Modifier.width(8.dp))
+        }
         Icon(
-            imageVector = com.lmg.vk.ui.icons.LmgGlyphs.ChevronRightOutline24,
+            imageVector = lmgVector(LmgDrawables.ChevronRightOutline28),
             contentDescription = null,
             tint = colors.iconMuted,
             modifier = Modifier.size(18.dp),

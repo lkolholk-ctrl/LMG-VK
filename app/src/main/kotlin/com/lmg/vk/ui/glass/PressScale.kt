@@ -104,15 +104,17 @@ fun Modifier.pressScaleVisual(
 fun Modifier.liquidClickable(
     enabled: Boolean = true,
     pressedScale: Float = LiquidMotion.PressCard,
-    onClick: () -> Unit
+    onLongClick: (() -> Unit)? = null,
+    onClick: () -> Unit,
 ): Modifier = composed {
     var isPressed by remember { mutableStateOf(false) }
     val currentOnClick by rememberUpdatedState(onClick)
+    val currentOnLongClick by rememberUpdatedState(onLongClick)
 
     val scale by animateFloatAsState(
         targetValue = if (isPressed && enabled) pressedScale else 1f,
         animationSpec = LiquidMotion.snappy(),
-        label = "liquidClickable"
+        label = "liquidClickable",
     )
 
     this
@@ -131,7 +133,12 @@ fun Modifier.liquidClickable(
                         isPressed = false
                     }
                 },
-                onTap = { currentOnClick() }
+                onLongPress = if (currentOnLongClick != null) {
+                    { currentOnLongClick?.invoke() }
+                } else {
+                    null
+                },
+                onTap = { currentOnClick() },
             )
         }
 }

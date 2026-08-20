@@ -57,6 +57,7 @@ fun SideBar(
     selectedIndex: Int,
     onItemSelected: (Int) -> Unit,
     onOpenProfile: () -> Unit,
+    onOpenAccounts: (() -> Unit)? = null,
     profileName: String?,
     avatarUrl: String?,
     modifier: Modifier = Modifier,
@@ -116,7 +117,10 @@ fun SideBar(
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(12.dp))
-                .liquidClickable(onClick = onOpenProfile)
+                .liquidClickable(
+                    onLongClick = onOpenAccounts,
+                    onClick = onOpenProfile,
+                )
                 .padding(6.dp)
         ) {
             Box(

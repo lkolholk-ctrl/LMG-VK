@@ -136,6 +136,7 @@ fun WaveHomeScreen(
     onNavigateToPlaylist: (String) -> Unit = {},
     onOpenAuth: () -> Unit = {},
     onOpenProfile: () -> Unit = {},
+    onOpenAccounts: () -> Unit = {},
     animationsActive: Boolean = true,
 ) {
     val context = LocalContext.current
@@ -260,6 +261,7 @@ fun WaveHomeScreen(
             WaveTopBar(
                 onSearch = onNavigateToSearch,
                 onOpenProfile = onOpenProfile,
+                onOpenAccounts = onOpenAccounts,
                 onTune = if (canOpenMixSettings) {
                     {
                         showMixSettings = true
@@ -1464,6 +1466,7 @@ private fun WaveStationIndicator(name: String, onClear: () -> Unit) {
 private fun WaveTopBar(
     onSearch: () -> Unit,
     onOpenProfile: () -> Unit,
+    onOpenAccounts: (() -> Unit)? = null,
     onTune: (() -> Unit)?,
 ) {
     Box(
@@ -1482,7 +1485,11 @@ private fun WaveTopBar(
                 .size(40.dp)
                 .clip(androidx.compose.foundation.shape.CircleShape)
                 .background(Color.White.copy(alpha = 0.12f))
-                .liquidClickable(pressedScale = LiquidMotion.PressIcon) { onOpenProfile() },
+                .liquidClickable(
+                    pressedScale = LiquidMotion.PressIcon,
+                    onLongClick = onOpenAccounts,
+                    onClick = onOpenProfile,
+                ),
             contentAlignment = Alignment.Center
         ) {
             if (!avatarUrl.isNullOrBlank()) {

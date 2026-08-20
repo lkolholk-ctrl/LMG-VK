@@ -55,6 +55,7 @@ fun LiquidNavHost(
     onOpenPlayer: () -> Unit,
     onOpenAuth: () -> Unit,
     onOpenProfile: () -> Unit,
+    onOpenAccounts: () -> Unit = {},
     onOpenSearch: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -99,6 +100,7 @@ fun LiquidNavHost(
                         onNavigateToPlaylist = { navController.navigate(NavRoutes.playlist(NavRoutes.TAB_WAVE, it)) },
                         onOpenAuth = onOpenAuth,
                         onOpenProfile = onOpenProfile,
+                        onOpenAccounts = onOpenAccounts,
                         animationsActive = waveAnimationsActive
                     )
                 }
@@ -292,6 +294,7 @@ fun LiquidNavHost(
                     // параметр ещё в сигнатуре SettingsScreen — отдаём пустой колбэк.
                     onOpenEqualizer = {},
                     onOpenProfile = onOpenProfile,
+                    onOpenAccounts = onOpenAccounts,
                     onOpenRecommendationsOnboarding = {
                         navController.navigate(NavRoutes.RECOMMENDATIONS_ONBOARDING)
                     },
