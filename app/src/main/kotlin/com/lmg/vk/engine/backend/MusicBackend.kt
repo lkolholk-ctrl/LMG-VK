@@ -3656,6 +3656,12 @@ object MusicAuth {
             clearAccountScopedState()
             activeAuthAttempt = null
             applySession(remaining)
+            if (remaining.userId != 0L) {
+                authScope.launch {
+                    runCatching { fetchUserData() }
+                    runCatching { VkProfileRepository.refresh(remaining.userId) }
+                }
+            }
         } else {
             updateAccountSummaries()
         }
@@ -3746,6 +3752,12 @@ object MusicAuth {
         anonymousToken = ""
         anonymousTokenExpiresAt = 0L
         activeAuthAttempt = null
+        if (next.userId != 0L) {
+            authScope.launch {
+                runCatching { fetchUserData() }
+                runCatching { VkProfileRepository.refresh(next.userId) }
+            }
+        }
         return true
     }
 }

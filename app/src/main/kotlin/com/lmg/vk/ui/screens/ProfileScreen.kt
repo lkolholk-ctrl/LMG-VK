@@ -246,7 +246,9 @@ fun ProfileScreen(
                 onClick = {
                     if (MusicAuth.logout()) {
                         showSignOutConfirmation = false
-                        onLogout()
+                        if (!MusicAuth.isLoggedIn.value) {
+                            onLogout()
+                        }
                     } else {
                         accountActionError = "Wait for library synchronization to finish"
                     }
@@ -265,7 +267,10 @@ fun ProfileScreen(
             accounts = accounts,
             errorMessage = accountActionError,
             onSelectAccount = { account ->
-                if (!account.isActive && MusicAuth.switchAccount(account.userId)) {
+                if (account.isExpired) {
+                    showAccountsDialog = false
+                    onAddAccount()
+                } else if (!account.isActive && MusicAuth.switchAccount(account.userId)) {
                     showAccountsDialog = false
                 } else if (!account.isActive) {
                     accountActionError = "Wait for library synchronization to finish"

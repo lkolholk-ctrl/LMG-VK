@@ -762,7 +762,11 @@ fun AppRoot() {
                 accounts = accounts,
                 errorMessage = accountActionError,
                 onSelectAccount = { account ->
-                    if (!account.isActive && com.lmg.vk.engine.backend.MusicAuth.switchAccount(account.userId)) {
+                    if (account.isExpired) {
+                        accountsDialogOpen = false
+                        authAddingAccount = true
+                        authOpen = true
+                    } else if (!account.isActive && com.lmg.vk.engine.backend.MusicAuth.switchAccount(account.userId)) {
                         accountsDialogOpen = false
                     } else if (!account.isActive) {
                         accountActionError = "Wait for library synchronization to finish"
