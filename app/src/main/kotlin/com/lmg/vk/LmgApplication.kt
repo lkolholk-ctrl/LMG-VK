@@ -156,6 +156,9 @@ class LmgApplication : Application(), ImageLoaderFactory {
         RemoteQuirks.preload(this)
         AudioTelemetry.init(this)
 
+        // Инициализация менеджера обхода VPN (привязка к физическому интерфейсу)
+        com.lmg.vk.network.VpnBypassManager.init(this)
+
         // Настройки (SharedPreferences/DataStore) — лёгкие, можно на main.
         AppSettings.init(this)
         PlayerSettings.init(this)

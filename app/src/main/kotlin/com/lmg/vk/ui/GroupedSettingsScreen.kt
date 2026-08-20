@@ -107,6 +107,8 @@ fun SettingsScreen(
     val accounts by com.lmg.vk.engine.backend.MusicAuth.accounts.collectAsState()
     val proxyEnabled by com.lmg.vk.network.proxy.VkProxyRepository.enabled.collectAsState()
     val proxyState by com.lmg.vk.network.proxy.VkProxyRepository.state.collectAsState()
+    val vpnBypassEnabled by AppSettings.vpnBypassEnabled.collectAsState()
+    val isVpnActive by com.lmg.vk.network.VpnBypassManager.isVpnActive.collectAsState()
 
     LaunchedEffect(page) { scroll.scrollTo(0) }
     BackHandler(enabled = page != SettingsPage.ROOT) { page = SettingsPage.ROOT }
@@ -188,7 +190,7 @@ fun SettingsScreen(
                             SettingsCategoryDivider()
                             SettingsCategoryItem(
                                 title = "Network",
-                                subtitle = networkSummary(proxyEnabled, proxyState),
+                                subtitle = networkSummary(vpnBypassEnabled, isVpnActive, proxyEnabled, proxyState),
                                 icon = lmgVector(LmgDrawables.GlobeOutline28),
                                 onClick = { page = SettingsPage.NETWORK },
                             )
@@ -303,12 +305,29 @@ fun SettingsScreen(
                     }
 
                     SettingsPage.NETWORK -> {
-                        SectionLabel("Connection")
+                        SectionLabel("VPN & Connection")
                         PlainCard {
                             SettingsToggleItem(
-                                title = "Обход блокировок",
+                                title = "Обход системного VPN",
+                                subtitle = if (vpnBypassEnabled) {
+                                    if (isVpnActive) "VPN активен · музыка идёт напрямую через физ. сеть"
+                                    else "Включен · направляет трафик напрямую через Wi-Fi / SIM"
+                                } else {
+                                    "Выключен · весь трафик идёт через системный VPN"
+                                },
+                                icon = lmgVector(LmgDrawables.CheckShieldOutline28),
+                                selected = vpnBypassEnabled,
+                                onSelect = AppSettings::setVpnBypassEnabled,
+                            )
+                        }
+
+                        Spacer(Modifier.height(sectionGap))
+                        SectionLabel("Зеркала и прокси VK")
+                        PlainCard {
+                            SettingsToggleItem(
+                                title = "Обход блокировок VK",
                                 subtitle = networkDetail(proxyState),
-                                icon = com.lmg.vk.ui.icons.LmgGlyphs.LockOutline28,
+                                icon = lmgVector(LmgDrawables.LockOutline28),
                                 selected = proxyEnabled,
                                 onSelect = { com.lmg.vk.network.proxy.VkProxyRepository.setEnabled(it) },
                             )
@@ -316,7 +335,7 @@ fun SettingsScreen(
                             SettingsActionItem(
                                 title = "Обновить адреса",
                                 subtitle = "Перечитать список серверов и сертификатов",
-                                icon = com.lmg.vk.ui.icons.LmgGlyphs.RefreshOutline28,
+                                icon = lmgVector(LmgDrawables.RefreshOutline28),
                                 onClick = {
                                     proxyScope.launch {
                                         com.lmg.vk.network.proxy.VkProxyRepository.refresh()
@@ -650,13 +669,19 @@ private fun playbackSummary(crossfadeMs: Int, sleepTimerMinutes: Int): String {
 }
 
 private fun networkSummary(
-    enabled: Boolean,
+    vpnBypass: Boolean,
+    isVpnActive: Boolean,
+    proxyEnabled: Boolean,
     state: com.lmg.vk.network.proxy.VkProxyState,
-): String = when {
-    !enabled -> "Proxy disabled"
-    state is com.lmg.vk.network.proxy.VkProxyState.Available -> "Proxy enabled · ${state.ips.size} addresses"
-    state is com.lmg.vk.network.proxy.VkProxyState.Loading -> "Loading network settings"
-    else -> "Network settings need attention"
+): String = buildString {
+    if (vpnBypass) {
+        append(if (isVpnActive) "VPN bypass active" else "VPN bypass on")
+    } else {
+        append("Direct connection")
+    }
+    if (proxyEnabled) {
+        append(" · VK proxy")
+    }
 }
 
 private fun networkDetail(state: com.lmg.vk.network.proxy.VkProxyState): String = when (state) {

@@ -112,6 +112,12 @@ object AppSettings {
     private val _timeShowTotal = MutableStateFlow(false)
     val timeShowTotal: StateFlow<Boolean> = _timeShowTotal
 
+    // ── Обход VPN (VPN Bypass / Split-Tunneling) ──
+    // По умолчанию ВКЛЮЧЕНО: направляет трафик приложения напрямую через физический
+    // Wi-Fi / Cellular интерфейс в обход VPN для максимальной скорости VK и музыки.
+    private val _vpnBypassEnabled = MutableStateFlow(true)
+    val vpnBypassEnabled: StateFlow<Boolean> = _vpnBypassEnabled
+
     // ── Sleep Timer ──
     private var sleepTimerJob: Job? = null
 
@@ -251,6 +257,12 @@ object AppSettings {
     fun setTimeShowTotal(showTotal: Boolean) {
         _timeShowTotal.value = showTotal
         safePrefs()?.edit()?.putBoolean("time_show_total", showTotal)?.apply()
+    }
+
+    fun setVpnBypassEnabled(enabled: Boolean) {
+        _vpnBypassEnabled.value = enabled
+        safePrefs()?.edit()?.putBoolean("vpn_bypass_enabled", enabled)?.apply()
+        com.lmg.vk.network.VpnBypassManager.applyMode(enabled)
     }
 
     // ── Scan Folders ──
@@ -400,5 +412,7 @@ object AppSettings {
 
         _timeShowTotal.value = p.getBoolean("time_show_total", false)
         _broadcastToStatus.value = p.getBoolean("broadcast_to_profile", false)
+        _vpnBypassEnabled.value = p.getBoolean("vpn_bypass_enabled", true)
+        com.lmg.vk.network.VpnBypassManager.applyMode(_vpnBypassEnabled.value)
     }
 }
