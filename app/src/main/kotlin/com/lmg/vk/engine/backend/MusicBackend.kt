@@ -3648,9 +3648,9 @@ object MusicAuth {
     }
 
     fun removeAccount(userId: Long): Boolean {
-        if (!canChangeAccount()) return false
         val store = sessionStore as? VkMultiSessionStore ?: return false
         val wasActive = store.session.userId == userId
+        if (wasActive && !canChangeAccount()) return false
         val remaining = store.remove(userId)
         if (wasActive) {
             clearAccountScopedState()

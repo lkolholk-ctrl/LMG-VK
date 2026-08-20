@@ -122,19 +122,16 @@ fun Modifier.liquidClickable(
             scaleX = scale
             scaleY = scale
         }
-        .pointerInput(enabled) {
+        .pointerInput(enabled, onLongClick != null) {
             if (!enabled) return@pointerInput
             detectTapGestures(
                 onPress = {
                     isPressed = true
-                    try {
-                        awaitRelease()
-                    } finally {
-                        isPressed = false
-                    }
+                    tryAwaitRelease()
+                    isPressed = false
                 },
                 onLongPress = if (currentOnLongClick != null) {
-                    { currentOnLongClick?.invoke() }
+                    { _ -> currentOnLongClick?.invoke() }
                 } else {
                     null
                 },
