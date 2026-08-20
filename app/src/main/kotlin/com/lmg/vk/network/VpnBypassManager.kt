@@ -11,16 +11,18 @@ import com.lmg.vk.engine.AppSettings
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 /**
  * VpnBypassManager — направляет сетевой трафик приложения напрямую через физический
  * сетевой интерфейс (Wi-Fi или мобильную сеть оператора), минуя активный VPN-туннель.
  *
- * Это обеспечивает максимальную скорость загрузки аудио/каталога и снимает геоблокировки
- * треков VK, когда у пользователя на устройстве запущен VPN для сторонних приложений.
+ * Мгновенно отслеживает появление/исчезновение VPN-соединения и переключает
+ * привязку сокетов приложения без необходимости ручного переключения тумблера.
  */
 object VpnBypassManager {
 
@@ -36,6 +38,7 @@ object VpnBypassManager {
     val isBypassApplied: StateFlow<Boolean> = _isBypassApplied
 
     private var networkCallback: ConnectivityManager.NetworkCallback? = null
+    private var defaultNetworkCallback: ConnectivityManager.NetworkCallback? = null
 
     fun init(context: Context) {
         if (connectivityManager != null) return
@@ -43,8 +46,10 @@ object VpnBypassManager {
             ?: return
         connectivityManager = cm
 
+        // ВАЖНО: NetworkRequest по умолчанию содержит NET_CAPABILITY_NOT_VPN.
+        // Чтобы получать события появления/отключения VPN, явно снимаем это ограничение.
         val request = NetworkRequest.Builder()
-            .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+            .removeCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN)
             .build()
 
         val callback = object : ConnectivityManager.NetworkCallback() {
@@ -66,6 +71,35 @@ object VpnBypassManager {
             cm.registerNetworkCallback(request, callback)
         }
 
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            val defCallback = object : ConnectivityManager.NetworkCallback() {
+                override fun onAvailable(network: Network) {
+                    updateStateAndApply()
+                }
+
+                override fun onCapabilitiesChanged(network: Network, networkCapabilities: NetworkCapabilities) {
+                    updateStateAndApply()
+                }
+
+                override fun onLost(network: Network) {
+                    updateStateAndApply()
+                }
+            }
+            defaultNetworkCallback = defCallback
+            runCatching {
+                cm.registerDefaultNetworkCallback(defCallback)
+            }
+        }
+
+        // Периодический опрос (раз в 2 сек) как надёжная страховка для кастомных VPN (v2rayTun/Xray),
+        // которые могут поднимать/гасить туннели без стандартного широковещательного события.
+        scope.launch {
+            while (isActive) {
+                updateStateAndApply()
+                delay(2000)
+            }
+        }
+
         updateStateAndApply()
     }
 
@@ -84,7 +118,7 @@ object VpnBypassManager {
         updateStateAndApply()
     }
 
-    private fun updateStateAndApply() {
+    fun updateStateAndApply() {
         val cm = connectivityManager ?: return
         scope.launch {
             val networks = cm.allNetworks
@@ -92,7 +126,7 @@ object VpnBypassManager {
             var physicalNetwork: Network? = null
 
             for (network in networks) {
-                val caps = cm.getNetworkCapabilities(network) ?: continue
+                val caps = runCatching { cm.getNetworkCapabilities(network) }.getOrNull() ?: continue
                 if (caps.hasTransport(NetworkCapabilities.TRANSPORT_VPN)) {
                     vpnFound = true
                 }
@@ -108,7 +142,10 @@ object VpnBypassManager {
                 }
             }
 
-            _isVpnActive.value = vpnFound
+            if (_isVpnActive.value != vpnFound) {
+                _isVpnActive.value = vpnFound
+                Log.d(TAG, "VPN state changed: isVpnActive = $vpnFound")
+            }
 
             if (AppSettings.vpnBypassEnabled.value && physicalNetwork != null) {
                 runCatching {
@@ -117,7 +154,6 @@ object VpnBypassManager {
                     }
                 }
                 _isBypassApplied.value = true
-                Log.d(TAG, "VPN bypass active: bound process to physical network (VPN active: $vpnFound)")
             } else {
                 runCatching {
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {

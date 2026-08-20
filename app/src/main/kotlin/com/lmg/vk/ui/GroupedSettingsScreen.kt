@@ -111,6 +111,7 @@ fun SettingsScreen(
     val isVpnActive by com.lmg.vk.network.VpnBypassManager.isVpnActive.collectAsState()
 
     LaunchedEffect(page) { scroll.scrollTo(0) }
+    LaunchedEffect(Unit) { com.lmg.vk.network.VpnBypassManager.updateStateAndApply() }
     BackHandler(enabled = page != SettingsPage.ROOT) { page = SettingsPage.ROOT }
 
     val headerBack: (() -> Unit)? = when {
