@@ -260,7 +260,6 @@ private fun checkOAuthRedirect(
                 accessToken = token,
                 userId = userId,
                 expiresAt = if (expiresIn > 0) nowSeconds + expiresIn else 0L,
-                email = email,
             )
             onSuccess(session)
             return true
