@@ -64,11 +64,11 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.lmg.vk.engine.backend.MusicAuth
 import com.lmg.vk.engine.backend.VkLoginResult
-import com.lmg.vk.ui.glass.LiquidMotion
-import com.lmg.vk.ui.glass.LiquidSurfaces
 import com.lmg.vk.ui.glass.liquidClickable
 import com.lmg.vk.ui.icons.LmgDrawables
 import com.lmg.vk.ui.icons.lmgVector
+import com.lmg.vk.ui.theme.LiquidMotion
+import com.lmg.vk.ui.theme.LiquidSurfaces
 import com.lmg.vk.ui.theme.LiquidTheme
 import com.lmg.vk.ui.theme.VkSansDisplay
 import com.lmg.vk.ui.theme.VkSansText
@@ -97,7 +97,7 @@ fun AuthScreen(
     val lc = LiquidTheme.colors
     val isDark = lc.isDark
     val scope = rememberCoroutineScope()
-    val keyboardController = LocalSoftwareKeyboardController()
+    val keyboardController = LocalSoftwareKeyboardController.current
 
     val isLoggedIn by MusicAuth.isLoggedIn.collectAsState()
     LaunchedEffect(isLoggedIn, isAddingAccount) {
