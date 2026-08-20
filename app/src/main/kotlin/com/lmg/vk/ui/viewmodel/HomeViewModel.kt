@@ -27,6 +27,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlin.random.Random
@@ -144,6 +145,16 @@ class HomeViewModel : ViewModel() {
 
     init {
         Log.d("HomeViewModel", "HomeViewModel created")
+        viewModelScope.launch {
+            MusicAuth.profileId.collectLatest { accountId ->
+                val id = accountId ?: 0L
+                if (loadedHomeAccountId != Long.MIN_VALUE && loadedHomeAccountId != id) {
+                    _vkMixState.value = VkMixUiState.Idle
+                    _vkMixFeedback.value = VkMixFeedbackState.Idle
+                    loadHomeContent(force = true)
+                }
+            }
+        }
     }
 
     // ─── Home Content ───

@@ -56,11 +56,15 @@ import com.lmg.vk.network.dto.music.VkCatalogPodcastEntry
 import com.lmg.vk.network.methods.VkAudioApi
 import com.lmg.vk.network.methods.VkCatalogApi
 import com.lmg.vk.network.methods.VkMethodsRegistry
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.JsonPrimitive
@@ -3266,6 +3270,7 @@ object MusicAuth {
     /** Saved account metadata only. Token material never leaves the encrypted store. */
     val accounts: StateFlow<List<VkAccountSummary>> = _accounts
 
+    private val authScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var sessionStore: VkSessionStore? = null
     private var apiClient: VkApiClient? = null
     private var methods: VkMethodsRegistry? = null
@@ -3598,6 +3603,12 @@ object MusicAuth {
         store.session = session
         if (previousUserId != 0L && previousUserId != session.userId) clearAccountScopedState()
         applySession(session)
+        authScope.launch {
+            runCatching { fetchUserData() }
+            if (session.userId != 0L) {
+                runCatching { VkProfileRepository.refresh(session.userId) }
+            }
+        }
     }
 
     private fun applySession(session: VkAuthSession) {
@@ -3629,6 +3640,10 @@ object MusicAuth {
         clearAccountScopedState()
         activeAuthAttempt = null
         applySession(session)
+        authScope.launch {
+            runCatching { fetchUserData() }
+            runCatching { VkProfileRepository.refresh(userId) }
+        }
         return true
     }
 
