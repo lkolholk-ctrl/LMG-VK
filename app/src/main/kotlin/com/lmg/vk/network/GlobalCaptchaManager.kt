@@ -5,7 +5,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
 /**
- * Описание запроса капчи от VK API.
+ * Описание запроса капчи от VK API (Error 14).
  */
 data class CaptchaPrompt(
     val imageUrl: String,
@@ -14,16 +14,30 @@ data class CaptchaPrompt(
 )
 
 /**
- * GlobalCaptchaManager — глобальный обработчик капчи (VK Error 14: Captcha required).
+ * Описание запроса интерактивной SmartCaptcha/валидации (Error 17: Validation Required).
+ */
+data class ValidationPrompt(
+    val redirectUri: String,
+    val deferred: CompletableDeferred<Map<String, String>?>,
+)
+
+/**
+ * GlobalCaptchaManager — глобальный обработчик капчи и валидаций безопасности VK.
  *
- * Перехватывает ошибки капчи из любого сетевого запроса приложения (поиск, добавление
- * треков, альбомы, плейлисты), отображает глобальный стеклянный диалог ввода капчи
- * и прозрачно повторяет исходный API-вызов с полученным ключом.
+ * Перехватывает:
+ * - Error 14 (Captcha required): буквенно-цифровая капча
+ * - Error 17 (Validation required): интерактивная SmartCaptcha, чекбокс «Я не робот»,
+ *   проверка безопасности или подтверждение аккаунта
+ *
+ * Бесшовно повторяет исходный API-вызов после успешного прохождения проверки.
  */
 object GlobalCaptchaManager {
 
     private val _activePrompt = MutableStateFlow<CaptchaPrompt?>(null)
     val activePrompt: StateFlow<CaptchaPrompt?> = _activePrompt
+
+    private val _activeValidation = MutableStateFlow<ValidationPrompt?>(null)
+    val activeValidation: StateFlow<ValidationPrompt?> = _activeValidation
 
     suspend fun requestCaptcha(imageUrl: String, captchaSid: String?): Map<String, String>? {
         val deferred = CompletableDeferred<String?>()
@@ -51,5 +65,28 @@ object GlobalCaptchaManager {
     fun dismiss() {
         _activePrompt.value?.deferred?.complete(null)
         _activePrompt.value = null
+    }
+
+    suspend fun requestValidation(redirectUri: String): Map<String, String>? {
+        val deferred = CompletableDeferred<Map<String, String>?>()
+        _activeValidation.value = ValidationPrompt(redirectUri, deferred)
+        val result = try {
+            deferred.await()
+        } finally {
+            if (_activeValidation.value?.deferred == deferred) {
+                _activeValidation.value = null
+            }
+        }
+        return result
+    }
+
+    fun submitValidation(extraParams: Map<String, String> = emptyMap()) {
+        _activeValidation.value?.deferred?.complete(extraParams)
+        _activeValidation.value = null
+    }
+
+    fun dismissValidation() {
+        _activeValidation.value?.deferred?.complete(null)
+        _activeValidation.value = null
     }
 }

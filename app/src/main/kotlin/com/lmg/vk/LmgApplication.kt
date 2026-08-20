@@ -199,6 +199,9 @@ class LmgApplication : Application(), ImageLoaderFactory {
             captchaHandler = { img, sid ->
                 com.lmg.vk.network.GlobalCaptchaManager.requestCaptcha(img, sid)
             }
+            validationHandler = { redirectUri ->
+                com.lmg.vk.network.GlobalCaptchaManager.requestValidation(redirectUri)
+            }
         }
         VkApiLocator.init(vkApiClient)
         VkApiLocator.initMediaClient(vkNetworkClient)

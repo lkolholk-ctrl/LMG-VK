@@ -164,6 +164,7 @@ fun AppRoot() {
     var accountPendingRemoval by remember { mutableStateOf<com.lmg.vk.engine.backend.VkAccountSummary?>(null) }
     val accounts by com.lmg.vk.engine.backend.MusicAuth.accounts.collectAsState()
     val activeCaptchaPrompt by com.lmg.vk.network.GlobalCaptchaManager.activePrompt.collectAsState()
+    val activeValidationPrompt by com.lmg.vk.network.GlobalCaptchaManager.activeValidation.collectAsState()
     // Поиск — полноэкранный ОВЕРЛЕЙ (как настройки/профиль), а НЕ пункт нав-графа.
     // Иначе экран поиска попадал в пер-таб бэкстек Волны и через saveState/
     // restoreState «прилипал» к вкладке — при возврате на таб вместо его старта
@@ -828,6 +829,14 @@ fun AppRoot() {
                 prompt = prompt,
                 onDismiss = com.lmg.vk.network.GlobalCaptchaManager::dismiss,
                 onSubmit = com.lmg.vk.network.GlobalCaptchaManager::submit,
+            )
+        }
+
+        activeValidationPrompt?.let { prompt ->
+            com.lmg.vk.ui.components.VkWebValidationDialog(
+                prompt = prompt,
+                onDismiss = com.lmg.vk.network.GlobalCaptchaManager::dismissValidation,
+                onComplete = com.lmg.vk.network.GlobalCaptchaManager::submitValidation,
             )
         }
 
