@@ -195,7 +195,11 @@ class LmgApplication : Application(), ImageLoaderFactory {
             httpClient = vkNetworkClient,
             sessionStore = vkSessionStore,
             deviceIdProvider = ::resolveVkDeviceId,
-        )
+        ).apply {
+            captchaHandler = { img, sid ->
+                com.lmg.vk.network.GlobalCaptchaManager.requestCaptcha(img, sid)
+            }
+        }
         VkApiLocator.init(vkApiClient)
         VkApiLocator.initMediaClient(vkNetworkClient)
         MusicBackend.init(vkApiClient, vkSessionStore)
