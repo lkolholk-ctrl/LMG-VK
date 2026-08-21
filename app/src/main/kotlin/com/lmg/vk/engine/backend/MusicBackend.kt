@@ -15,6 +15,7 @@ import com.lmg.vk.data.local.db.LibraryRepository
 import com.lmg.vk.engine.PlaylistSyncManager
 import com.lmg.vk.network.VkApiClient
 import com.lmg.vk.network.VkAuthSession
+import com.lmg.vk.network.GlobalCaptchaManager
 import com.lmg.vk.network.VkResult
 import com.lmg.vk.network.VkMultiSessionStore
 import com.lmg.vk.network.VkSessionStore
@@ -3292,6 +3293,8 @@ object MusicAuth {
         var grantType: String = "password",
         var canSkipPassword: Boolean = false,
         var captchaSid: String? = null,
+        var captchaTs: Double? = null,
+        var captchaAttempt: Int? = null,
         var processingPolls: Int = 0,
     )
 
@@ -3372,10 +3375,12 @@ object MusicAuth {
                 if (captchaSid != attempt.captchaSid) {
                     return@withLock VkLoginResult.Failure("VK captcha session changed. Start again.")
                 }
-                mapOf(
-                    "captcha_sid" to requireNotNull(captchaSid),
-                    "captcha_key" to requireNotNull(captchaKey),
-                )
+                buildMap {
+                    put("captcha_sid", requireNotNull(captchaSid))
+                    put("captcha_key", requireNotNull(captchaKey))
+                    attempt.captchaTs?.let { put("captcha_ts", it.toString()) }
+                    attempt.captchaAttempt?.let { put("captcha_attempt", it.toString()) }
+                }
             } else {
                 emptyMap()
             }
@@ -3453,6 +3458,8 @@ object MusicAuth {
         val otpKind = when (attempt.verificationMethod) {
             AuthVerificationMethod.SMS -> VkMethodsRegistry.OtpKind.Sms
             AuthVerificationMethod.CALLRESET -> VkMethodsRegistry.OtpKind.CallReset
+            AuthVerificationMethod.EMAIL -> VkMethodsRegistry.OtpKind.Email
+            AuthVerificationMethod.PUSH -> VkMethodsRegistry.OtpKind.Push
             else -> null
         }
         if (otpKind != null) {
@@ -3492,8 +3499,22 @@ object MusicAuth {
         is VkResult.Success -> when (val response = result.data) {
             is RequestTokenResponse.Success -> finishSignIn(registry, response)
             is RequestTokenResponse.CaptchaRequired -> {
-                attempt.captchaSid = response.captchaSid
-                VkLoginResult.Captcha(response.captchaSid, response.captchaImg)
+                if (response.redirectUri.isNotBlank()) {
+                    continueAfterSmartCaptcha(
+                        registry = registry,
+                        attempt = attempt,
+                        password = password,
+                        captchaParams = captchaParams,
+                        redirectUri = response.redirectUri,
+                    )
+                } else if (response.captchaSid.isNotBlank() && response.captchaImg.isNotBlank()) {
+                    attempt.captchaSid = response.captchaSid
+                    attempt.captchaTs = response.captchaTs
+                    attempt.captchaAttempt = response.captchaAttempt
+                    VkLoginResult.Captcha(response.captchaSid, response.captchaImg)
+                } else {
+                    VkLoginResult.Failure("VK returned an incomplete captcha challenge")
+                }
             }
             is RequestTokenResponse.Processing -> {
                 if (++attempt.processingPolls > 6) {
@@ -3509,13 +3530,53 @@ object MusicAuth {
             is RequestTokenResponse.ClientError -> VkLoginResult.Failure(
                 response.errorDescription.ifBlank { response.error.ifBlank { "VK authorization failed" } },
             )
-            is RequestTokenResponse.NestedApiError -> VkLoginResult.Failure(
-                response.error.error_msg.ifBlank { "VK error ${response.error.error_code}" },
-            )
+            is RequestTokenResponse.NestedApiError -> {
+                val error = response.error
+                when {
+                    error.error_code in setOf(14, 17) && !error.redirectUri.isNullOrBlank() -> {
+                        continueAfterSmartCaptcha(
+                            registry = registry,
+                            attempt = attempt,
+                            password = password,
+                            captchaParams = captchaParams,
+                            redirectUri = error.redirectUri,
+                        )
+                    }
+                    error.error_code == 14 &&
+                        !error.captchaSid.isNullOrBlank() &&
+                        !error.captchaImg.isNullOrBlank() -> {
+                        attempt.captchaSid = error.captchaSid
+                        attempt.captchaTs = error.captchaTs
+                        attempt.captchaAttempt = error.captchaAttempt
+                        VkLoginResult.Captcha(error.captchaSid, error.captchaImg)
+                    }
+                    else -> VkLoginResult.Failure(
+                        error.error_msg.ifBlank { "VK error ${error.error_code}" },
+                    )
+                }
+            }
             is RequestTokenResponse.UnknownError -> VkLoginResult.Failure(
                 response.errorDescription.ifBlank { response.error.ifBlank { "Unknown VK authorization response" } },
             )
         }
+    }
+
+    /** VK X repeats OAuth `token` with the proof returned by SmartCaptcha. */
+    private suspend fun continueAfterSmartCaptcha(
+        registry: VkMethodsRegistry,
+        attempt: AuthAttempt,
+        password: String,
+        captchaParams: Map<String, String>,
+        redirectUri: String,
+    ): VkLoginResult {
+        val proof = GlobalCaptchaManager.requestValidation(redirectUri)
+            ?: return VkLoginResult.Failure("Проверка безопасности VK отменена")
+        return requestOAuthToken(
+            registry = registry,
+            attempt = attempt,
+            password = password,
+            captchaParams = captchaParams + proof,
+        )
     }
 
     private suspend fun getAnonymousToken(registry: VkMethodsRegistry): VkResult<String> =

@@ -880,7 +880,6 @@ class VkMethodsRegistry(private val client: VkApiClient) {
             endpoint = VkEndpoint.API_OAUTH
             param("client_id", VkApiClient.VK_ANDROID_CLIENT_ID)
             param("client_secret", RecoveredServiceConfig.VK_ANDROID_CLIENT_SECRET)
-            param("app_id", VkApiClient.VK_ANDROID_CLIENT_ID)
             userAgent = VkUserAgents.api
         }
         return client.execute(method)

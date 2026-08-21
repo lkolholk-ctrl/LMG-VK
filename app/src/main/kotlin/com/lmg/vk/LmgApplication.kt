@@ -196,8 +196,8 @@ class LmgApplication : Application(), ImageLoaderFactory {
             sessionStore = vkSessionStore,
             deviceIdProvider = ::resolveVkDeviceId,
         ).apply {
-            captchaHandler = { img, sid ->
-                com.lmg.vk.network.GlobalCaptchaManager.requestCaptcha(img, sid)
+            captchaHandler = { img, sid, ts, attempt ->
+                com.lmg.vk.network.GlobalCaptchaManager.requestCaptcha(img, sid, ts, attempt)
             }
             validationHandler = { redirectUri ->
                 com.lmg.vk.network.GlobalCaptchaManager.requestValidation(redirectUri)

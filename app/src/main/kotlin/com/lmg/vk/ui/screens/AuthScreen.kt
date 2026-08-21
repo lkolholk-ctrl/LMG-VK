@@ -156,7 +156,10 @@ fun AuthScreen(
         scope.launch {
             when (val result = MusicAuth.signIn(
                 username = currentLogin,
-                password = if (step == AuthStep.Password) password else "",
+                // Keep the password for an OAuth retry after captcha. The
+                // captcha screen is a continuation of the same request, not a
+                // fresh passwordless login.
+                password = password,
                 validationSid = validationSid,
                 code = verificationCode.takeIf(String::isNotBlank),
                 captchaSid = captchaSid,

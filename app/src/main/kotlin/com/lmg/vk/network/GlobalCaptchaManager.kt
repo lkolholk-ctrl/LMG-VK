@@ -10,6 +10,8 @@ import kotlinx.coroutines.flow.StateFlow
 data class CaptchaPrompt(
     val imageUrl: String,
     val captchaSid: String?,
+    val captchaTs: Double?,
+    val captchaAttempt: Int?,
     val deferred: CompletableDeferred<String?>,
 )
 
@@ -39,9 +41,20 @@ object GlobalCaptchaManager {
     private val _activeValidation = MutableStateFlow<ValidationPrompt?>(null)
     val activeValidation: StateFlow<ValidationPrompt?> = _activeValidation
 
-    suspend fun requestCaptcha(imageUrl: String, captchaSid: String?): Map<String, String>? {
+    suspend fun requestCaptcha(
+        imageUrl: String,
+        captchaSid: String?,
+        captchaTs: Double?,
+        captchaAttempt: Int?,
+    ): Map<String, String>? {
         val deferred = CompletableDeferred<String?>()
-        _activePrompt.value = CaptchaPrompt(imageUrl, captchaSid, deferred)
+        _activePrompt.value = CaptchaPrompt(
+            imageUrl = imageUrl,
+            captchaSid = captchaSid,
+            captchaTs = captchaTs,
+            captchaAttempt = captchaAttempt,
+            deferred = deferred,
+        )
         val key = try {
             deferred.await()
         } finally {
@@ -53,6 +66,8 @@ object GlobalCaptchaManager {
         return if (!key.isNullOrBlank()) {
             buildMap {
                 if (!captchaSid.isNullOrBlank()) put("captcha_sid", captchaSid)
+                captchaTs?.let { put("captcha_ts", it.toString()) }
+                captchaAttempt?.let { put("captcha_attempt", it.toString()) }
                 put("captcha_key", key)
             }
         } else null

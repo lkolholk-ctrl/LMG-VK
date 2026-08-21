@@ -43,7 +43,7 @@ data class VKResponse<T>(
 
 /** Известные коды ошибок (поведение — по `C8221e.license` и `C15802e`). */
 object VkErrorCodes {
-    /** Капча: просим у пользователя, добавляем captcha_sid/captcha_key и ретраим. */
+    /** Капча: возвращаем captcha_sid/ts/attempt + captcha_key и ретраим. */
     const val CAPTCHA_REQUIRED = 14
 
     /** Требуется валидация (redirect_uri): обработчик собирает параметры, ретрай. */

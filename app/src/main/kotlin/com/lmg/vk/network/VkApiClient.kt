@@ -42,8 +42,13 @@ class VkApiClient(
     /** Обработчик "validation required" (error 17): возвращает доп. параметры для ретрая. */
     var validationHandler: (suspend (redirectUri: String) -> Map<String, String>?)? = null
 
-    /** Обработчик капчи (error 14): возвращает введённый пользователем текст. */
-    var captchaHandler: (suspend (captchaImg: String, captchaSid: String?) -> Map<String, String>?)? = null
+    /** Обработчик капчи (error 14): возвращает полный набор параметров ретрая. */
+    var captchaHandler: (suspend (
+        captchaImg: String,
+        captchaSid: String?,
+        captchaTs: Double?,
+        captchaAttempt: Int?,
+    ) -> Map<String, String>?)? = null
 
     private val tokenMutex = Mutex()
 
@@ -135,7 +140,12 @@ class VkApiClient(
                     val extra = if (!redirect.isNullOrBlank()) {
                         validationHandler?.invoke(redirect)
                     } else if (!img.isNullOrEmpty()) {
-                        captchaHandler?.invoke(img, error.captchaSid)
+                        captchaHandler?.invoke(
+                            img,
+                            error.captchaSid,
+                            error.captchaTs,
+                            error.captchaAttempt,
+                        )
                     } else null
                     if (extra != null) {
                         method.params.putAll(extra)
@@ -212,10 +222,19 @@ class VkApiClient(
         }
 
         val requestParams = LinkedHashMap<String, String>().apply {
-            params.forEach { (key, value) -> put(key, value) }
-            token?.let { putIfAbsent("access_token", it) }
+            // VK X keeps the resolved API token only in Authorization. An
+            // explicitly supplied access_token selects the Bearer value, but
+            // must not also be duplicated in the form body.
+            params.forEach { (key, value) ->
+                if (key != "access_token" || endpoint != VkEndpoint.API_METHOD) {
+                    put(key, value)
+                }
+            }
             putIfAbsent("v", apiVersion)
             putIfAbsent("https", "1")
+            if (endpoint != VkEndpoint.OAUTH) {
+                putIfAbsent("api_id", VK_ANDROID_CLIENT_ID)
+            }
             putIfAbsent("lang", VkLocales.current())
             putIfAbsent("device_id", deviceIdProvider())
         }
