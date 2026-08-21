@@ -3287,7 +3287,7 @@ object MusicAuth {
 
     private data class AuthAttempt(
         val username: String,
-        val anonymousToken: String,
+        var anonymousToken: String,
         var sid: String,
         var verificationMethod: AuthVerificationMethod = AuthVerificationMethod.PASSWORD,
         var grantType: String = "password",
@@ -3344,6 +3344,12 @@ object MusicAuth {
             if (isOtpContinuation) {
                 if (validationSid != attempt.sid) {
                     return@withLock VkLoginResult.Failure("VK verification session changed. Start again.")
+                }
+                when (val token = getAnonymousToken(registry)) {
+                    is VkResult.Error -> return@withLock token.asLoginFailure(
+                        "VK anonymous authorization session expired",
+                    )
+                    is VkResult.Success -> attempt.anonymousToken = token.data
                 }
                 when (val checked = registry.ecosystemCheckOtp(
                     sid = attempt.sid,
@@ -3452,7 +3458,7 @@ object MusicAuth {
     private suspend fun prepareTwoFactor(
         registry: VkMethodsRegistry,
         attempt: AuthAttempt,
-    ): VkLoginResult.TwoFactor {
+    ): VkLoginResult {
         var destination = attempt.verificationMethod.destination
         var codeLength = 0
         val otpKind = when (attempt.verificationMethod) {
@@ -3463,6 +3469,12 @@ object MusicAuth {
             else -> null
         }
         if (otpKind != null) {
+            when (val token = getAnonymousToken(registry)) {
+                is VkResult.Error -> return token.asLoginFailure(
+                    "VK anonymous authorization session expired",
+                )
+                is VkResult.Success -> attempt.anonymousToken = token.data
+            }
             when (val sent = registry.ecosystemSendOtp(otpKind, attempt.sid, attempt.anonymousToken)) {
                 is VkResult.Success -> {
                     destination = sent.data.info.ifBlank { destination }
@@ -3487,77 +3499,95 @@ object MusicAuth {
         attempt: AuthAttempt,
         password: String,
         captchaParams: Map<String, String>,
-    ): VkLoginResult = when (val result = registry.oauthToken(
-        username = attempt.username,
-        password = if (attempt.canSkipPassword) "" else password,
-        sid = attempt.sid,
-        anonymousToken = attempt.anonymousToken,
-        grantType = attempt.grantType,
-        extraParams = captchaParams,
-    )) {
-        is VkResult.Error -> result.asLoginFailure("VK authorization failed")
-        is VkResult.Success -> when (val response = result.data) {
-            is RequestTokenResponse.Success -> finishSignIn(registry, response)
-            is RequestTokenResponse.CaptchaRequired -> {
-                if (response.redirectUri.isNotBlank()) {
-                    continueAfterSmartCaptcha(
-                        registry = registry,
-                        attempt = attempt,
-                        password = password,
-                        captchaParams = captchaParams,
-                        redirectUri = response.redirectUri,
-                    )
-                } else if (response.captchaSid.isNotBlank() && response.captchaImg.isNotBlank()) {
-                    attempt.captchaSid = response.captchaSid
-                    attempt.captchaTs = response.captchaTs
-                    attempt.captchaAttempt = response.captchaAttempt
-                    VkLoginResult.Captcha(response.captchaSid, response.captchaImg)
-                } else {
-                    VkLoginResult.Failure("VK returned an incomplete captcha challenge")
-                }
-            }
-            is RequestTokenResponse.Processing -> {
-                if (++attempt.processingPolls > 6) {
-                    VkLoginResult.Failure("VK authorization is still processing. Try again.")
-                } else {
-                    delay(1_000)
-                    requestOAuthToken(registry, attempt, password, captchaParams)
-                }
-            }
-            is RequestTokenResponse.TwoFactorRequired -> VkLoginResult.Failure(
-                "VK returned a legacy verification flow (${response.validationType})",
+    ): VkLoginResult {
+        when (val token = getAnonymousToken(registry)) {
+            is VkResult.Error -> return token.asLoginFailure(
+                "VK anonymous authorization session expired",
             )
-            is RequestTokenResponse.ClientError -> VkLoginResult.Failure(
-                response.errorDescription.ifBlank { response.error.ifBlank { "VK authorization failed" } },
-            )
-            is RequestTokenResponse.NestedApiError -> {
-                val error = response.error
-                when {
-                    error.error_code in setOf(14, 17) && !error.redirectUri.isNullOrBlank() -> {
+            is VkResult.Success -> attempt.anonymousToken = token.data
+        }
+        return when (val result = registry.oauthToken(
+            username = attempt.username,
+            password = if (attempt.canSkipPassword) "" else password,
+            sid = attempt.sid,
+            anonymousToken = attempt.anonymousToken,
+            grantType = attempt.grantType,
+            extraParams = captchaParams,
+        )) {
+            is VkResult.Error -> result.asLoginFailure("VK authorization failed")
+            is VkResult.Success -> when (val response = result.data) {
+                is RequestTokenResponse.Success -> finishSignIn(registry, response)
+                is RequestTokenResponse.CaptchaRequired -> {
+                    if (response.redirectUri.isNotBlank()) {
                         continueAfterSmartCaptcha(
                             registry = registry,
                             attempt = attempt,
                             password = password,
                             captchaParams = captchaParams,
-                            redirectUri = error.redirectUri,
+                            redirectUri = response.redirectUri,
                         )
+                    } else if (response.captchaSid.isNotBlank() && response.captchaImg.isNotBlank()) {
+                        attempt.captchaSid = response.captchaSid
+                        attempt.captchaTs = response.captchaTs
+                        attempt.captchaAttempt = response.captchaAttempt
+                        VkLoginResult.Captcha(response.captchaSid, response.captchaImg)
+                    } else {
+                        VkLoginResult.Failure("VK returned an incomplete captcha challenge")
                     }
-                    error.error_code == 14 &&
-                        !error.captchaSid.isNullOrBlank() &&
-                        !error.captchaImg.isNullOrBlank() -> {
-                        attempt.captchaSid = error.captchaSid
-                        attempt.captchaTs = error.captchaTs
-                        attempt.captchaAttempt = error.captchaAttempt
-                        VkLoginResult.Captcha(error.captchaSid, error.captchaImg)
+                }
+                is RequestTokenResponse.Processing -> {
+                    if (++attempt.processingPolls > 6) {
+                        VkLoginResult.Failure("VK authorization is still processing. Try again.")
+                    } else {
+                        delay(1_000)
+                        requestOAuthToken(registry, attempt, password, captchaParams)
                     }
-                    else -> VkLoginResult.Failure(
-                        error.error_msg.ifBlank { "VK error ${error.error_code}" },
+                }
+                is RequestTokenResponse.TwoFactorRequired -> VkLoginResult.Failure(
+                    "VK returned a legacy verification flow (${response.validationType})",
+                )
+                is RequestTokenResponse.ClientError -> {
+                    com.lmg.vk.debug.DebugLog.add(
+                        "VK OAuth token rejected: error=${response.error.ifBlank { "none" }}, " +
+                            "type=${response.errorType.ifBlank { "none" }}, grant=${attempt.grantType}",
+                    )
+                    VkLoginResult.Failure(
+                        response.errorDescription.ifBlank {
+                            response.error.ifBlank { "VK authorization failed" }
+                        },
                     )
                 }
+                is RequestTokenResponse.NestedApiError -> {
+                    val error = response.error
+                    when {
+                        error.error_code in setOf(14, 17) && !error.redirectUri.isNullOrBlank() -> {
+                            continueAfterSmartCaptcha(
+                                registry = registry,
+                                attempt = attempt,
+                                password = password,
+                                captchaParams = captchaParams,
+                                redirectUri = error.redirectUri,
+                            )
+                        }
+                        error.error_code == 14 &&
+                            !error.captchaSid.isNullOrBlank() &&
+                            !error.captchaImg.isNullOrBlank() -> {
+                            attempt.captchaSid = error.captchaSid
+                            attempt.captchaTs = error.captchaTs
+                            attempt.captchaAttempt = error.captchaAttempt
+                            VkLoginResult.Captcha(error.captchaSid, error.captchaImg)
+                        }
+                        else -> VkLoginResult.Failure(
+                            error.error_msg.ifBlank { "VK error ${error.error_code}" },
+                        )
+                    }
+                }
+                is RequestTokenResponse.UnknownError -> VkLoginResult.Failure(
+                    response.errorDescription.ifBlank {
+                        response.error.ifBlank { "Unknown VK authorization response" }
+                    },
+                )
             }
-            is RequestTokenResponse.UnknownError -> VkLoginResult.Failure(
-                response.errorDescription.ifBlank { response.error.ifBlank { "Unknown VK authorization response" } },
-            )
         }
     }
 
@@ -3581,6 +3611,10 @@ object MusicAuth {
 
     private suspend fun getAnonymousToken(registry: VkMethodsRegistry): VkResult<String> =
         anonymousTokenMutex.withLock {
+            val nowSeconds = System.currentTimeMillis() / 1_000
+            if (anonymousToken.isNotBlank() && nowSeconds < anonymousTokenExpiresAt) {
+                return@withLock VkResult.Success(anonymousToken)
+            }
             when (val result = registry.getAnonymToken()) {
                 is VkResult.Error -> result
                 is VkResult.Success -> {

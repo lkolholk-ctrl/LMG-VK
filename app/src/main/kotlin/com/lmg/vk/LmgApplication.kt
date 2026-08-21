@@ -45,6 +45,7 @@ import okhttp3.ConnectionPool
 import okhttp3.Dispatcher
 import okhttp3.OkHttpClient
 import java.io.File
+import java.security.SecureRandom
 import java.util.concurrent.TimeUnit
 
 /**
@@ -268,13 +269,27 @@ class LmgApplication : Application(), ImageLoaderFactory {
 
     private fun resolveVkDeviceId(): String {
         val preferences = getSharedPreferences("lmg_vk_device", MODE_PRIVATE)
-        preferences.getString("device_id", null)?.takeIf { it.isNotBlank() }?.let { return it }
-        val generated = java.util.UUID.randomUUID().toString()
+        preferences.getString("device_id", null)
+            ?.takeIf(VK_DEVICE_ID_PATTERN::matches)
+            ?.let { return it }
+
+        // VK X C6865l.startapp(): 16 lowercase alpha-numeric characters,
+        // a colon, then 32 more. The UUID previously stored here does not
+        // match the device identity sent by VK X during OAuth authorization.
+        val generated = buildString(49) {
+            repeat(16) { append(VK_DEVICE_ID_ALPHABET[secureRandom.nextInt(VK_DEVICE_ID_ALPHABET.length)]) }
+            append(':')
+            repeat(32) { append(VK_DEVICE_ID_ALPHABET[secureRandom.nextInt(VK_DEVICE_ID_ALPHABET.length)]) }
+        }
         preferences.edit().putString("device_id", generated).apply()
         return generated
     }
 
     companion object {
+        private const val VK_DEVICE_ID_ALPHABET = "abcdefghijklmnopqrstuvwxyz0123456789"
+        private val VK_DEVICE_ID_PATTERN = Regex("[a-z0-9]{16}:[a-z0-9]{32}")
+        private val secureRandom = SecureRandom()
+
         /** Мониторинг сети (бывш. VKXApplication.f36537e). */
         @JvmStatic
         var connectivityManager: ConnectivityManager? = null

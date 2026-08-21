@@ -880,7 +880,8 @@ class VkMethodsRegistry(private val client: VkApiClient) {
             endpoint = VkEndpoint.API_OAUTH
             param("client_id", VkApiClient.VK_ANDROID_CLIENT_ID)
             param("client_secret", RecoveredServiceConfig.VK_ANDROID_CLIENT_SECRET)
-            userAgent = VkUserAgents.api
+            // VK X uses one client identity for the complete auth transaction.
+            userAgent = VkUserAgents.auth
         }
         return client.execute(method)
     }
@@ -897,7 +898,8 @@ class VkMethodsRegistry(private val client: VkApiClient) {
         val method = VkMethod("token", RequestTokenParser).apply {
             endpoint = VkEndpoint.API_OAUTH
             httpMethod = VkHttpMethod.POST
-            userAgent = VkUserAgents.api
+            // Keep the same client identity that created and verified this sid.
+            userAgent = VkUserAgents.auth
             param("libverify_support", true)
             param("scope", "all")
             param("device_trusted_hash_support", true)
