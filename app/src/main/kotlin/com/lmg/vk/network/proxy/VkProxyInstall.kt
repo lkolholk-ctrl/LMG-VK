@@ -1,5 +1,6 @@
 package com.lmg.vk.network.proxy
 
+import com.lmg.vk.network.VkRequestIdentityInterceptor
 import okhttp3.OkHttpClient
 import javax.net.ssl.HttpsURLConnection
 import javax.net.ssl.SSLContext
@@ -19,6 +20,8 @@ import javax.net.ssl.TrustManager
  */
 internal fun OkHttpClient.Builder.installVkProxy(): OkHttpClient.Builder {
     val pins = { VkProxyRepository.pinnedCertificates() }
+
+    addInterceptor(VkRequestIdentityInterceptor())
 
     // Редиректы уводим в интерцептор. Иначе OkHttp следовал бы им сам, ниже
     // прикладных интерцепторов, и следующий шаг ушёл бы на домен из `Location`

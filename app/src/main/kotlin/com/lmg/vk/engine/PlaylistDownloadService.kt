@@ -17,6 +17,7 @@ import com.lmg.vk.engine.backend.MusicAuth
 import com.lmg.vk.engine.backend.MusicBackend
 import com.lmg.vk.data.local.db.DownloadedTrackEntity
 import com.lmg.vk.data.local.db.FavoriteTrackDatabase
+import com.lmg.vk.network.applyVkRequestIdentity
 import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
@@ -338,7 +339,7 @@ class PlaylistDownloadService : Service() {
                 ?: return@withContext false
 
             val url = URL(resolvedUri.toString())
-            val connection = url.openConnection() as HttpURLConnection
+            val connection = (url.openConnection() as HttpURLConnection).applyVkRequestIdentity()
             connection.connectTimeout = 20000
             connection.readTimeout = 30000
             connection.requestMethod = "GET"
@@ -382,7 +383,8 @@ class PlaylistDownloadService : Service() {
                 try {
                     if (tempCover.exists()) tempCover.delete()
 
-                    val coverConn = URL(coverUrl).openConnection() as HttpURLConnection
+                    val coverConn = (URL(coverUrl).openConnection() as HttpURLConnection)
+                        .applyVkRequestIdentity()
                     coverConn.connectTimeout = 15000
                     coverConn.readTimeout = 15000
                     coverConn.requestMethod = "GET"

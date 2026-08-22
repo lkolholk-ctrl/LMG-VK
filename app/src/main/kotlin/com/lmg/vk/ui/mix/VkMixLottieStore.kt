@@ -7,6 +7,7 @@ import android.os.Environment
 import android.provider.MediaStore
 import com.lmg.vk.R
 import com.lmg.vk.debug.DebugLog
+import com.lmg.vk.network.applyVkRequestIdentity
 import java.io.File
 import java.io.FileOutputStream
 import java.net.HttpURLConnection
@@ -58,7 +59,8 @@ object VkMixLottieStore {
 
         val temporary = File(directory, "$key.${System.nanoTime()}.tmp")
         try {
-            val connection = URL(url).openConnection() as HttpURLConnection
+            val connection = (URL(url).openConnection() as HttpURLConnection)
+                .applyVkRequestIdentity()
             connection.connectTimeout = CONNECT_TIMEOUT_MS
             connection.readTimeout = READ_TIMEOUT_MS
             connection.instanceFollowRedirects = true

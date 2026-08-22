@@ -933,3 +933,20 @@ Add второго аккаунта; неверный пароль не сбра
 - Проверка: статическая сверка декомпилята и изменённых сигнатур, поиск оставшихся
   ссылок и `git diff --check`. Gradle, сборка и тестовые задачи не запускались по
   правилу владельца. Нужна ручная проверка: номер → Я не робот → SMS → код → пароль.
+
+# Официальная Android-идентичность во всех VK-запросах
+
+- Аудит подтвердил, что `VkApiClient.rawCall` уже всегда передаёт Android
+  `api_id`, `device_id`, Android UA и служебные Android-заголовки; auth-методы
+  отдельно задают подтверждённый auth UA и `client_id=2274003`.
+- Добавлен `VkRequestIdentity`: общий OkHttp-клиент добавляет Android UA только
+  VK-хостам и их CDN. Явный auth UA не перезаписывается, а при редиректе
+  за пределы VK Android UA удаляется.
+- Тот же host-aware UA подключён к прямым загрузкам audio/clip, playlist cover,
+  обложек, Mix Lottie и signed profile upload URL. Last.fm, LRCLIB, update/config
+  и другие сторонние сервисы его не получают.
+- Домены сверены с локальным декомпилятом 8.14.1: `vk.com`, `vk.ru`,
+  `userapi.com`, `vk-cdn.net`, `vkuser.net`, `vkuseraudio.com/.net`,
+  `vkuserlive.com/.net`, `vkuservideo.com/.net` и их поддомены.
+- Проверка: `git diff --check`, статический аудит всех Ktor, OkHttp,
+  Media3 и `HttpURLConnection`-путей. Gradle и локальная сборка не запускались.

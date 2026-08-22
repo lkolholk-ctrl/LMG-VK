@@ -4,6 +4,7 @@ import android.content.Context
 import com.lmg.vk.data.local.db.DownloadedTrackEntity
 import com.lmg.vk.data.local.db.FavoriteTrackDatabase
 import com.lmg.vk.engine.backend.MusicAuth
+import com.lmg.vk.network.applyVkRequestIdentity
 import io.ktor.client.request.get
 import io.ktor.client.statement.bodyAsChannel
 import io.ktor.utils.io.readAvailable
@@ -135,7 +136,8 @@ object AudioDownloadManager {
                 val streamUrl = com.lmg.vk.engine.backend.MusicBackend.getInstance()
                     .resolveClipStreamUrl(clipId).getOrNull()
                 if (streamUrl != null) {
-                    val connection = URL(streamUrl).openConnection() as HttpURLConnection
+                    val connection = (URL(streamUrl).openConnection() as HttpURLConnection)
+                        .applyVkRequestIdentity()
                     connection.connectTimeout = 15000
                     connection.readTimeout = 30000
                     connection.connect()
@@ -506,7 +508,8 @@ object AudioDownloadManager {
      */
     private fun downloadViaUrlConnection(url: String, dest: File, trackId: String): Boolean {
         return try {
-            val connection = URL(url).openConnection() as HttpURLConnection
+            val connection = (URL(url).openConnection() as HttpURLConnection)
+                .applyVkRequestIdentity()
             connection.connectTimeout = 15000
             connection.readTimeout = 15000
             connection.requestMethod = "GET"

@@ -1,5 +1,7 @@
 package com.lmg.vk.network.proxy
 
+import com.lmg.vk.network.VkRequestIdentity
+import com.lmg.vk.network.VkUserAgents
 import okhttp3.Interceptor
 import okhttp3.Request
 import okhttp3.Response
@@ -147,6 +149,13 @@ internal class VkProxyInterceptor(
         ) {
             // Уходим на другой узел — токен туда отдавать нельзя.
             builder.removeHeader("Authorization")
+            val sourceIsVk = VkRequestIdentity.isVkHost(logical.url.host)
+            val destinationIsVk = VkRequestIdentity.isVkHost(url.host)
+            if (destinationIsVk && !sourceIsVk) {
+                builder.header("User-Agent", VkUserAgents.api)
+            } else if (!destinationIsVk && sourceIsVk) {
+                builder.removeHeader("User-Agent")
+            }
         }
         return builder.build()
     }

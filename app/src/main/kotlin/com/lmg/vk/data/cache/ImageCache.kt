@@ -3,6 +3,7 @@ package com.lmg.vk.data.cache
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import com.lmg.vk.network.applyVkRequestIdentity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -48,7 +49,8 @@ object ImageCache {
      */
     suspend fun put(context: Context, url: String): Bitmap? = withContext(Dispatchers.IO) {
         try {
-            val connection = URL(url).openConnection() as HttpURLConnection
+            val connection = (URL(url).openConnection() as HttpURLConnection)
+                .applyVkRequestIdentity()
             connection.connectTimeout = 10000
             connection.readTimeout = 15000
             connection.doInput = true

@@ -106,3 +106,15 @@ is_sound_captcha_available`.
   сначала сохраняет access token и завершает вход; exchange token получается отдельно.
   LMG-VK теперь сохраняет сессию сразу, а exchange token получает как необязательное
   продолжение.
+
+## 6. Сквозная идентичность Android-клиента
+
+- Все вызовы `VkApiClient` передают Android `api_id=2274003`, стабильный
+  `device_id`, Android `User-Agent`, `X-VK-Android-Client: new` и
+  `X-Screen: nowhere`. Для `/oauth/` остаются точные параметры
+  `client_id`/`client_secret` и auth UA.
+- Общий OkHttp-транспорт теперь добавляет Android UA к запросам на
+  домены VK и его CDN, если метод не задал более точный auth UA.
+  Сторонние хосты не получают эту идентичность.
+- Та же проверка хоста применяется к прямым `HttpURLConnection`-загрузкам
+  аудио, обложек, Mix-анимаций и upload URL профиля.

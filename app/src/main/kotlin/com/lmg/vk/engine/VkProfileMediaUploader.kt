@@ -5,6 +5,7 @@ import android.graphics.BitmapFactory
 import android.net.Uri
 import com.lmg.vk.network.VkApiLocator
 import com.lmg.vk.network.VkResult
+import com.lmg.vk.network.applyVkRequestIdentity
 import com.lmg.vk.network.methods.VkMethodsRegistry
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -71,7 +72,7 @@ object VkProfileMediaUploader {
         val mime = context.contentResolver.getType(uri)?.takeIf { it.startsWith("image/") }
             ?: "image/jpeg"
         val extension = mime.substringAfter('/', "jpg").substringBefore('+')
-        val connection = (URL(uploadUrl).openConnection() as HttpURLConnection).apply {
+        val connection = (URL(uploadUrl).openConnection() as HttpURLConnection).applyVkRequestIdentity().apply {
             requestMethod = "POST"
             doOutput = true
             useCaches = false
