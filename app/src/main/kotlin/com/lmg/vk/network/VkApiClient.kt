@@ -98,7 +98,6 @@ class VkApiClient(
                 apiVersion = method.apiVersion,
                 params = method.params,
                 userAgent = method.userAgent,
-                omitAppUserAgent = method.omitAppUserAgent,
             )
 
             // OAuth `token` возвращает полезный JSON (2FA/captcha/client_error)
@@ -209,7 +208,6 @@ class VkApiClient(
         apiVersion: String,
         params: Map<String, String>,
         userAgent: String?,
-        omitAppUserAgent: Boolean = false,
     ): RawHttpResponse {
         // access_token API 5.272 передаётся только как Bearer, не дублируется в body.
         val explicit = params["access_token"].takeUnless { it.isNullOrEmpty() }
@@ -268,9 +266,7 @@ class VkApiClient(
                 header("X-Screen", "nowhere")
             }
             token?.let { header("Authorization", "Bearer $it") }
-            if (!omitAppUserAgent) {
-                header("User-Agent", userAgent ?: VkUserAgents.api)
-            }
+            header("User-Agent", userAgent ?: VkUserAgents.api)
             if (httpMethod == VkHttpMethod.POST) {
                 header("Content-Type", "application/x-www-form-urlencoded")
                 setBody(FormDataContent(Parameters.build {

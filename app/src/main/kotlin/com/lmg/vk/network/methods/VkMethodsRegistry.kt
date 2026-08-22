@@ -708,7 +708,7 @@ class VkMethodsRegistry(private val client: VkApiClient) {
             param("sak_version", "1.112")
             param("access_token", anonymousToken)
             param("accounts_trusted_hashes", trustedHash)
-            omitAppUserAgent = true
+            userAgent = VkUserAgents.auth
         }
         return client.execute(method)
     }
@@ -751,7 +751,7 @@ class VkMethodsRegistry(private val client: VkApiClient) {
         ).apply {
             param("create_common_token", true)
             param("create_tier_tokens", "0")
-            omitAppUserAgent = true
+            userAgent = VkUserAgents.auth
         }
         return client.execute(method)
     }
@@ -765,7 +765,7 @@ class VkMethodsRegistry(private val client: VkApiClient) {
             param("create_common_token", true)
             param("create_tier_tokens", "0")
             param("access_token", accessToken)
-            omitAppUserAgent = true
+            userAgent = VkUserAgents.auth
         }
         return client.execute(method)
     }
@@ -807,7 +807,7 @@ class VkMethodsRegistry(private val client: VkApiClient) {
             param("flow_type", "tg_flow")
             param("sak_version", "1.142")
             param("access_token", anonymousToken)
-            omitAppUserAgent = true
+            userAgent = VkUserAgents.auth
         }
         return client.execute(method)
     }
@@ -825,7 +825,7 @@ class VkMethodsRegistry(private val client: VkApiClient) {
             param("flow_type", "tg_flow")
             param("sak_version", "1.142")
             param("access_token", anonymousToken)
-            omitAppUserAgent = true
+            userAgent = VkUserAgents.auth
         }
         return client.execute(method)
     }
@@ -844,7 +844,7 @@ class VkMethodsRegistry(private val client: VkApiClient) {
             param("flow_type", "tg_flow")
             param("sak_version", "1.142")
             param("access_token", anonymousToken)
-            omitAppUserAgent = true
+            userAgent = VkUserAgents.auth
         }
         return client.execute(method)
     }
@@ -880,7 +880,7 @@ class VkMethodsRegistry(private val client: VkApiClient) {
             endpoint = VkEndpoint.API_OAUTH
             param("client_id", VkApiClient.VK_ANDROID_CLIENT_ID)
             param("client_secret", RecoveredServiceConfig.VK_ANDROID_CLIENT_SECRET)
-            omitAppUserAgent = true
+            userAgent = VkUserAgents.auth
         }
         return client.execute(method)
     }
@@ -897,7 +897,7 @@ class VkMethodsRegistry(private val client: VkApiClient) {
         val method = VkMethod("token", RequestTokenParser).apply {
             endpoint = VkEndpoint.API_OAUTH
             httpMethod = VkHttpMethod.POST
-            omitAppUserAgent = true
+            userAgent = VkUserAgents.auth
             param("libverify_support", true)
             param("scope", "all")
             param("device_trusted_hash_support", true)
