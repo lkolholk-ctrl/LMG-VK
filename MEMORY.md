@@ -950,3 +950,5 @@ Add второго аккаунта; неверный пароль не сбра
   `vkuserlive.com/.net`, `vkuservideo.com/.net` и их поддомены.
 - Проверка: `git diff --check`, статический аудит всех Ktor, OkHttp,
   Media3 и `HttpURLConnection`-путей. Gradle и локальная сборка не запускались.
+- CI compile-fix: в `MusicBackend.kt` добавлен пропущенный импорт
+  `AuthFlowName`, используемого при разборе `NEED_REGISTRATION`.

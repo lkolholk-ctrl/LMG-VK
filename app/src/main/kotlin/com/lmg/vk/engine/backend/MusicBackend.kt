@@ -20,8 +20,9 @@ import com.lmg.vk.network.VkResult
 import com.lmg.vk.network.VkMultiSessionStore
 import com.lmg.vk.network.VkSessionStore
 import com.lmg.vk.network.getOrNull
-import com.lmg.vk.network.dto.AuthVerificationMethod
+import com.lmg.vk.network.dto.AuthFlowName
 import com.lmg.vk.network.dto.AuthValidationType
+import com.lmg.vk.network.dto.AuthVerificationMethod
 import com.lmg.vk.network.dto.RequestTokenResponse
 import com.lmg.vk.network.dto.music.AudioPlaylist
 import com.lmg.vk.network.dto.music.AudioAlbum
