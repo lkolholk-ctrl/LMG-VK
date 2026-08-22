@@ -300,8 +300,6 @@ sealed interface RequestTokenResponse {
         @Json(name = "redirect_uri") val redirectUri: String = "",
     ) : RequestTokenResponse
 
-    data object Processing : RequestTokenResponse
-
     @JsonClass(generateAdapter = true)
     data class UnknownError(
         val error: String = "",

@@ -694,7 +694,6 @@ class VkMethodsRegistry(private val client: VkApiClient) {
     suspend fun validateAccount(
         login: String,
         anonymousToken: String,
-        trustedHash: String?,
     ): VkResult<AuthValidateAccountResponse> {
         val method = VkMethod(
             "auth.validateAccount",
@@ -707,7 +706,6 @@ class VkMethodsRegistry(private val client: VkApiClient) {
             param("flow_type", "auth_without_password")
             param("sak_version", "1.112")
             param("access_token", anonymousToken)
-            param("accounts_trusted_hashes", trustedHash)
             userAgent = VkUserAgents.auth
         }
         return client.execute(method)
@@ -892,6 +890,7 @@ class VkMethodsRegistry(private val client: VkApiClient) {
         sid: String,
         anonymousToken: String,
         grantType: String,
+        code: String = "",
         extraParams: Map<String, String> = emptyMap(),
     ): VkResult<RequestTokenResponse> {
         val method = VkMethod("token", RequestTokenParser).apply {
@@ -908,6 +907,7 @@ class VkMethodsRegistry(private val client: VkApiClient) {
             param("2fa_supported", true)
             param("supported_ways", "push,email")
             if (anonymousToken.isNotBlank()) param("anonymous_token", anonymousToken)
+            if (code.isNotBlank()) param("code", code)
             param("client_id", VkApiClient.VK_ANDROID_CLIENT_ID)
             param("client_secret", RecoveredServiceConfig.VK_ANDROID_CLIENT_SECRET)
             param("flow_type", "tg_flow")
@@ -955,27 +955,16 @@ class VkMethodsRegistry(private val client: VkApiClient) {
         override suspend fun parse(raw: RawHttpResponse): VkParsedResponse<RequestTokenResponse> {
             val body = raw.bodyText()
             val json = JSONObject(body)
-            if (json.has("processing")) {
-                return VkParsedResponse(RequestTokenResponse.Processing, null)
-            }
-            val nestedError = json.optJSONObject("error")
-            val type = when {
-                nestedError?.optInt("error_code") == 14 -> RequestTokenResponse.CaptchaRequired::class.java
-                nestedError != null -> RequestTokenResponse.NestedApiError::class.java
-                json.has("validation_type") || json.has("validation_sid") ->
-                    RequestTokenResponse.TwoFactorRequired::class.java
-                json.has("captcha_sid") || json.has("captcha_img") ->
-                    RequestTokenResponse.CaptchaRequired::class.java
-                json.has("access_token") -> RequestTokenResponse.Success::class.java
-                json.has("error_type") -> RequestTokenResponse.ClientError::class.java
+            val error = json.opt("error")
+            val type = when (error) {
+                null, JSONObject.NULL -> RequestTokenResponse.Success::class.java
+                is JSONObject -> RequestTokenResponse.NestedApiError::class.java
+                "need_validation" -> RequestTokenResponse.TwoFactorRequired::class.java
+                "need_captcha" -> RequestTokenResponse.CaptchaRequired::class.java
+                "invalid_client" -> RequestTokenResponse.ClientError::class.java
                 else -> RequestTokenResponse.UnknownError::class.java
             }
-            val jsonToParse = if (type == RequestTokenResponse.CaptchaRequired::class.java && nestedError != null) {
-                nestedError.toString()
-            } else {
-                body
-            }
-            val data = requireNotNull(VkJson.moshi.adapter(type).fromJson(jsonToParse)) {
+            val data = requireNotNull(VkJson.moshi.adapter(type).fromJson(body)) {
                 "Empty OAuth token response from ${raw.url}"
             }
             return VkParsedResponse(data, null)

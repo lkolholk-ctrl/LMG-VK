@@ -20,8 +20,8 @@ import com.lmg.vk.network.VkResult
 import com.lmg.vk.network.VkMultiSessionStore
 import com.lmg.vk.network.VkSessionStore
 import com.lmg.vk.network.getOrNull
-import com.lmg.vk.network.dto.AuthFlowName
 import com.lmg.vk.network.dto.AuthVerificationMethod
+import com.lmg.vk.network.dto.AuthValidationType
 import com.lmg.vk.network.dto.RequestTokenResponse
 import com.lmg.vk.network.dto.music.AudioPlaylist
 import com.lmg.vk.network.dto.music.AudioAlbum
@@ -64,7 +64,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -3295,7 +3294,8 @@ object MusicAuth {
         var captchaSid: String? = null,
         var captchaTs: Double? = null,
         var captchaAttempt: Int? = null,
-        var processingPolls: Int = 0,
+        var legacyTokenValidation: Boolean = false,
+        var oauthCode: String = "",
     )
 
     internal fun init(client: VkApiClient, store: VkSessionStore) {
@@ -3345,33 +3345,37 @@ object MusicAuth {
                 if (validationSid != attempt.sid) {
                     return@withLock VkLoginResult.Failure("VK verification session changed. Start again.")
                 }
-                when (val token = getAnonymousToken(registry)) {
-                    is VkResult.Error -> return@withLock token.asLoginFailure(
-                        "VK anonymous authorization session expired",
-                    )
-                    is VkResult.Success -> attempt.anonymousToken = token.data
-                }
-                when (val checked = registry.ecosystemCheckOtp(
-                    sid = attempt.sid,
-                    code = requireNotNull(code),
-                    verificationMethod = attempt.verificationMethod.wireName,
-                    anonymousToken = attempt.anonymousToken,
-                )) {
-                    is VkResult.Error -> return@withLock checked.asLoginFailure("VK rejected the verification code")
-                    is VkResult.Success -> {
-                        val checkedSid = checked.data.sid
-                        if (checkedSid.isBlank()) {
-                            return@withLock VkLoginResult.Failure("VK returned an empty verified session")
-                        }
-                        attempt.sid = checkedSid
-                        attempt.canSkipPassword = checked.data.canSkipPassword == true
-                        attempt.grantType = if (attempt.canSkipPassword) {
-                            "without_password"
-                        } else {
-                            "phone_confirmation_sid"
-                        }
-                        if (!attempt.canSkipPassword && password.isBlank()) {
-                            return@withLock VkLoginResult.NeedPassword(attempt.sid)
+                if (attempt.legacyTokenValidation) {
+                    attempt.oauthCode = requireNotNull(code)
+                } else {
+                    when (val token = getAnonymousToken(registry)) {
+                        is VkResult.Error -> return@withLock token.asLoginFailure(
+                            "VK anonymous authorization session expired",
+                        )
+                        is VkResult.Success -> attempt.anonymousToken = token.data
+                    }
+                    when (val checked = registry.ecosystemCheckOtp(
+                        sid = attempt.sid,
+                        code = requireNotNull(code),
+                        verificationMethod = attempt.verificationMethod.wireName,
+                        anonymousToken = attempt.anonymousToken,
+                    )) {
+                        is VkResult.Error -> return@withLock checked.asLoginFailure("VK rejected the verification code")
+                        is VkResult.Success -> {
+                            val checkedSid = checked.data.sid
+                            if (checkedSid.isBlank()) {
+                                return@withLock VkLoginResult.Failure("VK returned an empty verified session")
+                            }
+                            attempt.sid = checkedSid
+                            attempt.canSkipPassword = checked.data.canSkipPassword == true
+                            attempt.grantType = if (attempt.canSkipPassword) {
+                                "without_password"
+                            } else {
+                                "phone_confirmation_sid"
+                            }
+                            if (!attempt.canSkipPassword && password.isBlank()) {
+                                return@withLock VkLoginResult.NeedPassword(attempt.sid)
+                            }
                         }
                     }
                 }
@@ -3407,16 +3411,9 @@ object MusicAuth {
                 "VK did not issue an anonymous authorization token",
             )
         }
-        // trusted_hash привязан к конкретному аккаунту. При добавлении второго
-        // нельзя отправлять hash активного аккаунта в validateAccount нового.
-        val trustedHash = sessionStore?.session
-            ?.takeIf { !_isLoggedIn.value }
-            ?.trustedHash
-            ?.takeIf(String::isNotBlank)
         val validation = when (val result = registry.validateAccount(
             login = username,
             anonymousToken = currentAnonymousToken,
-            trustedHash = trustedHash,
         )) {
             is VkResult.Success -> result.data
             is VkResult.Error -> return result.asLoginFailure("VK could not validate this account")
@@ -3431,13 +3428,7 @@ object MusicAuth {
             return VkLoginResult.Failure(message)
         }
 
-        var method = validation.nextStep?.verificationMethod ?: AuthVerificationMethod.PASSWORD
-        if (validation.flowName == AuthFlowName.NEED_PASSWORD &&
-            validation.nextStep?.hasAnotherVerificationMethods == true &&
-            validation.flowNames.orEmpty().contains("password")
-        ) {
-            method = AuthVerificationMethod.PASSWORD
-        }
+        val method = validation.nextStep?.verificationMethod ?: AuthVerificationMethod.PASSWORD
         val attempt = AuthAttempt(
             username = username,
             anonymousToken = currentAnonymousToken,
@@ -3510,6 +3501,7 @@ object MusicAuth {
             sid = attempt.sid,
             anonymousToken = attempt.anonymousToken,
             grantType = attempt.grantType,
+            code = attempt.oauthCode,
             extraParams = captchaParams,
         )) {
             is VkResult.Error -> result.asLoginFailure("VK authorization failed")
@@ -3533,17 +3525,19 @@ object MusicAuth {
                         VkLoginResult.Failure("VK returned an incomplete captcha challenge")
                     }
                 }
-                is RequestTokenResponse.Processing -> {
-                    if (++attempt.processingPolls > 6) {
-                        VkLoginResult.Failure("VK authorization is still processing. Try again.")
+                is RequestTokenResponse.TwoFactorRequired -> {
+                    if (response.validationSid.isBlank()) {
+                        VkLoginResult.Failure("VK returned an empty verification session")
                     } else {
-                        delay(1_000)
-                        requestOAuthToken(registry, attempt, password, captchaParams)
+                        attempt.sid = response.validationSid
+                        attempt.legacyTokenValidation = true
+                        VkLoginResult.TwoFactor(
+                            validationSid = response.validationSid,
+                            destination = response.legacyDestination,
+                            codeLength = response.codeLength.coerceAtLeast(1),
+                        )
                     }
                 }
-                is RequestTokenResponse.TwoFactorRequired -> VkLoginResult.Failure(
-                    "VK returned a legacy verification flow (${response.validationType})",
-                )
                 is RequestTokenResponse.ClientError -> {
                     com.lmg.vk.debug.DebugLog.add(
                         "VK OAuth token rejected: error=${response.error.ifBlank { "none" }}, " +
@@ -3589,7 +3583,6 @@ object MusicAuth {
         }
     }
 
-    /** VK X repeats OAuth `token` with the proof returned by SmartCaptcha. */
     private suspend fun continueAfterSmartCaptcha(
         registry: VkMethodsRegistry,
         attempt: AuthAttempt,
@@ -3635,14 +3628,6 @@ object MusicAuth {
         if (response.accessToken.isBlank()) {
             return VkLoginResult.Failure("VK returned an empty access token")
         }
-        val exchangeToken = when (val result = registry.getUserExchangeTokens(response.accessToken)) {
-            is VkResult.Error -> return result.asLoginFailure("VK did not issue an exchange token")
-            is VkResult.Success -> result.data.usersExchangeTokens.orEmpty()
-                .firstOrNull()
-                ?.commonToken
-                .orEmpty()
-                .ifBlank { return VkLoginResult.Failure("VK returned an empty exchange token") }
-        }
         if (!canChangeAccount()) {
             return VkLoginResult.Failure("Wait for library synchronization to finish")
         }
@@ -3656,9 +3641,21 @@ object MusicAuth {
                     ?.let { nowSeconds + it }
                     ?: 0L,
                 trustedHash = response.trustedHash,
-                exchangeToken = exchangeToken,
             ),
         )
+        when (val result = registry.getUserExchangeTokens(response.accessToken)) {
+            is VkResult.Error -> Unit
+            is VkResult.Success -> {
+                val exchangeToken = result.data.usersExchangeTokens.orEmpty()
+                    .firstOrNull { it.userId == response.userId }
+                    ?.commonToken
+                    .orEmpty()
+                val store = sessionStore
+                if (exchangeToken.isNotBlank() && store?.session?.accessToken == response.accessToken) {
+                    store.session = store.session.copy(exchangeToken = exchangeToken)
+                }
+            }
+        }
         activeAuthAttempt = null
         // Профиль не является условием валидности токена: при временной ошибке
         // users.get пользователь всё равно остаётся авторизованным.
@@ -3692,6 +3689,16 @@ object MusicAuth {
             AuthVerificationMethod.PASSKEY -> "your passkey"
             AuthVerificationMethod.QR_CODE -> "the VK QR confirmation"
             AuthVerificationMethod.PASSWORD -> "your VK account"
+        }
+
+    private val RequestTokenResponse.TwoFactorRequired.legacyDestination: String
+        get() = when (validationType) {
+            AuthValidationType.Sms, AuthValidationType.CallReset -> phoneMask
+            AuthValidationType.Email -> maskedEmail
+            AuthValidationType.Push -> deviceName
+            AuthValidationType.App -> "приложение для кодов"
+            AuthValidationType.LibVerify -> "проверка VK"
+            AuthValidationType.ReserveCode -> "резервные коды"
         }
 
     private fun VkResult.Error.asLoginFailure(fallback: String): VkLoginResult.Failure {

@@ -71,9 +71,11 @@ https://api.<domain>/<method|oauth>/<имя метода>
 
 `C8221e.java:626-637`. **Уверенность:** подтверждено.
 
-Важно: `license(C5577e, cont)` вызывает `appmetrica(..., userAgent = null, ...)` — то есть при
-обычном пути вызова VK X **не ставит `User-Agent` вообще**. Отдельные UA (`VkUserAgents.auth`),
-которые есть в LMG-VK, в доках не подтверждены.
+Важно: `license(C5577e, cont)` вызывает `appmetrica(..., userAgent = null, ...)`, поэтому
+сам метод не переопределяет UA. Однако созданный в `C13651l` общий Ktor-клиент устанавливает
+плагин UserAgent: `C1483l`, case 22 берёт native bundle slot 13, затем `C2269l` добавляет
+`User-Agent`, если заголовок ещё отсутствует. Поэтому обычные auth-запросы VK X имеют UA;
+`null` означает только отсутствие локального override.
 
 ## 1.3. Параметры, добавляемые транспортом ко всем запросам
 
@@ -860,9 +862,8 @@ auth.processAuthCodeMulti(action=0, auth_code,
 10. **Условие ветвления после `auth.validateAccount`** (какое `flow_name` ведёт в OTP,
     а какое — сразу в `token`): switch в доках не найден.
 11. **Место `auth.validatePhone` во флоу** — см. 4.4.
-12. **`User-Agent`**: `license(C5577e, cont)` передаёт `null`. Откуда берутся UA
-    (`VkUserAgents.auth` / `.api` в LMG-VK) — в доках нет; отдельных UA для auth-запросов
-    в декомпилированном транспорте не видно.
+12. **`User-Agent`**: локальный аргумент метода равен `null`, но общий Ktor-плагин
+    подставляет native bundle slot 13 (`C13651l` → `C1483l`, case 22 → `C2269l`).
 13. **`lang`**: белый список из 5 языковых кодов (`AbstractC4533e.vip`) — сами коды не прочитаны.
 
 ---
@@ -972,9 +973,9 @@ branch → finishSignIn(getUserExchangeTokens → installSession)`).
 
 ## 6.3. Низкий риск
 
-14. **`User-Agent`.** VK X не ставит его вообще (1.2), LMG-VK ставит `VkUserAgents.auth`.
-    Убирать не нужно: доки не показывают, что UA мешает. Но и трактовать текущие UA как
-    «восстановленные из VK X» нельзя — их там нет.
+14. **`User-Agent`.** Auth-клиент VK X получает UA из native bundle slot 13 через общий
+    Ktor-плагин. Для auth-запросов LMG-VK должен сохранять `VkUserAgents.auth`; его удаление
+    меняет серверную классификацию клиента.
 
 15. **Недостающие опциональные поля в DTO** (`webview_access_token`, `webview_refresh_token`,
     `silent_token` в `AuthRefreshTokenDto`) — добавление безопасно, отсутствие безопасно.

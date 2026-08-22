@@ -80,13 +80,29 @@ is_sound_captcha_available`.
 
 ## 4. Аудит соответствия LMG-VK ↔ 8.14.1
 
-Совпадает: все параметры token/validateAccount/checkOtp/sendOtp*, дискриминатор
-(кроме легаси-Processing), success_token, X-Requested-With, captcha-параметры.
+Совпадает: все параметры token/validateAccount/checkOtp/sendOtp*, шесть веток
+дискриминатора, success_token, X-Requested-With, captcha-параметры.
 
 Расхождения (кандидаты):
-- **User-Agent**: VK X не ставит UA на auth-запросы вообще (только Bearer+заголовки);
-  LMG-VK шлёт `VkUserAgents.auth`. В 8.14.1 UA только у lrclib/genius/webview.
-- `TwoFactorRequired` (легаси-2FA от token): VK X обрабатывает (C6144l: lًّۛ
-  → appActivity.license → следующий шаг), LMG-VK возвращает Failure.
-- В LMG-VK `success`-redirect завершается пустой мапой → повтор без proof;
-  в VK X закрытие без токена = «Skipped captcha» → результат-ошибка.
+- Аргумент `User-Agent` отдельного метода равен `null`, но общий Ktor-плагин клиента
+  всё равно добавляет значение из native bundle, slot 13 (`C13651l` → `C1483l`, case 22 →
+  `C2269l`). Поэтому auth-запросы VK X не являются запросами без UA. В LMG-VK этой
+  ветке соответствует `VkUserAgents.auth`.
+
+## 5. Повторная полная сверка после полевого теста (2026-08-22)
+
+- Причина перехода сразу к паролю найдена в `MusicAuth.startAuthAttempt`: LMG-VK
+  заменял выбранный сервером `next_step.verification_method` на `password`, когда
+  пароль лишь присутствовал среди альтернатив. В `C19419l`, case 22, такой замены нет:
+  `PASSWORD` открывается только когда `next_step == null` либо сервер вернул
+  `verification_method == PASSWORD`; иначе вызывается OTP-dispatch.
+- Из `auth.validateAccount` удалён отсутствующий в билдере 8.14.1 параметр
+  `accounts_trusted_hashes`.
+- Дискриминатор ответа `oauth/token` приведён к исходным шести веткам по значению
+  поля `error`; неподтверждённая ветка `processing` удалена.
+- Легаси-`need_validation` из `oauth/token` теперь открывает ввод кода и повторяет
+  `token` с `validation_sid` и `code`, а не пытается вызвать `ecosystem.checkOtp`.
+- Успешный OAuth больше не зависит от немедленного получения exchange token. VK X
+  сначала сохраняет access token и завершает вход; exchange token получается отдельно.
+  LMG-VK теперь сохраняет сессию сразу, а exchange token получает как необязательное
+  продолжение.
