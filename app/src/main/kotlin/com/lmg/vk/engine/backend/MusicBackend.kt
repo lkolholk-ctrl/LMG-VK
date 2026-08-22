@@ -3481,9 +3481,7 @@ object MusicAuth {
                     codeLength = sent.data.codeLength.coerceAtLeast(0)
                 }
                 is VkResult.Error -> {
-                    // VK MP3 MOD оставляет ручной повтор доступным. Не уничтожаем sid:
-                    // пользователь всё ещё может ввести уже доставленный код.
-                    destination = sent.message.ifBlank { destination }
+                    return sent.asLoginFailure("VK did not send the verification code")
                 }
             }
         }

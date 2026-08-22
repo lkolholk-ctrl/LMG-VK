@@ -64,7 +64,7 @@ class VkAuthApi(
             param("active_index", 0)
             param("scope", "all")
             param("initiator", "expired_token")
-            userAgent = VkUserAgents.auth
+            omitAppUserAgent = true
         }
 
         return when (val result = client.execute(method)) {
