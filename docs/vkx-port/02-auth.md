@@ -937,12 +937,9 @@ branch → finishSignIn(getUserExchangeTokens → installSession)`).
 ## 6.2. Средний риск — сломает нестандартные ветки
 
 8. **`access_token` параметром vs `Bearer`.**
-   LMG-VK передаёт `anonymousToken` как form-параметр `access_token` в `validateAccount`,
-   `ecosystem.*`. VK X полагается на `Bearer` (1.4). Убирать параметр **опасно**: подстановка
-   в `Bearer` в LMG-VK устроена иначе, и без параметра запросы могут уйти неавторизованными.
-   Заметим: в VK X при явном `access_token` он **и остаётся в теле, и идёт в `Bearer`** — то
-   есть текущее поведение LMG-VK не противоречит транспорту, просто избыточно. Трогать без
-   нужды не стоит.
+   При явном `access_token` исходный транспорт берёт его для `Bearer` и не удаляет
+   из form-body. Для `validateAccount` и `ecosystem.*` это не избыточный fallback,
+   а точное транспортное поведение: один анонимный токен передаётся обоими способами.
 
 9. **`accounts_trusted_hashes` в `validateAccount` и `vk_connect_auth` / `app_id`
    (`token`, `get_anonym_token`) — параметров нет в доках.**

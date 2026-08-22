@@ -74,9 +74,10 @@ is_sound_captcha_available`.
    сначала validatePhone? — нет: в 8.14.1 sendOtpSms идёт напрямую с sid от
    validateAccount. Но ПОРЯДОК C12257l.m4067import: next_step.verification_method
    решает какой sendOtpX вызвать (ordinal switch), VK сам выбирает метод.
-4. Возможная причина: LMG-VK шлёт `access_token` параметром в дополнение к
-   Bearer (VK X — только Bearer). Формально допустимо, но стоит проверить
-   на живом запросе.
+4. Транспорт `C8341l.mopub` берёт явный `access_token` из мапы для
+   `Authorization: Bearer`, но не удаляет его из form-body. Значит для
+   `validateAccount`/`ecosystem.*` официальный запрос содержит и Bearer,
+   и параметр `access_token` с тем же анонимным токеном.
 
 ## 4. Аудит соответствия LMG-VK ↔ 8.14.1
 
@@ -118,3 +119,12 @@ is_sound_captcha_available`.
   Сторонние хосты не получают эту идентичность.
 - Та же проверка хоста применяется к прямым `HttpURLConnection`-загрузкам
   аудио, обложек, Mix-анимаций и upload URL профиля.
+
+## 7. Исправление OTP и `invalid request`
+
+- В `VkApiClient` восстановлена точная семантика явного `access_token`:
+  он одновременно выбирает Bearer и остаётся в form-body.
+- `oauth/token` теперь всегда передаёт `sid`, `anonymous_token` и `code`,
+  включая пустой `code`, как исходный builder.
+- Ошибка auth/ecosystem показывает код VK вместе с текстом, чтобы
+  следующая полевая проверка не теряла server error code.

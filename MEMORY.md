@@ -952,3 +952,10 @@ Add второго аккаунта; неверный пароль не сбра
   Media3 и `HttpURLConnection`-путей. Gradle и локальная сборка не запускались.
 - CI compile-fix: в `MusicBackend.kt` добавлен пропущенный импорт
   `AuthFlowName`, используемого при разборе `NEED_REGISTRATION`.
+- По полевым ошибкам `Error while sending code` / `invalid request`
+  повторно прослежен `C8341l.mopub`: явный `access_token` из мапы
+  используется как Bearer и одновременно остаётся в form-body.
+  Ложное удаление `access_token` из body убрано.
+- Builder `oauth/token` приведён к исходному для пустых значений:
+  `sid`, `anonymous_token` и `code` кладутся в форму всегда. В UI auth-ошибки
+  теперь сохраняют код VK в виде `[code] message`.

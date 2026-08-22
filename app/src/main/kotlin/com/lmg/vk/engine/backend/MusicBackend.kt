@@ -3704,7 +3704,7 @@ object MusicAuth {
 
     private fun VkResult.Error.asLoginFailure(fallback: String): VkLoginResult.Failure {
         val detail = message.trim()
-        return VkLoginResult.Failure(if (detail.isBlank()) "$fallback ($code)" else detail)
+        return VkLoginResult.Failure(if (detail.isBlank()) "$fallback [$code]" else "[$code] $detail")
     }
 
     /** Точка передачи аккаунта из восстанавливаемого VK auth-флоу. */

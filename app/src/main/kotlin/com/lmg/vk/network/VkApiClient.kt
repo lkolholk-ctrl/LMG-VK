@@ -209,7 +209,6 @@ class VkApiClient(
         params: Map<String, String>,
         userAgent: String?,
     ): RawHttpResponse {
-        // access_token API 5.272 передаётся только как Bearer, не дублируется в body.
         val explicit = params["access_token"].takeUnless { it.isNullOrEmpty() }
         val token: String? = if (endpoint != VkEndpoint.API_METHOD) {
             null
@@ -222,14 +221,7 @@ class VkApiClient(
         }
 
         val requestParams = LinkedHashMap<String, String>().apply {
-            // VK X keeps the resolved API token only in Authorization. An
-            // explicitly supplied access_token selects the Bearer value, but
-            // must not also be duplicated in the form body.
-            params.forEach { (key, value) ->
-                if (key != "access_token" || endpoint != VkEndpoint.API_METHOD) {
-                    put(key, value)
-                }
-            }
+            putAll(params)
             putIfAbsent("v", apiVersion)
             putIfAbsent("https", "1")
             if (endpoint != VkEndpoint.OAUTH) {
