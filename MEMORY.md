@@ -962,3 +962,19 @@ Add второго аккаунта; неверный пароль не сбра
 - Полный native-аудит 8.14.1 восстановил единый User-Agent slot 13:
   `VKAndroidApp/8.183-54468 (Android <release>; SDK <sdk>; ru; <abi>; <manufacturer> <model>; <width>x<height>)`.
   API/auth переведены на этот один формат; прежние версии и позиция Locale удалены.
+
+# Безопасная трассировка VK ID
+
+- `VkApiClient` пишет `VK AUTH WIRE` только для `get_anonym_token`,
+  `auth.validateAccount`, `ecosystem.sendOtp*`, `ecosystem.checkOtp` и
+  `api/oauth/token`.
+- В журнал попадают endpoint, HTTP-метод, host, точный User-Agent, служебные
+  заголовки, порядок form-параметров, HTTP-статус и разобранный код ошибки VK.
+- Логин, пароль, SMS-код, captcha key, success token и client secret заменяются
+  на `present`/`empty`. Bearer, sid, anonymous/access token, captcha sid и
+  device id представлены только длиной и первыми 12 hex SHA-256; исходные
+  значения в журнал не попадают.
+- Трассировка охватывает повтор того же запроса после SmartCaptcha, поэтому по
+  хэшам можно проверить сохранение anonymous token и sid между шагами.
+- Проверка: `git diff --check` и статическая сверка областей логирования.
+  Gradle, сборка и тестовые задачи не запускались по правилу владельца.

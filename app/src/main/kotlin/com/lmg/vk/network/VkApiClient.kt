@@ -1,5 +1,6 @@
 package com.lmg.vk.network
 
+import com.lmg.vk.debug.DebugLog
 import io.ktor.client.HttpClient
 import io.ktor.client.request.forms.FormDataContent
 import io.ktor.client.request.header
@@ -17,6 +18,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.CancellationException
 import com.lmg.vk.network.dto.VKError
 import com.lmg.vk.network.dto.VkErrorCodes
+import java.security.MessageDigest
 
 /**
  * Восстановлено из `defpackage.C8221e` — ядро сетевого слоя LMG VK.
@@ -106,6 +108,7 @@ class VkApiClient(
             // иначе UI видит только голый "HTTP 401" и теряет следующий шаг.
             val hasStructuredOAuthError = (method.endpoint == VkEndpoint.OAUTH || method.endpoint == VkEndpoint.API_OAUTH) && method.name == "token"
             if (raw.statusCode !in 200..299 && !hasStructuredOAuthError) {
+                traceAuthResult(method.name, method.endpoint, raw.statusCode, "http_error")
                 return VkResult.Error(raw.statusCode, "HTTP ${raw.statusCode}: ${raw.url}")
             }
 
@@ -118,6 +121,13 @@ class VkApiClient(
             // Для oauth-методов ошибка лежит прямо в конверте; для обычных —
             // проверяем ещё и data-as-error случаи.
             val error: VKError? = (parsed.data as? MayCarryVkError)?.carriedError ?: parsed.error
+            traceAuthResult(
+                method.name,
+                method.endpoint,
+                raw.statusCode,
+                error?.let { "vk_error=${it.error_code}" }
+                    ?: "parsed=${(parsed.data as Any?)?.javaClass?.simpleName ?: "empty"}",
+            )
 
             if (error == null) {
                 if (parsed.data != null) return VkResult.Success(parsed.data)
@@ -170,6 +180,11 @@ class VkApiClient(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
+            if (isAuthWireMethod(method.name, method.endpoint)) {
+                DebugLog.add(
+                    "VK AUTH WIRE failure method=${method.name} type=${e.javaClass.simpleName}",
+                )
+            }
             e.printStackTrace()
             // Код 0 у нас означает «нет сети» и так и показывается пользователю
             // («Нет подключения к интернету»). Но сюда попадало ЛЮБОЕ исключение —
@@ -234,6 +249,26 @@ class VkApiClient(
             putIfAbsent("device_id", deviceIdProvider())
         }
 
+        val resolvedUserAgent = userAgent ?: VkUserAgents.api
+        if (isAuthWireMethod(name, endpoint)) {
+            DebugLog.add(
+                "VK AUTH WIRE request method=$name endpoint=${endpoint.name} http=${httpMethod.name} " +
+                    "host=${wireHost(endpoint, selectedApiDomain)}",
+            )
+            DebugLog.add(
+                "VK AUTH WIRE headers User-Agent=${wireText(resolvedUserAgent)} " +
+                    "X-VK-Android-Client=${if (endpoint != VkEndpoint.OAUTH) "new" else "absent"} " +
+                    "X-Screen=${if (endpoint != VkEndpoint.OAUTH) "nowhere" else "absent"} " +
+                    "Authorization=${wireFingerprint(token)} " +
+                    "Content-Type=${if (httpMethod == VkHttpMethod.POST) "application/x-www-form-urlencoded" else "absent"}",
+            )
+            DebugLog.add(
+                "VK AUTH WIRE params " + requestParams.entries.joinToString("&") { (key, value) ->
+                    "$key=${wireParam(key, value)}"
+                },
+            )
+        }
+
         val response: HttpResponse = httpClient.request {
             method = if (httpMethod == VkHttpMethod.GET) HttpMethod.Get else HttpMethod.Post
             url {
@@ -261,13 +296,16 @@ class VkApiClient(
                 header("X-Screen", "nowhere")
             }
             token?.let { header("Authorization", "Bearer $it") }
-            header("User-Agent", userAgent ?: VkUserAgents.api)
+            header("User-Agent", resolvedUserAgent)
             if (httpMethod == VkHttpMethod.POST) {
                 header("Content-Type", "application/x-www-form-urlencoded")
                 setBody(FormDataContent(Parameters.build {
                     requestParams.forEach { (key, value) -> append(key, value) }
                 }))
             }
+        }
+        if (isAuthWireMethod(name, endpoint)) {
+            DebugLog.add("VK AUTH WIRE received method=$name http=${response.status.value}")
         }
         return KtorRawHttpResponse(response)
     }
@@ -314,6 +352,89 @@ class VkApiClient(
     companion object {
         /** api_id официального Android-клиента VK (хардкод в оригинале). */
         const val VK_ANDROID_CLIENT_ID = RecoveredServiceConfig.VK_ANDROID_CLIENT_ID
+
+        private val authWireNames = setOf(
+            "get_anonym_token",
+            "auth.validateAccount",
+            "ecosystem.sendOtpSms",
+            "ecosystem.sendOtpEmail",
+            "ecosystem.sendOtpPush",
+            "ecosystem.sendOtpCallReset",
+            "ecosystem.checkOtp",
+            "token",
+        )
+
+        private val hiddenWireParams = setOf(
+            "login",
+            "username",
+            "password",
+            "code",
+            "captcha_key",
+            "success_token",
+            "client_secret",
+        )
+
+        private val fingerprintedWireParams = setOf(
+            "sid",
+            "anonymous_token",
+            "access_token",
+            "captcha_sid",
+            "device_id",
+        )
+
+        private val visibleWireParams = setOf(
+            "v",
+            "https",
+            "api_id",
+            "lang",
+            "client_id",
+            "force_password",
+            "passkey_supported",
+            "supported_ways",
+            "flow_type",
+            "sak_version",
+            "verification_method",
+            "libverify_support",
+            "scope",
+            "device_trusted_hash_support",
+            "grant_type",
+            "2fa_supported",
+            "captcha_ts",
+            "captcha_attempt",
+        )
+
+        private fun isAuthWireMethod(name: String, endpoint: VkEndpoint): Boolean =
+            name in authWireNames && (endpoint == VkEndpoint.API_METHOD || endpoint == VkEndpoint.API_OAUTH)
+
+        private fun traceAuthResult(name: String, endpoint: VkEndpoint, status: Int, result: String) {
+            if (isAuthWireMethod(name, endpoint)) {
+                DebugLog.add("VK AUTH WIRE result method=$name http=$status $result")
+            }
+        }
+
+        private fun wireHost(endpoint: VkEndpoint, domain: String): String = when (endpoint) {
+            VkEndpoint.API_METHOD, VkEndpoint.API_OAUTH -> "api.$domain"
+            VkEndpoint.OAUTH -> "oauth.$domain"
+        }
+
+        private fun wireParam(name: String, value: String): String = when (name) {
+            in hiddenWireParams -> if (value.isEmpty()) "empty" else "present"
+            in fingerprintedWireParams -> wireFingerprint(value)
+            in visibleWireParams -> wireText(value)
+            else -> if (value.isEmpty()) "empty" else "present"
+        }
+
+        private fun wireFingerprint(value: String?): String {
+            if (value.isNullOrEmpty()) return "absent"
+            val digest = MessageDigest.getInstance("SHA-256").digest(value.toByteArray())
+            val shortHash = digest.take(6).joinToString("") { "%02x".format(it.toInt() and 0xff) }
+            return "<len=${value.length},sha256=$shortHash>"
+        }
+
+        private fun wireText(value: String): String = value
+            .replace('\n', ' ')
+            .replace('\r', ' ')
+            .take(240)
     }
 }
 
