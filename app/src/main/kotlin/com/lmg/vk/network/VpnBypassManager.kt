@@ -8,6 +8,7 @@ import android.net.NetworkRequest
 import android.os.Build
 import android.util.Log
 import com.lmg.vk.engine.AppSettings
+import com.lmg.vk.engine.NetworkVitality
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
