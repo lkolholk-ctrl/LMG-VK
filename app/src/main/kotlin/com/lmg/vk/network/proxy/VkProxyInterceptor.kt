@@ -2,6 +2,7 @@ package com.lmg.vk.network.proxy
 
 import com.lmg.vk.network.VkRequestIdentity
 import com.lmg.vk.network.VkUserAgents
+import com.lmg.vk.network.VK_DIRECT_AUTH_HEADER
 import okhttp3.Interceptor
 import okhttp3.Request
 import okhttp3.Response
@@ -38,24 +39,30 @@ internal class VkProxyInterceptor(
 
     override fun intercept(chain: Interceptor.Chain): Response {
         val original = chain.request()
-        val available = (if (enabled()) state() else null) as? VkProxyState.Available
+        val directAuth = original.header(VK_DIRECT_AUTH_HEADER) == "1"
+        val request = if (original.header(VK_DIRECT_AUTH_HEADER) != null) {
+            original.newBuilder().removeHeader(VK_DIRECT_AUTH_HEADER).build()
+        } else {
+            original
+        }
+        val available = (if (!directAuth && enabled()) state() else null) as? VkProxyState.Available
 
         // Редиректы у самого OkHttp выключены (см. installVkProxy), поэтому даже
         // непроксируемый запрос надо довести до конца здесь.
-        if (available == null || available.ips.isEmpty() || !available.matches(original.url.host)) {
-            return withReqHash(execute(chain, original, null, null))
+        if (available == null || available.ips.isEmpty() || !available.matches(request.url.host)) {
+            return withReqHash(execute(chain, request, null, null))
         }
 
         // Повтор возможен, только если тело можно прочитать заново. Односторонний
         // поток после первой попытки уже вычерпан — тогда работаем как VK X, по
         // первому адресу и без запасных вариантов.
-        val retryable = original.body?.isOneShot() != true
+        val retryable = request.body?.isOneShot() != true
         val candidates = if (retryable) available.ips else available.ips.take(1)
 
         var lastFailure: IOException? = null
         for (ip in candidates) {
             try {
-                return withReqHash(execute(chain, original, available, ip))
+                return withReqHash(execute(chain, request, available, ip))
             } catch (error: IOException) {
                 lastFailure = error
             }
@@ -65,7 +72,7 @@ internal class VkProxyInterceptor(
         // Ни один узел не ответил — пробуем напрямую. Если домен и правда
         // заблокирован, здесь прилетит своя ошибка, и это честнее, чем молчать.
         return try {
-            withReqHash(execute(chain, original, null, null))
+            withReqHash(execute(chain, request, null, null))
         } catch (direct: IOException) {
             throw lastFailure?.also { it.addSuppressed(direct) } ?: direct
         }

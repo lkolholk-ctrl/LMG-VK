@@ -5,6 +5,8 @@ import okhttp3.Response
 import java.net.HttpURLConnection
 import java.util.Locale
 
+internal const val VK_DIRECT_AUTH_HEADER = "X-LMG-VK-Direct-Auth"
+
 internal object VkRequestIdentity {
     private val domains = arrayOf(
         "userapi.com",
