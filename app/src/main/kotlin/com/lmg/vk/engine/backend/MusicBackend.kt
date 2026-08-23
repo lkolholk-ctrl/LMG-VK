@@ -564,6 +564,10 @@ object MusicBackend {
         streamCache.clear()
     }
 
+    fun clearStreamCache() {
+        streamCache.clear()
+    }
+
     // ---------- home / charts ----------
     suspend fun loadHomeContent(region: String? = null): HomeResponse {
         requireInitialized()

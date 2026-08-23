@@ -108,6 +108,7 @@ fun SettingsScreen(
     val proxyEnabled by com.lmg.vk.network.proxy.VkProxyRepository.enabled.collectAsState()
     val vpnBypassEnabled by AppSettings.vpnBypassEnabled.collectAsState()
     val isVpnActive by com.lmg.vk.network.VpnBypassManager.isVpnActive.collectAsState()
+    val isVpnBypassApplied by com.lmg.vk.network.VpnBypassManager.isBypassApplied.collectAsState()
 
     LaunchedEffect(page) { scroll.scrollTo(0) }
     LaunchedEffect(Unit) { com.lmg.vk.network.VpnBypassManager.updateStateAndApply() }
@@ -190,7 +191,12 @@ fun SettingsScreen(
                             SettingsCategoryDivider()
                             SettingsCategoryItem(
                                 title = "Network",
-                                subtitle = networkSummary(vpnBypassEnabled, isVpnActive, proxyEnabled),
+                                subtitle = networkSummary(
+                                    vpnBypassEnabled,
+                                    isVpnActive,
+                                    isVpnBypassApplied,
+                                    proxyEnabled,
+                                ),
                                 icon = lmgVector(LmgDrawables.GlobeOutline28),
                                 onClick = { page = SettingsPage.NETWORK },
                             )
@@ -310,8 +316,11 @@ fun SettingsScreen(
                             SettingsToggleItem(
                                 title = "Обход системного VPN",
                                 subtitle = if (vpnBypassEnabled) {
-                                    if (isVpnActive) "VPN активен · музыка идёт напрямую через физ. сеть"
-                                    else "Включен · направляет трафик напрямую через Wi-Fi / SIM"
+                                    when {
+                                        isVpnBypassApplied -> "VPN активен · VK работает через Wi-Fi / SIM"
+                                        isVpnActive -> "VPN активен · физическое соединение недоступно"
+                                        else -> "Включён · сработает при подключении VPN"
+                                    }
                                 } else {
                                     "Выключен · весь трафик идёт через системный VPN"
                                 },
@@ -671,12 +680,19 @@ private fun playbackSummary(crossfadeMs: Int, sleepTimerMinutes: Int): String {
 private fun networkSummary(
     vpnBypass: Boolean,
     isVpnActive: Boolean,
+    isVpnBypassApplied: Boolean,
     proxyEnabled: Boolean,
 ): String = buildString {
     if (vpnBypass) {
-        append(if (isVpnActive) "VPN bypass active" else "VPN bypass on")
+        append(
+            when {
+                isVpnBypassApplied -> "VK вне VPN"
+                isVpnActive -> "Обход VPN недоступен"
+                else -> "Обход VPN включён"
+            },
+        )
     } else {
-        append("Direct connection")
+        append(if (isVpnActive) "Через системный VPN" else "Прямое соединение")
     }
     if (proxyEnabled) {
         append(" · Проксированное соединение")

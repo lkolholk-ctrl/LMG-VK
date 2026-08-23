@@ -524,6 +524,7 @@ object PlayerController {
 
     // ── Stream URL cache ──
     private val streamUrlCache = java.util.concurrent.ConcurrentHashMap<String, CachedStreamUrl>()
+    private var networkRouteJob: Job? = null
     // Подпись URL у backend живёт 10 минут — кэшируем на 8: ссылка, выданная из
     // кэша на 10-й минуте, протухала при старте воспроизведения (спасал только
     // handleExpiredUrl с лишним round-trip и паузой).
@@ -2177,6 +2178,33 @@ object PlayerController {
                     }
                 }
             }
+        }
+    }
+
+    fun onNetworkRouteChanged() {
+        streamUrlCache.clear()
+        inFlightResolves.values.forEach { it.cancel() }
+        inFlightResolves.clear()
+        MusicBackend.clearStreamCache()
+        networkRouteJob?.cancel()
+        networkRouteJob = mainScope.launch {
+            delay(750)
+            val player = controller ?: return@launch
+            val trackId = player.currentMediaItem?.mediaId ?: return@launch
+            val track = queue.firstOrNull { it.id == trackId } ?: return@launch
+            if (!track.isOnlineTrack || !player.playWhenReady) return@launch
+            val position = player.currentPosition
+            val result = resolveStreamUrl(trackId)
+            if (result !is StreamResult.Success) return@launch
+            if (player.currentMediaItem?.mediaId != trackId || !player.playWhenReady) return@launch
+            val targetIndex = (0 until player.mediaItemCount).indexOfFirst {
+                player.getMediaItemAt(it).mediaId == trackId
+            }
+            if (targetIndex < 0) return@launch
+            player.replaceMediaItem(targetIndex, buildMediaItem(track, result.uri))
+            player.seekTo(targetIndex, position)
+            player.prepare()
+            player.playWhenReady = true
         }
     }
 

@@ -58,6 +58,7 @@ import java.util.concurrent.TimeUnit
 class LmgApplication : Application(), ImageLoaderFactory {
 
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val vkHttpConnectionPool = ConnectionPool(8, 60, TimeUnit.SECONDS)
 
     // Свой OkHttp для обложек с таймаутами: зависший CDN не должен копить
     // потоки (в ANR-дампе обложки висели в TLS-handshake). Пул эвиктим при
@@ -68,7 +69,7 @@ class LmgApplication : Application(), ImageLoaderFactory {
             .readTimeout(8, TimeUnit.SECONDS)
             .callTimeout(12, TimeUnit.SECONDS)
             .dispatcher(Dispatcher().apply { maxRequests = 6; maxRequestsPerHost = 4 })
-            .connectionPool(ConnectionPool(4, 60, TimeUnit.SECONDS))
+            .connectionPool(vkHttpConnectionPool)
             // Картинки живут на тех же заблокированных доменах, что и API с
             // медиа (`*.userapi.com`, `*.vk-cdn.net`), поэтому обход нужен и им.
             // Без этого при включённом обходе получалась ровно жалоба «иконки не
@@ -192,7 +193,12 @@ class LmgApplication : Application(), ImageLoaderFactory {
         // installVkProxy, поэтому переиспользуем этот.
         val vkNetworkClient = KtorHttpClient(KtorOkHttp) {
             expectSuccess = false
-            engine { config { installVkProxy() } }
+            engine {
+                config {
+                    connectionPool(vkHttpConnectionPool)
+                    installVkProxy()
+                }
+            }
         }
         val vkApiClient = VkApiClient(
             httpClient = vkNetworkClient,
@@ -211,9 +217,10 @@ class LmgApplication : Application(), ImageLoaderFactory {
         MusicBackend.init(vkApiClient, vkSessionStore)
 
         // ── Сетевая живучесть ─────────────────────────────────────────────
-        NetworkVitality.registerReviver("covers") { evictImageConnections() }
-        // TODO(vk-wire): reviver для Ktor-клиента VkApiClient (evict пула).
-
+        NetworkVitality.registerReviver("vk-http") { evictImageConnections() }
+        NetworkVitality.registerReviver("playback") {
+            PlayerController.onNetworkRouteChanged()
+        }
         // Колбэк дефолтной сети — на уровне ПРИЛОЖЕНИЯ.
         registerAppNetworkCallback()
 

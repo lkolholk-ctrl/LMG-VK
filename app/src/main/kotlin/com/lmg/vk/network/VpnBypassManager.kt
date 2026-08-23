@@ -16,6 +16,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 /**
  * VpnBypassManager — направляет сетевой трафик приложения напрямую через физический
@@ -39,6 +41,8 @@ object VpnBypassManager {
 
     private var networkCallback: ConnectivityManager.NetworkCallback? = null
     private var defaultNetworkCallback: ConnectivityManager.NetworkCallback? = null
+    private val bindingMutex = Mutex()
+    private var boundNetwork: Network? = null
 
     fun init(context: Context) {
         if (connectivityManager != null) return
@@ -91,12 +95,10 @@ object VpnBypassManager {
             }
         }
 
-        // Периодический опрос (раз в 2 сек) как надёжная страховка для кастомных VPN (v2rayTun/Xray),
-        // которые могут поднимать/гасить туннели без стандартного широковещательного события.
         scope.launch {
             while (isActive) {
                 updateStateAndApply()
-                delay(2000)
+                delay(5000)
             }
         }
 
@@ -105,63 +107,77 @@ object VpnBypassManager {
 
     fun applyMode(enabled: Boolean) {
         val cm = connectivityManager ?: return
-        if (!enabled) {
-            runCatching {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                    cm.bindProcessToNetwork(null)
+        if (enabled) {
+            updateStateAndApply()
+        } else {
+            scope.launch {
+                bindingMutex.withLock {
+                    applyBinding(cm, null)
                 }
             }
-            _isBypassApplied.value = false
-            Log.d(TAG, "VPN bypass disabled: restored default process network binding")
-            return
         }
-        updateStateAndApply()
     }
 
     fun updateStateAndApply() {
         val cm = connectivityManager ?: return
         scope.launch {
-            val networks = cm.allNetworks
-            var vpnFound = false
-            var physicalNetwork: Network? = null
+            bindingMutex.withLock {
+                val networks = cm.allNetworks.mapNotNull { network ->
+                    runCatching { cm.getNetworkCapabilities(network) }.getOrNull()?.let { network to it }
+                }
+                val vpnFound = networks.any { (_, caps) ->
+                    caps.hasTransport(NetworkCapabilities.TRANSPORT_VPN)
+                }
+                if (_isVpnActive.value != vpnFound) {
+                    _isVpnActive.value = vpnFound
+                    Log.d(TAG, "VPN state changed: isVpnActive = $vpnFound")
+                }
 
-            for (network in networks) {
-                val caps = runCatching { cm.getNetworkCapabilities(network) }.getOrNull() ?: continue
-                if (caps.hasTransport(NetworkCapabilities.TRANSPORT_VPN)) {
-                    vpnFound = true
-                }
-                if (caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
-                    !caps.hasTransport(NetworkCapabilities.TRANSPORT_VPN)
-                ) {
-                    if (caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ||
-                        caps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) ||
-                        caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET)
-                    ) {
-                        physicalNetwork = network
+                val physicalNetwork = networks
+                    .asSequence()
+                    .filter { (_, caps) ->
+                        caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
+                            !caps.hasTransport(NetworkCapabilities.TRANSPORT_VPN) &&
+                            (caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ||
+                                caps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) ||
+                                caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET))
                     }
-                }
-            }
+                    .maxByOrNull { (_, caps) ->
+                        var score = 0
+                        if (caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)) score += 100
+                        if (caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_SUSPENDED)) score += 20
+                        if (caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) score += 30
+                        if (caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET)) score += 25
+                        if (caps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR)) score += 10
+                        score
+                    }
+                    ?.first
 
-            if (_isVpnActive.value != vpnFound) {
-                _isVpnActive.value = vpnFound
-                Log.d(TAG, "VPN state changed: isVpnActive = $vpnFound")
-            }
-
-            if (AppSettings.vpnBypassEnabled.value && physicalNetwork != null) {
-                runCatching {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                        cm.bindProcessToNetwork(physicalNetwork)
-                    }
+                val target = physicalNetwork.takeIf {
+                    vpnFound && AppSettings.vpnBypassEnabled.value
                 }
-                _isBypassApplied.value = true
-            } else {
-                runCatching {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                        cm.bindProcessToNetwork(null)
-                    }
-                }
-                _isBypassApplied.value = false
+                applyBinding(cm, target)
             }
         }
+    }
+
+    private fun applyBinding(cm: ConnectivityManager, target: Network?) {
+        if (boundNetwork == target && _isBypassApplied.value == (target != null)) return
+        val applied = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            runCatching { cm.bindProcessToNetwork(target) }.getOrDefault(false)
+        } else {
+            target == null
+        }
+        if (!applied) {
+            Log.w(TAG, "Failed to apply VPN bypass network")
+            return
+        }
+        boundNetwork = target
+        _isBypassApplied.value = target != null
+        Log.d(TAG, if (target == null) "Using default network" else "Using physical network $target")
+        com.lmg.vk.debug.DebugLog.add(
+            if (target == null) "VPN BYPASS route=default" else "VPN BYPASS route=physical",
+        )
+        NetworkVitality.onDefaultNetworkChanged()
     }
 }
