@@ -40,6 +40,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -88,6 +89,7 @@ fun AuthScreen(
     onBack: () -> Unit = {},
     isAddingAccount: Boolean = false,
     backHandlingEnabled: Boolean = true,
+    onRootBackStateChanged: (Boolean) -> Unit = {},
 ) {
     val lc = LiquidTheme.colors
     val isDark = lc.isDark
@@ -136,6 +138,10 @@ fun AuthScreen(
         captchaSid = null
         captchaKey = ""
         error = null
+    }
+
+    SideEffect {
+        onRootBackStateChanged(step == AuthStep.Phone)
     }
 
     BackHandler(enabled = backHandlingEnabled && step != AuthStep.Phone) {

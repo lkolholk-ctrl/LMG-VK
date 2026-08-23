@@ -27,6 +27,7 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -60,7 +61,11 @@ import kotlinx.coroutines.launch
  * Не трогает рабочее (JUCE/RT/AutoMix/MediaSession/UI лирики).
  */
 @Composable
-fun LrcPublishScreen(track: Track, onBack: () -> Unit) {
+fun LrcPublishScreen(
+    track: Track,
+    onBack: () -> Unit,
+    onRootBackStateChanged: (Boolean) -> Unit = {},
+) {
     val lc = LiquidTheme.colors
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -86,6 +91,10 @@ fun LrcPublishScreen(track: Track, onBack: () -> Unit) {
     // Уже есть моя пословная разметка для этого трека?
     var hasMine by remember(track.id) {
         mutableStateOf(LyricsParser.hasMyWordLyrics(context, track.artist, track.title, track.durationMs))
+    }
+
+    SideEffect {
+        onRootBackStateChanged(!taggingMode && !wordTaggingMode)
     }
 
     if (taggingMode) {

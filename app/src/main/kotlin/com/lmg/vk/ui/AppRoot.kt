@@ -118,23 +118,6 @@ private fun PredictiveBackLayer(
         }
     }
 
-    PredictiveBackHandler(enabled = enabled && !completing) { events ->
-        try {
-            events.collect { event -> progress.snapTo(event.progress) }
-            completing = true
-            progress.animateTo(
-                1f,
-                tween(140, easing = com.lmg.vk.ui.theme.AppleEasings.Standard),
-            )
-            onBack()
-        } catch (_: CancellationException) {
-            completing = false
-            scope.launch {
-                progress.animateTo(0f, spring(dampingRatio = 0.82f, stiffness = 520f))
-            }
-        }
-    }
-
     val fraction = progress.value.coerceIn(0f, 1f)
     Box(modifier = modifier.fillMaxSize()) {
         Box(
@@ -156,6 +139,23 @@ private fun PredictiveBackLayer(
                 }
         ) {
             content(::finishBack)
+        }
+    }
+
+    PredictiveBackHandler(enabled = enabled && !completing) { events ->
+        try {
+            events.collect { event -> progress.snapTo(event.progress) }
+            completing = true
+            progress.animateTo(
+                1f,
+                tween(140, easing = com.lmg.vk.ui.theme.AppleEasings.Standard),
+            )
+            onBack()
+        } catch (_: CancellationException) {
+            completing = false
+            scope.launch {
+                progress.animateTo(0f, spring(dampingRatio = 0.82f, stiffness = 520f))
+            }
         }
     }
 }
@@ -193,9 +193,15 @@ fun AppRoot() {
             rootOverlayStack = rootOverlayStack.filterNot { it == pending.overlay }
         }
         overlayNavReturn = null
+        if (index == 3) {
+            rootOverlayStack = rootOverlayStack.filterNot {
+                it == RootOverlay.SETTINGS
+            } + RootOverlay.SETTINGS
+            AppSettings.setLastScreen(index)
+            return
+        }
         val (graph, home) = when (index) {
             2 -> NavRoutes.GRAPH_LIBRARY to NavRoutes.LIBRARY_HOME
-            3 -> NavRoutes.GRAPH_SETTINGS to NavRoutes.SETTINGS_HOME
             4 -> NavRoutes.GRAPH_NEW to NavRoutes.NEW_HOME
             else -> NavRoutes.GRAPH_WAVE to NavRoutes.WAVE_HOME
         }
@@ -243,6 +249,10 @@ fun AppRoot() {
     var accountsDialogOpen by remember { mutableStateOf(false) }
     var reopenAccountsAfterAuth by remember { mutableStateOf(false) }
     var reopenAccountsAfterRemoval by remember { mutableStateOf(false) }
+    var settingsAtRoot by remember { mutableStateOf(true) }
+    var profileAtRoot by remember { mutableStateOf(true) }
+    var authAtRoot by remember { mutableStateOf(true) }
+    var lrcPublishAtRoot by remember { mutableStateOf(true) }
     var accountActionError by remember { mutableStateOf<String?>(null) }
     var accountPendingRemoval by remember { mutableStateOf<com.lmg.vk.engine.backend.VkAccountSummary?>(null) }
     val accounts by com.lmg.vk.engine.backend.MusicAuth.accounts.collectAsState()
@@ -715,12 +725,13 @@ fun AppRoot() {
         ) {
             lrcPublishTrack?.let { track ->
                 PredictiveBackLayer(
-                    enabled = tagEditTrack == null && topRootOverlay == null,
+                    enabled = tagEditTrack == null && topRootOverlay == null && lrcPublishAtRoot,
                     onBack = { lrcPublishTrack = null },
                 ) { requestBack ->
                     com.lmg.vk.ui.screens.LrcPublishScreen(
                         track = track,
                         onBack = requestBack,
+                        onRootBackStateChanged = { lrcPublishAtRoot = it },
                     )
                 }
             }
@@ -804,7 +815,7 @@ fun AppRoot() {
             ) + fadeOut(animationSpec = tween(200))
         ) {
             PredictiveBackLayer(
-                enabled = topRootOverlay == RootOverlay.SETTINGS,
+                enabled = topRootOverlay == RootOverlay.SETTINGS && settingsAtRoot,
                 onBack = { closeRootOverlay(RootOverlay.SETTINGS) },
             ) { requestBack ->
                 SettingsScreen(
@@ -825,6 +836,7 @@ fun AppRoot() {
                         navigateFromOverlay(RootOverlay.SETTINGS, NavRoutes.DEBUG_LOG)
                     },
                     backHandlingEnabled = topRootOverlay == RootOverlay.SETTINGS,
+                    onRootBackStateChanged = { settingsAtRoot = it },
                     backdrop = rootBackdrop,
                 )
             }
@@ -843,7 +855,7 @@ fun AppRoot() {
             ) + fadeOut(tween(150))
         ) {
             PredictiveBackLayer(
-                enabled = topRootOverlay == RootOverlay.PROFILE,
+                enabled = topRootOverlay == RootOverlay.PROFILE && profileAtRoot,
                 onBack = { closeRootOverlay(RootOverlay.PROFILE) },
             ) {
                 ProfileScreen(
@@ -878,6 +890,7 @@ fun AppRoot() {
                         accountsDialogOpen = true
                     },
                     backHandlingEnabled = topRootOverlay == RootOverlay.PROFILE,
+                    onRootBackStateChanged = { profileAtRoot = it },
                 )
             }
         }
@@ -894,7 +907,7 @@ fun AppRoot() {
             ) + fadeOut(tween(150))
         ) {
             PredictiveBackLayer(
-                enabled = topRootOverlay == RootOverlay.AUTH,
+                enabled = topRootOverlay == RootOverlay.AUTH && authAtRoot,
                 onBack = {
                     closeRootOverlay(RootOverlay.AUTH)
                     authAddingAccount = false
@@ -917,6 +930,7 @@ fun AppRoot() {
                     onBack = requestBack,
                     isAddingAccount = authAddingAccount,
                     backHandlingEnabled = topRootOverlay == RootOverlay.AUTH,
+                    onRootBackStateChanged = { authAtRoot = it },
                 )
             }
         }

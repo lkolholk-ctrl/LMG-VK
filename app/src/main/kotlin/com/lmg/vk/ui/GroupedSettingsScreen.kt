@@ -32,6 +32,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -88,6 +89,7 @@ fun SettingsScreen(
     onOpenDebugLog: () -> Unit = {},
     showBack: Boolean = true,
     backHandlingEnabled: Boolean = true,
+    onRootBackStateChanged: (Boolean) -> Unit = {},
     backdrop: LayerBackdrop,
 ) {
     val context = LocalContext.current
@@ -130,6 +132,12 @@ fun SettingsScreen(
 
     fun returnFromPage() {
         page = if (page == SettingsPage.DUPLICATES) SettingsPage.VK else SettingsPage.ROOT
+    }
+
+    SideEffect {
+        onRootBackStateChanged(
+            page == SettingsPage.ROOT && showBack && !showDuplicateRemovalDialog
+        )
     }
 
     BackHandler(enabled = backHandlingEnabled && page != SettingsPage.ROOT) {

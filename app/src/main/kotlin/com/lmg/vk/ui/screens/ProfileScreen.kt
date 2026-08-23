@@ -43,6 +43,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -106,6 +107,7 @@ fun ProfileScreen(
     onAddAccount: () -> Unit = {},
     onOpenAccounts: () -> Unit = {},
     backHandlingEnabled: Boolean = true,
+    onRootBackStateChanged: (Boolean) -> Unit = {},
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -211,6 +213,16 @@ fun ProfileScreen(
                 groupsQuery = ""
             }
         }
+    }
+
+    SideEffect {
+        onRootBackStateChanged(
+            ownerAudio == null &&
+                !friendsExpanded &&
+                !groupsExpanded &&
+                !playlistsExpanded &&
+                !showSignOutConfirmation
+        )
     }
 
     BackHandler(
