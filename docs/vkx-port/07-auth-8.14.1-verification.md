@@ -128,3 +128,10 @@ is_sound_captcha_available`.
   включая пустой `code`, как исходный builder.
 - Ошибка auth/ecosystem показывает код VK вместе с текстом, чтобы
   следующая полевая проверка не теряла server error code.
+
+## 8. Native auth identity
+
+- Из `libvkx.so` восстановлен единый UA slot 13: префик
+  `VKAndroidApp/8.183-54468` и порядок полей `Android`, `SDK`, `ru`, ABI,
+  manufacturer/model, resolution.
+- API и auth больше не используют разные устаревшие UA.

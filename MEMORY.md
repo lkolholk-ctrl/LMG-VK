@@ -959,3 +959,6 @@ Add второго аккаунта; неверный пароль не сбра
 - Builder `oauth/token` приведён к исходному для пустых значений:
   `sid`, `anonymous_token` и `code` кладутся в форму всегда. В UI auth-ошибки
   теперь сохраняют код VK в виде `[code] message`.
+- Полный native-аудит 8.14.1 восстановил единый User-Agent slot 13:
+  `VKAndroidApp/8.183-54468 (Android <release>; SDK <sdk>; ru; <abi>; <manufacturer> <model>; <width>x<height>)`.
+  API/auth переведены на этот один формат; прежние версии и позиция Locale удалены.

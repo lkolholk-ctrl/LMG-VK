@@ -14,14 +14,13 @@ internal object VkUserAgents {
         val abi = Build.SUPPORTED_ABIS.firstOrNull().orEmpty().ifBlank { Build.CPU_ABI }
         return String.format(
             Locale.US,
-            "%s (Android %s; SDK %d; %s; %s %s; %s; %dx%d)",
+            "%s (Android %s; SDK %d; ru; %s; %s %s; %dx%d)",
             prefix,
             Build.VERSION.RELEASE,
             Build.VERSION.SDK_INT,
             abi,
             Build.MANUFACTURER,
             Build.MODEL,
-            Locale.getDefault().language,
             metrics.widthPixels,
             metrics.heightPixels,
         )

@@ -10,8 +10,8 @@ internal object RecoveredServiceConfig {
     const val VK_ANDROID_CLIENT_ID = "2274003"
     const val VK_ANDROID_CLIENT_SECRET = "hHbZxrka2uZ6jB1inYsH"
 
-    const val VK_ANDROID_USER_AGENT = "VKAndroidApp/8.108-26257"
-    const val VK_ANDROID_AUTH_USER_AGENT = "VKAndroidApp/8.165.1-48535"
+    const val VK_ANDROID_USER_AGENT = "VKAndroidApp/8.183-54468"
+    const val VK_ANDROID_AUTH_USER_AGENT = VK_ANDROID_USER_AGENT
 
     const val UMA_PACKAGE = "com.uma.musicvk"
     const val UMA_APP_ID = 6767438
