@@ -37,6 +37,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -80,14 +81,6 @@ private val DestructiveRed = Color(0xFFFC3C44)
 
 private enum class AuthStep { Phone, TwoFactor, Password, Captcha }
 
-/**
- * Liquid Glass пошаговый экран авторизации VK (как в VK X).
- *
- * 1. Номер телефона (Phone)
- * 2. Интерактивная SmartCaptcha («Я не робот» через GlobalCaptchaManager)
- * 3. Код подтверждения из СМС/Push (TwoFactor)
- * 4. Пароль (Password, если требуется)
- */
 @Composable
 fun AuthScreen(
     onAuthSuccess: () -> Unit = {},
@@ -98,6 +91,11 @@ fun AuthScreen(
     val isDark = lc.isDark
     val scope = rememberCoroutineScope()
     val keyboardController = LocalSoftwareKeyboardController.current
+
+    DisposableEffect(Unit) {
+        MusicAuth.beginAuthorization()
+        onDispose { MusicAuth.endAuthorization() }
+    }
 
     val isLoggedIn by MusicAuth.isLoggedIn.collectAsState()
     LaunchedEffect(isLoggedIn, isAddingAccount) {
@@ -236,6 +234,7 @@ fun AuthScreen(
                                     password = ""
                                     onBack()
                                 } else {
+                                    MusicAuth.restartAuthorization()
                                     step = AuthStep.Phone
                                     verificationCode = ""
                                     validationSid = null
@@ -605,7 +604,6 @@ fun AuthScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // ─── Security & Keystore Guarantee Banner (как в VK X) ───
             val bannerBg = if (isDark) Color(0xFF141416) else Color(0xFFF2F3F5)
             val bannerBorder = if (isDark) Color.White.copy(alpha = 0.06f) else Color.Black.copy(alpha = 0.04f)
 

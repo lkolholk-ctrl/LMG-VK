@@ -48,6 +48,9 @@ object PlaylistSyncManager {
     }
 
     suspend fun sync(): Result<SyncReport> = mutex.withLock {
+        if (MusicAuth.isAuthorizationInProgress) {
+            return@withLock Result.success(SyncReport())
+        }
         if (!MusicAuth.isLoggedIn.value) {
             val failure = IllegalStateException("Sign in to sync playlists")
             _state.value = _state.value.copy(error = failure.message)
@@ -115,11 +118,13 @@ object PlaylistSyncManager {
     }
 
     private suspend fun merge(): SyncReport {
+        ensureAuthorizationIdle()
         val activeOwnerId = MusicAuth.profileId.value
             ?: throw IllegalStateException("No active VK account")
         var deleted = 0
         var failedDeletes = 0
         PlaylistManager.pendingDeletes(activeOwnerId).forEach { remoteId ->
+            ensureAuthorizationIdle()
             if (MusicBackend.deleteUserPlaylist(remoteId)) {
                 PlaylistManager.confirmRemoteDelete(activeOwnerId, remoteId)
                 deleted++
@@ -141,6 +146,7 @@ object PlaylistSyncManager {
         PlaylistManager.playlists.value.filter {
             it.remoteId != null && it.remoteOwnerId == activeOwnerId
         }.forEach { local ->
+            ensureAuthorizationIdle()
             val remote = remoteById[local.remoteId]
             if (remote == null) {
                 // Не удаляем и не пересоздаём: ответ мог быть неполным.
@@ -170,6 +176,7 @@ object PlaylistSyncManager {
 
         // Новые локальные плейлисты создаём в текущем VK-аккаунте.
         PlaylistManager.playlists.value.filter { it.remoteId == null }.forEach { local ->
+            ensureAuthorizationIdle()
             if (push(local, activeOwnerId)) {
                 pushed++
                 unsupported += local.tracks.count { !it.id.isVkAudioId() }
@@ -184,6 +191,7 @@ object PlaylistSyncManager {
         remotePlaylists.filter { remote ->
             remote.id?.let { it !in linkedRemoteIds } == true
         }.forEach { remote ->
+            ensureAuthorizationIdle()
             if (pull(remote, activeOwnerId)) pulled++ else failed++
         }
 
@@ -251,5 +259,11 @@ object PlaylistSyncManager {
         val normalized = removePrefix("vk_")
         val parts = normalized.split('_')
         return parts.size >= 2 && parts[0].toLongOrNull() != null && parts[1].toLongOrNull() != null
+    }
+
+    private fun ensureAuthorizationIdle() {
+        if (MusicAuth.isAuthorizationInProgress) {
+            throw CancellationException("Authorization started")
+        }
     }
 }

@@ -3232,7 +3232,6 @@ data class VkAccountSummary(
     val isExpired: Boolean,
 )
 
-/** Авторизация/подписка (бывш. IcmAuthRepository). */
 object MusicAuth {
     private val _isLoggedIn = MutableStateFlow(false)
     val isLoggedIn: StateFlow<Boolean> = _isLoggedIn
@@ -3273,10 +3272,30 @@ object MusicAuth {
     private var methods: VkMethodsRegistry? = null
     private val anonymousTokenMutex = Mutex()
     private val signInMutex = Mutex()
+    private val activeSignInCalls = java.util.concurrent.atomic.AtomicInteger(0)
+    private val authorizationUiActive = java.util.concurrent.atomic.AtomicBoolean(false)
     private var anonymousToken: String = ""
     private var anonymousTokenExpiresAt: Long = 0L
+    @Volatile
     private var activeAuthAttempt: AuthAttempt? = null
     private var activeContentAccountId = Long.MIN_VALUE
+
+    val isAuthorizationInProgress: Boolean
+        get() = authorizationUiActive.get() || activeSignInCalls.get() > 0 || activeAuthAttempt != null
+
+    fun beginAuthorization() {
+        activeAuthAttempt = null
+        authorizationUiActive.set(true)
+    }
+
+    fun restartAuthorization() {
+        activeAuthAttempt = null
+    }
+
+    fun endAuthorization() {
+        activeAuthAttempt = null
+        authorizationUiActive.set(false)
+    }
 
     private data class AuthAttempt(
         val username: String,
@@ -3313,85 +3332,90 @@ object MusicAuth {
         }
 
         val registry = methods ?: return VkLoginResult.Failure("VK API is not initialized")
-        return signInMutex.withLock {
-            val normalizedUsername = username.trim()
-            val isCaptchaContinuation = !captchaKey.isNullOrBlank() && !captchaSid.isNullOrBlank()
-            val currentAttempt = activeAuthAttempt
-            val isPasswordContinuation = !isCaptchaContinuation &&
-                !validationSid.isNullOrBlank() &&
-                password.isNotBlank() &&
-                currentAttempt?.awaitingPassword == true
-            val isOtpContinuation = !isCaptchaContinuation && !isPasswordContinuation &&
-                !code.isNullOrBlank() && !validationSid.isNullOrBlank()
+        activeSignInCalls.incrementAndGet()
+        return try {
+            signInMutex.withLock {
+                val normalizedUsername = username.trim()
+                val isCaptchaContinuation = !captchaKey.isNullOrBlank() && !captchaSid.isNullOrBlank()
+                val currentAttempt = activeAuthAttempt
+                val isPasswordContinuation = !isCaptchaContinuation &&
+                    !validationSid.isNullOrBlank() &&
+                    password.isNotBlank() &&
+                    currentAttempt?.awaitingPassword == true
+                val isOtpContinuation = !isCaptchaContinuation && !isPasswordContinuation &&
+                    !code.isNullOrBlank() && !validationSid.isNullOrBlank()
 
-            if (!isOtpContinuation && !isCaptchaContinuation && !isPasswordContinuation) {
-                activeAuthAttempt = null
-                startAuthAttempt(registry, normalizedUsername, password)?.let { return@withLock it }
-            }
+                if (!isOtpContinuation && !isCaptchaContinuation && !isPasswordContinuation) {
+                    activeAuthAttempt = null
+                    startAuthAttempt(registry, normalizedUsername, password)?.let { return@withLock it }
+                }
 
-            val attempt = activeAuthAttempt
-                ?: return@withLock VkLoginResult.Failure("VK authorization session expired. Start again.")
-            if (attempt.username != normalizedUsername) {
-                activeAuthAttempt = null
-                return@withLock VkLoginResult.Failure("The login changed. Start authorization again.")
-            }
-            if ((isOtpContinuation || isPasswordContinuation) && validationSid != attempt.sid) {
-                return@withLock VkLoginResult.Failure("VK verification session changed. Start again.")
-            }
+                val attempt = activeAuthAttempt
+                    ?: return@withLock VkLoginResult.Failure("VK authorization session expired. Start again.")
+                if (attempt.username != normalizedUsername) {
+                    activeAuthAttempt = null
+                    return@withLock VkLoginResult.Failure("The login changed. Start authorization again.")
+                }
+                if ((isOtpContinuation || isPasswordContinuation) && validationSid != attempt.sid) {
+                    return@withLock VkLoginResult.Failure("VK verification session changed. Start again.")
+                }
 
-            if (isOtpContinuation) {
-                if (attempt.legacyTokenValidation) {
-                    attempt.oauthCode = requireNotNull(code)
-                } else {
-                    when (val token = getAnonymousToken(registry)) {
-                        is VkResult.Error -> return@withLock token.asLoginFailure(
-                            "VK anonymous authorization session expired",
-                        )
-                        is VkResult.Success -> attempt.anonymousToken = token.data
-                    }
-                    when (val checked = registry.ecosystemCheckOtp(
-                        sid = attempt.sid,
-                        code = requireNotNull(code),
-                        verificationMethod = attempt.verificationMethod.wireName,
-                        anonymousToken = attempt.anonymousToken,
-                    )) {
-                        is VkResult.Error -> return@withLock checked.asLoginFailure("VK rejected the verification code")
-                        is VkResult.Success -> {
-                            val checkedSid = checked.data.sid
-                            if (checkedSid.isBlank()) {
-                                return@withLock VkLoginResult.Failure("VK returned an empty verified session")
-                            }
-                            attempt.sid = checkedSid
-                            attempt.canSkipPassword = checked.data.canSkipPassword == true
-                            attempt.awaitingPassword = !attempt.canSkipPassword
-                            attempt.grantType = if (attempt.canSkipPassword) {
-                                "without_password"
-                            } else {
-                                "phone_confirmation_sid"
-                            }
-                            if (!attempt.canSkipPassword && password.isBlank()) {
-                                return@withLock VkLoginResult.NeedPassword(attempt.sid)
+                if (isOtpContinuation) {
+                    if (attempt.legacyTokenValidation) {
+                        attempt.oauthCode = requireNotNull(code)
+                    } else {
+                        when (val token = getAnonymousToken(registry)) {
+                            is VkResult.Error -> return@withLock token.asLoginFailure(
+                                "VK anonymous authorization session expired",
+                            )
+                            is VkResult.Success -> attempt.anonymousToken = token.data
+                        }
+                        when (val checked = registry.ecosystemCheckOtp(
+                            sid = attempt.sid,
+                            code = requireNotNull(code),
+                            verificationMethod = attempt.verificationMethod.wireName,
+                            anonymousToken = attempt.anonymousToken,
+                        )) {
+                            is VkResult.Error -> return@withLock checked.asLoginFailure("VK rejected the verification code")
+                            is VkResult.Success -> {
+                                val checkedSid = checked.data.sid
+                                if (checkedSid.isBlank()) {
+                                    return@withLock VkLoginResult.Failure("VK returned an empty verified session")
+                                }
+                                attempt.sid = checkedSid
+                                attempt.canSkipPassword = checked.data.canSkipPassword == true
+                                attempt.awaitingPassword = !attempt.canSkipPassword
+                                attempt.grantType = if (attempt.canSkipPassword) {
+                                    "without_password"
+                                } else {
+                                    "phone_confirmation_sid"
+                                }
+                                if (!attempt.canSkipPassword && password.isBlank()) {
+                                    return@withLock VkLoginResult.NeedPassword(attempt.sid)
+                                }
                             }
                         }
                     }
                 }
-            }
 
-            val captchaParams = if (isCaptchaContinuation) {
-                if (captchaSid != attempt.captchaSid) {
-                    return@withLock VkLoginResult.Failure("VK captcha session changed. Start again.")
+                val captchaParams = if (isCaptchaContinuation) {
+                    if (captchaSid != attempt.captchaSid) {
+                        return@withLock VkLoginResult.Failure("VK captcha session changed. Start again.")
+                    }
+                    buildMap {
+                        put("captcha_sid", requireNotNull(captchaSid))
+                        put("captcha_key", requireNotNull(captchaKey))
+                        attempt.captchaTs?.let { put("captcha_ts", it.toString()) }
+                        attempt.captchaAttempt?.let { put("captcha_attempt", it.toString()) }
+                    }
+                } else {
+                    emptyMap()
                 }
-                buildMap {
-                    put("captcha_sid", requireNotNull(captchaSid))
-                    put("captcha_key", requireNotNull(captchaKey))
-                    attempt.captchaTs?.let { put("captcha_ts", it.toString()) }
-                    attempt.captchaAttempt?.let { put("captcha_attempt", it.toString()) }
-                }
-            } else {
-                emptyMap()
-            }
 
-            requestOAuthToken(registry, attempt, password, captchaParams)
+                requestOAuthToken(registry, attempt, password, captchaParams)
+            }
+        } finally {
+            activeSignInCalls.decrementAndGet()
         }
     }
 

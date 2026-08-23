@@ -49,9 +49,8 @@ class LibraryRepository private constructor(context: Context) {
         syncScope.launch {
             while (true) {
                 syncRequests.receive()
-                for (retryDelay in SYNC_RETRY_DELAYS_MS) {
-                    if (retryDelay > 0L) delay(retryDelay)
-                    if (!MusicAuth.isLoggedIn.value || syncWithCloud().isSuccess) break
+                if (MusicAuth.isLoggedIn.value && !MusicAuth.isAuthorizationInProgress) {
+                    syncWithCloud()
                 }
             }
         }
@@ -62,7 +61,11 @@ class LibraryRepository private constructor(context: Context) {
     )
 
     private fun requestCloudSync() {
-        if (MusicBackend.isInitialized && MusicAuth.isLoggedIn.value) {
+        if (
+            MusicBackend.isInitialized &&
+            MusicAuth.isLoggedIn.value &&
+            !MusicAuth.isAuthorizationInProgress
+        ) {
             syncRequests.trySend(Unit)
         }
     }
@@ -134,8 +137,74 @@ class LibraryRepository private constructor(context: Context) {
         return removed
     }
 
-    suspend fun syncWithCloud(): Result<Unit> = syncMutex.withLock {
-        if (!MusicBackend.isInitialized || !MusicAuth.isLoggedIn.value) {
+    private data class CloudDuplicateKey(
+        val title: String,
+        val artist: String,
+        val durationMs: Long,
+        val artistId: String,
+        val collectionId: String,
+        val explicit: Boolean,
+        val source: String,
+    )
+
+    private data class CloudDeduplication(
+        val tracks: List<LibraryTrack>,
+        val removed: Int,
+        val attempted: Int,
+    )
+
+    private fun LibraryTrack.duplicateKey(): CloudDuplicateKey? {
+        val normalizedTitle = title.trim().lowercase()
+        val normalizedArtist = artist.orEmpty().trim().lowercase()
+        if (normalizedTitle.isBlank() || normalizedArtist.isBlank() || durationMs <= 0L) return null
+        return CloudDuplicateKey(
+            title = normalizedTitle,
+            artist = normalizedArtist,
+            durationMs = durationMs,
+            artistId = artistId.orEmpty().trim(),
+            collectionId = collectionId.orEmpty().trim(),
+            explicit = isExplicit,
+            source = source.orEmpty().trim().lowercase(),
+        )
+    }
+
+    private suspend fun removeExactCloudDuplicates(cloudLikes: List<LibraryTrack>): CloudDeduplication {
+        val uniqueTracks = cloudLikes.distinctBy { stableTrackId(it.id) }
+        val duplicates = uniqueTracks.mapNotNull { track ->
+            track.duplicateKey()?.let { it to track }
+        }.groupBy(
+            keySelector = { it.first },
+            valueTransform = { it.second },
+        ).values.flatMap { group ->
+            if (group.size < 2) return@flatMap emptyList()
+            val dated = group.filter { (it.likedAt ?: 0L) > 0L }
+            val keeper = dated.minByOrNull { it.likedAt ?: Long.MAX_VALUE } ?: group.last()
+            group.filterNot { stableTrackId(it.id) == stableTrackId(keeper.id) }
+                .sortedByDescending { it.likedAt ?: Long.MAX_VALUE }
+        }.take(MAX_CLOUD_DUPLICATE_DELETES)
+
+        val removedIds = mutableSetOf<String>()
+        for ((index, duplicate) in duplicates.withIndex()) {
+            if (MusicAuth.isAuthorizationInProgress) break
+            if (index > 0) delay(CLOUD_DUPLICATE_DELETE_DELAY_MS)
+            if (MusicAuth.isAuthorizationInProgress) break
+            if (MusicBackend.unlikeTrack(duplicate.id)) {
+                removedIds += stableTrackId(duplicate.id)
+            }
+        }
+        return CloudDeduplication(
+            tracks = uniqueTracks.filterNot { stableTrackId(it.id) in removedIds },
+            removed = removedIds.size,
+            attempted = duplicates.size,
+        )
+    }
+
+    suspend fun syncWithCloud(cleanupCloudDuplicates: Boolean = false): Result<Unit> = syncMutex.withLock {
+        if (
+            !MusicBackend.isInitialized ||
+            !MusicAuth.isLoggedIn.value ||
+            MusicAuth.isAuthorizationInProgress
+        ) {
             return@withLock Result.success(Unit)
         }
         val accountId = MusicAuth.profileId.value ?: return@withLock Result.success(Unit)
@@ -143,7 +212,17 @@ class LibraryRepository private constructor(context: Context) {
         try {
             withContext(Dispatchers.IO) {
             try {
-                val cloudLikes = fetchCloudLikes()
+                val fetchedCloudLikes = fetchCloudLikes()
+                val cloudDeduplication = if (cleanupCloudDuplicates) {
+                    removeExactCloudDuplicates(fetchedCloudLikes)
+                } else {
+                    CloudDeduplication(
+                        tracks = fetchedCloudLikes.distinctBy { stableTrackId(it.id) },
+                        removed = 0,
+                        attempted = 0,
+                    )
+                }
+                val cloudLikes = cloudDeduplication.tracks
                 if (MusicAuth.profileId.value != accountId) {
                     return@withContext Result.failure(
                         IllegalStateException("VK account changed during library synchronization"),
@@ -255,9 +334,16 @@ class LibraryRepository private constructor(context: Context) {
 
                 val failedMutations = mutableListOf<String>()
                 val submittedInserts = mutableListOf<FavoriteTrackEntity>()
-                val pendingInserts = db.getPendingInserts()
+                val allPendingInserts = db.getPendingInserts()
+                val pendingInserts = if (cloudDeduplication.attempted > 0) {
+                    emptyList()
+                } else {
+                    allPendingInserts.take(MAX_CLOUD_MUTATIONS_PER_SYNC)
+                }
                 for ((batchIndex, batch) in pendingInserts.chunked(ADD_BATCH_SIZE).withIndex()) {
+                    if (MusicAuth.isAuthorizationInProgress) break
                     if (batchIndex > 0) delay(kotlin.random.Random.nextLong(1_500L, 2_501L))
+                    if (MusicAuth.isAuthorizationInProgress) break
                     val claimed = batch.mapNotNull { insert ->
                         if (!inFlight.add(insert.trackId)) return@mapNotNull null
                         val current = db.getByTrackId(insert.trackId)
@@ -269,15 +355,8 @@ class LibraryRepository private constructor(context: Context) {
                         }
                     }
                     if (claimed.isEmpty()) continue
-                    val submittedIds = MusicBackend.addTracksToLibrary(claimed.map { it.addRequestId() })
-                    for (current in claimed) {
-                        if (stableTrackId(current.trackId) in submittedIds) {
-                            submittedInserts += current
-                        } else {
-                            failedMutations += current.trackId
-                            inFlight.remove(current.trackId)
-                        }
-                    }
+                    MusicBackend.addTracksToLibrary(claimed.map { it.addRequestId() })
+                    submittedInserts += claimed
                 }
 
                 if (submittedInserts.isNotEmpty()) {
@@ -316,8 +395,15 @@ class LibraryRepository private constructor(context: Context) {
                     }
                 }
 
-                val pendingDeletes = db.getPendingDeletes()
+                val remainingMutationSlots =
+                    (MAX_CLOUD_MUTATIONS_PER_SYNC - submittedInserts.size).coerceAtLeast(0)
+                val pendingDeletes = if (MusicAuth.isAuthorizationInProgress) {
+                    emptyList()
+                } else {
+                    db.getPendingDeletes().take(remainingMutationSlots)
+                }
                 for (delete in pendingDeletes) {
+                    if (MusicAuth.isAuthorizationInProgress) break
                     if (!inFlight.add(delete.trackId)) continue
                     try {
                         val cloudId = delete.cloudTrackId
@@ -345,8 +431,9 @@ class LibraryRepository private constructor(context: Context) {
                 updatePlayerControllerFavorites()
                 com.lmg.vk.debug.DebugLog.add(
                     "LIBRARY SYNC cloud=${cloudLikes.size} local=${localEntities.size} " +
-                        "pending=${pendingInserts.size} submitted=${submittedInserts.size} " +
-                        "deduplicated=$deduplicated failed=${failedMutations.distinct().size}",
+                        "pending=${allPendingInserts.size} submitted=${submittedInserts.size} " +
+                        "deduplicated=$deduplicated cloud_duplicates_removed=${cloudDeduplication.removed} " +
+                        "failed=${failedMutations.distinct().size}",
                 )
 
                 if (failedMutations.isEmpty()) {
@@ -518,9 +605,11 @@ class LibraryRepository private constructor(context: Context) {
 
     companion object {
         private val CLOUD_SYNCS = java.util.concurrent.atomic.AtomicInteger(0)
-        private const val ADD_BATCH_SIZE = 25
+        private const val ADD_BATCH_SIZE = 10
+        private const val MAX_CLOUD_MUTATIONS_PER_SYNC = 5
+        private const val MAX_CLOUD_DUPLICATE_DELETES = 5
+        private const val CLOUD_DUPLICATE_DELETE_DELAY_MS = 750L
         private val CONFIRMATION_RETRY_DELAYS_MS = longArrayOf(1_500L, 3_000L, 6_000L)
-        private val SYNC_RETRY_DELAYS_MS = longArrayOf(0L, 2_000L, 10_000L, 30_000L)
         val isCloudSyncInProgress: Boolean get() = CLOUD_SYNCS.get() > 0
 
         @Volatile
