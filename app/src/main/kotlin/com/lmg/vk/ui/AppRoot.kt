@@ -253,6 +253,10 @@ fun AppRoot() {
     var profileAtRoot by remember { mutableStateOf(true) }
     var authAtRoot by remember { mutableStateOf(true) }
     var lrcPublishAtRoot by remember { mutableStateOf(true) }
+    val rootBackProgress = remember { Animatable(0f) }
+    var rootBackWidthPx by remember { mutableStateOf(1f) }
+    var rootBackCompleting by remember { mutableStateOf(false) }
+    var rootBackOverlay by remember { mutableStateOf<RootOverlay?>(null) }
     var accountActionError by remember { mutableStateOf<String?>(null) }
     var accountPendingRemoval by remember { mutableStateOf<com.lmg.vk.engine.backend.VkAccountSummary?>(null) }
     val accounts by com.lmg.vk.engine.backend.MusicAuth.accounts.collectAsState()
@@ -277,15 +281,73 @@ fun AppRoot() {
         rootOverlayStack = rootOverlayStack.filterNot { it == overlay }
     }
 
+    fun rootOverlayAtRoot(overlay: RootOverlay): Boolean = when (overlay) {
+        RootOverlay.SETTINGS -> settingsAtRoot
+        RootOverlay.PROFILE -> profileAtRoot
+        RootOverlay.AUTH -> authAtRoot
+        RootOverlay.SEARCH -> true
+    }
+
+    fun closeRootOverlayFromBack(overlay: RootOverlay) {
+        closeRootOverlay(overlay)
+        if (overlay == RootOverlay.AUTH) {
+            authAddingAccount = false
+            if (reopenAccountsAfterAuth) {
+                accountsDialogOpen = true
+                reopenAccountsAfterAuth = false
+            }
+        }
+    }
+
+    suspend fun completeRootBack(overlay: RootOverlay, durationMillis: Int) {
+        rootBackProgress.animateTo(
+            1f,
+            tween(durationMillis, easing = com.lmg.vk.ui.theme.AppleEasings.Standard),
+        )
+        closeRootOverlayFromBack(overlay)
+        rootBackCompleting = false
+        scope.launch {
+            kotlinx.coroutines.delay(360)
+            if (rootBackOverlay == overlay && !rootBackCompleting) {
+                rootBackProgress.snapTo(0f)
+                rootBackOverlay = null
+            }
+        }
+    }
+
+    fun finishRootBack() {
+        val overlay = topRootOverlay ?: return
+        if (rootBackCompleting || !rootOverlayAtRoot(overlay)) return
+        rootBackCompleting = true
+        scope.launch {
+            rootBackProgress.snapTo(0f)
+            rootBackOverlay = overlay
+            completeRootBack(overlay, 260)
+        }
+    }
+
     fun clearRootOverlays() {
         rootOverlayStack = emptyList()
     }
 
     fun overlayModifier(overlay: RootOverlay): Modifier {
         val hidden = hiddenRootOverlay == overlay
+        val fraction = if (rootBackOverlay == overlay) {
+            rootBackProgress.value.coerceIn(0f, 1f)
+        } else {
+            0f
+        }
         return Modifier
             .zIndex(if (hidden) -10f else rootOverlayStack.indexOf(overlay).toFloat() + 100f)
-            .graphicsLayer { alpha = if (hidden) 0f else 1f }
+            .onSizeChanged { rootBackWidthPx = it.width.toFloat().coerceAtLeast(1f) }
+            .graphicsLayer {
+                translationX = rootBackWidthPx * fraction
+                scaleX = 1f - 0.08f * fraction
+                scaleY = 1f - 0.08f * fraction
+                alpha = if (hidden) 0f else 1f - 0.22f * fraction
+                clip = fraction > 0f
+                shape = RoundedCornerShape((30f * fraction).dp)
+            }
     }
 
     fun navigateFromOverlay(overlay: RootOverlay, route: String) {
@@ -763,6 +825,24 @@ fun AppRoot() {
             }
         }
 
+        val activeRootBackOverlay = rootBackOverlay
+        if (
+            rootBackProgress.value > 0f &&
+            activeRootBackOverlay != null &&
+            activeRootBackOverlay in rootOverlayStack
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .zIndex(rootOverlayStack.indexOf(activeRootBackOverlay).toFloat() + 99.5f)
+                    .background(
+                        Color.Black.copy(
+                            alpha = 0.12f * (1f - rootBackProgress.value.coerceIn(0f, 1f)),
+                        ),
+                    ),
+            )
+        }
+
         // ── Поиск (оверлей поверх всего, из сайдбара или кнопки на главной) ──
         AnimatedVisibility(
             visible = searchRetained,
@@ -776,30 +856,25 @@ fun AppRoot() {
                 animationSpec = spring(dampingRatio = 0.92f, stiffness = 400f)
             ) + fadeOut(tween(150))
         ) {
-            PredictiveBackLayer(
-                enabled = topRootOverlay == RootOverlay.SEARCH,
-                onBack = { closeRootOverlay(RootOverlay.SEARCH) },
-            ) { requestBack ->
-                com.lmg.vk.ui.screens.SearchScreen(
-                    onNavigateToAlbum = { id ->
-                        navigateFromOverlay(
-                            RootOverlay.SEARCH,
-                            NavRoutes.album(NavRoutes.TAB_WAVE, id),
-                        )
-                    },
-                    onNavigateToArtist = { id ->
-                        navigateFromOverlay(
-                            RootOverlay.SEARCH,
-                            NavRoutes.artist(NavRoutes.TAB_WAVE, id),
-                        )
-                    },
-                    onOpenPlayer = {
-                        closeRootOverlay(RootOverlay.SEARCH)
-                        animateExpand()
-                    },
-                    onBack = requestBack,
-                )
-            }
+            com.lmg.vk.ui.screens.SearchScreen(
+                onNavigateToAlbum = { id ->
+                    navigateFromOverlay(
+                        RootOverlay.SEARCH,
+                        NavRoutes.album(NavRoutes.TAB_WAVE, id),
+                    )
+                },
+                onNavigateToArtist = { id ->
+                    navigateFromOverlay(
+                        RootOverlay.SEARCH,
+                        NavRoutes.artist(NavRoutes.TAB_WAVE, id),
+                    )
+                },
+                onOpenPlayer = {
+                    closeRootOverlay(RootOverlay.SEARCH)
+                    animateExpand()
+                },
+                onBack = { finishRootBack() },
+            )
         }
 
         AnimatedVisibility(
@@ -814,32 +889,27 @@ fun AppRoot() {
                 animationSpec = tween(300, easing = com.lmg.vk.ui.theme.AppleEasings.Standard)
             ) + fadeOut(animationSpec = tween(200))
         ) {
-            PredictiveBackLayer(
-                enabled = topRootOverlay == RootOverlay.SETTINGS && settingsAtRoot,
-                onBack = { closeRootOverlay(RootOverlay.SETTINGS) },
-            ) { requestBack ->
-                SettingsScreen(
-                    onBack = requestBack,
-                    onOpenEqualizer = {},
-                    onOpenProfile = { openRootOverlay(RootOverlay.PROFILE) },
-                    onOpenAccounts = {
-                        accountActionError = null
-                        accountsDialogOpen = true
-                    },
-                    onOpenRecommendationsOnboarding = {
-                        navigateFromOverlay(
-                            RootOverlay.SETTINGS,
-                            NavRoutes.RECOMMENDATIONS_ONBOARDING,
-                        )
-                    },
-                    onOpenDebugLog = {
-                        navigateFromOverlay(RootOverlay.SETTINGS, NavRoutes.DEBUG_LOG)
-                    },
-                    backHandlingEnabled = topRootOverlay == RootOverlay.SETTINGS,
-                    onRootBackStateChanged = { settingsAtRoot = it },
-                    backdrop = rootBackdrop,
-                )
-            }
+            SettingsScreen(
+                onBack = { finishRootBack() },
+                onOpenEqualizer = {},
+                onOpenProfile = { openRootOverlay(RootOverlay.PROFILE) },
+                onOpenAccounts = {
+                    accountActionError = null
+                    accountsDialogOpen = true
+                },
+                onOpenRecommendationsOnboarding = {
+                    navigateFromOverlay(
+                        RootOverlay.SETTINGS,
+                        NavRoutes.RECOMMENDATIONS_ONBOARDING,
+                    )
+                },
+                onOpenDebugLog = {
+                    navigateFromOverlay(RootOverlay.SETTINGS, NavRoutes.DEBUG_LOG)
+                },
+                backHandlingEnabled = topRootOverlay == RootOverlay.SETTINGS,
+                onRootBackStateChanged = { settingsAtRoot = it },
+                backdrop = rootBackdrop,
+            )
         }
 
         AnimatedVisibility(
@@ -854,45 +924,40 @@ fun AppRoot() {
                 animationSpec = spring(dampingRatio = 0.9f, stiffness = 350f)
             ) + fadeOut(tween(150))
         ) {
-            PredictiveBackLayer(
-                enabled = topRootOverlay == RootOverlay.PROFILE && profileAtRoot,
-                onBack = { closeRootOverlay(RootOverlay.PROFILE) },
-            ) {
-                ProfileScreen(
-                    onOpenSettings = { openRootOverlay(RootOverlay.SETTINGS) },
-                    onLogout = { closeRootOverlay(RootOverlay.PROFILE) },
-                    onOpenAuth = {
-                        authAddingAccount = false
-                        openRootOverlay(RootOverlay.AUTH)
-                    },
-                    onOpenLibrary = {
-                        closeRootOverlay(RootOverlay.PROFILE)
-                        switchTab(2)
-                    },
-                    onOpenPlaylist = { playlistId ->
-                        navigateFromOverlay(
-                            RootOverlay.PROFILE,
-                            NavRoutes.playlist(NavRoutes.TAB_LIBRARY, playlistId),
-                        )
-                    },
-                    onOpenUserProfile = { userId ->
-                        navigateFromOverlay(RootOverlay.PROFILE, NavRoutes.userProfile(userId))
-                    },
-                    onOpenGroup = { ownerId ->
-                        navigateFromOverlay(RootOverlay.PROFILE, NavRoutes.group(ownerId))
-                    },
-                    onAddAccount = {
-                        authAddingAccount = true
-                        openRootOverlay(RootOverlay.AUTH)
-                    },
-                    onOpenAccounts = {
-                        accountActionError = null
-                        accountsDialogOpen = true
-                    },
-                    backHandlingEnabled = topRootOverlay == RootOverlay.PROFILE,
-                    onRootBackStateChanged = { profileAtRoot = it },
-                )
-            }
+            ProfileScreen(
+                onOpenSettings = { openRootOverlay(RootOverlay.SETTINGS) },
+                onLogout = { closeRootOverlay(RootOverlay.PROFILE) },
+                onOpenAuth = {
+                    authAddingAccount = false
+                    openRootOverlay(RootOverlay.AUTH)
+                },
+                onOpenLibrary = {
+                    closeRootOverlay(RootOverlay.PROFILE)
+                    switchTab(2)
+                },
+                onOpenPlaylist = { playlistId ->
+                    navigateFromOverlay(
+                        RootOverlay.PROFILE,
+                        NavRoutes.playlist(NavRoutes.TAB_LIBRARY, playlistId),
+                    )
+                },
+                onOpenUserProfile = { userId ->
+                    navigateFromOverlay(RootOverlay.PROFILE, NavRoutes.userProfile(userId))
+                },
+                onOpenGroup = { ownerId ->
+                    navigateFromOverlay(RootOverlay.PROFILE, NavRoutes.group(ownerId))
+                },
+                onAddAccount = {
+                    authAddingAccount = true
+                    openRootOverlay(RootOverlay.AUTH)
+                },
+                onOpenAccounts = {
+                    accountActionError = null
+                    accountsDialogOpen = true
+                },
+                backHandlingEnabled = topRootOverlay == RootOverlay.PROFILE,
+                onRootBackStateChanged = { profileAtRoot = it },
+            )
         }
         AnimatedVisibility(
             visible = authRetained,
@@ -906,33 +971,21 @@ fun AppRoot() {
                 animationSpec = spring(dampingRatio = 0.92f, stiffness = 400f)
             ) + fadeOut(tween(150))
         ) {
-            PredictiveBackLayer(
-                enabled = topRootOverlay == RootOverlay.AUTH && authAtRoot,
-                onBack = {
+            AuthScreen(
+                onAuthSuccess = {
                     closeRootOverlay(RootOverlay.AUTH)
-                    authAddingAccount = false
-                    if (reopenAccountsAfterAuth) {
-                        accountsDialogOpen = true
-                        reopenAccountsAfterAuth = false
+                    reopenAccountsAfterAuth = false
+                    if (!authAddingAccount) {
+                        closeRootOverlay(RootOverlay.PROFILE)
+                        switchTab(0)
                     }
+                    authAddingAccount = false
                 },
-            ) { requestBack ->
-                AuthScreen(
-                    onAuthSuccess = {
-                        closeRootOverlay(RootOverlay.AUTH)
-                        reopenAccountsAfterAuth = false
-                        if (!authAddingAccount) {
-                            closeRootOverlay(RootOverlay.PROFILE)
-                            switchTab(0)
-                        }
-                        authAddingAccount = false
-                    },
-                    onBack = requestBack,
-                    isAddingAccount = authAddingAccount,
-                    backHandlingEnabled = topRootOverlay == RootOverlay.AUTH,
-                    onRootBackStateChanged = { authAtRoot = it },
-                )
-            }
+                onBack = { finishRootBack() },
+                isAddingAccount = authAddingAccount,
+                backHandlingEnabled = topRootOverlay == RootOverlay.AUTH,
+                onRootBackStateChanged = { authAtRoot = it },
+            )
         }
 
         if (accountsDialogOpen) {
@@ -1030,5 +1083,34 @@ fun AppRoot() {
             )
         }
 
+    }
+
+    PredictiveBackHandler(
+        enabled = topRootOverlay != null &&
+            rootOverlayAtRoot(topRootOverlay) &&
+            !rootBackCompleting &&
+            !accountsDialogOpen &&
+            accountPendingRemoval == null &&
+            activeCaptchaPrompt == null &&
+            activeValidationPrompt == null,
+    ) { events ->
+        val overlay = topRootOverlay ?: return@PredictiveBackHandler
+        try {
+            rootBackProgress.snapTo(0f)
+            rootBackOverlay = overlay
+            events.collect { event ->
+                if (topRootOverlay != overlay) throw CancellationException()
+                rootBackProgress.snapTo(event.progress)
+            }
+            rootBackCompleting = true
+            completeRootBack(overlay, 140)
+        } catch (_: CancellationException) {
+            rootBackCompleting = false
+            rootBackProgress.animateTo(
+                0f,
+                spring(dampingRatio = 0.82f, stiffness = 520f),
+            )
+            if (rootBackOverlay == overlay) rootBackOverlay = null
+        }
     }
 }
