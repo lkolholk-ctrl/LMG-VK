@@ -250,7 +250,6 @@ class VkApiClient(
         }
 
         val resolvedUserAgent = userAgent ?: VkUserAgents.api
-        val directAuth = requiresDirectAuth(name)
         if (isAuthWireMethod(name, endpoint)) {
             DebugLog.add(
                 "VK AUTH WIRE request method=$name endpoint=${endpoint.name} http=${httpMethod.name} " +
@@ -261,8 +260,7 @@ class VkApiClient(
                     "X-VK-Android-Client=${if (endpoint != VkEndpoint.OAUTH) "new" else "absent"} " +
                     "X-Screen=${if (endpoint != VkEndpoint.OAUTH) "nowhere" else "absent"} " +
                     "Authorization=${wireFingerprint(token)} " +
-                    "Content-Type=${if (httpMethod == VkHttpMethod.POST) "application/x-www-form-urlencoded" else "absent"} " +
-                    "Route=${if (directAuth) "direct" else "proxy-eligible"}",
+                    "Content-Type=${if (httpMethod == VkHttpMethod.POST) "application/x-www-form-urlencoded" else "absent"}",
             )
             DebugLog.add(
                 "VK AUTH WIRE params " + requestParams.entries.joinToString("&") { (key, value) ->
@@ -299,9 +297,6 @@ class VkApiClient(
             }
             token?.let { header("Authorization", "Bearer $it") }
             header("User-Agent", resolvedUserAgent)
-            if (directAuth) {
-                header(VK_DIRECT_AUTH_HEADER, "1")
-            }
             if (httpMethod == VkHttpMethod.POST) {
                 header("Content-Type", "application/x-www-form-urlencoded")
                 setBody(FormDataContent(Parameters.build {
@@ -410,12 +405,6 @@ class VkApiClient(
 
         private fun isAuthWireMethod(name: String, endpoint: VkEndpoint): Boolean =
             name in authWireNames && (endpoint == VkEndpoint.API_METHOD || endpoint == VkEndpoint.API_OAUTH)
-
-        private fun requiresDirectAuth(name: String): Boolean =
-            name == "get_anonym_token" ||
-                name == "token" ||
-                name.startsWith("auth.") ||
-                name.startsWith("ecosystem.")
 
         private fun traceAuthResult(name: String, endpoint: VkEndpoint, status: Int, result: String) {
             if (isAuthWireMethod(name, endpoint)) {

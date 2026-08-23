@@ -36,6 +36,7 @@ object VkProxyRepository {
     private const val CONFIG_URL = "https://gsgit.org/lmg-vk/net-b06288beab4fd276.json"
     private const val PREFS = "vk_proxy"
     private const val KEY_ENABLED = "enabled"
+    private const val KEY_DEFAULT_DISABLED_APPLIED = "default_disabled_applied"
     private const val KEY_CACHED_DOC = "cached_document"
     private const val KEY_FETCHED_AT = "fetched_at"
 
@@ -64,6 +65,12 @@ object VkProxyRepository {
     fun init(context: Context) {
         if (::prefs.isInitialized) return
         prefs = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        if (!prefs.getBoolean(KEY_DEFAULT_DISABLED_APPLIED, false)) {
+            prefs.edit()
+                .putBoolean(KEY_ENABLED, false)
+                .putBoolean(KEY_DEFAULT_DISABLED_APPLIED, true)
+                .apply()
+        }
         _enabled.value = prefs.getBoolean(KEY_ENABLED, false)
 
         // Кэш поднимаем сразу: без сети прокси должен работать на прошлом

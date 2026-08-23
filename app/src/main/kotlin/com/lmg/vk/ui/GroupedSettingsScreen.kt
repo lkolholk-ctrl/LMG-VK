@@ -106,7 +106,6 @@ fun SettingsScreen(
     val vkLoggedIn by com.lmg.vk.engine.backend.MusicAuth.isLoggedIn.collectAsState()
     val accounts by com.lmg.vk.engine.backend.MusicAuth.accounts.collectAsState()
     val proxyEnabled by com.lmg.vk.network.proxy.VkProxyRepository.enabled.collectAsState()
-    val proxyState by com.lmg.vk.network.proxy.VkProxyRepository.state.collectAsState()
     val vpnBypassEnabled by AppSettings.vpnBypassEnabled.collectAsState()
     val isVpnActive by com.lmg.vk.network.VpnBypassManager.isVpnActive.collectAsState()
 
@@ -191,7 +190,7 @@ fun SettingsScreen(
                             SettingsCategoryDivider()
                             SettingsCategoryItem(
                                 title = "Network",
-                                subtitle = networkSummary(vpnBypassEnabled, isVpnActive, proxyEnabled, proxyState),
+                                subtitle = networkSummary(vpnBypassEnabled, isVpnActive, proxyEnabled),
                                 icon = lmgVector(LmgDrawables.GlobeOutline28),
                                 onClick = { page = SettingsPage.NETWORK },
                             )
@@ -323,19 +322,19 @@ fun SettingsScreen(
                         }
 
                         Spacer(Modifier.height(sectionGap))
-                        SectionLabel("Зеркала и прокси VK")
+                        SectionLabel("Соединение VK")
                         PlainCard {
                             SettingsToggleItem(
-                                title = "Обход блокировок VK",
-                                subtitle = networkDetail(proxyState),
+                                title = "Проксированное соединение",
+                                subtitle = "Вход в аккаунт невозможен при включённом тумблере",
                                 icon = lmgVector(LmgDrawables.LockOutline28),
                                 selected = proxyEnabled,
                                 onSelect = { com.lmg.vk.network.proxy.VkProxyRepository.setEnabled(it) },
                             )
                             PlainDivider()
                             SettingsActionItem(
-                                title = "Обновить адреса",
-                                subtitle = "Перечитать список серверов и сертификатов",
+                                title = "Обновить проксированное соединение",
+                                subtitle = "Загрузить актуальные настройки",
                                 icon = lmgVector(LmgDrawables.RefreshOutline28),
                                 onClick = {
                                     proxyScope.launch {
@@ -673,7 +672,6 @@ private fun networkSummary(
     vpnBypass: Boolean,
     isVpnActive: Boolean,
     proxyEnabled: Boolean,
-    state: com.lmg.vk.network.proxy.VkProxyState,
 ): String = buildString {
     if (vpnBypass) {
         append(if (isVpnActive) "VPN bypass active" else "VPN bypass on")
@@ -681,15 +679,6 @@ private fun networkSummary(
         append("Direct connection")
     }
     if (proxyEnabled) {
-        append(" · VK proxy")
+        append(" · Проксированное соединение")
     }
-}
-
-private fun networkDetail(state: com.lmg.vk.network.proxy.VkProxyState): String = when (state) {
-    is com.lmg.vk.network.proxy.VkProxyState.Available ->
-        "Готово: ${state.ips.size} адр., ${state.allowedDomains.size} доменов" +
-            if (state.certificates.isEmpty()) "" else ", пиннинг"
-    is com.lmg.vk.network.proxy.VkProxyState.Loading -> "Загружаю настройки…"
-    is com.lmg.vk.network.proxy.VkProxyState.FailedToLoad ->
-        "Настройки не загрузились — нажмите «Обновить»"
 }
