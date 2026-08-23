@@ -455,9 +455,9 @@ interface VkSessionStore {
     var session: VkAuthSession
 }
 
-/** Optional multi-account capabilities; VkApiClient still consumes one active session. */
 interface VkMultiSessionStore : VkSessionStore {
     val sessions: List<VkAuthSession>
+    fun save(session: VkAuthSession, makeActive: Boolean)
     fun activate(userId: Long): VkAuthSession?
     fun remove(userId: Long): VkAuthSession
 }

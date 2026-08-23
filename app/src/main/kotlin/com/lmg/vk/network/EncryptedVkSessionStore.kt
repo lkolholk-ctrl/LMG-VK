@@ -43,23 +43,30 @@ class EncryptedVkSessionStore(context: Context) : VkMultiSessionStore {
 
     override var session: VkAuthSession
         get() = cached
-        set(value) = synchronized(lock) {
-            val updated = cachedSessions.toMutableList()
-            if (value == VkAuthSession.EMPTY) {
+        set(value) {
+            save(value, makeActive = true)
+        }
+
+    override fun save(session: VkAuthSession, makeActive: Boolean) = synchronized(lock) {
+        val value = session
+        val updated = cachedSessions.toMutableList()
+        if (value == VkAuthSession.EMPTY) {
+            if (makeActive) {
                 updated.removeAll { sameAccount(it, cached) }
                 cached = updated.firstOrNull() ?: VkAuthSession.EMPTY
-            } else {
-                val index = updated.indexOfFirst { sameAccount(it, value) }
-                if (index >= 0) {
-                    updated[index] = value
-                } else {
-                    updated.add(value)
-                }
-                cached = value
             }
-            cachedSessions = updated.toList()
-            persist()
+        } else {
+            val index = updated.indexOfFirst { sameAccount(it, value) }
+            if (index >= 0) {
+                updated[index] = value
+            } else {
+                updated.add(value)
+            }
+            if (makeActive || sameAccount(cached, value)) cached = value
         }
+        cachedSessions = updated.toList()
+        persist()
+    }
 
     override fun activate(userId: Long): VkAuthSession? = synchronized(lock) {
         val next = cachedSessions.firstOrNull { it.userId == userId && it.accessToken.isNotBlank() }

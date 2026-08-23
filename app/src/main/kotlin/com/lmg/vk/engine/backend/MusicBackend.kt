@@ -69,6 +69,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -3624,21 +3625,23 @@ object MusicAuth {
         if (response.accessToken.isBlank()) {
             return VkLoginResult.Failure("VK returned an empty access token")
         }
-        if (!canChangeAccount()) {
-            return VkLoginResult.Failure("Wait for library synchronization to finish")
-        }
         val nowSeconds = System.currentTimeMillis() / 1000
-        installSession(
-            VkAuthSession(
-                userId = response.userId,
-                accessToken = response.accessToken,
-                expiresAt = response.accessTokenExpiresIn
-                    .takeIf { it > 0 }
-                    ?.let { nowSeconds + it }
-                    ?: 0L,
-                trustedHash = response.trustedHash,
-            ),
+        val completedSession = VkAuthSession(
+            userId = response.userId,
+            accessToken = response.accessToken,
+            expiresAt = response.accessTokenExpiresIn
+                .takeIf { it > 0 }
+                ?.let { nowSeconds + it }
+                ?: 0L,
+            trustedHash = response.trustedHash,
         )
+        val multiStore = sessionStore as? VkMultiSessionStore
+        if (!canChangeAccount()) {
+            multiStore?.save(completedSession, makeActive = false)
+            updateAccountSummaries()
+        }
+        while (!canChangeAccount()) delay(200)
+        installSession(completedSession)
         when (val result = registry.getUserExchangeTokens(response.accessToken)) {
             is VkResult.Error -> Unit
             is VkResult.Success -> {
@@ -3653,8 +3656,6 @@ object MusicAuth {
             }
         }
         activeAuthAttempt = null
-        // Профиль не является условием валидности токена: при временной ошибке
-        // users.get пользователь всё равно остаётся авторизованным.
         runCatching { fetchUserData() }
         return VkLoginResult.Success
     }

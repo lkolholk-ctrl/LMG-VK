@@ -1152,3 +1152,10 @@ Add второго аккаунта; неверный пароль не сбра
   только дополнительные pending-строки, когда уже существует отдельная synced
   строка с тем же реальным `cloudTrackId` и совпадают title/artist/duration.
   Разные дубли, реально присутствующие в облачной библиотеке VK, сохраняются.
+- Полевой password OAuth успешно израсходовал одноразовый sid, но
+  `finishSignIn` затем отбросил готовый access token из-за параллельной library
+  sync и показал `Wait for library synchronization to finish`; повтор того же
+  password-step закономерно получил `sid is invalid`. Готовая сессия теперь
+  сразу сохраняется в encrypted multi-account store как неактивная, ожидание
+  sync происходит без потери токена, затем аккаунт активируется и получает
+  exchange token. Ручные switch/remove по-прежнему блокируются во время sync.
