@@ -87,6 +87,7 @@ fun SettingsScreen(
     onOpenRecommendationsOnboarding: () -> Unit = {},
     onOpenDebugLog: () -> Unit = {},
     showBack: Boolean = true,
+    backHandlingEnabled: Boolean = true,
     backdrop: LayerBackdrop,
 ) {
     val context = LocalContext.current
@@ -126,13 +127,17 @@ fun SettingsScreen(
         duplicateStatus = null
     }
     LaunchedEffect(Unit) { com.lmg.vk.network.VpnBypassManager.updateStateAndApply() }
-    BackHandler(enabled = page != SettingsPage.ROOT) {
+
+    fun returnFromPage() {
         page = if (page == SettingsPage.DUPLICATES) SettingsPage.VK else SettingsPage.ROOT
     }
 
+    BackHandler(enabled = backHandlingEnabled && page != SettingsPage.ROOT) {
+        returnFromPage()
+    }
+
     val headerBack: (() -> Unit)? = when {
-        page == SettingsPage.DUPLICATES -> ({ page = SettingsPage.VK })
-        page != SettingsPage.ROOT -> ({ page = SettingsPage.ROOT })
+        page != SettingsPage.ROOT -> ::returnFromPage
         showBack -> onBack
         else -> null
     }

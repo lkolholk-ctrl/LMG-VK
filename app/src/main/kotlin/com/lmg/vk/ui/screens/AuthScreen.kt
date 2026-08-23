@@ -74,6 +74,7 @@ import com.lmg.vk.ui.theme.LiquidSurfaces
 import com.lmg.vk.ui.theme.LiquidTheme
 import com.lmg.vk.ui.theme.VkSansDisplay
 import com.lmg.vk.ui.theme.VkSansText
+import androidx.activity.compose.BackHandler
 import kotlinx.coroutines.launch
 
 private val VkBlue = Color(0xFF0077FF)
@@ -86,6 +87,7 @@ fun AuthScreen(
     onAuthSuccess: () -> Unit = {},
     onBack: () -> Unit = {},
     isAddingAccount: Boolean = false,
+    backHandlingEnabled: Boolean = true,
 ) {
     val lc = LiquidTheme.colors
     val isDark = lc.isDark
@@ -123,6 +125,21 @@ fun AuthScreen(
 
     LaunchedEffect(Unit) {
         phoneFocusRequester.requestFocus()
+    }
+
+    fun returnToPhone() {
+        MusicAuth.restartAuthorization()
+        step = AuthStep.Phone
+        password = ""
+        verificationCode = ""
+        validationSid = null
+        captchaSid = null
+        captchaKey = ""
+        error = null
+    }
+
+    BackHandler(enabled = backHandlingEnabled && step != AuthStep.Phone) {
+        returnToPhone()
     }
 
     fun submit() {
@@ -234,13 +251,7 @@ fun AuthScreen(
                                     password = ""
                                     onBack()
                                 } else {
-                                    MusicAuth.restartAuthorization()
-                                    step = AuthStep.Phone
-                                    verificationCode = ""
-                                    validationSid = null
-                                    captchaSid = null
-                                    captchaKey = ""
-                                    error = null
+                                    returnToPhone()
                                 }
                             },
                         ),
@@ -581,14 +592,7 @@ fun AuthScreen(
                                 enabled = !isLoading,
                                 interactionSource = remember { MutableInteractionSource() },
                                 indication = null,
-                            ) {
-                                step = AuthStep.Phone
-                                verificationCode = ""
-                                validationSid = null
-                                captchaSid = null
-                                captchaKey = ""
-                                error = null
-                            }
+                            ) { returnToPhone() }
                             .padding(horizontal = 14.dp, vertical = 6.dp),
                     ) {
                         Text(

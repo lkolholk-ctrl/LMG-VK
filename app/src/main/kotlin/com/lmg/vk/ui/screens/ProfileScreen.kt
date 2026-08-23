@@ -34,7 +34,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import com.lmg.vk.ui.components.VkAccountsDialog
 import com.lmg.vk.ui.glass.GlassDialog
 import com.lmg.vk.ui.glass.GlassDialogButton
 import androidx.compose.runtime.Composable
@@ -71,7 +70,6 @@ import com.lmg.vk.ui.icons.LmgDrawables
 import com.lmg.vk.ui.icons.lmgVector
 import com.lmg.vk.debug.DebugLog
 import com.lmg.vk.engine.backend.MusicAuth
-import com.lmg.vk.engine.backend.VkAccountSummary
 import com.lmg.vk.engine.backend.VkProfileRepository
 import com.lmg.vk.network.dto.VkFriend
 import com.lmg.vk.network.dto.VkGroup
@@ -106,6 +104,8 @@ fun ProfileScreen(
     onOpenUserProfile: (Long) -> Unit = {},
     onOpenGroup: (Long) -> Unit = {},
     onAddAccount: () -> Unit = {},
+    onOpenAccounts: () -> Unit = {},
+    backHandlingEnabled: Boolean = true,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -120,8 +120,6 @@ fun ProfileScreen(
     val ownerAudio by VkProfileRepository.ownerAudio.collectAsState()
 
     var showSignOutConfirmation by remember { mutableStateOf(false) }
-    var showAccountsDialog by remember { mutableStateOf(false) }
-    var accountPendingRemoval by remember { mutableStateOf<VkAccountSummary?>(null) }
     var accountActionError by remember { mutableStateOf<String?>(null) }
     var friendsExpanded by remember { mutableStateOf(false) }
     var groupsExpanded by remember { mutableStateOf(false) }
@@ -196,13 +194,7 @@ fun ProfileScreen(
     val window = com.lmg.vk.ui.rememberWindowInfo()
     val compact = window.useSideBySide
 
-    // Подэкран чужих аудио перехватывает "назад" раньше, чем оверлей профиля.
-    // «Назад» разбирает оверлеи по одному, сверху вниз: аудио владельца лежит
-    // над списком, список — над профилем. Один общий обработчик с приоритетами,
-    // а не три независимых: иначе они спорят за одно и то же нажатие.
-    BackHandler(
-        enabled = ownerAudio != null || friendsExpanded || groupsExpanded || playlistsExpanded,
-    ) {
+    fun returnFromInnerProfile() {
         when {
             ownerAudio != null -> VkProfileRepository.closeOwnerAudio()
             playlistsExpanded -> {
@@ -219,6 +211,13 @@ fun ProfileScreen(
                 groupsQuery = ""
             }
         }
+    }
+
+    BackHandler(
+        enabled = backHandlingEnabled &&
+            (ownerAudio != null || friendsExpanded || groupsExpanded || playlistsExpanded),
+    ) {
+        returnFromInnerProfile()
     }
 
     if (showSignOutConfirmation) {
@@ -257,68 +256,6 @@ fun ProfileScreen(
             secondaryButton = GlassDialogButton(
                 text = "Cancel",
                 onClick = { showSignOutConfirmation = false },
-            ),
-        )
-    }
-
-    if (showAccountsDialog) {
-        VkAccountsDialog(
-            visible = showAccountsDialog,
-            accounts = accounts,
-            errorMessage = accountActionError,
-            onSelectAccount = { account ->
-                if (account.isExpired) {
-                    showAccountsDialog = false
-                    onAddAccount()
-                } else if (!account.isActive && MusicAuth.switchAccount(account.userId)) {
-                    showAccountsDialog = false
-                } else if (!account.isActive) {
-                    accountActionError = "Wait for library synchronization to finish"
-                }
-            },
-            onRemoveAccount = { account ->
-                accountActionError = null
-                showAccountsDialog = false
-                accountPendingRemoval = account
-            },
-            onAddAccount = {
-                showAccountsDialog = false
-                onAddAccount()
-            },
-            onDismiss = { showAccountsDialog = false },
-        )
-    }
-
-    accountPendingRemoval?.let { account ->
-        val removeMessage = buildString {
-            append("Only this encrypted session will be removed from the device.")
-            if (!accountActionError.isNullOrBlank()) {
-                append("\n\n")
-                append(accountActionError)
-            }
-        }
-        GlassDialog(
-            visible = true,
-            onDismiss = { accountPendingRemoval = null },
-            icon = lmgVector(LmgDrawables.DeleteOutline28),
-            iconTint = DestructiveRed,
-            title = "Remove ${account.displayName}?",
-            message = removeMessage,
-            primaryButton = GlassDialogButton(
-                text = "Remove",
-                backgroundColor = DestructiveRed,
-                onClick = {
-                    if (MusicAuth.removeAccount(account.userId)) {
-                        accountPendingRemoval = null
-                        if (!MusicAuth.isLoggedIn.value) onLogout()
-                    } else {
-                        accountActionError = "Wait for library synchronization to finish"
-                    }
-                },
-            ),
-            secondaryButton = GlassDialogButton(
-                text = "Cancel",
-                onClick = { accountPendingRemoval = null },
             ),
         )
     }
@@ -520,7 +457,7 @@ fun ProfileScreen(
                             compact = compact,
                             onClick = {
                                 accountActionError = null
-                                showAccountsDialog = true
+                                onOpenAccounts()
                             },
                         )
                         ProfileDivider()
@@ -690,11 +627,7 @@ fun ProfileScreen(
                 onLoadMore = {
                     scope.launch { VkProfileRepository.loadMoreFriends() }
                 },
-                onBack = {
-                    friendsExpanded = false
-                    onlineFriendsOnly = false
-                    friendsQuery = ""
-                },
+                onBack = ::returnFromInnerProfile,
                 compact = compact,
                 searchQuery = friendsQuery,
                 searchHint = "Search friends",
@@ -743,10 +676,7 @@ fun ProfileScreen(
                 onLoadMore = {
                     scope.launch { VkProfileRepository.loadMoreGroups() }
                 },
-                onBack = {
-                    groupsExpanded = false
-                    groupsQuery = ""
-                },
+                onBack = ::returnFromInnerProfile,
                 compact = compact,
                 searchQuery = groupsQuery,
                 searchHint = "Search communities",
@@ -786,10 +716,7 @@ fun ProfileScreen(
                 onLoadMore = {
                     scope.launch { VkProfileRepository.loadMorePlaylists() }
                 },
-                onBack = {
-                    playlistsExpanded = false
-                    playlistsQuery = ""
-                },
+                onBack = ::returnFromInnerProfile,
                 compact = compact,
                 searchQuery = playlistsQuery,
                 searchHint = "Search playlists",
@@ -800,8 +727,6 @@ fun ProfileScreen(
                     playlist = playlist,
                     compact = compact,
                     onClick = {
-                        playlistsExpanded = false
-                        playlistsQuery = ""
                         onOpenPlaylist(playlist.fullId)
                     },
                 )
@@ -811,7 +736,7 @@ fun ProfileScreen(
         ownerAudio?.let { audioState ->
             OwnerAudioScreen(
                 state = audioState,
-                onBack = { VkProfileRepository.closeOwnerAudio() },
+                onBack = ::returnFromInnerProfile,
             )
         }
     }

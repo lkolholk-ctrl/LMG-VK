@@ -5,9 +5,11 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.scaleOut
 import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModelProvider
 import androidx.navigation.NavGraphBuilder
@@ -73,10 +75,19 @@ fun LiquidNavHost(
             slideOutHorizontally(spring(dampingRatio = 0.9f, stiffness = 350f)) { -it / 6 } + fadeOut(tween(150))
         },
         popEnterTransition = {
-            slideInHorizontally(spring(dampingRatio = 0.9f, stiffness = 300f)) { -it / 6 } + fadeIn(tween(200))
+            fadeIn(tween(260))
         },
         popExitTransition = {
-            slideOutHorizontally(spring(dampingRatio = 0.9f, stiffness = 350f)) { it } + fadeOut(tween(150))
+            slideOutHorizontally(
+                tween(320, easing = com.lmg.vk.ui.theme.AppleEasings.Standard)
+            ) { it } + scaleOut(
+                targetScale = 0.92f,
+                transformOrigin = TransformOrigin(0f, 0.5f),
+                animationSpec = tween(320, easing = com.lmg.vk.ui.theme.AppleEasings.Standard),
+            ) + fadeOut(
+                targetAlpha = 0.94f,
+                animationSpec = tween(320),
+            )
         }
     ) {
         // ═══════════ Граф ВОЛНЫ ═══════════

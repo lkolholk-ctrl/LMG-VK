@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.compose.BackHandler
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import androidx.compose.animation.AnimatedVisibility
@@ -129,6 +130,14 @@ fun LibraryScreen(
     var playlistQuery by remember { mutableStateOf("") }
     var playlistSource by remember { mutableStateOf(PlaylistSource.ALL) }
     var playlistSort by remember { mutableStateOf(PlaylistSort.DEFAULT) }
+
+    fun returnToMain() {
+        currentView = LibraryView.MAIN
+    }
+
+    BackHandler(enabled = currentView != LibraryView.MAIN) {
+        returnToMain()
+    }
 
     // Адаптив: в широком окне (телефон-альбом / планшет) сетка плейлистов
     // получает больше колонок, а вертикальные списки-строки центрируем узкой
@@ -500,7 +509,7 @@ fun LibraryScreen(
                             subtitle = "${allPlaylistCells.size} collections",
                             isDark = lc.isDark,
                             modifier = Modifier.requiredWidth(screenWidth),
-                            onBack = { currentView = LibraryView.MAIN },
+                            onBack = ::returnToMain,
                             actions = {
                                 if (isLoggedIn) {
                                     CompactLibraryAction(
@@ -616,7 +625,7 @@ fun LibraryScreen(
             LibraryView.LOCAL_AUDIO -> {
                 LocalAudioView(
                     context = context,
-                    onBack = { currentView = LibraryView.MAIN }
+                    onBack = ::returnToMain
                 )
             }
 
@@ -630,7 +639,7 @@ fun LibraryScreen(
                             title = "Recent",
                             subtitle = if (recentTracks.isEmpty()) "Your listening history" else "${recentTracks.size} recent tracks",
                             isDark = lc.isDark,
-                            onBack = { currentView = LibraryView.MAIN },
+                            onBack = ::returnToMain,
                         )
                     }
                     if (recentTracks.isEmpty()) {
@@ -682,7 +691,7 @@ fun LibraryScreen(
                                 "${matchingFavorites.size} search results"
                             },
                             isDark = lc.isDark,
-                            onBack = { currentView = LibraryView.MAIN },
+                            onBack = ::returnToMain,
                         )
                     }
 
@@ -819,7 +828,7 @@ fun LibraryScreen(
                             title = "Downloads",
                             subtitle = "${downloadedTracks.size} offline tracks",
                             isDark = lc.isDark,
-                            onBack = { currentView = LibraryView.MAIN },
+                            onBack = ::returnToMain,
                             actions = {
                                 if (downloadedTracks.isNotEmpty()) {
                                     Spacer(Modifier.weight(1f))
@@ -980,7 +989,7 @@ fun LibraryScreen(
                         .fillMaxSize()
                         .then(if (isDialogActive) Modifier.blur(16.dp) else Modifier)
                 ) {
-                    SubHeader("My Playlists", onBack = { currentView = LibraryView.MAIN }) {
+                    SubHeader("My Playlists", onBack = ::returnToMain) {
                         IconButton(onClick = { showCreatePlaylistDialog = true }) {
                             Icon(lmgVector(LmgDrawables.ListPlusOutline20), null, tint = Color(0xFF30D158), modifier = Modifier.size(24.dp))
                         }
@@ -1049,7 +1058,7 @@ fun LibraryScreen(
                         .fillMaxSize()
                         .then(if (isDialogActive) Modifier.blur(16.dp) else Modifier)
                 ) {
-                    SubHeader("Imported Playlists", onBack = { currentView = LibraryView.MAIN }) {
+                    SubHeader("Imported Playlists", onBack = ::returnToMain) {
                         if (isLoggedIn) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 IconButton(onClick = { loadImportedPlaylists(syncPlaylists = true) }) {

@@ -1,5 +1,6 @@
 package com.lmg.vk.ui.screens
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -303,11 +304,22 @@ private fun SyncTaggingMode(
     var previewFrom by remember { mutableStateOf<Int?>(null) }
     var started by remember { mutableStateOf(false) }
 
+    fun returnFromMode() {
+        if (previewFrom != null) {
+            previewFrom = null
+        } else {
+            PlayerController.setPlaybackSpeed(1f)
+            onCancel()
+        }
+    }
+
+    BackHandler { returnFromMode() }
+
     // Тест: проиграть с подсветкой по текущей разметке (с выбранной строки).
     previewFrom?.let { from ->
         val ly = remember(from) { LyricsParser.parseLyrics(buildLrc(lines, times)) }
         MarkupPreviewView(ly, from.coerceIn(0, (lines.size - 1).coerceAtLeast(0)), lc.accent,
-            onBackToEdit = { previewFrom = null })
+            onBackToEdit = ::returnFromMode)
         return
     }
 
@@ -324,7 +336,7 @@ private fun SyncTaggingMode(
             Spacer(Modifier.windowInsetsTopHeight(WindowInsets.statusBars))
             Spacer(Modifier.height(12.dp))
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                CircleBack(lc) { PlayerController.setPlaybackSpeed(1f); onCancel() }
+                CircleBack(lc, ::returnFromMode)
                 Spacer(Modifier.width(16.dp))
                 Text("Sync", color = lc.textPrimary, fontSize = 22.sp, fontWeight = FontWeight.Bold,
                     fontFamily = VkSansDisplay,
@@ -425,6 +437,17 @@ private fun SyncWordTaggingMode(
     var previewFrom by remember { mutableStateOf<Int?>(null) }
     var started by remember { mutableStateOf(false) }
 
+    fun returnFromMode() {
+        if (previewFrom != null) {
+            previewFrom = null
+        } else {
+            PlayerController.setPlaybackSpeed(1f)
+            onCancel()
+        }
+    }
+
+    BackHandler { returnFromMode() }
+
     // строка, содержащая глобальный индекс слова gi
     fun lineOf(gi: Int): Int {
         var li = 0
@@ -436,7 +459,7 @@ private fun SyncWordTaggingMode(
     previewFrom?.let { from ->
         val ly = remember(from) { LyricsParser.parseLyrics(buildEnhancedLrc(wordRows, lineStart, times)) }
         MarkupPreviewView(ly, from.coerceIn(0, (wordRows.size - 1).coerceAtLeast(0)), lc.accent,
-            onBackToEdit = { previewFrom = null })
+            onBackToEdit = ::returnFromMode)
         return
     }
 
@@ -451,7 +474,7 @@ private fun SyncWordTaggingMode(
             Spacer(Modifier.windowInsetsTopHeight(WindowInsets.statusBars))
             Spacer(Modifier.height(12.dp))
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                CircleBack(lc) { PlayerController.setPlaybackSpeed(1f); onCancel() }
+                CircleBack(lc, ::returnFromMode)
                 Spacer(Modifier.width(16.dp))
                 Text("By word", color = lc.textPrimary, fontSize = 22.sp, fontWeight = FontWeight.Bold,
                     fontFamily = VkSansDisplay,

@@ -30,6 +30,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.windowInsetsBottomHeight
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.PredictiveBackHandler
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -45,9 +46,11 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.zIndex
 import com.kyant.backdrop.backdrops.LayerBackdrop
 import com.kyant.backdrop.backdrops.layerBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
@@ -80,6 +83,82 @@ import com.lmg.vk.ui.icons.lmgVector
 import com.lmg.vk.ui.theme.ForceDarkContent
 import com.lmg.vk.ui.theme.LiquidTheme
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.collect
+
+private enum class RootOverlay { SEARCH, SETTINGS, PROFILE, AUTH }
+
+private data class OverlayNavReturn(
+    val overlay: RootOverlay,
+    val originRoute: String?,
+    val destinationEntered: Boolean = false,
+)
+
+@Composable
+private fun PredictiveBackLayer(
+    enabled: Boolean,
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier,
+    content: @Composable (requestBack: () -> Unit) -> Unit,
+) {
+    val scope = rememberCoroutineScope()
+    val progress = remember { Animatable(0f) }
+    var widthPx by remember { mutableStateOf(1f) }
+    var completing by remember { mutableStateOf(false) }
+
+    fun finishBack() {
+        if (completing) return
+        completing = true
+        scope.launch {
+            progress.animateTo(
+                1f,
+                tween(260, easing = com.lmg.vk.ui.theme.AppleEasings.Standard),
+            )
+            onBack()
+        }
+    }
+
+    PredictiveBackHandler(enabled = enabled && !completing) { events ->
+        try {
+            events.collect { event -> progress.snapTo(event.progress) }
+            completing = true
+            progress.animateTo(
+                1f,
+                tween(140, easing = com.lmg.vk.ui.theme.AppleEasings.Standard),
+            )
+            onBack()
+        } catch (_: CancellationException) {
+            completing = false
+            scope.launch {
+                progress.animateTo(0f, spring(dampingRatio = 0.82f, stiffness = 520f))
+            }
+        }
+    }
+
+    val fraction = progress.value.coerceIn(0f, 1f)
+    Box(modifier = modifier.fillMaxSize()) {
+        Box(
+            Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.12f * (1f - fraction)))
+        )
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .onSizeChanged { widthPx = it.width.toFloat().coerceAtLeast(1f) }
+                .graphicsLayer {
+                    translationX = widthPx * fraction
+                    scaleX = 1f - 0.08f * fraction
+                    scaleY = 1f - 0.08f * fraction
+                    alpha = 1f - 0.06f * fraction
+                    clip = fraction > 0f
+                    shape = RoundedCornerShape((30f * fraction).dp)
+                }
+        ) {
+            content(::finishBack)
+        }
+    }
+}
 
 @Composable
 fun AppRoot() {
@@ -93,6 +172,8 @@ fun AppRoot() {
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
     val currentGraph = NavRoutes.graphOf(currentRoute)
+    var overlayNavReturn by remember { mutableStateOf<OverlayNavReturn?>(null) }
+    var rootOverlayStack by remember { mutableStateOf<List<RootOverlay>>(emptyList()) }
     val selectedIndex = when (currentGraph) {
         NavRoutes.GRAPH_LIBRARY -> 2
         NavRoutes.GRAPH_SETTINGS -> 3
@@ -108,6 +189,10 @@ fun AppRoot() {
     val onWaveHome = currentRoute == NavRoutes.WAVE_HOME
 
     fun switchTab(index: Int, resetOnReselect: Boolean = false) {
+        overlayNavReturn?.let { pending ->
+            rootOverlayStack = rootOverlayStack.filterNot { it == pending.overlay }
+        }
+        overlayNavReturn = null
         val (graph, home) = when (index) {
             2 -> NavRoutes.GRAPH_LIBRARY to NavRoutes.LIBRARY_HOME
             3 -> NavRoutes.GRAPH_SETTINGS to NavRoutes.SETTINGS_HOME
@@ -152,24 +237,62 @@ fun AppRoot() {
         AppSettings.setLastScreen(index)
     }
 
-    // Оверлеи — живут НАД NavHost.
-    var settingsOpen by remember { mutableStateOf(false) }
     var lrcPublishTrack by remember { mutableStateOf<com.lmg.vk.engine.Track?>(null) }
     var tagEditTrack by remember { mutableStateOf<com.lmg.vk.engine.Track?>(null) }
-    var authOpen by remember { mutableStateOf(false) }
     var authAddingAccount by remember { mutableStateOf(false) }
-    var profileOpen by remember { mutableStateOf(false) }
     var accountsDialogOpen by remember { mutableStateOf(false) }
+    var reopenAccountsAfterAuth by remember { mutableStateOf(false) }
+    var reopenAccountsAfterRemoval by remember { mutableStateOf(false) }
     var accountActionError by remember { mutableStateOf<String?>(null) }
     var accountPendingRemoval by remember { mutableStateOf<com.lmg.vk.engine.backend.VkAccountSummary?>(null) }
     val accounts by com.lmg.vk.engine.backend.MusicAuth.accounts.collectAsState()
     val activeCaptchaPrompt by com.lmg.vk.network.GlobalCaptchaManager.activePrompt.collectAsState()
     val activeValidationPrompt by com.lmg.vk.network.GlobalCaptchaManager.activeValidation.collectAsState()
-    // Поиск — полноэкранный ОВЕРЛЕЙ (как настройки/профиль), а НЕ пункт нав-графа.
-    // Иначе экран поиска попадал в пер-таб бэкстек Волны и через saveState/
-    // restoreState «прилипал» к вкладке — при возврате на таб вместо его старта
-    // показывался поиск (полевой фидбек: «поиск повесился на вкладку»).
-    var searchOpen by remember { mutableStateOf(false) }
+    val hiddenRootOverlay = overlayNavReturn?.overlay
+    val settingsRetained = RootOverlay.SETTINGS in rootOverlayStack
+    val authRetained = RootOverlay.AUTH in rootOverlayStack
+    val profileRetained = RootOverlay.PROFILE in rootOverlayStack
+    val searchRetained = RootOverlay.SEARCH in rootOverlayStack
+    val settingsOpen = settingsRetained && hiddenRootOverlay != RootOverlay.SETTINGS
+    val authOpen = authRetained && hiddenRootOverlay != RootOverlay.AUTH
+    val profileOpen = profileRetained && hiddenRootOverlay != RootOverlay.PROFILE
+    val searchOpen = searchRetained && hiddenRootOverlay != RootOverlay.SEARCH
+    val topRootOverlay = rootOverlayStack.lastOrNull { it != hiddenRootOverlay }
+
+    fun openRootOverlay(overlay: RootOverlay) {
+        rootOverlayStack = rootOverlayStack.filterNot { it == overlay } + overlay
+    }
+
+    fun closeRootOverlay(overlay: RootOverlay) {
+        rootOverlayStack = rootOverlayStack.filterNot { it == overlay }
+    }
+
+    fun clearRootOverlays() {
+        rootOverlayStack = emptyList()
+    }
+
+    fun overlayModifier(overlay: RootOverlay): Modifier {
+        val hidden = hiddenRootOverlay == overlay
+        return Modifier
+            .zIndex(if (hidden) -10f else rootOverlayStack.indexOf(overlay).toFloat() + 100f)
+            .graphicsLayer { alpha = if (hidden) 0f else 1f }
+    }
+
+    fun navigateFromOverlay(overlay: RootOverlay, route: String) {
+        overlayNavReturn = OverlayNavReturn(overlay, currentRoute)
+        navController.navigate(route)
+    }
+
+    LaunchedEffect(currentRoute, overlayNavReturn) {
+        val pending = overlayNavReturn ?: return@LaunchedEffect
+        if (currentRoute != pending.originRoute) {
+            if (!pending.destinationEntered) {
+                overlayNavReturn = pending.copy(destinationEntered = true)
+            }
+        } else if (pending.destinationEntered) {
+            overlayNavReturn = null
+        }
+    }
 
     // Бар/сайдбар видны на вкладках и деталях; прячем под полными оверлеями.
     val barsVisible = !settingsOpen && !authOpen && !profileOpen && !searchOpen
@@ -248,9 +371,8 @@ fun AppRoot() {
             else -> null
         }
         if (route != null) {
-            searchOpen = false
-            settingsOpen = false
-            profileOpen = false
+            clearRootOverlays()
+            overlayNavReturn = null
             animateCollapse()
             navController.navigate(route)
         }
@@ -286,25 +408,10 @@ fun AppRoot() {
 
     val rootBackdrop: LayerBackdrop = rememberLayerBackdrop()
 
-    // Back: сперва закрываем оверлеи (плеер/профиль/авторизация/эквалайзер/
-    // редакторы), потом — если ничего не открыто — back уходит в NavHost,
-    // который сам попает деталь → старт вкладки → предыдущая вкладка → выход.
     BackHandler(
-        enabled = tagEditTrack != null || lrcPublishTrack != null || settingsOpen ||
-            authOpen || profileOpen || searchOpen || expandProgress.value > 0.5f
+        enabled = expandProgress.value > 0.5f
     ) {
-        when {
-            tagEditTrack != null -> tagEditTrack = null
-            lrcPublishTrack != null -> lrcPublishTrack = null
-            settingsOpen -> settingsOpen = false
-            authOpen -> {
-                authOpen = false
-                authAddingAccount = false
-            }
-            profileOpen -> profileOpen = false
-            searchOpen -> searchOpen = false
-            expandProgress.value > 0.5f -> animateCollapse()
-        }
+        animateCollapse()
     }
 
     val lc = LiquidTheme.colors
@@ -350,12 +457,12 @@ fun AppRoot() {
                             // Поиск — оверлей (не переключение вкладки), поэтому не
                             // трогает бэкстек и не прилипает к вкладкам.
                             if (index == 1) {
-                                searchOpen = true
+                                openRootOverlay(RootOverlay.SEARCH)
                             } else {
                                 switchTab(index, resetOnReselect = true)
                             }
                         },
-                        onOpenProfile = { profileOpen = true },
+                        onOpenProfile = { openRootOverlay(RootOverlay.PROFILE) },
                         onOpenAccounts = {
                             accountActionError = null
                             accountsDialogOpen = true
@@ -373,13 +480,16 @@ fun AppRoot() {
                         backdrop = rootBackdrop,
                         waveAnimationsActive = waveAnimationsActive,
                         onOpenPlayer = { animateExpand() },
-                        onOpenAuth = { authAddingAccount = false; authOpen = true },
-                        onOpenProfile = { profileOpen = true },
+                        onOpenAuth = {
+                            authAddingAccount = false
+                            openRootOverlay(RootOverlay.AUTH)
+                        },
+                        onOpenProfile = { openRootOverlay(RootOverlay.PROFILE) },
                         onOpenAccounts = {
                             accountActionError = null
                             accountsDialogOpen = true
                         },
-                        onOpenSearch = { searchOpen = true }
+                        onOpenSearch = { openRootOverlay(RootOverlay.SEARCH) }
                     )
                 }
             }
@@ -573,7 +683,7 @@ fun AppRoot() {
             onSkipPrevious = { PlayerController.skipPrevious(context) },
             onSeek = { PlayerController.seekTo(it) },
             onVolumeChange = { PlayerController.setVolume(it) },
-            onOpenSettings = { settingsOpen = true },
+            onOpenSettings = { openRootOverlay(RootOverlay.SETTINGS) },
             onNavigateToArtist = { artistId ->
                 // Открываем деталь артиста в текущей вкладке (у Настроек нет
                 // графа деталей — тогда уходим в Волну).
@@ -593,6 +703,7 @@ fun AppRoot() {
         // ── Публикация текста в LRCLIB (открывается из меню трека в плеере) ──
         AnimatedVisibility(
             visible = lrcPublishTrack != null,
+            modifier = Modifier.zIndex(50f),
             enter = slideInVertically(
                 initialOffsetY = { it },
                 animationSpec = spring(dampingRatio = 0.88f, stiffness = 300f)
@@ -603,16 +714,22 @@ fun AppRoot() {
             ) + fadeOut(tween(150))
         ) {
             lrcPublishTrack?.let { track ->
-                com.lmg.vk.ui.screens.LrcPublishScreen(
-                    track = track,
-                    onBack = { lrcPublishTrack = null }
-                )
+                PredictiveBackLayer(
+                    enabled = tagEditTrack == null && topRootOverlay == null,
+                    onBack = { lrcPublishTrack = null },
+                ) { requestBack ->
+                    com.lmg.vk.ui.screens.LrcPublishScreen(
+                        track = track,
+                        onBack = requestBack,
+                    )
+                }
             }
         }
 
         // ── Редактирование тегов (открывается из меню трека в плеере) ──
         AnimatedVisibility(
             visible = tagEditTrack != null,
+            modifier = Modifier.zIndex(51f),
             enter = slideInVertically(
                 initialOffsetY = { it },
                 animationSpec = spring(dampingRatio = 0.88f, stiffness = 300f)
@@ -623,16 +740,22 @@ fun AppRoot() {
             ) + fadeOut(tween(150))
         ) {
             tagEditTrack?.let { track ->
-                com.lmg.vk.ui.screens.TagEditScreen(
-                    track = track,
-                    onBack = { tagEditTrack = null }
-                )
+                PredictiveBackLayer(
+                    enabled = topRootOverlay == null,
+                    onBack = { tagEditTrack = null },
+                ) { requestBack ->
+                    com.lmg.vk.ui.screens.TagEditScreen(
+                        track = track,
+                        onBack = requestBack,
+                    )
+                }
             }
         }
 
         // ── Поиск (оверлей поверх всего, из сайдбара или кнопки на главной) ──
         AnimatedVisibility(
-            visible = searchOpen,
+            visible = searchRetained,
+            modifier = overlayModifier(RootOverlay.SEARCH),
             enter = slideInVertically(
                 initialOffsetY = { it },
                 animationSpec = spring(dampingRatio = 0.88f, stiffness = 300f)
@@ -642,22 +765,35 @@ fun AppRoot() {
                 animationSpec = spring(dampingRatio = 0.92f, stiffness = 400f)
             ) + fadeOut(tween(150))
         ) {
-            com.lmg.vk.ui.screens.SearchScreen(
-                onNavigateToAlbum = { id ->
-                    searchOpen = false
-                    navController.navigate(NavRoutes.album(NavRoutes.TAB_WAVE, id))
-                },
-                onNavigateToArtist = { id ->
-                    searchOpen = false
-                    navController.navigate(NavRoutes.artist(NavRoutes.TAB_WAVE, id))
-                },
-                onOpenPlayer = { searchOpen = false; animateExpand() },
-                onBack = { searchOpen = false }
-            )
+            PredictiveBackLayer(
+                enabled = topRootOverlay == RootOverlay.SEARCH,
+                onBack = { closeRootOverlay(RootOverlay.SEARCH) },
+            ) { requestBack ->
+                com.lmg.vk.ui.screens.SearchScreen(
+                    onNavigateToAlbum = { id ->
+                        navigateFromOverlay(
+                            RootOverlay.SEARCH,
+                            NavRoutes.album(NavRoutes.TAB_WAVE, id),
+                        )
+                    },
+                    onNavigateToArtist = { id ->
+                        navigateFromOverlay(
+                            RootOverlay.SEARCH,
+                            NavRoutes.artist(NavRoutes.TAB_WAVE, id),
+                        )
+                    },
+                    onOpenPlayer = {
+                        closeRootOverlay(RootOverlay.SEARCH)
+                        animateExpand()
+                    },
+                    onBack = requestBack,
+                )
+            }
         }
 
         AnimatedVisibility(
-            visible = settingsOpen,
+            visible = settingsRetained,
+            modifier = overlayModifier(RootOverlay.SETTINGS),
             enter = slideInHorizontally(
                 initialOffsetX = { it },
                 animationSpec = tween(340, easing = com.lmg.vk.ui.theme.AppleEasings.Standard)
@@ -667,25 +803,36 @@ fun AppRoot() {
                 animationSpec = tween(300, easing = com.lmg.vk.ui.theme.AppleEasings.Standard)
             ) + fadeOut(animationSpec = tween(200))
         ) {
-            SettingsScreen(
-                onBack = { settingsOpen = false },
-                // Экран аудиоэффектов удалён — колбэк пустой (см. выше).
-                onOpenEqualizer = {},
-                onOpenProfile = { profileOpen = true; settingsOpen = false },
-                onOpenAccounts = {
-                    accountActionError = null
-                    accountsDialogOpen = true
-                },
-                // Оверлей закрываем перед переходом: экран лога живёт в NavHost,
-                // то есть ПОД оверлеем — иначе переход просто не было бы видно.
-                onOpenDebugLog = { settingsOpen = false; navController.navigate(NavRoutes.DEBUG_LOG) },
-                backdrop = rootBackdrop
-            )
+            PredictiveBackLayer(
+                enabled = topRootOverlay == RootOverlay.SETTINGS,
+                onBack = { closeRootOverlay(RootOverlay.SETTINGS) },
+            ) { requestBack ->
+                SettingsScreen(
+                    onBack = requestBack,
+                    onOpenEqualizer = {},
+                    onOpenProfile = { openRootOverlay(RootOverlay.PROFILE) },
+                    onOpenAccounts = {
+                        accountActionError = null
+                        accountsDialogOpen = true
+                    },
+                    onOpenRecommendationsOnboarding = {
+                        navigateFromOverlay(
+                            RootOverlay.SETTINGS,
+                            NavRoutes.RECOMMENDATIONS_ONBOARDING,
+                        )
+                    },
+                    onOpenDebugLog = {
+                        navigateFromOverlay(RootOverlay.SETTINGS, NavRoutes.DEBUG_LOG)
+                    },
+                    backHandlingEnabled = topRootOverlay == RootOverlay.SETTINGS,
+                    backdrop = rootBackdrop,
+                )
+            }
         }
 
-        // ── Profile Screen ──
         AnimatedVisibility(
-            visible = profileOpen,
+            visible = profileRetained,
+            modifier = overlayModifier(RootOverlay.PROFILE),
             enter = slideInHorizontally(
                 initialOffsetX = { it },
                 animationSpec = spring(dampingRatio = 0.9f, stiffness = 300f)
@@ -695,40 +842,48 @@ fun AppRoot() {
                 animationSpec = spring(dampingRatio = 0.9f, stiffness = 350f)
             ) + fadeOut(tween(150))
         ) {
-            ProfileScreen(
-                onOpenSettings = { profileOpen = false; settingsOpen = true },
-                onLogout = { profileOpen = false },
-                onOpenAuth = { authAddingAccount = false; authOpen = true },
-                onOpenLibrary = { profileOpen = false; switchTab(2) },
-                onOpenPlaylist = { playlistId ->
-                    profileOpen = false
-                    navController.navigate(
-                        NavRoutes.playlist(NavRoutes.TAB_LIBRARY, playlistId),
-                    )
-                },
-                onOpenUserProfile = { userId ->
-                    profileOpen = false
-                    navController.navigate(NavRoutes.userProfile(userId))
-                },
-                onOpenGroup = { ownerId ->
-                    profileOpen = false
-                    navController.navigate(NavRoutes.group(ownerId))
-                },
-                onAddAccount = {
-                    authAddingAccount = true
-                    authOpen = true
-                },
-            )
+            PredictiveBackLayer(
+                enabled = topRootOverlay == RootOverlay.PROFILE,
+                onBack = { closeRootOverlay(RootOverlay.PROFILE) },
+            ) {
+                ProfileScreen(
+                    onOpenSettings = { openRootOverlay(RootOverlay.SETTINGS) },
+                    onLogout = { closeRootOverlay(RootOverlay.PROFILE) },
+                    onOpenAuth = {
+                        authAddingAccount = false
+                        openRootOverlay(RootOverlay.AUTH)
+                    },
+                    onOpenLibrary = {
+                        closeRootOverlay(RootOverlay.PROFILE)
+                        switchTab(2)
+                    },
+                    onOpenPlaylist = { playlistId ->
+                        navigateFromOverlay(
+                            RootOverlay.PROFILE,
+                            NavRoutes.playlist(NavRoutes.TAB_LIBRARY, playlistId),
+                        )
+                    },
+                    onOpenUserProfile = { userId ->
+                        navigateFromOverlay(RootOverlay.PROFILE, NavRoutes.userProfile(userId))
+                    },
+                    onOpenGroup = { ownerId ->
+                        navigateFromOverlay(RootOverlay.PROFILE, NavRoutes.group(ownerId))
+                    },
+                    onAddAccount = {
+                        authAddingAccount = true
+                        openRootOverlay(RootOverlay.AUTH)
+                    },
+                    onOpenAccounts = {
+                        accountActionError = null
+                        accountsDialogOpen = true
+                    },
+                    backHandlingEnabled = topRootOverlay == RootOverlay.PROFILE,
+                )
+            }
         }
-
-
-        // ── Auth Screen ──
-        // ДОЛЖЕН идти ПОСЛЕ ProfileScreen: экраны — соседние AnimatedVisibility
-        // в одном Box, порядок в коде = z-порядок. Раньше Auth рисовался ДО
-        // профиля и при «Sign In» из профиля выезжал ПОД ним — казалось, что
-        // кнопка мертва. Теперь Auth — верхний слой, открывается поверх всего.
         AnimatedVisibility(
-            visible = authOpen,
+            visible = authRetained,
+            modifier = overlayModifier(RootOverlay.AUTH),
             enter = slideInVertically(
                 initialOffsetY = { it },
                 animationSpec = spring(dampingRatio = 0.88f, stiffness = 300f)
@@ -738,24 +893,32 @@ fun AppRoot() {
                 animationSpec = spring(dampingRatio = 0.92f, stiffness = 400f)
             ) + fadeOut(tween(150))
         ) {
-            AuthScreen(
-                onAuthSuccess = {
-                    authOpen = false
-                    if (authAddingAccount) {
-                        profileOpen = true
-                    } else {
-                        profileOpen = false
-                        // На Wave (профиль теперь иконка слева вверху, не таб).
-                        switchTab(0)
-                    }
-                    authAddingAccount = false
-                },
+            PredictiveBackLayer(
+                enabled = topRootOverlay == RootOverlay.AUTH,
                 onBack = {
-                    authOpen = false
+                    closeRootOverlay(RootOverlay.AUTH)
                     authAddingAccount = false
+                    if (reopenAccountsAfterAuth) {
+                        accountsDialogOpen = true
+                        reopenAccountsAfterAuth = false
+                    }
                 },
-                isAddingAccount = authAddingAccount,
-            )
+            ) { requestBack ->
+                AuthScreen(
+                    onAuthSuccess = {
+                        closeRootOverlay(RootOverlay.AUTH)
+                        reopenAccountsAfterAuth = false
+                        if (!authAddingAccount) {
+                            closeRootOverlay(RootOverlay.PROFILE)
+                            switchTab(0)
+                        }
+                        authAddingAccount = false
+                    },
+                    onBack = requestBack,
+                    isAddingAccount = authAddingAccount,
+                    backHandlingEnabled = topRootOverlay == RootOverlay.AUTH,
+                )
+            }
         }
 
         if (accountsDialogOpen) {
@@ -766,8 +929,9 @@ fun AppRoot() {
                 onSelectAccount = { account ->
                     if (account.isExpired) {
                         accountsDialogOpen = false
+                        reopenAccountsAfterAuth = true
                         authAddingAccount = true
-                        authOpen = true
+                        openRootOverlay(RootOverlay.AUTH)
                     } else if (!account.isActive && com.lmg.vk.engine.backend.MusicAuth.switchAccount(account.userId)) {
                         accountsDialogOpen = false
                     } else if (!account.isActive) {
@@ -777,12 +941,14 @@ fun AppRoot() {
                 onRemoveAccount = { account ->
                     accountActionError = null
                     accountsDialogOpen = false
+                    reopenAccountsAfterRemoval = true
                     accountPendingRemoval = account
                 },
                 onAddAccount = {
                     accountsDialogOpen = false
+                    reopenAccountsAfterAuth = true
                     authAddingAccount = true
-                    authOpen = true
+                    openRootOverlay(RootOverlay.AUTH)
                 },
                 onDismiss = { accountsDialogOpen = false },
             )
@@ -798,7 +964,11 @@ fun AppRoot() {
             }
             GlassDialog(
                 visible = true,
-                onDismiss = { accountPendingRemoval = null },
+                onDismiss = {
+                    accountPendingRemoval = null
+                    if (reopenAccountsAfterRemoval) accountsDialogOpen = true
+                    reopenAccountsAfterRemoval = false
+                },
                 icon = lmgVector(LmgDrawables.DeleteOutline28),
                 iconTint = Color(0xFFFC3C44),
                 title = "Remove ${account.displayName}?",
@@ -809,8 +979,10 @@ fun AppRoot() {
                     onClick = {
                         if (com.lmg.vk.engine.backend.MusicAuth.removeAccount(account.userId)) {
                             accountPendingRemoval = null
+                            if (reopenAccountsAfterRemoval) accountsDialogOpen = true
+                            reopenAccountsAfterRemoval = false
                             if (!com.lmg.vk.engine.backend.MusicAuth.isLoggedIn.value) {
-                                profileOpen = false
+                                closeRootOverlay(RootOverlay.PROFILE)
                             }
                         } else {
                             accountActionError = "Wait for library synchronization to finish"
@@ -819,7 +991,11 @@ fun AppRoot() {
                 ),
                 secondaryButton = GlassDialogButton(
                     text = "Cancel",
-                    onClick = { accountPendingRemoval = null },
+                    onClick = {
+                        accountPendingRemoval = null
+                        if (reopenAccountsAfterRemoval) accountsDialogOpen = true
+                        reopenAccountsAfterRemoval = false
+                    },
                 ),
             )
         }
