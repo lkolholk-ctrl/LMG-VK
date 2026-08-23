@@ -2,6 +2,7 @@ package com.lmg.vk.ui.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.lmg.vk.engine.backend.MusicAuth
 import com.lmg.vk.network.VkApiLocator
 import com.lmg.vk.network.VkResult
 import com.lmg.vk.network.dto.music.AnnualResultValue
@@ -27,12 +28,6 @@ data class YearRecapLine(
         get() = title.isBlank() && value.isBlank() && caption.isBlank() && coverUrl.isNullOrBlank()
 }
 
-/**
- * Блок «Итогов года» в виде, пригодном для отрисовки. Оба серверных источника
- * (метрики пользователя и итоги артиста) сводятся сюда — так же, как в VK X,
- * где `studio.getArtistYearRecapData` конвертируется в модель метрик
- * (`FRESH C4271e.java:32-125`, функция `m1510this`).
- */
 data class YearRecapBlock(
     val key: String,
     val type: String,
@@ -106,7 +101,6 @@ class YearRecapViewModel : ViewModel() {
     private var loadJob: Job? = null
     private var creationJob: Job? = null
 
-    /** Артист, для которого грузились итоги; null — метрики пользователя. */
     private var artistId: String? = null
 
     fun load(artistId: String? = null, force: Boolean = false) {
@@ -117,14 +111,23 @@ class YearRecapViewModel : ViewModel() {
         this.artistId = artistId
 
         loadJob?.cancel()
+        creationJob?.cancel()
+        val accountId = MusicAuth.profileId.value
         loadJob = viewModelScope.launch {
-            _state.value = _state.value.copy(isLoading = true, error = null)
-            // Сеть/инициализация могут бросить: экран обязан показать текст
-            // ошибки, а не уронить приложение.
+            _state.value = if (force) {
+                YearRecapUiState(isLoading = true)
+            } else {
+                _state.value.copy(isLoading = true, error = null)
+            }
             runCatching {
-                if (artistId.isNullOrBlank()) loadUserMetrics() else loadArtistRecap(artistId)
+                if (artistId.isNullOrBlank()) {
+                    loadUserMetrics(accountId)
+                } else {
+                    loadArtistRecap(artistId, accountId)
+                }
             }.onFailure { failure ->
                 if (failure is kotlinx.coroutines.CancellationException) throw failure
+                if (MusicAuth.profileId.value != accountId) return@onFailure
                 _state.value = _state.value.copy(
                     isLoading = false,
                     error = failure.message?.takeIf { it.isNotBlank() }
@@ -134,7 +137,7 @@ class YearRecapViewModel : ViewModel() {
         }
     }
 
-    private suspend fun loadUserMetrics() {
+    private suspend fun loadUserMetrics(accountId: Long?) {
         when (val result = api.getMetrics()) {
             is VkResult.Success -> {
                 val blocks = result.data.blocks
@@ -143,13 +146,12 @@ class YearRecapViewModel : ViewModel() {
                     .mapIndexed { index, block -> block.toUiBlock(index) }
                     .filter { it.hasContent }
 
-                // Заголовок будущего плейлиста берём из блока, как VK X
-                // (`FRESH C4673e.java:232-248`): своё имя, иначе дефолт "My 2025".
                 val playlistBlock = result.data.blocks.firstOrNull { it.playlist != null }
                 val playlistTitle = playlistBlock?.playlist?.title
                     ?.takeIf { it.isNotBlank() }
                     ?: playlistBlock?.let { VkYearStatsApi.DEFAULT_PLAYLIST_TITLE }
 
+                if (MusicAuth.profileId.value != accountId) return
                 _state.value = _state.value.copy(
                     isLoading = false,
                     blocks = blocks,
@@ -160,17 +162,19 @@ class YearRecapViewModel : ViewModel() {
                     error = null,
                     playlistTitle = playlistTitle,
                 )
-                restoreCreatedPlaylist()
+                restoreCreatedPlaylist(accountId)
             }
 
-            is VkResult.Error -> _state.value = _state.value.copy(
-                isLoading = false,
-                error = result.message.ifBlank { "ВКонтакте не вернул итоги года" },
-            )
+            is VkResult.Error -> if (MusicAuth.profileId.value == accountId) {
+                _state.value = _state.value.copy(
+                    isLoading = false,
+                    error = result.message.ifBlank { "ВКонтакте не вернул итоги года" },
+                )
+            }
         }
     }
 
-    private suspend fun loadArtistRecap(artistId: String) {
+    private suspend fun loadArtistRecap(artistId: String, accountId: Long?) {
         when (val result = api.getArtistYearRecap(artistId)) {
             is VkResult.Success -> {
                 val blocks = result.data.blocks
@@ -179,37 +183,36 @@ class YearRecapViewModel : ViewModel() {
                     .mapIndexed { index, block -> block.toUiBlock(index) }
                     .filter { it.hasContent }
 
+                if (MusicAuth.profileId.value != accountId) return
                 _state.value = _state.value.copy(
                     isLoading = false,
                     blocks = blocks,
                     audioTooltip = "",
                     actionTitles = emptyList(),
                     error = null,
-                    // Плейлист по метрикам — фича раздела метрик, не итогов артиста.
                     playlistTitle = null,
                 )
             }
 
-            is VkResult.Error -> _state.value = _state.value.copy(
-                isLoading = false,
-                error = result.message.ifBlank { "ВКонтакте не вернул итоги года артиста" },
-            )
+            is VkResult.Error -> if (MusicAuth.profileId.value == accountId) {
+                _state.value = _state.value.copy(
+                    isLoading = false,
+                    error = result.message.ifBlank { "ВКонтакте не вернул итоги года артиста" },
+                )
+            }
         }
     }
 
-    /**
-     * Если плейлист уже создавался раньше, VK помнит его id в своём `storage`
-     * (§2.2). Читаем, чтобы не предлагать создать второй такой же.
-     */
-    private suspend fun restoreCreatedPlaylist() {
+    private suspend fun restoreCreatedPlaylist(accountId: Long?) {
         val existing = runCatching { api.createdPlaylistId() }.getOrNull() ?: return
+        if (MusicAuth.profileId.value != accountId) return
         _state.value = _state.value.copy(creation = PlaylistCreationState.Created(existing))
     }
 
-    /** Действие пользователя из VK X: собрать плейлист по результатам метрик. */
     fun createPlaylist() {
         val title = _state.value.playlistTitle ?: return
         if (_state.value.creation is PlaylistCreationState.InProgress) return
+        val accountId = MusicAuth.profileId.value
 
         creationJob?.cancel()
         creationJob = viewModelScope.launch {
@@ -219,6 +222,7 @@ class YearRecapViewModel : ViewModel() {
                     if (failure is kotlinx.coroutines.CancellationException) throw failure
                     VkResult.Error(0, failure.message.orEmpty())
                 }
+            if (MusicAuth.profileId.value != accountId) return@launch
             _state.value = when (result) {
                 is VkResult.Success -> _state.value.copy(
                     creation = PlaylistCreationState.Created(result.data.id),
@@ -261,7 +265,6 @@ private fun Y25CBlock.toUiBlock(index: Int): YearRecapBlock = YearRecapBlock(
     subtitles = subtitles.map { it.toLine() }.filterNot { it.isEmpty },
     metrics = metrics.map { it.toLine() }.filterNot { it.isEmpty },
     photoUrls = photoUrls.filter { it.isNotBlank() },
-    // Для телефона берём мобильную картинку — как VK X на Android.
     backgroundUrl = background?.mobile?.coverUrl?.takeIf { it.isNotBlank() }
         ?: background?.story?.coverUrl?.takeIf { it.isNotBlank() },
     playlistId = playlist?.id?.takeIf { it != 0L },
@@ -278,18 +281,6 @@ private fun AnnualResultValue.toLine(): YearRecapLine = YearRecapLine(
         ?: photoUrls.firstOrNull { it.isNotBlank() },
 )
 
-/**
- * ОТСТУПЛЕНИЕ ОТ VK X, осознанное. Оригинал в `m1510this` раскладывает поля
- * `Value` по-разному для каждого типа блока: например для `base` в заголовок
- * строки уходит `subtitle`, а в значение — `title`, а для `extended` наоборот, и
- * `caption` там же превращается в URL обложки. Эти перестановки подогнаны под
- * сторис-карусель VK X (полноэкранные слайды с фоном).
- *
- * Здесь экран — вертикальный список, поэтому каждое поле показывается под своим
- * же смыслом: `title` как подпись, `value` как значение, `photo_url` как
- * обложка. Так ни одно значение не теряется и не подменяется другим, а порядок
- * блоков и их видимость (`order`/`is_visible`) соблюдаются как в оригинале.
- */
 private fun AudioGetAnnualResultBlockDto.toUiBlock(index: Int): YearRecapBlock {
     val headline = screenTitle?.takeIf { it.isNotBlank() }
     val subhead = screenSubtitle?.takeIf { it.isNotBlank() }

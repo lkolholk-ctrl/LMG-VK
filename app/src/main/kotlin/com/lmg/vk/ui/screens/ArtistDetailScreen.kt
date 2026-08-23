@@ -78,6 +78,7 @@ import com.lmg.vk.engine.backend.ArtistResponse
 import com.lmg.vk.engine.backend.ArtistVideo
 import com.lmg.vk.engine.backend.MusicBackend
 import com.lmg.vk.engine.backend.toTrack
+import com.lmg.vk.engine.backend.MusicAuth
 import com.lmg.vk.data.local.db.AppDatabase
 import com.lmg.vk.engine.PlayerController
 import com.lmg.vk.ui.components.releaseTypeLabel
@@ -129,6 +130,7 @@ fun ArtistDetailScreen(
     val context = LocalContext.current
     val colors = LiquidTheme.colors
     val scope = rememberCoroutineScope()
+    val activeAccountId by MusicAuth.profileId.collectAsState()
 
     var artist by remember { mutableStateOf<ArtistResponse?>(null) }
     var isLoading by remember { mutableStateOf(true) }
@@ -143,9 +145,11 @@ fun ArtistDetailScreen(
     // «своё/похожие», а layout `owner_cell` не читается вообще).
     val communitiesViewModel: ArtistCommunitiesViewModel = viewModel()
     val artistCommunities by communitiesViewModel.state.collectAsState()
-    LaunchedEffect(artistId, reloadKey) { communitiesViewModel.load(artistId) }
+    LaunchedEffect(artistId, reloadKey, activeAccountId) {
+        communitiesViewModel.load(artistId, force = true)
+    }
 
-    LaunchedEffect(artistId, reloadKey) {
+    LaunchedEffect(artistId, reloadKey, activeAccountId) {
         isLoading = true
         error = null
         artist = null
@@ -211,7 +215,7 @@ fun ArtistDetailScreen(
         artistTracksLoading = false
     }
 
-    LaunchedEffect(artist?.id) {
+    LaunchedEffect(artist?.id, activeAccountId) {
         val art = artist
         if (art == null) {
             artistTracks = emptyList()
@@ -225,7 +229,7 @@ fun ArtistDetailScreen(
         loadArtistTracksPage(art, reset = true)
     }
 
-    LaunchedEffect(artist?.id) {
+    LaunchedEffect(artist?.id, activeAccountId) {
         val art = artist
         if (art == null) {
             artistReleases = emptyList()
@@ -239,12 +243,13 @@ fun ArtistDetailScreen(
     var playCount by remember { mutableStateOf(0) }
     var favouriteTrackTitle by remember { mutableStateOf<String?>(null) }
 
-    LaunchedEffect(artistTracks) {
+    LaunchedEffect(artistTracks, activeAccountId) {
         playCount = 0
         favouriteTrackTitle = null
         if (artistTracks.isEmpty()) return@LaunchedEffect
         try {
-            val stats = AppDatabase.getInstance(context).playbackHistoryDao().getAllTrackStats(500)
+            val stats = AppDatabase.getInstance(context).playbackHistoryDao()
+                .getAllTrackStats(AppDatabase.activeAccountId(), 500)
             val byId = artistTracks.associateBy { it.id }
             val mine = stats.filter { byId.containsKey(it.trackId) }
             playCount = mine.sumOf { it.playCount }

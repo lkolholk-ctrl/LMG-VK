@@ -155,6 +155,7 @@ class PlaybackService : MediaLibraryService(), Handler.Callback {
         synchronized(queueLock) {
             QueueSaveHolder.save(
                 this,
+                com.lmg.vk.engine.PlayerController.playbackAccountId(),
                 QueueSaveHolder.LmgMetadataState(
                     queue = queue.mapNotNull { it.mediaId },
                     currentIndex = player.currentMediaItemIndex,
@@ -218,16 +219,11 @@ class PlaybackService : MediaLibraryService(), Handler.Callback {
     }
 }
 
-/** Держатель конфига эффектов (StateFlow из настроек приложения). */
 object LmgEffectConfigHolder {
     val configFlow: kotlinx.coroutines.flow.StateFlow<LmgEffectConfig> =
         kotlinx.coroutines.flow.MutableStateFlow(LmgEffectConfig())
 }
 
-/**
- * Сохранение состояния очереди (Moshi).
- * Порт `com.lmg.vkreborn.playback.util.QueueSaveHolder$LmgMetadataState`.
- */
 object QueueSaveHolder {
 
     @com.squareup.moshi.JsonClass(generateAdapter = true)
@@ -238,13 +234,22 @@ object QueueSaveHolder {
         val playing: Boolean = false,
     )
 
-    fun save(context: android.content.Context, state: LmgMetadataState) {
+    fun save(context: android.content.Context, accountId: Long, state: LmgMetadataState) {
+        if (accountId == 0L) return
         context.getSharedPreferences(PREFS, 0).edit()
-            .putString(KEY_STATE, state.toJson()).apply()
+            .putString(accountKey(accountId), state.toJson()).apply()
     }
 
     fun load(context: android.content.Context): LmgMetadataState? {
-        val raw = context.getSharedPreferences(PREFS, 0).getString(KEY_STATE, null) ?: return null
+        val preferences = context.getSharedPreferences(PREFS, 0)
+        val key = accountKey(com.lmg.vk.data.local.db.AppDatabase.activeAccountId())
+        val raw = preferences.getString(key, null) ?: preferences.getString(LEGACY_KEY_STATE, null)
+            ?.also {
+                if (com.lmg.vk.data.local.db.AppDatabase.activeAccountId() != 0L) {
+                    preferences.edit().putString(key, it).remove(LEGACY_KEY_STATE).apply()
+                }
+            }
+            ?: return null
         return runCatching { fromJson(raw) }.getOrNull()
     }
 
@@ -257,5 +262,7 @@ object QueueSaveHolder {
             .adapter(LmgMetadataState::class.java).fromJson(raw)
 
     private const val PREFS = "lmg_queue"
-    private const val KEY_STATE = "state"
+    private const val LEGACY_KEY_STATE = "state"
+
+    private fun accountKey(accountId: Long): String = "state_account_$accountId"
 }

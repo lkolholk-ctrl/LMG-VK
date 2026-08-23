@@ -149,9 +149,8 @@ class HomeViewModel : ViewModel() {
             MusicAuth.profileId.collectLatest { accountId ->
                 val id = accountId ?: 0L
                 if (loadedHomeAccountId != Long.MIN_VALUE && loadedHomeAccountId != id) {
-                    _vkMixState.value = VkMixUiState.Idle
-                    _vkMixFeedback.value = VkMixFeedbackState.Idle
-                    loadHomeContent(force = true)
+                    resetAccountContent(id)
+                    if (id != 0L) loadHomeContent(force = true)
                 }
             }
         }
@@ -1418,6 +1417,51 @@ class HomeViewModel : ViewModel() {
      */
     val isPremium: Boolean
         get() = MusicAuth.isPremium.value
+
+    private fun resetAccountContent(accountId: Long) {
+        listOf(
+            homeLoadJob,
+            homeSectionJob,
+            chartsLoadJob,
+            genresLoadJob,
+            waveLoadJob,
+            mixSettingsJob,
+            feedbackJob,
+            pendingDislikeSkipJob,
+            signalLoadJob,
+            catalogSectionJob,
+        ).forEach { it?.cancel() }
+        tabJobs.values.forEach { it.cancel() }
+        pagingJobs.values.forEach { it.cancel() }
+        tabJobs.clear()
+        pagingJobs.clear()
+        homeSectionCache.clear()
+        usedHomeSectionCursors.clear()
+        usedCursors.clear()
+        _homeContent.value = null
+        _charts.value = emptyList()
+        _error.value = null
+        _selectedHomeSectionId.value = null
+        _homeSectionError.value = null
+        _selectedTab.value = emptyMap()
+        _tabContent.value = emptyMap()
+        _blockPaging.value = emptyMap()
+        _waveTracks.value = emptyList()
+        _topGenres.value = emptyList()
+        _loadingSignalBlocks.value = emptySet()
+        _catalogSectionState.value = CatalogSectionUiState.Idle
+        _vkMixState.value = VkMixUiState.Idle
+        _vkMixFeedback.value = VkMixFeedbackState.Idle
+        _needsLink.value = false
+        _isLoading.value = false
+        _isLoadingCharts.value = false
+        _isBuildingWave.value = false
+        _isLoadingHomeSection.value = false
+        _isLoadingMoreHomeSection.value = false
+        failedHomeSectionId = null
+        homeLoadedAtMs = 0L
+        loadedHomeAccountId = accountId
+    }
 
     override fun onCleared() {
         Log.d("HomeViewModel", "HomeViewModel onCleared")

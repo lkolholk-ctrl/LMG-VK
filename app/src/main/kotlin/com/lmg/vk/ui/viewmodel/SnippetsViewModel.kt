@@ -2,6 +2,7 @@ package com.lmg.vk.ui.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.lmg.vk.engine.backend.MusicAuth
 import com.lmg.vk.network.VkApiLocator
 import com.lmg.vk.network.VkResult
 import com.lmg.vk.network.dto.music.AudioSnippetEntry
@@ -31,32 +32,6 @@ data class SnippetsUiState(
         get() = !isLoading && error == null && pages.isEmpty()
 }
 
-/**
- * ViewModel полноэкранной ленты сниппетов (`audio.getSnippets`).
- *
- * ── Что это в VK X ───────────────────────────────────────────────────
- * Разобранный класс фида — `C1718e` (см. реверс). Там это НЕ виджет в списке:
- * фрагмент держит список `AudioSnippetEntry` (поле-список внутри класса) и ДВА
- * индекса-состояния (`C16330e`) — внешний (какая подборка) и внутренний (какой
- * трек внутри подборки). Отсюда и вложенные пейджеры на экране.
- *
- * Обработчик `strictfp(...)` берёт `AudioSnippetEntry.audios` и по внутреннему
- * индексу достаёт `AudioTrack`, а `C13721e` (ветка `case 1`) на смене страницы
- * сравнивает пару индексов с текущей и, если она изменилась, пересобирает
- * источник и стартует плеер. Ключевое: URI берётся напрямую из
- * `AudioTrack.url` (поле `adcel`), без единого `ClippingConfiguration` — по
- * всему VK X таких вызовов нет вообще.
- *
- * ── Почему обрезку НЕ делаем сами ────────────────────────────────────
- * Обрезает СЕРВЕР: в `audio.getSnippets` VK сразу отдаёт короткий `url`, а его
- * длину сообщает полем `stream_duration` (секунды). Границы `clip_from`/
- * `clip_to` относятся к другому методу (микс плейлиста, `C5814e`), и даже там
- * VK X не режет поток, а лишь считает `(clip_to - clip_from) / 1000` и пишет
- * в то же `stream_duration`. Подробный разбор — в `dto/music/SnippetsFeed.kt`.
- *
- * Практический вывод: плеер трогать не нужно. Нам достаточно играть
- * присланный URL и рисовать прогресс по `stream_duration`.
- */
 class SnippetsViewModel : ViewModel() {
 
     // lazy: VkApiLocator.apiClient() бросает, пока LmgApplication не поднял
@@ -75,15 +50,21 @@ class SnippetsViewModel : ViewModel() {
     fun load(force: Boolean = false) {
         val current = _state.value
         if (!force && (current.pages.isNotEmpty() || current.isLoading)) return
+        val accountId = MusicAuth.profileId.value
 
         loadJob?.cancel()
         loadJob = viewModelScope.launch {
-            _state.value = current.copy(isLoading = true, error = null)
+            _state.value = if (force) {
+                SnippetsUiState(isLoading = true)
+            } else {
+                current.copy(isLoading = true, error = null)
+            }
             // Сеть и разбор ответа могут бросить — экран показывает текст
             // ошибки с повтором, а не роняет приложение.
-            runCatching { requestSnippets() }
+            runCatching { requestSnippets(accountId) }
                 .onFailure { failure ->
                     if (failure is kotlinx.coroutines.CancellationException) throw failure
+                    if (MusicAuth.profileId.value != accountId) return@onFailure
                     _state.value = _state.value.copy(
                         isLoading = false,
                         error = failure.message?.takeIf(String::isNotBlank)
@@ -93,13 +74,12 @@ class SnippetsViewModel : ViewModel() {
         }
     }
 
-    private suspend fun requestSnippets() {
-        // count как в VK X (`C13029e`, ветка getSnippets): ровно 3. Больше VK
-        // для этой ленты не отдаёт, а завышать параметр — гадание.
+    private suspend fun requestSnippets(accountId: Long?) {
         when (val result = api.getSnippets(count = SNIPPETS_COUNT)) {
             is VkResult.Success -> {
                 val pages = result.data
                     .mapIndexedNotNull { index, entry -> entry.toPageUi(index) }
+                if (MusicAuth.profileId.value != accountId) return
                 _state.value = _state.value.copy(
                     isLoading = false,
                     pages = pages,
@@ -107,11 +87,13 @@ class SnippetsViewModel : ViewModel() {
                 )
             }
 
-            is VkResult.Error -> _state.value = _state.value.copy(
-                isLoading = false,
-                error = result.message.takeIf(String::isNotBlank)
-                    ?: "VK вернул ошибку ${result.code}",
-            )
+            is VkResult.Error -> if (MusicAuth.profileId.value == accountId) {
+                _state.value = _state.value.copy(
+                    isLoading = false,
+                    error = result.message.takeIf(String::isNotBlank)
+                        ?: "VK вернул ошибку ${result.code}",
+                )
+            }
         }
     }
 

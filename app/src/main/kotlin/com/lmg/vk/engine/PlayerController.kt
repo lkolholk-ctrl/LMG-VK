@@ -691,6 +691,53 @@ object PlayerController {
         appContext = context.applicationContext
     }
 
+    private var activeAccountId = Long.MIN_VALUE
+    @Volatile
+    private var queueAccountId = 0L
+
+    fun playbackAccountId(): Long = queueAccountId
+
+    fun activateAccount(userId: Long) {
+        val resolvedUserId = userId.coerceAtLeast(0L)
+        if (activeAccountId == resolvedUserId) return
+        val hadAccount = activeAccountId != Long.MIN_VALUE
+        val hasOnlinePlayback = _currentTrack.value?.isOnlineTrack == true ||
+            _queueFlow.value.any { it.isOnlineTrack }
+        activeAccountId = resolvedUserId
+        _favoriteIds.value = emptySet()
+        _recentlyPlayed.value = emptyList()
+        streamUrlCache.clear()
+        inFlightResolves.values.forEach { it.cancel() }
+        inFlightResolves.clear()
+        if (!hadAccount) {
+            queueAccountId = resolvedUserId
+            return
+        }
+        if (!hasOnlinePlayback) {
+            queueAccountId = resolvedUserId
+            return
+        }
+        preCacheJob?.cancel()
+        _currentTrack.value = null
+        _queueFlow.value = emptyList()
+        _currentPositionMs.value = 0L
+        _durationMs.value = 0L
+        _isPlaying.value = false
+        _isBuffering.value = false
+        mainScope.launch {
+            if (queueAccountId == resolvedUserId) return@launch
+            queue = emptyList()
+            currentIndex = -1
+            manualEnd = 0
+            autoStart = 0
+            publishSections()
+            clearAutoRefillContext()
+            controller?.stop()
+            controller?.clearMediaItems()
+            queueAccountId = 0L
+        }
+    }
+
 
 
     // ═══════════════════════════════════════════════════════════
@@ -1027,6 +1074,7 @@ object PlayerController {
             android.util.Log.e("VOIDPIXEL_MEDIA", "playFromList called with empty tracks or invalid startIndex=$startIndex")
             return
         }
+        queueAccountId = activeAccountId.coerceAtLeast(0L)
 
         // Однородность очереди по СТАРТОВОМУ треку: смешивать локальное и
         // онлайн в одной очереди нельзя (у онлайна свой резолв, у локального —
@@ -1234,6 +1282,7 @@ object PlayerController {
             android.util.Log.e("VOIDPIXEL_MEDIA", "playLocalOnJuce: empty tracks or bad startIndex=$startIndex")
             return
         }
+        queueAccountId = activeAccountId.coerceAtLeast(0L)
         val startTrackId = tracks[startIndex].id
         val localTracks = tracks.filter { kindOf(it) == TrackKind.LOCAL }
         if (localTracks.isEmpty()) return // онлайн-очередь в JUCE не отдаём
@@ -2225,6 +2274,7 @@ object PlayerController {
     }
 
     private fun logPreviousTrack(track: Track, playedMs: Long) {
+        val playbackAccountId = queueAccountId
         val durationSec = track.durationMs / 1000f
         val playedSec = playedMs / 1000f
 
@@ -2257,10 +2307,10 @@ object PlayerController {
                 try {
                     val repo = WaveRepository.getInstance(ctx)
                     if (isCompleted) {
-                        repo.logListening(track, playedMs, sourceStr)
-                        repo.logTrackPlayed(track)
+                        repo.logListening(playbackAccountId, track, playedMs, sourceStr)
+                        repo.logTrackPlayed(playbackAccountId, track)
                     } else {
-                        repo.logTrackSkipped(track)
+                        repo.logTrackSkipped(playbackAccountId, track)
                     }
                 } catch (e: Exception) {
                     android.util.Log.e("PlayerController", "Room logging failed for ${track.title}", e)
@@ -2368,9 +2418,6 @@ object PlayerController {
      * Поэтому здесь: прямой uri без `liquid://`, `PlaybackContext.Downloads`,
      * конечный `MUSIC_CONFIG` и пустой refill-контекст.
      *
-     * Обрезку по времени НЕ делаем: VK X её тоже не делает — во всём
-     * деобфусцированном коде нет ни одного `ClippingConfiguration`, границы
-     * приходят уже применёнными к URL. Разбор — в `dto/music/SnippetsFeed.kt`.
      */
     fun playSnippet(
         context: Context,
@@ -2815,6 +2862,7 @@ object PlayerController {
                         .listenHistoryDao()
                         .upsert(
                             com.lmg.vk.data.local.db.ListenHistoryEntity(
+                                accountId = com.lmg.vk.data.local.db.AppDatabase.activeAccountId(),
                                 trackId = track.id,
                                 title = track.title,
                                 artist = track.artist,

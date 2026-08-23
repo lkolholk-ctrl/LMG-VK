@@ -7,9 +7,10 @@ import coil.ImageLoaderFactory
 import coil.disk.DiskCache
 import coil.memory.MemoryCache
 import com.kyant.fishnet.Fishnet
-import com.lmg.vk.data.local.db.LibraryRepository
 import com.lmg.vk.debug.UiWatchdog
+import com.lmg.vk.data.local.HomeCacheManager
 import com.lmg.vk.engine.AppSettings
+import com.lmg.vk.engine.AccountSyncManager
 import com.lmg.vk.engine.AudioFxController
 import com.lmg.vk.engine.AudioRouteMonitor
 import com.lmg.vk.engine.LyricsFxController
@@ -49,12 +50,6 @@ import java.io.File
 import java.security.SecureRandom
 import java.util.concurrent.TimeUnit
 
-/**
- * Точка входа приложения (слияние восстановленного VKXApplication + LMG App).
- *
- * Порядок инициализации — как в LMG: сначала лёгкое (settings), потом engine,
- * сетевые оживители и фоновый drain. сетевые компоненты ограничены VK-слоем.
- */
 class LmgApplication : Application(), ImageLoaderFactory {
 
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -165,6 +160,7 @@ class LmgApplication : Application(), ImageLoaderFactory {
 
         // Настройки (SharedPreferences/DataStore) — лёгкие, можно на main.
         AppSettings.init(this)
+        HomeCacheManager.init(this)
         PlayerSettings.init(this)
         AudioFxController.init(this)
         LyricsFxController.init(this)
@@ -177,6 +173,7 @@ class LmgApplication : Application(), ImageLoaderFactory {
         // PlayerController — просто сохраняет context.
         PlayerController.init(this)
         PlaylistManager.init(this)
+        AccountSyncManager.init(this)
 
         // Обход блокировок: конфиг с адресами и сертификатами. Поднимаем до
         // создания Ktor-клиента — интерцептор читает состояние на каждом запросе,
@@ -236,8 +233,7 @@ class LmgApplication : Application(), ImageLoaderFactory {
             MusicAuth.profileId.collectLatest { userId ->
                 VkMusicWidget.refreshAll(this@LmgApplication)
                 if (userId != null) {
-                    runCatching { PlaylistSyncManager.sync() }
-                    runCatching { LibraryRepository.getInstance(this@LmgApplication).syncWithCloud() }
+                    runCatching { AccountSyncManager.syncAll() }
                 }
             }
         }
@@ -246,10 +242,6 @@ class LmgApplication : Application(), ImageLoaderFactory {
             vkApiClient.probeAndSelectApiDomain()
             // Дослать сигналы волны, не доставленные в прошлой сессии.
             runCatching { WaveSignalQueue.drain() }
-            // Подтянуть серверные лайки в локальное избранное.
-            if (MusicAuth.isLoggedIn.value) {
-                runCatching { LibraryRepository.getInstance(this@LmgApplication).syncWithCloud() }
-            }
         }
 
         isInitialized = true
@@ -259,8 +251,7 @@ class LmgApplication : Application(), ImageLoaderFactory {
     private suspend fun resyncAfterNetworkChange() {
         if (MusicAuth.isLoggedIn.value) {
             runCatching { MusicAuth.fetchUserData() }
-            runCatching { LibraryRepository.getInstance(this).syncWithCloud() }
-            runCatching { PlaylistSyncManager.sync() }
+            runCatching { AccountSyncManager.syncAll() }
         }
     }
 
@@ -282,9 +273,6 @@ class LmgApplication : Application(), ImageLoaderFactory {
             ?.takeIf(VK_DEVICE_ID_PATTERN::matches)
             ?.let { return it }
 
-        // VK X C6865l.startapp(): 16 lowercase alpha-numeric characters,
-        // a colon, then 32 more. The UUID previously stored here does not
-        // match the device identity sent by VK X during OAuth authorization.
         val generated = buildString(49) {
             repeat(16) { append(VK_DEVICE_ID_ALPHABET[secureRandom.nextInt(VK_DEVICE_ID_ALPHABET.length)]) }
             append(':')
@@ -299,12 +287,10 @@ class LmgApplication : Application(), ImageLoaderFactory {
         private val VK_DEVICE_ID_PATTERN = Regex("[a-z0-9]{16}:[a-z0-9]{32}")
         private val secureRandom = SecureRandom()
 
-        /** Мониторинг сети (бывш. VKXApplication.f36537e). */
         @JvmStatic
         var connectivityManager: ConnectivityManager? = null
             private set
 
-        /** Флаг готовности приложения. */
         @JvmStatic
         var isInitialized: Boolean = false
             private set

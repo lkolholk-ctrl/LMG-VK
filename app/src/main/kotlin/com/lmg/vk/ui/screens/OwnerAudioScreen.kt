@@ -52,6 +52,7 @@ import com.lmg.vk.engine.PlayerController
 import com.lmg.vk.engine.PlaybackContext
 import com.lmg.vk.engine.Track
 import com.lmg.vk.engine.backend.MusicBackend
+import com.lmg.vk.engine.backend.MusicAuth
 import com.lmg.vk.engine.backend.VkProfileRepository
 import com.lmg.vk.engine.backend.toTrack
 import com.lmg.vk.ui.components.DetailTopBar
@@ -85,10 +86,11 @@ fun OwnerAudioRoute(
     onBack: () -> Unit,
 ) {
     val state by VkProfileRepository.ownerAudio.collectAsState()
+    val activeAccountId by MusicAuth.profileId.collectAsState()
 
     // Грузим на входе и при смене владельца. Если в репозитории уже лежит ЭТОТ
     // владелец (возврат по бэкстеку), повторный запрос не нужен.
-    LaunchedEffect(ownerId) {
+    LaunchedEffect(ownerId, activeAccountId) {
         if (VkProfileRepository.ownerAudio.value?.ownerId != ownerId) {
             VkProfileRepository.openOwnerAudioById(ownerId)
         }

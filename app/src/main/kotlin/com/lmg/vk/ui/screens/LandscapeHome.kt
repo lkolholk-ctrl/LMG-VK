@@ -47,6 +47,7 @@ import com.lmg.vk.data.local.db.FavoriteTrackEntity
 import com.lmg.vk.data.local.db.LibraryRepository
 import com.lmg.vk.engine.PlayerController
 import com.lmg.vk.engine.Track
+import com.lmg.vk.engine.backend.MusicAuth
 
 // Высота нижнего LandscapeBottomBar — на неё делаем отступ снизу у панелей,
 // чтобы последний элемент не уезжал под мини-плеер.
@@ -92,8 +93,9 @@ fun LandscapeHome(
     val playableFavorites = remember(favorites) { favorites.filter { it.isAvailable }.map { it.toTrack() } }
     val queue by PlayerController.queueFlow.collectAsState()
     val currentTrack by PlayerController.currentTrack.collectAsState()
+    val activeAccountId by MusicAuth.profileId.collectAsState()
 
-    val recent = remember { LocalStorage.getHistory(context).take(12) }
+    val recent = remember(activeAccountId) { LocalStorage.getHistory(context).take(12) }
 
     Box(
         modifier = Modifier

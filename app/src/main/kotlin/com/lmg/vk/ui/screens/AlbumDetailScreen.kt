@@ -108,8 +108,9 @@ fun AlbumDetailScreen(
     val downloadedTracks by downloadDb.downloadsFlow.collectAsState(initial = emptyList())
     val downloadProgress by AudioDownloadManager.downloadProgress.collectAsState()
     val isPremium by MusicAuth.isPremium.collectAsState()
+    val activeAccountId by MusicAuth.profileId.collectAsState()
 
-    LaunchedEffect(albumId, reloadKey) {
+    LaunchedEffect(albumId, reloadKey, activeAccountId) {
         isLoading = true
         error = null
         album = null
@@ -201,12 +202,13 @@ fun AlbumDetailScreen(
 
     var albumPlayCount by remember(albumId) { mutableStateOf(0) }
     var favouriteAlbumTrack by remember(albumId) { mutableStateOf<String?>(null) }
-    LaunchedEffect(albumTracks) {
+    LaunchedEffect(albumTracks, activeAccountId) {
         albumPlayCount = 0
         favouriteAlbumTrack = null
         if (albumTracks.isEmpty()) return@LaunchedEffect
         runCatching {
-            val stats = AppDatabase.getInstance(context).playbackHistoryDao().getAllTrackStats(500)
+            val stats = AppDatabase.getInstance(context).playbackHistoryDao()
+                .getAllTrackStats(AppDatabase.activeAccountId(), 500)
             val byId = albumTracks.associateBy { it.id }
             val albumStats = stats.filter { it.trackId in byId }
             albumPlayCount = albumStats.sumOf { it.playCount }

@@ -2,6 +2,7 @@ package com.lmg.vk.data.local
 
 import android.content.Context
 import android.content.SharedPreferences
+import com.lmg.vk.data.local.db.AppDatabase
 import com.lmg.vk.engine.backend.HomeBlock
 import com.lmg.vk.engine.backend.HomeCatalogActions
 import com.lmg.vk.engine.backend.HomeCatalogSection
@@ -26,8 +27,7 @@ object HomeCacheManager {
     private const val PREFS_NAME = "home_cache"
     private const val KEY_BLOCKS = "blocks_json"
     private const val KEY_TIMESTAMP = "cached_at"
-    private const val KEY_ACCOUNT_ID = "account_id"
-    private const val KEY_ETAG = "etag"
+    private const val LEGACY_ACCOUNT_ID = "account_id"
     private const val CACHE_TTL_MS = 24 * 60 * 60 * 1000L // 24 hours
     // v6 also stores actionable CatalogLink URLs. Older caches would turn
     // server artist/curator cards back into disabled grey placeholders.
@@ -149,9 +149,8 @@ object HomeCacheManager {
             })
         }
         p.edit().apply {
-            putString(KEY_BLOCKS, json.toString())
-            putLong(KEY_TIMESTAMP, System.currentTimeMillis())
-            putLong(KEY_ACCOUNT_ID, accountId)
+            putString(accountKey(KEY_BLOCKS, accountId), json.toString())
+            putLong(accountKey(KEY_TIMESTAMP, accountId), System.currentTimeMillis())
             apply()
         }
     }
@@ -164,9 +163,21 @@ object HomeCacheManager {
         val startedAt = System.currentTimeMillis()
         try {
             val p = prefs ?: return@withContext null
-            if (p.getLong(KEY_ACCOUNT_ID, Long.MIN_VALUE) != accountId) return@withContext null
-            val jsonStr = p.getString(KEY_BLOCKS, null) ?: return@withContext null
-            val cachedAt = p.getLong(KEY_TIMESTAMP, 0)
+            val blocksKey = accountKey(KEY_BLOCKS, accountId)
+            val timestampKey = accountKey(KEY_TIMESTAMP, accountId)
+            val jsonStr = p.getString(blocksKey, null) ?: p.getString(KEY_BLOCKS, null)
+                ?.takeIf { p.getLong(LEGACY_ACCOUNT_ID, Long.MIN_VALUE) == accountId }
+                ?.also {
+                    p.edit()
+                        .putString(blocksKey, it)
+                        .putLong(timestampKey, p.getLong(KEY_TIMESTAMP, 0L))
+                        .remove(KEY_BLOCKS)
+                        .remove(KEY_TIMESTAMP)
+                        .remove(LEGACY_ACCOUNT_ID)
+                        .apply()
+                }
+                ?: return@withContext null
+            val cachedAt = p.getLong(timestampKey, 0)
             if (System.currentTimeMillis() - cachedAt > CACHE_TTL_MS) return@withContext null
 
             val json = JSONObject(jsonStr)
@@ -333,7 +344,10 @@ object HomeCacheManager {
      */
     fun isFresh(): Boolean {
         val p = prefs ?: return false
-        val cachedAt = p.getLong(KEY_TIMESTAMP, 0)
+        val cachedAt = p.getLong(
+            accountKey(KEY_TIMESTAMP, AppDatabase.activeAccountId()),
+            0,
+        )
         return cachedAt > 0 && (System.currentTimeMillis() - cachedAt) < CACHE_TTL_MS
     }
 
@@ -341,6 +355,12 @@ object HomeCacheManager {
      * Clear cache.
      */
     fun clear() {
-        prefs?.edit()?.clear()?.apply()
+        val accountId = AppDatabase.activeAccountId()
+        prefs?.edit()
+            ?.remove(accountKey(KEY_BLOCKS, accountId))
+            ?.remove(accountKey(KEY_TIMESTAMP, accountId))
+            ?.apply()
     }
+
+    private fun accountKey(key: String, accountId: Long): String = "${key}_account_$accountId"
 }

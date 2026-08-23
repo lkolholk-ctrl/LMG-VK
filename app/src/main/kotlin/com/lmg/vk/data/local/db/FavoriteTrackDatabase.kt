@@ -609,22 +609,28 @@ class FavoriteTrackDatabase private constructor(context: Context) : SQLiteOpenHe
             }
         }
 
-        /** Switches only cloud favorites; downloaded tracks stay device-wide. */
         fun activateAccount(userId: Long) {
             ACTIVE_ACCOUNT_ID = userId.coerceAtLeast(0L)
             INSTANCE?.let { database ->
+                database.clearActiveAccountSnapshot()
                 ACCOUNT_SCOPE.launch { database.activateAccountInternal(ACTIVE_ACCOUNT_ID) }
             }
         }
     }
 
+    private fun clearActiveAccountSnapshot() {
+        _favoritesFlow.value = emptyList()
+        _favoriteIdsFlow.value = emptySet()
+        _favoriteStatusFlows.values.forEach { it.value = false }
+    }
+
     private fun activateAccountInternal(userId: Long) {
         if (userId != 0L) {
-            // v7 and guest rows belong to the first account selected after migration/login.
             writableDatabase.execSQL(
-                "UPDATE favorite_tracks SET accountId = ? WHERE accountId = 0",
+                "UPDATE OR IGNORE favorite_tracks SET accountId = ? WHERE accountId = 0",
                 arrayOf(userId),
             )
+            writableDatabase.execSQL("DELETE FROM favorite_tracks WHERE accountId = 0")
         }
         if (isLoaded) reloadFavorites()
     }

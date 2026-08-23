@@ -1,8 +1,10 @@
 package com.lmg.vk.engine.backend
 
 import com.lmg.vk.engine.Track
+import com.lmg.vk.engine.AccountSyncManager
 import com.lmg.vk.engine.LyricsParser
 import com.lmg.vk.engine.PlaylistManager
+import com.lmg.vk.engine.PlayerController
 import com.lmg.vk.engine.VkMixCategory
 import com.lmg.vk.engine.VkMixCategoryType
 import com.lmg.vk.engine.VkMixOption
@@ -11,7 +13,9 @@ import com.lmg.vk.engine.VkMixSettings
 import com.lmg.vk.engine.backend.wave.WaveBatchResponse
 import com.lmg.vk.engine.backend.wave.WaveSessionStartResponse
 import com.lmg.vk.data.local.db.FavoriteTrackDatabase
+import com.lmg.vk.data.local.db.AppDatabase
 import com.lmg.vk.data.local.db.LibraryRepository
+import com.lmg.vk.data.local.WaveRepository
 import com.lmg.vk.engine.PlaylistSyncManager
 import com.lmg.vk.network.VkApiClient
 import com.lmg.vk.network.VkAuthSession
@@ -287,6 +291,7 @@ object MusicBackend {
     private var waveSourceResolved = false
     private var waveSessionId: String? = null
     private var recommendationOffset = 0
+    private var waveAccountId = Long.MIN_VALUE
 
     fun init(client: VkApiClient, sessions: VkSessionStore) {
         audioApi = VkAudioApi(client)
@@ -431,10 +436,6 @@ object MusicBackend {
             count = limit,
         ).requireData().map(::cacheTrack).map { it.toSearchItem() }
 
-    /**
-     * Поиск строго внутри аудиотеки текущего аккаунта — один execute-вызов VK X
-     * для треков и собственных плейлистов, а не общий поиск каталога.
-     */
     suspend fun searchCurrentProfileLibrary(query: String): ProfileLibrarySearch {
         requireInitialized()
         val normalizedQuery = query.trim()
@@ -658,18 +659,6 @@ object MusicBackend {
         )
     }
 
-    /**
-     * Выдача одного таба `subsection_tabs`.
-     *
-     * Ровно две ветки VK X (см. [parseCatalogTabRequest]): `catalog.getSection`
-     * для id, начинающихся с `#`, и `catalog.replaceBlocks` для остальных.
-     * Ответ у обеих — обычный `Catalog2Response`, поэтому разбираем его тем же
-     * `toHomeBlocks()`, что и главную выдачу: таб приносит НАСТОЯЩИЕ блоки со
-     * своими layout'ами, а не плоский список.
-     *
-     * Треки ответа кладём в кэш — иначе тап по треку из таба потребовал бы
-     * отдельного `audio.getById` перед воспроизведением.
-     */
     suspend fun loadCatalogTab(replacementId: String): List<HomeBlock> {
         requireInitialized()
         val request = parseCatalogTabRequest(replacementId)
@@ -771,9 +760,6 @@ object MusicBackend {
      * Это не локальные карточки: оба списка приходят из audio.* текущей сессии.
      */    private suspend fun loadHomeFallbackBlocks(): List<HomeBlock> = coroutineScope {
         val recommendations = async {
-            // VK X always sends the active account id for the generic
-            // recommendations feed. Without it VK may return an empty list,
-            // leaving the catalog fallback with only `audio.getPopular`.
             audioApi.getRecommendations(
                 count = 50,
                 userId = currentUserId(),
@@ -1888,6 +1874,11 @@ object MusicBackend {
         seedTrackId: String? = null,
     ): List<AudioTrack> = waveMutex.withLock {
         requireInitialized()
+        val accountId = currentUserId()
+        if (waveAccountId != accountId) {
+            resetWaveLocked()
+            waveAccountId = accountId
+        }
         if (reset) resetWaveLocked()
         ensureWaveSourceLocked(seedTrackId)
 
@@ -1938,6 +1929,11 @@ object MusicBackend {
             val enriched = loaded.map(::cacheTrack)
             val queuedIds = waveQueue.asSequence().map(AudioTrack::fullId).toHashSet()
             enriched.filterNot { it.fullId in queuedIds }.forEach(waveQueue::addLast)
+        }
+
+        if (currentUserId() != accountId) {
+            resetWaveLocked()
+            return@withLock emptyList()
         }
 
         buildList(count.coerceAtMost(waveQueue.size)) {
@@ -2771,20 +2767,6 @@ object MusicBackend {
             ?: catalog?.sections.orEmpty().firstOrNull { it.id == sectionId }?.next_from
                 ?.takeIf(String::isNotBlank)
 
-    /**
-     * Табы блока `subsection_tabs`.
-     *
-     * VK X берёт ПЕРВЫЙ элемент `actions` и рисует его `options`
-     * (`src-deobf/C2077e.java:645-672`). Мы отступаем от этого в одном месте:
-     * берём первый action, У КОТОРОГО options непусты. Причина — наш `mergeWith`
-     * склеивает один блок из нескольких страниц ответа, и порядок actions после
-     * склейки не гарантирован; жёсткое `first()` тогда отдавало бы кнопку
-     * «показать все» вместо кнопки с табами. Для одностраничного ответа
-     * поведение совпадает с оригиналом.
-     *
-     * `selected` приходит числом 0/1 (адаптер объявляет `Integer`), поэтому
-     * сравниваем с 1, а не приводим к Boolean.
-     */
     private fun VkCatalogBlock.subsectionTabs(): List<HomeSubsectionTab> =
         actions.orEmpty()
             .firstOrNull { !it.options.isNullOrEmpty() }
@@ -2852,11 +2834,6 @@ object MusicBackend {
         )
     }
 
-    /**
-     * VK X CatalogKit renders the ordered `catalog.sections[].blocks` response,
-     * resolving each block's entity IDs against the response payload. Keep that
-     * server order and titles instead of synthesising a few local categories.
-     */
     private fun List<VkCatalogResponse>.toHomeBlocks(
         sectionId: String? = null,
     ): List<HomeBlock> {
@@ -2960,10 +2937,6 @@ object MusicBackend {
             else -> "card:$id"
         }
 
-        // В CatalogKit заголовок — самостоятельный `header`-блок без entity
-        // IDs. VK X применяет его к следующему блоку с контентом. Раньше мы
-        // отбрасывали header как пустой, из-за чего в UI оставались технические
-        // подписи `slider` и `triple_stacked_slider`.
         var pendingHeaderTitle: String? = null
         val catalogBlocks = orderedBlocks.values.mapNotNull { block ->
             val layoutName = block.layout?.name.orEmpty()
@@ -3302,6 +3275,7 @@ object MusicAuth {
     private var anonymousToken: String = ""
     private var anonymousTokenExpiresAt: Long = 0L
     private var activeAuthAttempt: AuthAttempt? = null
+    private var activeContentAccountId = Long.MIN_VALUE
 
     private data class AuthAttempt(
         val username: String,
@@ -3724,12 +3698,9 @@ object MusicAuth {
         return VkLoginResult.Failure(if (detail.isBlank()) "$fallback [$code]" else "[$code] $detail")
     }
 
-    /** Точка передачи аккаунта из восстанавливаемого VK auth-флоу. */
     fun installSession(session: VkAuthSession) {
         val store = checkNotNull(sessionStore) { "MusicAuth is not initialized" }
-        val previousUserId = store.session.userId
         store.session = session
-        if (previousUserId != 0L && previousUserId != session.userId) clearAccountScopedState()
         applySession(session)
         authScope.launch {
             runCatching { fetchUserData() }
@@ -3740,8 +3711,24 @@ object MusicAuth {
     }
 
     private fun applySession(session: VkAuthSession) {
+        val accountChanged = activeContentAccountId != Long.MIN_VALUE &&
+            activeContentAccountId != session.userId
+        if (accountChanged) {
+            clearAccountScopedState()
+            _isProfileRefreshing.value = false
+            _userEmail.value = null
+            _subscription.value = null
+            _premiumExpiresAt.value = null
+            _telegramId.value = null
+        }
+        activeContentAccountId = session.userId
         PlaylistManager.activateAccount(session.userId)
         PlaylistSyncManager.activateAccount(session.userId)
+        AccountSyncManager.activateAccount(session.userId)
+        FavoriteTrackDatabase.activateAccount(session.userId)
+        AppDatabase.activateAccount(session.userId)
+        WaveRepository.activateAccount(session.userId)
+        PlayerController.activateAccount(session.userId)
         _isLoggedIn.value = session.accessToken.isNotBlank()
         _partnerUserId.value = session.userId.takeIf { it != 0L }
         val displayName = listOf(session.firstName, session.lastName)
@@ -3751,7 +3738,6 @@ object MusicAuth {
         _profileName.value = displayName.takeIf(String::isNotBlank)
         _avatarUrl.value = session.avatar.takeIf(String::isNotBlank)
         _profileId.value = session.userId.takeIf { it != 0L }
-        FavoriteTrackDatabase.activateAccount(session.userId)
         _profileDomain.value = session.username.takeIf(String::isNotBlank)
         _profileSessionExpiresAt.value = session.expiresAt.takeIf { it > 0L }
         if (session.accessToken.isBlank()) {
@@ -3767,7 +3753,6 @@ object MusicAuth {
         val store = sessionStore as? VkMultiSessionStore ?: return false
         if (store.session.userId == userId) return true
         val session = store.activate(userId) ?: return false
-        clearAccountScopedState()
         activeAuthAttempt = null
         applySession(session)
         authScope.launch {
@@ -3783,7 +3768,6 @@ object MusicAuth {
         if (wasActive && !canChangeAccount()) return false
         val remaining = store.remove(userId)
         if (wasActive) {
-            clearAccountScopedState()
             activeAuthAttempt = null
             applySession(remaining)
             if (remaining.userId != 0L) {
@@ -3828,9 +3812,10 @@ object MusicAuth {
     }
 
     private fun canChangeAccount(): Boolean =
-        !LibraryRepository.isCloudSyncInProgress && !PlaylistSyncManager.state.value.isSyncing
+        !LibraryRepository.isCloudSyncInProgress &&
+            !PlaylistSyncManager.state.value.isSyncing &&
+            !AccountSyncManager.state.value.isSyncing
 
-    /** Refreshes only the public VK account data returned by the recovered users.get call. */
     suspend fun fetchUserData(): Boolean {
         val store = sessionStore ?: return false
         val initialSession = store.session
@@ -3877,7 +3862,6 @@ object MusicAuth {
             store?.session = VkAuthSession.EMPTY
             VkAuthSession.EMPTY
         }
-        clearAccountScopedState()
         applySession(next)
         anonymousToken = ""
         anonymousTokenExpiresAt = 0L

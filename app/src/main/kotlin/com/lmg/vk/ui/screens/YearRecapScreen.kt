@@ -51,25 +51,8 @@ import com.lmg.vk.ui.viewmodel.PlaylistCreationState
 import com.lmg.vk.ui.viewmodel.YearRecapBlock
 import com.lmg.vk.ui.viewmodel.YearRecapLine
 import com.lmg.vk.ui.viewmodel.YearRecapViewModel
+import com.lmg.vk.engine.backend.MusicAuth
 
-/**
- * Экран «Итоги года» — порт фичи VK X (`musicStatResults.getMetrics` и
- * `studio.getArtistYearRecapData`, спека `docs/vkx-port/04-periphery.md` §4-§6).
- *
- * Всё, что видно на экране, приходит из ответа VK: заголовки, значения метрик,
- * подписи, обложки и имя плейлиста. Локальных подсчётов и заготовленных чисел
- * здесь нет вовсе — если VK не дал данных, показывается честный текст, а не
- * нули. Локальная статистика прослушивания живёт отдельно, в [StatsScreen].
- *
- * ОТСТУПЛЕНИЕ ОТ VK X. Оригинал показывает итоги как полноэкранную карусель
- * сторис с фоновым видео и шарингом. Здесь — вертикальный список карточек в
- * стиле Liquid: ровно те же блоки в том же порядке (`order`, `is_visible`), но
- * читаемые без свайпов. Фоновая картинка блока используется как обложка
- * карточки; видео и шаринг не переносились.
- *
- * [artistId] — итоги года для конкретного артиста (метод «Студии» ВКонтакте).
- * Без него грузятся музыкальные метрики самого пользователя.
- */
 @Composable
 fun YearRecapScreen(
     onBack: () -> Unit = {},
@@ -81,8 +64,9 @@ fun YearRecapScreen(
 
     val viewModel: YearRecapViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
     val state by viewModel.state.collectAsState()
+    val activeAccountId by MusicAuth.profileId.collectAsState()
 
-    LaunchedEffect(artistId) { viewModel.load(artistId) }
+    LaunchedEffect(artistId, activeAccountId) { viewModel.load(artistId, force = true) }
 
     Box(modifier = Modifier.fillMaxSize().background(lc.settingsBackground)) {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -171,7 +155,6 @@ fun YearRecapScreen(
                         RecapBlockCard(block = block, compact = compact)
                     }
 
-                    // Действие пользователя из VK X: собрать плейлист по метрикам.
                     if (state.canCreatePlaylist || state.creation is PlaylistCreationState.Created) {
                         item(key = "create-playlist") {
                             CreatePlaylistCard(
@@ -184,11 +167,6 @@ fun YearRecapScreen(
                         }
                     }
 
-                    // Заголовки действий VK. Показываем как подписи, а НЕ как
-                    // кнопки: перечень значений `type` в исходниках VK X не
-                    // найден, и вешать на неизвестную строку действие — значит
-                    // угадывать. Единственное подтверждённое действие (создание
-                    // плейлиста) реализовано выше отдельно.
                     if (state.actionTitles.isNotEmpty()) {
                         item(key = "actions") {
                             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -267,7 +245,6 @@ private fun RecapBlockCard(block: YearRecapBlock, compact: Boolean) {
             }
         }
 
-        // Несколько фото — горизонтальная лента (в VK X это коллаж слайда).
         if (block.photoUrls.size > 1) {
             Spacer(modifier = Modifier.height(12.dp))
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -403,10 +380,6 @@ private fun RecapMetricRow(line: YearRecapLine, compact: Boolean) {
     }
 }
 
-/**
- * Кнопка «Собрать плейлист» — действие `musicStatResults.createPlaylist`.
- * Имя плейлиста берётся из ответа VK (или дефолт `"My 2025"` самого VK X).
- */
 @Composable
 private fun CreatePlaylistCard(
     title: String?,

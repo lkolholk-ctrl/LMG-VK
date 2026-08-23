@@ -38,6 +38,7 @@ import com.lmg.vk.data.local.db.AppDatabase
 import com.lmg.vk.data.local.db.ListenHistoryEntity
 import com.lmg.vk.engine.PlayerController
 import com.lmg.vk.engine.Track
+import com.lmg.vk.engine.backend.MusicAuth
 import com.lmg.vk.ui.glass.AlbumArtImage
 import com.lmg.vk.ui.glass.liquidClickable
 import com.lmg.vk.ui.components.SectionTopBar
@@ -61,7 +62,10 @@ fun HistoryScreen(
     val lc = LiquidTheme.colors
 
     val dao = remember { AppDatabase.getInstance(context).listenHistoryDao() }
-    val history by remember { dao.observe() }.collectAsState(initial = emptyList())
+    val activeAccountId by MusicAuth.profileId.collectAsState()
+    val accountId = activeAccountId ?: 0L
+    val history by remember(accountId) { dao.observe(accountId) }
+        .collectAsState(initial = emptyList())
 
     // Адаптив: в широком окне (телефон-альбом / планшет) не растягиваем строки
     // на всю ширину — центрируем список узкой колонкой ~600dp боковыми отступами.
@@ -88,7 +92,7 @@ fun HistoryScreen(
                                 label = "Clear history",
                                 icon = com.lmg.vk.ui.icons.LmgGlyphs.DeleteOutline28,
                                 filled = false,
-                                onClick = { scope.launch { dao.clear() } },
+                                onClick = { scope.launch { dao.clear(accountId) } },
                             )
                         }
                     } else {

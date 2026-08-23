@@ -94,7 +94,9 @@ fun NewScreen(
     }
     // Список скрытых баннеров нужен до первой отрисовки блоков, иначе закрытый
     // баннер мигнёт при заходе на экран.
-    LaunchedEffect(Unit) { NewDismissedBanners.init(context) }
+    LaunchedEffect(activeAccountId) {
+        NewDismissedBanners.init(context, activeAccountId ?: 0L)
+    }
 
     val homeContent by viewModel.homeContent.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()

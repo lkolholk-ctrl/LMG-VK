@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.lmg.vk.data.local.db.FavoriteTrackEntity
 import com.lmg.vk.data.local.db.LibraryRepository
 import com.lmg.vk.engine.backend.ProfileLibrarySearch
+import com.lmg.vk.engine.backend.MusicAuth
 import com.lmg.vk.engine.backend.MusicBackend
 import com.lmg.vk.engine.PlayerController
 import com.lmg.vk.engine.Track
@@ -70,8 +71,17 @@ class LibraryViewModel(context: Context) : ViewModel() {
             }
         }
 
-        // Initial cloud sync
-        syncWithCloud()
+        viewModelScope.launch {
+            MusicAuth.profileId.collectLatest {
+                profileSearchJob?.cancel()
+                _favorites.value = emptyList()
+                _favoriteIds.value = emptySet()
+                _profileSearch.value = null
+                _profileSearchError.value = null
+                _isProfileSearchLoading.value = false
+                _errorMessage.value = null
+            }
+        }
     }
 
     /**

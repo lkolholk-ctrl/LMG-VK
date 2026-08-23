@@ -2,6 +2,7 @@ package com.lmg.vk.data.local
 
 import android.content.Context
 import android.content.SharedPreferences
+import com.lmg.vk.data.local.db.AppDatabase
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -29,6 +30,8 @@ object LocalStorage {
         return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     }
 
+    private fun accountKey(key: String): String = "${key}_account_${AppDatabase.activeAccountId()}"
+
     // ═══════════════════════════════════════════════════════════
     //  Play History
     // ═══════════════════════════════════════════════════════════
@@ -45,7 +48,13 @@ object LocalStorage {
     }
 
     fun getHistory(context: Context): List<HistoryEntry> {
-        val str = prefs(context).getString(KEY_HISTORY, null) ?: return emptyList()
+        val p = prefs(context)
+        val key = accountKey(KEY_HISTORY)
+        val str = p.getString(key, null) ?: p.getString(KEY_HISTORY, null)?.also {
+            if (AppDatabase.activeAccountId() != 0L) {
+                p.edit().putString(key, it).remove(KEY_HISTORY).apply()
+            }
+        } ?: return emptyList()
         return try {
             json.decodeFromString(str)
         } catch (_: Exception) {
@@ -54,11 +63,11 @@ object LocalStorage {
     }
 
     fun clearHistory(context: Context) {
-        prefs(context).edit().remove(KEY_HISTORY).apply()
+        prefs(context).edit().remove(accountKey(KEY_HISTORY)).apply()
     }
 
     private fun saveHistory(context: Context, list: List<HistoryEntry>) {
-        prefs(context).edit().putString(KEY_HISTORY, json.encodeToString(list)).apply()
+        prefs(context).edit().putString(accountKey(KEY_HISTORY), json.encodeToString(list)).apply()
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -68,7 +77,7 @@ object LocalStorage {
     fun toggleFavorite(context: Context, trackId: String) {
         val set = getFavorites(context).toMutableSet()
         if (set.contains(trackId)) set.remove(trackId) else set.add(trackId)
-        prefs(context).edit().putStringSet(KEY_FAVORITES, set).apply()
+        prefs(context).edit().putStringSet(accountKey(KEY_FAVORITES), set).apply()
     }
 
     fun isFavorite(context: Context, trackId: String): Boolean {
@@ -76,7 +85,13 @@ object LocalStorage {
     }
 
     fun getFavorites(context: Context): Set<String> {
-        return prefs(context).getStringSet(KEY_FAVORITES, emptySet()) ?: emptySet()
+        val p = prefs(context)
+        val key = accountKey(KEY_FAVORITES)
+        return p.getStringSet(key, null) ?: p.getStringSet(KEY_FAVORITES, null)?.also {
+            if (AppDatabase.activeAccountId() != 0L) {
+                p.edit().putStringSet(key, it).remove(KEY_FAVORITES).apply()
+            }
+        } ?: emptySet()
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -84,13 +99,13 @@ object LocalStorage {
     // ═══════════════════════════════════════════════════════════
 
     fun cacheSearch(context: Context, query: String, region: String, results: String) {
-        val key = "${KEY_SEARCH_CACHE}_${query.lowercase()}_$region"
+        val key = "${accountKey(KEY_SEARCH_CACHE)}_${query.lowercase()}_$region"
         val entry = CacheEntry(data = results, timestamp = System.currentTimeMillis())
         prefs(context).edit().putString(key, json.encodeToString(entry)).apply()
     }
 
     fun getCachedSearch(context: Context, query: String, region: String): String? {
-        val key = "${KEY_SEARCH_CACHE}_${query.lowercase()}_$region"
+        val key = "${accountKey(KEY_SEARCH_CACHE)}_${query.lowercase()}_$region"
         val str = prefs(context).getString(key, null) ?: return null
         return try {
             val entry = json.decodeFromString<CacheEntry>(str)
@@ -103,7 +118,8 @@ object LocalStorage {
 
     fun clearSearchCache(context: Context) {
         val editor = prefs(context).edit()
-        prefs(context).all.keys.filter { it.startsWith(KEY_SEARCH_CACHE) }.forEach {
+        val prefix = accountKey(KEY_SEARCH_CACHE)
+        prefs(context).all.keys.filter { it.startsWith(prefix) }.forEach {
             editor.remove(it)
         }
         editor.apply()

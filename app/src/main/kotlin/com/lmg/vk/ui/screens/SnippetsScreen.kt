@@ -51,31 +51,9 @@ import com.lmg.vk.ui.rememberWindowInfo
 import com.lmg.vk.ui.theme.AppFontFamily
 import com.lmg.vk.ui.theme.LiquidTheme
 import com.lmg.vk.ui.viewmodel.SnippetsViewModel
+import com.lmg.vk.engine.backend.MusicAuth
 import kotlinx.coroutines.flow.drop
 
-/**
- * Полноэкранная лента сниппетов VK (`audio.getSnippets`).
- *
- * ── Устройство по VK X (`C1718e`) ────────────────────────────────────
- * Это не виджет в списке, а отдельный фрагмент с ДВУМЯ пейджерами:
- *  - внешний вертикальный — по подборкам (`AudioSnippetEntry`);
- *  - внутренний горизонтальный — по трекам подборки (`entry.audios`).
- * Во `C1718e` под это заведены два независимых индекса-состояния (`C16330e`),
- * а `C13721e` на смене ЛЮБОГО из них пересобирает источник и стартует плеер.
- * Та же схема здесь: один [VerticalPager], внутри — [HorizontalPager].
- *
- * Ориентацию внешнего пейджера по декомпилированному коду подтвердить не
- * удалось (composable-обёртки VK X обфусцированы до `AbstractC0865e.ad`,
- * констант ориентации там не видно). Вертикальный внешний + горизонтальный
- * внутренний взяты по постановке задачи и по TikTok-подобной логике самой
- * ленты; это ЕДИНСТВЕННОЕ место, где я не смог опереться на реверс.
- *
- * ── Про обрезанное воспроизведение ───────────────────────────────────
- * Фрагмент режет СЕРВЕР: `audio.url` в этой выдаче уже короткий, а его длина
- * лежит в `stream_duration`. Полей `clip_from`/`clip_to` у сниппета нет (они от
- * другого метода), и VK X ничего не обрезает на клиенте — `ClippingConfiguration`
- * в нём не встречается вообще. Разбор — в `dto/music/SnippetsFeed.kt`.
- */
 @Composable
 fun SnippetsScreen(
     onBack: () -> Unit,
@@ -83,7 +61,8 @@ fun SnippetsScreen(
 ) {
     val context = LocalContext.current
     val state by viewModel.state.collectAsState()
-    LaunchedEffect(viewModel) { viewModel.load() }
+    val activeAccountId by MusicAuth.profileId.collectAsState()
+    LaunchedEffect(viewModel, activeAccountId) { viewModel.load(force = true) }
 
     val lc = LiquidTheme.colors
     val win = rememberWindowInfo()
@@ -161,16 +140,6 @@ fun SnippetsScreen(
     }
 }
 
-/**
- * Внешний вертикальный пейджер по подборкам + внутренний по трекам.
- *
- * Автостарта воспроизведения на листании НЕТ, в отличие от VK X (там `C13721e`
- * стартует плеер сам на каждой смене пары индексов). Отступление осознанное:
- * у нас лента открывается из вкладки New поверх уже играющей музыки, и
- * самовольный перехват плеера на каждый свайп ломал бы текущую очередь
- * пользователя. Поэтому фрагмент запускается по явному тапу; при уходе со
- * страницы играющий сниппет останавливается (ниже).
- */
 @Composable
 private fun SnippetsPager(
     pages: List<SnippetPageUi>,

@@ -8,6 +8,7 @@ import com.lmg.vk.engine.PlayerController
 import com.lmg.vk.engine.Track
 import com.lmg.vk.engine.VkAudioIdentity
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.channels.Channel
@@ -121,13 +122,20 @@ class LibraryRepository private constructor(context: Context) {
     }
 
     suspend fun syncWithCloud(): Result<Unit> = syncMutex.withLock {
-        withContext(Dispatchers.IO) {
-            if (!MusicBackend.isInitialized || !MusicAuth.isLoggedIn.value) {
-                return@withContext Result.success(Unit)
-            }
-            CLOUD_SYNCS.incrementAndGet()
+        if (!MusicBackend.isInitialized || !MusicAuth.isLoggedIn.value) {
+            return@withLock Result.success(Unit)
+        }
+        val accountId = MusicAuth.profileId.value ?: return@withLock Result.success(Unit)
+        CLOUD_SYNCS.incrementAndGet()
+        try {
+            withContext(Dispatchers.IO) {
             try {
                 val cloudLikes = fetchCloudLikes()
+                if (MusicAuth.profileId.value != accountId) {
+                    return@withContext Result.failure(
+                        IllegalStateException("VK account changed during library synchronization"),
+                    )
+                }
 
                 val cloudIds = cloudLikes.map { stableTrackId(it.id) }.toSet()
                 val localEntities = db.getAllFavorites()
@@ -331,11 +339,15 @@ class LibraryRepository private constructor(context: Context) {
                 } else {
                     Result.failure(Exception("VK library sync failed for ${failedMutations.size} tracks"))
                 }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
             } catch (e: Exception) {
                 Result.failure(e)
-            } finally {
-                CLOUD_SYNCS.decrementAndGet()
             }
+            }
+        } finally {
+            CLOUD_SYNCS.decrementAndGet()
+            inFlight.clear()
         }
     }
 

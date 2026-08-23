@@ -46,6 +46,7 @@ class WaveRepository(context: Context) {
     private var personalWaveState = WaveSessionState()
     private val modeWaveStateLock = Any()
     private val modeWaveStates = LinkedHashMap<String, WaveSessionState>()
+    private var activeAccountId = 0L
     // Фоновая работа репозитория (прогрев wave-сессии). Синглтон — живёт с процессом.
     private val repoScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     // Сериализует создание серверной сессии: фоновый прогрев и первый рефилл
@@ -92,6 +93,10 @@ class WaveRepository(context: Context) {
                 instance ?: WaveRepository(context.applicationContext).also { instance = it }
             }
         }
+
+        fun activateAccount(userId: Long) {
+            instance?.activateAccountInternal(userId)
+        }
     }
 
     // ─── Analytics: Top Genres ───
@@ -102,7 +107,7 @@ class WaveRepository(context: Context) {
      */
     suspend fun getTopGenres(limit: Int = 5): List<String> = withContext(Dispatchers.IO) {
         val sinceMs = System.currentTimeMillis() - (GENRE_ANALYSIS_DAYS * 24 * 60 * 60 * 1000L)
-        val topGenres = dao.getTopGenres(sinceMs, limit)
+        val topGenres = dao.getTopGenres(AppDatabase.activeAccountId(), sinceMs, limit)
 
         if (topGenres.isNotEmpty()) {
             Log.d(TAG, "Top genres: ${topGenres.map { "${it.genre}=${it.count}" }}")
@@ -120,7 +125,8 @@ class WaveRepository(context: Context) {
         // Room не поддерживает Flow для raw queries с GROUP BY, поэтому polling
         return kotlinx.coroutines.flow.flow {
             while (true) {
-                val genres = dao.getTopGenres(sinceMs, limit).map { it.genre }
+                val genres = dao.getTopGenres(AppDatabase.activeAccountId(), sinceMs, limit)
+                    .map { it.genre }
                 emit(genres)
                 kotlinx.coroutines.delay(30_000) // обновляем каждые 30 сек
             }
@@ -134,6 +140,7 @@ class WaveRepository(context: Context) {
      * Вызывать когда трек играл дольше [MIN_LISTEN_TIME_MS].
      */
     suspend fun logListening(
+        accountId: Long,
         track: Track,
         durationPlayedMs: Long,
         source: String
@@ -144,6 +151,7 @@ class WaveRepository(context: Context) {
         }
 
         val record = ListeningHistory(
+            accountId = accountId,
             trackId = track.id,
             title = track.title,
             artist = track.artist,
@@ -162,8 +170,9 @@ class WaveRepository(context: Context) {
      * Log a completed play (track finished or played > 85%).
      * Writes to both TrackStats and PlaybackHistory.
      */
-    suspend fun logTrackPlayed(track: Track) = withContext(Dispatchers.IO) {
+    suspend fun logTrackPlayed(accountId: Long, track: Track) = withContext(Dispatchers.IO) {
         playbackDao.incrementPlayCount(
+            accountId = accountId,
             trackId = track.id,
             title = track.title,
             artistId = track.primaryArtistStatKey(),
@@ -176,8 +185,9 @@ class WaveRepository(context: Context) {
     /**
      * Log a skipped track (user skipped early, < 30% played).
      */
-    suspend fun logTrackSkipped(track: Track) = withContext(Dispatchers.IO) {
+    suspend fun logTrackSkipped(accountId: Long, track: Track) = withContext(Dispatchers.IO) {
         playbackDao.incrementSkipCount(
+            accountId = accountId,
             trackId = track.id,
             title = track.title,
             artistId = track.primaryArtistStatKey()
@@ -191,21 +201,21 @@ class WaveRepository(context: Context) {
      * Returns the last [limit] played track IDs ordered by most recent first.
      */
     suspend fun getRecentTrackIdsForExclude(limit: Int = 50): List<String> = withContext(Dispatchers.IO) {
-        playbackDao.getRecentTrackIds(limit)
+        playbackDao.getRecentTrackIds(AppDatabase.activeAccountId(), limit)
     }
 
     /**
      * Get play count for a specific track.
      */
     suspend fun getTrackPlayCount(trackId: String): Int = withContext(Dispatchers.IO) {
-        playbackDao.getPlayCountForTrack(trackId)
+        playbackDao.getPlayCountForTrack(AppDatabase.activeAccountId(), trackId)
     }
 
     /**
      * Get total skip count for a specific track.
      */
     suspend fun getTrackSkipCount(trackId: String): Int = withContext(Dispatchers.IO) {
-        val stat = playbackDao.getTrackStat(trackId)
+        val stat = playbackDao.getTrackStat(AppDatabase.activeAccountId(), trackId)
         stat?.skippedCount ?: 0
     }
 
@@ -233,7 +243,7 @@ class WaveRepository(context: Context) {
 
         // Get recent track IDs to exclude from wave
         val recentIds = try {
-            playbackDao.getRecentTrackIds(50)
+            playbackDao.getRecentTrackIds(AppDatabase.activeAccountId(), 50)
         } catch (e: Exception) {
             Log.w(TAG, "Failed to get recent track IDs: ${e.message}")
             emptyList()
@@ -283,7 +293,7 @@ class WaveRepository(context: Context) {
 
             // Preserve the existing narrow personalization filter. It does not
             // alter VK ranking; it only removes tracks the user repeatedly skips.
-            val stats = playbackDao.getTrackStat(stableId)
+            val stats = playbackDao.getTrackStat(AppDatabase.activeAccountId(), stableId)
             if (stats != null) {
                 val total = stats.playCount + stats.skippedCount
                 if (total >= 2 && stats.skippedCount.toFloat() / total.toFloat() > 0.70f) {
@@ -730,7 +740,7 @@ class WaveRepository(context: Context) {
         }
         val statsByTrackId = mutableMapOf<String, WaveCandidateFilter.TrackStats>()
         for (track in tracks) {
-            val stats = playbackDao.getTrackStat(track.id) ?: continue
+            val stats = playbackDao.getTrackStat(AppDatabase.activeAccountId(), track.id) ?: continue
             statsByTrackId[track.id] = WaveCandidateFilter.TrackStats(
                 playCount = stats.playCount,
                 skipCount = stats.skippedCount
@@ -925,7 +935,7 @@ class WaveRepository(context: Context) {
 
         val statsByTrackId = mutableMapOf<String, WaveCandidateFilter.TrackStats>()
         for (track in serverTracks) {
-            val stats = playbackDao.getTrackStat(track.id) ?: continue
+            val stats = playbackDao.getTrackStat(AppDatabase.activeAccountId(), track.id) ?: continue
             statsByTrackId[track.id] = WaveCandidateFilter.TrackStats(
                 playCount = stats.playCount,
                 skipCount = stats.skippedCount
@@ -1128,7 +1138,7 @@ class WaveRepository(context: Context) {
 
     private suspend fun getLocallyRejectedArtistKeys(limit: Int = 30): List<String> {
         return try {
-            playbackDao.getMostSkipped(limit)
+            playbackDao.getMostSkipped(AppDatabase.activeAccountId(), limit)
                 .asSequence()
                 .filter { it.skippedCount >= 2 && it.skippedCount > it.playCount }
                 .mapNotNull { it.artistId?.trim()?.lowercase()?.takeIf { key -> key.isNotBlank() } }
@@ -1142,7 +1152,7 @@ class WaveRepository(context: Context) {
 
     private suspend fun getRecentTrackIdsSafely(limit: Int): List<String> {
         return try {
-            playbackDao.getRecentTrackIds(limit)
+            playbackDao.getRecentTrackIds(AppDatabase.activeAccountId(), limit)
         } catch (e: Exception) {
             Log.w(TAG, "Failed to get recent track IDs: ${e.message}")
             emptyList()
@@ -1196,6 +1206,7 @@ class WaveRepository(context: Context) {
 
     suspend fun cacheTrack(track: Track, source: String) = withContext(Dispatchers.IO) {
         dao.insertTrack(CachedTrack(
+            accountId = AppDatabase.activeAccountId(),
             id = track.id,
             title = track.title,
             artist = track.artist,
@@ -1219,8 +1230,8 @@ class WaveRepository(context: Context) {
         val thirtyDaysAgo = System.currentTimeMillis() - (30 * 24 * 60 * 60 * 1000L)
         val ninetyDaysAgo = System.currentTimeMillis() - (90 * 24 * 60 * 60 * 1000L)
 
-        dao.deleteOldHistory(thirtyDaysAgo)
-        dao.deleteOldTracks(ninetyDaysAgo)
+        dao.deleteOldHistory(AppDatabase.activeAccountId(), thirtyDaysAgo)
+        dao.deleteOldTracks(AppDatabase.activeAccountId(), ninetyDaysAgo)
         Log.d(TAG, "Cleaned up old data")
     }
 
@@ -1251,10 +1262,23 @@ class WaveRepository(context: Context) {
     }
 
     private suspend fun getTrackGenre(trackId: String): String? {
-        dao.getTrackById(trackId)?.genre?.let { return it }
+        dao.getTrackById(AppDatabase.activeAccountId(), trackId)?.genre?.let { return it }
         return null
     }
 
     private fun Track.primaryArtistStatKey(): String =
         artists.firstOrNull()?.id?.takeIf { it.isNotBlank() } ?: artist
+
+    private fun activateAccountInternal(userId: Long) {
+        val resolvedUserId = userId.coerceAtLeast(0L)
+        if (activeAccountId == resolvedUserId) return
+        activeAccountId = resolvedUserId
+        synchronized(personalWaveStateLock) {
+            personalWaveState = WaveSessionState()
+        }
+        synchronized(modeWaveStateLock) {
+            modeWaveStates.clear()
+        }
+        personalWaveEmptyUntilMs = 0L
+    }
 }

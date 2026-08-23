@@ -111,6 +111,7 @@ fun PlaylistDetailScreen(
     val downloadedTracks by downloadDb.downloadsFlow.collectAsState(initial = emptyList())
     val downloadProgress by AudioDownloadManager.downloadProgress.collectAsState()
     val isPremium by MusicAuth.isPremium.collectAsState()
+    val activeAccountId by MusicAuth.profileId.collectAsState()
     val managedPlaylists by PlaylistManager.playlists.collectAsState()
 
     // Локальные плейлисты живут в приложении, облачные — на сервере. Отличаются
@@ -120,7 +121,7 @@ fun PlaylistDetailScreen(
         managedPlaylists.firstOrNull { it.id == playlistId }
     }
 
-    LaunchedEffect(playlistId, reloadKey) {
+    LaunchedEffect(playlistId, reloadKey, activeAccountId) {
         if (playlistId.isBlank()) {
             errorMsg = "Invalid playlist"
             return@LaunchedEffect

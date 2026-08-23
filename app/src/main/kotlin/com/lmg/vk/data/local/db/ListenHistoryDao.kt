@@ -9,15 +9,18 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface ListenHistoryDao {
 
-    /** Записать/обновить прослушивание (по trackId, обновляя playedAt). */
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(entry: ListenHistoryEntity)
 
-    /** Реактивный список истории (свежие сверху). */
-    @Query("SELECT * FROM listen_history ORDER BY playedAt DESC LIMIT :limit")
-    fun observe(limit: Int = 300): Flow<List<ListenHistoryEntity>>
+    @Query("SELECT * FROM listen_history WHERE accountId = :accountId ORDER BY playedAt DESC LIMIT :limit")
+    fun observe(accountId: Long, limit: Int = 300): Flow<List<ListenHistoryEntity>>
 
-    /** Очистить всю историю. */
-    @Query("DELETE FROM listen_history")
-    suspend fun clear()
+    @Query("DELETE FROM listen_history WHERE accountId = :accountId")
+    suspend fun clear(accountId: Long)
+
+    @Query("UPDATE OR IGNORE listen_history SET accountId = :accountId WHERE accountId = 0")
+    suspend fun claimLegacy(accountId: Long)
+
+    @Query("DELETE FROM listen_history WHERE accountId = 0")
+    suspend fun deleteLegacy()
 }

@@ -1,24 +1,21 @@
 package com.lmg.vk.data.local.db
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.Index
-import androidx.room.PrimaryKey
 
-/**
- * Локальный трек: избранное / скачанное / кешированное.
- * Используется как источник для "Моей волны" и офлайн-воспроизведения.
- */
 @Entity(
     tableName = "cached_tracks",
+    primaryKeys = ["accountId", "id"],
     indices = [
-        Index(value = ["genre"]),
-        Index(value = ["isFavorite"]),
-        Index(value = ["isDownloaded"]),
-        Index(value = ["source"])
-    ]
+        Index(value = ["accountId", "genre"]),
+        Index(value = ["accountId", "isFavorite"]),
+        Index(value = ["accountId", "isDownloaded"]),
+        Index(value = ["accountId", "source"]),
+    ],
 )
 data class CachedTrack(
-    @PrimaryKey
+    @ColumnInfo(defaultValue = "0") val accountId: Long = 0L,
     val id: String,
     val title: String,
     val artist: String,
@@ -28,6 +25,6 @@ data class CachedTrack(
     val durationMs: Long = 0L,
     val isDownloaded: Boolean = false,
     val isFavorite: Boolean = false,
-    val source: String = "UNKNOWN", // "FAVORITES", "DOWNLOADED", "SEARCH", "WAVE"
-    val cachedAt: Long = System.currentTimeMillis()
+    val source: String = "UNKNOWN",
+    val cachedAt: Long = System.currentTimeMillis(),
 )

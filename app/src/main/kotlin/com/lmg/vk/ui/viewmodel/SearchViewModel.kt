@@ -53,6 +53,8 @@ class SearchViewModel : ViewModel() {
 
     private var nextOffset: Int? = null
     private var previousPageKeys: List<String>? = null
+    private var searchJob: Job? = null
+    private var loadMoreJob: Job? = null
 
     // ─── Is Search Active (query not empty) ───
     val isSearchActive: Boolean
@@ -68,6 +70,17 @@ class SearchViewModel : ViewModel() {
             .onEach { q ->
                 val t = q.trim()
                 if (t.length >= 2) performSearch(t)
+            }
+            .launchIn(viewModelScope)
+        MusicAuth.profileId
+            .onEach {
+                searchJob?.cancel()
+                loadMoreJob?.cancel()
+                _query.value = ""
+                _searchResults.value = emptyList()
+                _isLoading.value = false
+                _error.value = null
+                resetPaging()
             }
             .launchIn(viewModelScope)
     }
@@ -105,10 +118,6 @@ class SearchViewModel : ViewModel() {
             performSearch(q)
         }
     }
-
-    /** Активный поисковый запрос — новый всегда отменяет предыдущий. */
-    private var searchJob: Job? = null
-    private var loadMoreJob: Job? = null
 
     private fun performSearch(q: String) {
         // Гонка ответов: без отмены медленный ответ на СТАРЫЙ запрос мог

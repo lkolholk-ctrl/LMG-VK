@@ -89,6 +89,8 @@ fun SearchScreen(
     val keyboardController = LocalSoftwareKeyboardController.current
     val prefs = remember { context.getSharedPreferences("search_history", Context.MODE_PRIVATE) }
     val scope = rememberCoroutineScope()
+    val activeAccountId by MusicAuth.profileId.collectAsState()
+    val historyKey = "queries_v2_account_${activeAccountId ?: 0L}"
 
     val viewModel: SearchViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
     val query by viewModel.query.collectAsState()
@@ -114,16 +116,25 @@ fun SearchScreen(
         keyboardController?.hide()
     }
 
-    // Search history — упорядоченная, СВЕЖИЕ СВЕРХУ. Старый StringSet терял
-    // порядок (сортировался по алфавиту и обрезался произвольно) — мигрируем.
-    // Первое чтение prefs — С ДИСКА и НЕ на main (первый кадр экрана поиска
-    // не должен ждать I/O; см. полевые ANR на тапе по лупе).
-    var history by remember { mutableStateOf<List<String>>(emptyList()) }
-    LaunchedEffect(Unit) {
+    var history by remember(activeAccountId) { mutableStateOf<List<String>>(emptyList()) }
+    LaunchedEffect(activeAccountId) {
         history = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-            val v2 = prefs.getString("queries_v2", null)
-            if (v2 != null) v2.split('\n').filter { it.isNotBlank() }
-            else prefs.getStringSet("queries", emptySet())?.toList()?.take(8) ?: emptyList()
+            val scoped = prefs.getString(historyKey, null)
+            if (scoped != null) {
+                scoped.split('\n').filter { it.isNotBlank() }
+            } else {
+                val legacy = prefs.getString("queries_v2", null)?.split('\n')
+                    ?.filter { it.isNotBlank() }
+                    ?: prefs.getStringSet("queries", emptySet()).orEmpty().toList().take(8)
+                if (activeAccountId != null && legacy.isNotEmpty()) {
+                    prefs.edit()
+                        .putString(historyKey, legacy.joinToString("\n"))
+                        .remove("queries_v2")
+                        .remove("queries")
+                        .apply()
+                }
+                legacy
+            }
         }
     }
     fun saveQuery(q: String) {
@@ -134,12 +145,11 @@ fun SearchScreen(
         if (updated == history) return
         history = updated
         prefs.edit()
-            .putString("queries_v2", updated.joinToString("\n"))
-            .remove("queries")
+            .putString(historyKey, updated.joinToString("\n"))
             .apply()
     }
     fun clearHistory() {
-        prefs.edit().remove("queries_v2").remove("queries").apply()
+        prefs.edit().remove(historyKey).apply()
         history = emptyList()
     }
 

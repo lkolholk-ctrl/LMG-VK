@@ -94,11 +94,11 @@ class ArtistCommunitiesViewModel : ViewModel() {
      * запрос. После неудачи пробуем снова, иначе разовый сетевой сбой навсегда
      * прятал бы блок.
      */
-    fun load(artistId: String) {
+    fun load(artistId: String, force: Boolean = false) {
         val normalizedId = artistId.removePrefix("vk_")
         if (normalizedId.isBlank()) return
-        if (loadJob?.isActive == true && loadedArtistId == normalizedId) return
-        if (loadedArtistId == normalizedId && _state.value.hasContent) return
+        if (!force && loadJob?.isActive == true && loadedArtistId == normalizedId) return
+        if (!force && loadedArtistId == normalizedId && _state.value.hasContent) return
         loadedArtistId = normalizedId
         loadJob?.cancel()
         loadJob = viewModelScope.launch {

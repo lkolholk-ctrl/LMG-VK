@@ -11,6 +11,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -23,6 +24,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.lmg.vk.engine.Track
 import com.lmg.vk.engine.backend.MusicBackend
+import com.lmg.vk.engine.backend.MusicAuth
 import com.lmg.vk.engine.backend.lmg.LmgSyncApi
 
 /**
@@ -45,8 +47,9 @@ fun CreditsContent(track: Track, durationMs: Long) {
     var vkCredits by remember(track.id) { mutableStateOf<String?>(null) }
     var extra by remember(track.id) { mutableStateOf<LmgSyncApi.TrackCredits?>(null) }
     var loading by remember(track.id) { mutableStateOf(true) }
+    val activeAccountId by MusicAuth.profileId.collectAsState()
 
-    LaunchedEffect(track.id) {
+    LaunchedEffect(track.id, activeAccountId) {
         loading = true
         vkCredits = MusicBackend.getTrackCredits(track.id)
         // Внешняя база — дополнение, а не замена: в этой сборке она отключена

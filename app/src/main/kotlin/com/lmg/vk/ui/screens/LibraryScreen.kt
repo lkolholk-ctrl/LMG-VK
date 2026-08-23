@@ -67,6 +67,7 @@ import com.lmg.vk.engine.AudioDownloadManager
 import com.lmg.vk.engine.PlaybackContext
 import com.lmg.vk.engine.PlayerController
 import com.lmg.vk.engine.PlaylistSyncManager
+import com.lmg.vk.engine.AccountSyncManager
 import com.lmg.vk.engine.Track
 import com.lmg.vk.ui.glass.GlassDialog
 import com.lmg.vk.ui.glass.GlassDialogButton
@@ -168,6 +169,8 @@ fun LibraryScreen(
     var showCreatePlaylistDialog by remember { mutableStateOf(false) }
     val localPlaylists by com.lmg.vk.engine.PlaylistManager.playlists.collectAsState()
     val playlistSyncState by PlaylistSyncManager.state.collectAsState()
+    val accountSyncState by AccountSyncManager.state.collectAsState()
+    val isAnySyncing = isSyncing || playlistSyncState.isSyncing || accountSyncState.isSyncing
     val snackbarHostState = remember { SnackbarHostState() }
 
     val allPlaylistCells = remember(localPlaylists, importedPlaylists, activeAccountId) {
@@ -204,29 +207,37 @@ fun LibraryScreen(
     }
 
     // Load cloud playlists when entering the Imported view or when logged in
-    fun loadImportedPlaylists() {
+    fun loadImportedPlaylists(syncEverything: Boolean = false) {
         if (isLoggedIn) {
+            val requestAccountId = activeAccountId
             scope.launch {
                 isPlaylistsLoading = true
                 try {
-                    PlaylistSyncManager.sync()
+                    if (syncEverything) {
+                        AccountSyncManager.syncAll()
+                    } else {
+                        PlaylistSyncManager.sync()
+                    }
                     val response = MusicBackend.getUserPlaylists(limit = 1000)
-                    importedPlaylists = response.items
+                    if (MusicAuth.profileId.value == requestAccountId) {
+                        importedPlaylists = response.items
+                    }
                 } catch (error: CancellationException) {
                     throw error
                 } catch (_: Exception) {
                     // Ошибка VK-сессии или сети не должна завершать UI-процесс.
                     // Сохраняем уже показанные плейлисты; повтор доступен кнопкой.
                 } finally {
-                    isPlaylistsLoading = false
+                    if (MusicAuth.profileId.value == requestAccountId) {
+                        isPlaylistsLoading = false
+                    }
                 }
             }
         }
     }
 
     fun refreshLibrary() {
-        viewModel.syncWithCloud()
-        loadImportedPlaylists()
+        loadImportedPlaylists(syncEverything = true)
     }
 
     // Загрузки: если хост дал маршрут — уходим на отдельный экран (у него свой
@@ -249,11 +260,11 @@ fun LibraryScreen(
         viewModel.searchCurrentProfile(if (isLoggedIn) libraryQuery else "")
     }
 
-    LaunchedEffect(currentView) {
+    LaunchedEffect(currentView, activeAccountId) {
         if (currentView == LibraryView.MAIN || currentView == LibraryView.RECENT) {
             recentTracks = runCatching {
                 val ids = AppDatabase.getInstance(context).playbackHistoryDao()
-                    .getRecentTrackIds(100)
+                    .getRecentTrackIds(activeAccountId ?: 0L, 100)
                     .distinct()
                 MusicBackend.getBatchTrackMeta(ids).getOrThrow().items
                     .filter { it.isSuccess }
@@ -322,7 +333,7 @@ fun LibraryScreen(
                             query = libraryQuery,
                             onQueryChange = { libraryQuery = it },
                             showSync = isLoggedIn,
-                            isSyncing = isSyncing || playlistSyncState.isSyncing,
+                            isSyncing = isAnySyncing,
                             onSync = ::refreshLibrary,
                             modifier = Modifier.padding(horizontal = 20.dp),
                         )
@@ -459,7 +470,7 @@ fun LibraryScreen(
                 }
                 var playlistToDelete by remember { mutableStateOf<PlaylistCellData?>(null) }
                 val syncMessage = when {
-                    playlistSyncState.isSyncing -> "Synchronizing local and VK playlists…"
+                    isAnySyncing -> "Synchronizing VK account content…"
                     playlistSyncState.error != null -> playlistSyncState.error
                     playlistSyncState.lastReport != null -> playlistSyncState.lastReport?.let {
                         buildString {
@@ -491,9 +502,9 @@ fun LibraryScreen(
                             actions = {
                                 if (isLoggedIn) {
                                     CompactLibraryAction(
-                                        label = if (playlistSyncState.isSyncing) "Syncing…" else "Sync",
+                                        label = if (isAnySyncing) "Syncing…" else "Sync",
                                         icon = lmgVector(LmgDrawables.RefreshOutline28),
-                                        enabled = !playlistSyncState.isSyncing,
+                                        enabled = !isAnySyncing,
                                         onClick = { loadImportedPlaylists() },
                                         modifier = Modifier.weight(1f),
                                     )
@@ -678,8 +689,8 @@ fun LibraryScreen(
                             query = libraryQuery,
                             onQueryChange = { libraryQuery = it },
                             showSync = true,
-                            isSyncing = isSyncing,
-                            onSync = { viewModel.syncWithCloud() },
+                            isSyncing = isAnySyncing,
+                            onSync = { refreshLibrary() },
                             modifier = Modifier.padding(horizontal = 20.dp),
                         )
                     }
@@ -701,7 +712,7 @@ fun LibraryScreen(
                         )
                     }
 
-                    if (displayedFavorites.isEmpty() && !isSyncing) {
+                    if (displayedFavorites.isEmpty() && !isAnySyncing) {
                         item(key = "favorites_empty") {
                             Box(modifier = Modifier.fillMaxWidth().height(240.dp)) {
                                 EmptyState(
@@ -1144,6 +1155,11 @@ fun LibraryScreen(
             LaunchedEffect(message) {
                 snackbarHostState.showSnackbar(message)
                 viewModel.clearError()
+            }
+        }
+        accountSyncState.error?.let { message ->
+            LaunchedEffect(activeAccountId, message) {
+                snackbarHostState.showSnackbar(message)
             }
         }
         SnackbarHost(

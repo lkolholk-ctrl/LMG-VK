@@ -233,8 +233,9 @@ object VkProfileRepository {
                         friendsError = null,
                     )
                 }
-                is VkResult.Error ->
+                is VkResult.Error -> if (MusicAuth.profileId.value == accountId) {
                     _state.value = _state.value.copy(friendsError = messageOf(result))
+                }
             }
         } finally {
             pagingMutex.unlock()
@@ -258,8 +259,9 @@ object VkProfileRepository {
                         groupsError = null,
                     )
                 }
-                is VkResult.Error ->
+                is VkResult.Error -> if (MusicAuth.profileId.value == accountId) {
                     _state.value = _state.value.copy(groupsError = messageOf(result))
+                }
             }
         } finally {
             pagingMutex.unlock()
@@ -268,6 +270,7 @@ object VkProfileRepository {
 
     suspend fun loadMorePlaylists() {
         val audio = audioApi ?: return
+        val accountId = MusicAuth.profileId.value
         val current = _state.value
         if (!current.hasMorePlaylists) return
         val ownerId = current.profile?.id
@@ -283,6 +286,7 @@ object VkProfileRepository {
                 )
             ) {
                 is VkResult.Success -> {
+                    if (MusicAuth.profileId.value != accountId) return
                     val merged = (current.playlists + result.data.items)
                         .distinctBy(AudioPlaylist::fullId)
                     _state.value = _state.value.copy(
@@ -292,11 +296,12 @@ object VkProfileRepository {
                         musicError = null,
                     )
                 }
-                is VkResult.Error ->
+                is VkResult.Error -> if (MusicAuth.profileId.value == accountId) {
                     _state.value = _state.value.copy(
                         playlistsError = messageOf(result),
                         musicError = messageOf(result),
                     )
+                }
             }
         } finally {
             pagingMutex.unlock()
@@ -348,6 +353,7 @@ object VkProfileRepository {
      */
     suspend fun openOwnerAudioById(ownerId: Long) {
         if (ownerId == 0L) return
+        val accountId = MusicAuth.profileId.value
         val isGroup = ownerId < 0
         val registry = methods ?: return
         coroutineScope {
@@ -385,7 +391,7 @@ object VkProfileRepository {
 
             // Экран могли закрыть или сменить владельца, пока шёл запрос.
             val current = _ownerAudio.value?.takeIf { it.ownerId == ownerId }
-            if (metadata != null && current != null) {
+            if (MusicAuth.profileId.value == accountId && metadata != null && current != null) {
                 _ownerAudio.value = current.copy(
                     title = metadata.title.ifBlank { current.title },
                     subtitle = metadata.subtitle,
@@ -409,6 +415,7 @@ object VkProfileRepository {
         avatarUrl: String,
     ) {
         val audio = audioApi ?: return
+        val accountId = MusicAuth.profileId.value
         _ownerAudio.value = OwnerAudioState(
             ownerId = ownerId,
             title = title,
@@ -423,6 +430,7 @@ object VkProfileRepository {
                 tracksTask.await() to playlistsTask.await()
             }
             val (tracks, playlists) = loaded
+            if (MusicAuth.profileId.value != accountId) return@withLock
             // Экран мог быть закрыт, пока шёл запрос.
             val base = _ownerAudio.value?.takeIf { it.ownerId == ownerId } ?: return@withLock
             _ownerAudio.value = when (tracks) {
@@ -445,6 +453,7 @@ object VkProfileRepository {
 
     suspend fun loadMoreOwnerAudio() {
         val audio = audioApi ?: return
+        val accountId = MusicAuth.profileId.value
         val current = _ownerAudio.value ?: return
         if (!current.hasMore || current.isLoadingMore || current.isLoading) return
         _ownerAudio.value = current.copy(isLoadingMore = true)
@@ -454,6 +463,7 @@ object VkProfileRepository {
                 offset = current.tracks.size,
                 count = AUDIO_PAGE_SIZE,
             )
+            if (MusicAuth.profileId.value != accountId) return@withLock
             val base = _ownerAudio.value?.takeIf { it.ownerId == current.ownerId } ?: return@withLock
             _ownerAudio.value = when (result) {
                 is VkResult.Success -> base.copy(
