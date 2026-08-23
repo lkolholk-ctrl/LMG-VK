@@ -3296,7 +3296,7 @@ object MusicAuth {
         var captchaTs: Double? = null,
         var captchaAttempt: Int? = null,
         var legacyTokenValidation: Boolean = false,
-        var oauthCode: String = "",
+        var oauthCode: String? = null,
     )
 
     internal fun init(client: VkApiClient, store: VkSessionStore) {

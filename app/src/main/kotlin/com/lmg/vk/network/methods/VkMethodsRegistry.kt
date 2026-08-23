@@ -890,7 +890,7 @@ class VkMethodsRegistry(private val client: VkApiClient) {
         sid: String,
         anonymousToken: String,
         grantType: String,
-        code: String = "",
+        code: String? = null,
         extraParams: Map<String, String> = emptyMap(),
     ): VkResult<RequestTokenResponse> {
         val method = VkMethod("token", RequestTokenParser).apply {
