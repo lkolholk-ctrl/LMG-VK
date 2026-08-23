@@ -82,7 +82,6 @@ class LmgApplication : Application(), ImageLoaderFactory {
         }
     }
 
-    private var netReconnectJob: kotlinx.coroutines.Job? = null
 
     /**
      * Application-level колбэк дефолтной сети: смена сети → NetworkVitality
@@ -98,11 +97,6 @@ class LmgApplication : Application(), ImageLoaderFactory {
                     if (currentNetwork == network) return
                     currentNetwork = network
                     NetworkVitality.onDefaultNetworkChanged()
-                    netReconnectJob?.cancel()
-                    netReconnectJob = appScope.launch {
-                        kotlinx.coroutines.delay(1500)
-                        resyncAfterNetworkChange()
-                    }
                 }
 
                 override fun onLost(network: android.net.Network) {
@@ -230,11 +224,8 @@ class LmgApplication : Application(), ImageLoaderFactory {
             }
         }
         appScope.launch {
-            MusicAuth.profileId.collectLatest { userId ->
+            MusicAuth.profileId.collectLatest {
                 VkMusicWidget.refreshAll(this@LmgApplication)
-                if (userId != null) {
-                    runCatching { AccountSyncManager.syncAll() }
-                }
             }
         }
         appScope.launch {
@@ -245,14 +236,6 @@ class LmgApplication : Application(), ImageLoaderFactory {
         }
 
         isInitialized = true
-    }
-
-    /** Ресинк после смены сети: профиль/лайки/очередь (дебаунс 1.5с сверху). */
-    private suspend fun resyncAfterNetworkChange() {
-        if (MusicAuth.isLoggedIn.value) {
-            runCatching { MusicAuth.fetchUserData() }
-            runCatching { AccountSyncManager.syncAll() }
-        }
     }
 
     /**

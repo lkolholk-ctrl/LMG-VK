@@ -49,8 +49,16 @@ class LibraryRepository private constructor(context: Context) {
         syncScope.launch {
             while (true) {
                 syncRequests.receive()
-                if (MusicAuth.isLoggedIn.value && !MusicAuth.isAuthorizationInProgress) {
-                    syncWithCloud()
+                if (!MusicAuth.isLoggedIn.value || MusicAuth.isAuthorizationInProgress) {
+                    pendingSyncTrackIds.clear()
+                    continue
+                }
+                val requestedTrackId = pendingSyncTrackIds.firstOrNull() ?: continue
+                pendingSyncTrackIds.remove(requestedTrackId)
+                syncWithCloud(mutationTrackIds = setOf(requestedTrackId))
+                if (pendingSyncTrackIds.isNotEmpty()) {
+                    delay(TARGETED_SYNC_DELAY_MS)
+                    syncRequests.trySend(Unit)
                 }
             }
         }
@@ -59,13 +67,17 @@ class LibraryRepository private constructor(context: Context) {
     private val inFlight = java.util.Collections.newSetFromMap(
         java.util.concurrent.ConcurrentHashMap<String, Boolean>(),
     )
+    private val pendingSyncTrackIds = java.util.Collections.newSetFromMap(
+        java.util.concurrent.ConcurrentHashMap<String, Boolean>(),
+    )
 
-    private fun requestCloudSync() {
+    private fun requestCloudSync(trackId: String) {
         if (
             MusicBackend.isInitialized &&
             MusicAuth.isLoggedIn.value &&
             !MusicAuth.isAuthorizationInProgress
         ) {
+            pendingSyncTrackIds += stableTrackId(trackId)
             syncRequests.trySend(Unit)
         }
     }
@@ -199,7 +211,10 @@ class LibraryRepository private constructor(context: Context) {
         )
     }
 
-    suspend fun syncWithCloud(cleanupCloudDuplicates: Boolean = false): Result<Unit> = syncMutex.withLock {
+    suspend fun syncWithCloud(
+        cleanupCloudDuplicates: Boolean = false,
+        mutationTrackIds: Set<String>? = null,
+    ): Result<Unit> = syncMutex.withLock {
         if (
             !MusicBackend.isInitialized ||
             !MusicAuth.isLoggedIn.value ||
@@ -208,6 +223,7 @@ class LibraryRepository private constructor(context: Context) {
             return@withLock Result.success(Unit)
         }
         val accountId = MusicAuth.profileId.value ?: return@withLock Result.success(Unit)
+        val allowedMutationIds = mutationTrackIds?.mapTo(linkedSetOf(), ::stableTrackId)
         CLOUD_SYNCS.incrementAndGet()
         try {
             withContext(Dispatchers.IO) {
@@ -338,7 +354,9 @@ class LibraryRepository private constructor(context: Context) {
                 val pendingInserts = if (cloudDeduplication.attempted > 0) {
                     emptyList()
                 } else {
-                    allPendingInserts.take(MAX_CLOUD_MUTATIONS_PER_SYNC)
+                    allPendingInserts.filter { candidate ->
+                        allowedMutationIds == null || candidate.trackId in allowedMutationIds
+                    }.take(MAX_CLOUD_MUTATIONS_PER_SYNC)
                 }
                 for ((batchIndex, batch) in pendingInserts.chunked(ADD_BATCH_SIZE).withIndex()) {
                     if (MusicAuth.isAuthorizationInProgress) break
@@ -400,7 +418,9 @@ class LibraryRepository private constructor(context: Context) {
                 val pendingDeletes = if (MusicAuth.isAuthorizationInProgress) {
                     emptyList()
                 } else {
-                    db.getPendingDeletes().take(remainingMutationSlots)
+                    db.getPendingDeletes().filter { candidate ->
+                        allowedMutationIds == null || candidate.trackId in allowedMutationIds
+                    }.take(remainingMutationSlots)
                 }
                 for (delete in pendingDeletes) {
                     if (MusicAuth.isAuthorizationInProgress) break
@@ -418,7 +438,7 @@ class LibraryRepository private constructor(context: Context) {
                                 db.deleteByTrackId(delete.trackId)
                             } else if (current != null) {
                                 db.update(current.copy(cloudTrackId = null, isSynced = false))
-                                requestCloudSync()
+                                requestCloudSync(current.trackId)
                             }
                         } else {
                             failedMutations += delete.trackId
@@ -472,7 +492,7 @@ class LibraryRepository private constructor(context: Context) {
                     current = current.copy(accessKey = keyFromId)
                     db.update(current)
                 }
-                if (!current.isSynced) requestCloudSync()
+                if (!current.isSynced) requestCloudSync(current.trackId)
                 return@withContext Result.success(Unit)
             }
 
@@ -496,7 +516,7 @@ class LibraryRepository private constructor(context: Context) {
                 )
             )
             updatePlayerControllerFavorites()
-            requestCloudSync()
+            requestCloudSync(bareId)
 
             Result.success(Unit)
         } catch (e: Exception) {
@@ -520,7 +540,7 @@ class LibraryRepository private constructor(context: Context) {
 
             updatePlayerControllerFavorites()
 
-            requestCloudSync()
+            requestCloudSync(localId)
 
             Result.success(Unit)
         } catch (e: Exception) {
@@ -569,7 +589,7 @@ class LibraryRepository private constructor(context: Context) {
                     )
                 )
                 updatePlayerControllerFavorites()
-                requestCloudSync()
+                requestCloudSync(bareId)
             }
             true
         }
@@ -609,6 +629,7 @@ class LibraryRepository private constructor(context: Context) {
         private const val MAX_CLOUD_MUTATIONS_PER_SYNC = 5
         private const val MAX_CLOUD_DUPLICATE_DELETES = 5
         private const val CLOUD_DUPLICATE_DELETE_DELAY_MS = 750L
+        private const val TARGETED_SYNC_DELAY_MS = 1_500L
         private val CONFIRMATION_RETRY_DELAYS_MS = longArrayOf(1_500L, 3_000L, 6_000L)
         val isCloudSyncInProgress: Boolean get() = CLOUD_SYNCS.get() > 0
 

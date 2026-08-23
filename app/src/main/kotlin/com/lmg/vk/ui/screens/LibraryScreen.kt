@@ -206,8 +206,10 @@ fun LibraryScreen(
         }
     }
 
-    // Load cloud playlists when entering the Imported view or when logged in
-    fun loadImportedPlaylists(syncEverything: Boolean = false) {
+    fun loadImportedPlaylists(
+        syncEverything: Boolean = false,
+        syncPlaylists: Boolean = false,
+    ) {
         if (isLoggedIn) {
             val requestAccountId = activeAccountId
             scope.launch {
@@ -215,7 +217,7 @@ fun LibraryScreen(
                 try {
                     if (syncEverything) {
                         AccountSyncManager.syncAll(cleanupLibraryDuplicates = true)
-                    } else {
+                    } else if (syncPlaylists) {
                         PlaylistSyncManager.sync()
                     }
                     val response = MusicBackend.getUserPlaylists(limit = 1000)
@@ -505,7 +507,7 @@ fun LibraryScreen(
                                         label = if (isAnySyncing) "Syncing…" else "Sync",
                                         icon = lmgVector(LmgDrawables.RefreshOutline28),
                                         enabled = !isAnySyncing,
-                                        onClick = { loadImportedPlaylists() },
+                                        onClick = { loadImportedPlaylists(syncPlaylists = true) },
                                         modifier = Modifier.weight(1f),
                                     )
                                 }
@@ -1050,7 +1052,7 @@ fun LibraryScreen(
                     SubHeader("Imported Playlists", onBack = { currentView = LibraryView.MAIN }) {
                         if (isLoggedIn) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                IconButton(onClick = { loadImportedPlaylists() }) {
+                                IconButton(onClick = { loadImportedPlaylists(syncPlaylists = true) }) {
                                     Icon(com.lmg.vk.ui.icons.LmgGlyphs.RefreshOutline28, null, tint = lc.iconMuted, modifier = Modifier.size(20.dp))
                                 }
                             }
