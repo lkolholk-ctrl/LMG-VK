@@ -257,6 +257,8 @@ fun AppRoot() {
     var rootBackWidthPx by remember { mutableStateOf(1f) }
     var rootBackCompleting by remember { mutableStateOf(false) }
     var rootBackOverlay by remember { mutableStateOf<RootOverlay?>(null) }
+    var rootBackUnderlay by remember { mutableStateOf<RootOverlay?>(null) }
+    var rootBackUsesBase by remember { mutableStateOf(false) }
     var accountActionError by remember { mutableStateOf<String?>(null) }
     var accountPendingRemoval by remember { mutableStateOf<com.lmg.vk.engine.backend.VkAccountSummary?>(null) }
     val accounts by com.lmg.vk.engine.backend.MusicAuth.accounts.collectAsState()
@@ -299,6 +301,14 @@ fun AppRoot() {
         }
     }
 
+    fun captureRootBack(overlay: RootOverlay) {
+        val visibleStack = rootOverlayStack.filterNot { it == hiddenRootOverlay }
+        val position = visibleStack.indexOf(overlay)
+        rootBackOverlay = overlay
+        rootBackUnderlay = visibleStack.getOrNull(position - 1)
+        rootBackUsesBase = rootBackUnderlay == null
+    }
+
     suspend fun completeRootBack(overlay: RootOverlay, durationMillis: Int) {
         rootBackProgress.animateTo(
             1f,
@@ -311,6 +321,8 @@ fun AppRoot() {
             if (rootBackOverlay == overlay && !rootBackCompleting) {
                 rootBackProgress.snapTo(0f)
                 rootBackOverlay = null
+                rootBackUnderlay = null
+                rootBackUsesBase = false
             }
         }
     }
@@ -321,7 +333,7 @@ fun AppRoot() {
         rootBackCompleting = true
         scope.launch {
             rootBackProgress.snapTo(0f)
-            rootBackOverlay = overlay
+            captureRootBack(overlay)
             completeRootBack(overlay, 260)
         }
     }
@@ -332,7 +344,12 @@ fun AppRoot() {
 
     fun overlayModifier(overlay: RootOverlay): Modifier {
         val hidden = hiddenRootOverlay == overlay
-        val fraction = if (rootBackOverlay == overlay) {
+        val frontFraction = if (rootBackOverlay == overlay) {
+            rootBackProgress.value.coerceIn(0f, 1f)
+        } else {
+            0f
+        }
+        val backFraction = if (rootBackUnderlay == overlay) {
             rootBackProgress.value.coerceIn(0f, 1f)
         } else {
             0f
@@ -341,12 +358,23 @@ fun AppRoot() {
             .zIndex(if (hidden) -10f else rootOverlayStack.indexOf(overlay).toFloat() + 100f)
             .onSizeChanged { rootBackWidthPx = it.width.toFloat().coerceAtLeast(1f) }
             .graphicsLayer {
-                translationX = rootBackWidthPx * fraction
-                scaleX = 1f - 0.08f * fraction
-                scaleY = 1f - 0.08f * fraction
-                alpha = if (hidden) 0f else 1f - 0.22f * fraction
-                clip = fraction > 0f
-                shape = RoundedCornerShape((30f * fraction).dp)
+                translationX = rootBackWidthPx * frontFraction
+                val scale = when {
+                    frontFraction > 0f -> 1f - 0.12f * frontFraction
+                    backFraction > 0f -> 0.94f + 0.06f * backFraction
+                    else -> 1f
+                }
+                scaleX = scale
+                scaleY = scale
+                alpha = when {
+                    hidden -> 0f
+                    frontFraction > 0f -> 1f - 0.16f * frontFraction
+                    backFraction > 0f -> 0.7f + 0.3f * backFraction
+                    else -> 1f
+                }
+                clip = frontFraction > 0f
+                shape = RoundedCornerShape((28f * frontFraction).dp)
+                shadowElevation = 24.dp.toPx() * frontFraction
             }
     }
 
@@ -477,6 +505,9 @@ fun AppRoot() {
     val bgScale = (1f - expandProgress.value * 0.08f).coerceIn(0.9f, 1f)
     val bgCorner = (morphE * 24f).coerceAtLeast(0f)
     val bgAlpha = (1f - expandProgress.value * 0.15f).coerceIn(0.8f, 1f)
+    val rootBackFraction = rootBackProgress.value.coerceIn(0f, 1f)
+    val baseRevealScale = if (rootBackUsesBase) 0.94f + 0.06f * rootBackFraction else 1f
+    val baseRevealAlpha = if (rootBackUsesBase) 0.7f + 0.3f * rootBackFraction else 1f
 
     val rootBackdrop: LayerBackdrop = rememberLayerBackdrop()
 
@@ -500,9 +531,9 @@ fun AppRoot() {
             modifier = Modifier
                 .fillMaxSize()
                 .graphicsLayer {
-                    scaleX = bgScale
-                    scaleY = bgScale
-                    alpha = bgAlpha
+                    scaleX = bgScale * baseRevealScale
+                    scaleY = bgScale * baseRevealScale
+                    alpha = bgAlpha * baseRevealAlpha
                     clip = true
                     shape = RoundedCornerShape(bgCorner.dp)
                 }
@@ -719,6 +750,15 @@ fun AppRoot() {
         }
 
         // Фулл-плеер всегда тёмный — эффекты/палитра рассчитаны на тёмный фон.
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer {
+                    scaleX = baseRevealScale
+                    scaleY = baseRevealScale
+                    alpha = baseRevealAlpha
+                },
+        ) {
         ForceDarkContent {
         FullPlayer(
             expandProgress = expandProgress.value,
@@ -770,6 +810,7 @@ fun AppRoot() {
             onPublishLyrics = { track -> lrcPublishTrack = track },
             onEditTags = { track -> tagEditTrack = track }
         )
+        }
         }
 
         // ── Публикация текста в LRCLIB (открывается из меню трека в плеере) ──
@@ -1097,7 +1138,7 @@ fun AppRoot() {
         val overlay = topRootOverlay ?: return@PredictiveBackHandler
         try {
             rootBackProgress.snapTo(0f)
-            rootBackOverlay = overlay
+            captureRootBack(overlay)
             events.collect { event ->
                 if (topRootOverlay != overlay) throw CancellationException()
                 rootBackProgress.snapTo(event.progress)
@@ -1110,7 +1151,11 @@ fun AppRoot() {
                 0f,
                 spring(dampingRatio = 0.82f, stiffness = 520f),
             )
-            if (rootBackOverlay == overlay) rootBackOverlay = null
+            if (rootBackOverlay == overlay) {
+                rootBackOverlay = null
+                rootBackUnderlay = null
+                rootBackUsesBase = false
+            }
         }
     }
 }
