@@ -3321,7 +3321,6 @@ object MusicAuth {
         apiClient = client
         methods = VkMethodsRegistry(client)
         sessionStore = store
-        PlaylistManager.claimLegacyRemoteOwnership(store.session.userId)
         applySession(store.session)
     }
 
@@ -3729,9 +3728,6 @@ object MusicAuth {
     fun installSession(session: VkAuthSession) {
         val store = checkNotNull(sessionStore) { "MusicAuth is not initialized" }
         val previousUserId = store.session.userId
-        if (previousUserId != 0L && previousUserId != session.userId) {
-            PlaylistManager.claimLegacyRemoteOwnership(previousUserId)
-        }
         store.session = session
         if (previousUserId != 0L && previousUserId != session.userId) clearAccountScopedState()
         applySession(session)
@@ -3744,6 +3740,8 @@ object MusicAuth {
     }
 
     private fun applySession(session: VkAuthSession) {
+        PlaylistManager.activateAccount(session.userId)
+        PlaylistSyncManager.activateAccount(session.userId)
         _isLoggedIn.value = session.accessToken.isNotBlank()
         _partnerUserId.value = session.userId.takeIf { it != 0L }
         val displayName = listOf(session.firstName, session.lastName)

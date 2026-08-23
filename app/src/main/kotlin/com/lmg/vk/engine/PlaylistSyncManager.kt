@@ -37,6 +37,15 @@ object PlaylistSyncManager {
     private val mutex = Mutex()
     private val _state = MutableStateFlow(SyncState())
     val state: StateFlow<SyncState> = _state
+    private var activeAccountId = 0L
+
+    @Synchronized
+    fun activateAccount(userId: Long) {
+        val resolvedUserId = userId.coerceAtLeast(0L)
+        if (activeAccountId == resolvedUserId) return
+        activeAccountId = resolvedUserId
+        _state.value = SyncState()
+    }
 
     suspend fun sync(): Result<SyncReport> = mutex.withLock {
         if (!MusicAuth.isLoggedIn.value) {

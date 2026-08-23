@@ -9,15 +9,13 @@ import kotlinx.coroutines.flow.StateFlow
 import org.json.JSONArray
 import org.json.JSONObject
 
-/**
- * Playlist Manager — создание, редактирование, удаление плейлистов.
- *
- * Хранит в SharedPreferences как JSON.
- */
 object PlaylistManager {
 
     private lateinit var prefs: SharedPreferences
     private const val PREFS_NAME = "playlists"
+    private const val LEGACY_DATA_KEY = "data"
+    private const val ACCOUNT_MIGRATION_KEY = "account_scoped_v1"
+    private var activeAccountId = 0L
     data class PendingRemoteDelete(val ownerId: Long, val remoteId: String)
     private val pendingRemoteDeletes = linkedSetOf<PendingRemoteDelete>()
 
@@ -25,9 +23,6 @@ object PlaylistManager {
         return if (::prefs.isInitialized) prefs else null
     }
 
-    /**
-     * Track entry stored in a playlist with full metadata.
-     */
     data class PlaylistTrack(
         val id: String,
         val title: String,
@@ -41,36 +36,36 @@ object PlaylistManager {
         val name: String,
         val tracks: List<PlaylistTrack>,
         val createdAt: Long,
-        val coverTrackId: String?, // первый трек для обложки
-        /** Полный VK id (`owner_id_playlist_id`), если локальная копия связана с облаком. */
+        val coverTrackId: String?,
         val remoteId: String? = null,
-        /** VK account that owns [remoteId]. Null only for legacy/local entries. */
         val remoteOwnerId: Long? = null,
-        /** Время последнего локального изменения. */
         val modifiedAt: Long = createdAt,
-        /** Последний известный `update_time` VK в миллисекундах. */
         val remoteUpdatedAt: Long = 0L,
-        /** Момент успешного слияния локальной и VK-копии. */
         val lastSyncedAt: Long = 0L,
     ) {
-        /** Backward compat: list of track IDs */
         val trackIds: List<String> get() = tracks.map { it.id }
     }
 
     private val _playlists = MutableStateFlow<List<Playlist>>(emptyList())
     val playlists: StateFlow<List<Playlist>> = _playlists
     private val _changes = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
-    /** Локальные пользовательские изменения; облачные apply/markSynced сюда не попадают. */
     val changes: SharedFlow<Unit> = _changes
 
     fun init(context: Context) {
         prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        loadFromPrefs()
+        loadPendingDeletes()
+        loadActivePlaylists()
     }
 
-    /**
-     * Создать новый плейлист.
-     */
+    @Synchronized
+    fun activateAccount(userId: Long) {
+        val resolvedUserId = userId.coerceAtLeast(0L)
+        migrateLegacyData(resolvedUserId)
+        if (activeAccountId == resolvedUserId) return
+        activeAccountId = resolvedUserId
+        loadActivePlaylists()
+    }
+
     fun create(name: String): Playlist {
         val now = System.currentTimeMillis()
         val id = "pl_$now"
@@ -83,9 +78,6 @@ object PlaylistManager {
         return playlist
     }
 
-    /**
-     * Переименовать плейлист.
-     */
     fun rename(playlistId: String, newName: String) {
         val list = _playlists.value.toMutableList()
         val idx = list.indexOfFirst { it.id == playlistId }
@@ -97,9 +89,6 @@ object PlaylistManager {
         }
     }
 
-    /**
-     * Удалить плейлист.
-     */
     fun delete(playlistId: String): Playlist? {
         val deleted = _playlists.value.firstOrNull { it.id == playlistId }
         _playlists.value = _playlists.value.filter { it.id != playlistId }
@@ -108,9 +97,6 @@ object PlaylistManager {
         return deleted
     }
 
-    /**
-     * Добавить трек в плейлист.
-     */
     fun addTrack(playlistId: String, track: PlaylistTrack): Boolean {
         val list = _playlists.value.toMutableList()
         val idx = list.indexOfFirst { it.id == playlistId }
@@ -143,9 +129,6 @@ object PlaylistManager {
         ),
     )
 
-    /**
-     * Убрать трек из плейлиста.
-     */
     fun removeTrack(playlistId: String, trackId: String) {
         val list = _playlists.value.toMutableList()
         val idx = list.indexOfFirst { it.id == playlistId }
@@ -163,9 +146,6 @@ object PlaylistManager {
         }
     }
 
-    /**
-     * Переместить трек в плейлисте (drag & drop).
-     */
     fun moveTrack(playlistId: String, fromIndex: Int, toIndex: Int) {
         val list = _playlists.value.toMutableList()
         val idx = list.indexOfFirst { it.id == playlistId }
@@ -183,9 +163,6 @@ object PlaylistManager {
         }
     }
 
-    /**
-     * Получить плейлист по ID.
-     */
     fun getById(playlistId: String): Playlist? {
         return _playlists.value.find { it.id == playlistId }
     }
@@ -210,7 +187,6 @@ object PlaylistManager {
         if (pendingRemoteDeletes.remove(PendingRemoteDelete(ownerId, remoteId))) savePendingDeletes()
     }
 
-    /** Связать созданный в VK плейлист с его локальным оригиналом. */
     fun markSynced(
         playlistId: String,
         remoteId: String,
@@ -227,7 +203,6 @@ object PlaylistManager {
         }
     }
 
-    /** Применить облачную версию, не помечая её новым локальным изменением. */
     fun applyRemote(
         remoteId: String,
         remoteOwnerId: Long,
@@ -268,21 +243,6 @@ object PlaylistManager {
         return updated
     }
 
-    /** Assign single-account legacy cloud links before adding a second account. */
-    fun claimLegacyRemoteOwnership(ownerId: Long) {
-        if (ownerId == 0L) return
-        var changed = false
-        _playlists.value = _playlists.value.map { playlist ->
-            if (playlist.remoteId != null && playlist.remoteOwnerId == null) {
-                changed = true
-                playlist.copy(remoteOwnerId = ownerId)
-            } else {
-                playlist
-            }
-        }
-        if (changed) saveToPrefs()
-    }
-
     private fun update(playlistId: String, transform: (Playlist) -> Playlist) {
         val list = _playlists.value.toMutableList()
         val index = list.indexOfFirst { it.id == playlistId }
@@ -292,45 +252,169 @@ object PlaylistManager {
         saveToPrefs()
     }
 
-    /**
-     * Получить треки плейлиста как List<Track>.
-     */
     fun getPlaylistTracks(playlistId: String, allTracks: List<Track>): List<Track> {
         val pl = getById(playlistId) ?: return emptyList()
         val trackMap = allTracks.associateBy { it.id }
         return pl.trackIds.mapNotNull { trackMap[it] }
     }
 
-    // ── Persistence ──
-
     private fun saveToPrefs() {
         val p = safePrefs() ?: return
-        val arr = JSONArray()
-        _playlists.value.forEach { pl ->
-            arr.put(JSONObject().apply {
-                put("id", pl.id)
-                put("name", pl.name)
-                put("created", pl.createdAt)
-                put("cover", pl.coverTrackId ?: "")
-                put("remoteId", pl.remoteId ?: "")
-                put("remoteOwnerId", pl.remoteOwnerId ?: 0L)
-                put("modifiedAt", pl.modifiedAt)
-                put("remoteUpdatedAt", pl.remoteUpdatedAt)
-                put("lastSyncedAt", pl.lastSyncedAt)
-                val trackArr = JSONArray()
-                pl.tracks.forEach { track ->
-                    trackArr.put(JSONObject().apply {
-                        put("id", track.id)
-                        put("title", track.title)
-                        put("artist", track.artist)
-                        put("coverUrl", track.coverUrl ?: "")
-                        put("durationMs", track.durationMs)
-                    })
-                }
-                put("tracks", trackArr)
-            })
+        p.edit().putString(accountDataKey(activeAccountId), encodePlaylists(_playlists.value)).apply()
+    }
+
+    private fun encodePlaylists(playlists: List<Playlist>): String =
+        JSONArray().apply {
+            playlists.forEach { pl ->
+                put(JSONObject().apply {
+                    put("id", pl.id)
+                    put("name", pl.name)
+                    put("created", pl.createdAt)
+                    put("cover", pl.coverTrackId ?: "")
+                    put("remoteId", pl.remoteId ?: "")
+                    put("remoteOwnerId", pl.remoteOwnerId ?: 0L)
+                    put("modifiedAt", pl.modifiedAt)
+                    put("remoteUpdatedAt", pl.remoteUpdatedAt)
+                    put("lastSyncedAt", pl.lastSyncedAt)
+                    val trackArr = JSONArray()
+                    pl.tracks.forEach { track ->
+                        trackArr.put(JSONObject().apply {
+                            put("id", track.id)
+                            put("title", track.title)
+                            put("artist", track.artist)
+                            put("coverUrl", track.coverUrl ?: "")
+                            put("durationMs", track.durationMs)
+                        })
+                    }
+                    put("tracks", trackArr)
+                })
+            }
+        }.toString()
+
+    private fun accountDataKey(userId: Long): String = "data_account_$userId"
+
+    private fun migrateLegacyData(currentUserId: Long) {
+        val p = safePrefs() ?: return
+        if (p.getBoolean(ACCOUNT_MIGRATION_KEY, false)) return
+        val raw = p.getString(LEGACY_DATA_KEY, null)
+        if (raw.isNullOrBlank()) {
+            p.edit()
+                .remove(LEGACY_DATA_KEY)
+                .putBoolean(ACCOUNT_MIGRATION_KEY, true)
+                .apply()
+            return
         }
-        p.edit().putString("data", arr.toString()).apply()
+        if (currentUserId == 0L) return
+        val legacy = decodePlaylists(raw) ?: return
+        val partitions = legacy.groupBy { playlist ->
+            playlist.remoteOwnerId?.takeIf { it != 0L } ?: currentUserId
+        }
+        val editor = p.edit()
+        partitions.forEach { (ownerId, migrated) ->
+            val existing = decodePlaylists(p.getString(accountDataKey(ownerId), null)).orEmpty()
+            val normalized = migrated.map { playlist ->
+                if (playlist.remoteId != null && playlist.remoteOwnerId == null) {
+                    playlist.copy(remoteOwnerId = ownerId)
+                } else {
+                    playlist
+                }
+            }
+            val merged = (normalized + existing).associateBy { it.id }.values.toList()
+            editor.putString(accountDataKey(ownerId), encodePlaylists(merged))
+        }
+        editor
+            .remove(LEGACY_DATA_KEY)
+            .putBoolean(ACCOUNT_MIGRATION_KEY, true)
+            .apply()
+    }
+
+    private fun loadActivePlaylists() {
+        val p = safePrefs()
+        _playlists.value = if (p == null) {
+            emptyList()
+        } else {
+            decodePlaylists(p.getString(accountDataKey(activeAccountId), null)).orEmpty()
+        }
+    }
+
+    private fun decodePlaylists(raw: String?): List<Playlist>? {
+        if (raw.isNullOrBlank()) return emptyList()
+        return runCatching {
+            val arr = JSONArray(raw)
+            buildList {
+                for (i in 0 until arr.length()) {
+                    val obj = arr.getJSONObject(i)
+                    val tracks = mutableListOf<PlaylistTrack>()
+                    val trackArr = obj.optJSONArray("tracks")
+                    if (trackArr != null) {
+                        for (j in 0 until trackArr.length()) {
+                            when (val item = trackArr.get(j)) {
+                                is JSONObject -> tracks.add(
+                                    PlaylistTrack(
+                                        id = item.getString("id"),
+                                        title = item.optString("title", ""),
+                                        artist = item.optString("artist", ""),
+                                        coverUrl = item.optString("coverUrl", "")
+                                            .takeIf { it.isNotEmpty() },
+                                        durationMs = item.optLong("durationMs", 0L),
+                                    ),
+                                )
+                                is String -> tracks.add(
+                                    PlaylistTrack(id = item, title = "", artist = ""),
+                                )
+                            }
+                        }
+                    } else {
+                        val legacyTrackIds = obj.optJSONArray("trackIds")
+                        if (legacyTrackIds != null) {
+                            for (j in 0 until legacyTrackIds.length()) {
+                                tracks.add(
+                                    PlaylistTrack(
+                                        id = legacyTrackIds.getString(j),
+                                        title = "",
+                                        artist = "",
+                                    ),
+                                )
+                            }
+                        }
+                    }
+                    val coverId = obj.optString("cover", "")
+                    val remoteId = obj.optString("remoteId", "")
+                    val createdAt = obj.optLong("created", 0L)
+                    add(
+                        Playlist(
+                            id = obj.getString("id"),
+                            name = obj.getString("name"),
+                            tracks = tracks,
+                            createdAt = createdAt,
+                            coverTrackId = coverId.takeIf { it.isNotEmpty() },
+                            remoteId = remoteId.takeIf { it.isNotEmpty() },
+                            remoteOwnerId = obj.optLong("remoteOwnerId", 0L)
+                                .takeIf { it != 0L },
+                            modifiedAt = obj.optLong("modifiedAt", createdAt),
+                            remoteUpdatedAt = obj.optLong("remoteUpdatedAt", 0L),
+                            lastSyncedAt = obj.optLong("lastSyncedAt", 0L),
+                        ),
+                    )
+                }
+            }
+        }.getOrNull()
+    }
+
+    private fun loadPendingDeletes() {
+        val p = safePrefs() ?: return
+        pendingRemoteDeletes.clear()
+        runCatching {
+            val pending = JSONArray(p.getString("pending_remote_deletes", "[]").orEmpty())
+            for (i in 0 until pending.length()) {
+                val item = pending.optJSONObject(i) ?: continue
+                val ownerId = item.optLong("ownerId", 0L)
+                val remoteId = item.optString("remoteId", "")
+                if (ownerId != 0L && remoteId.isNotBlank()) {
+                    pendingRemoteDeletes.add(PendingRemoteDelete(ownerId, remoteId))
+                }
+            }
+        }
     }
 
     private fun savePendingDeletes() {
@@ -348,75 +432,4 @@ object PlaylistManager {
         ).apply()
     }
 
-    private fun loadFromPrefs() {
-        val p = safePrefs() ?: return
-        pendingRemoteDeletes.clear()
-        runCatching {
-            val pending = JSONArray(p.getString("pending_remote_deletes", "[]").orEmpty())
-            for (i in 0 until pending.length()) {
-                val item = pending.optJSONObject(i) ?: continue
-                val ownerId = item.optLong("ownerId", 0L)
-                val remoteId = item.optString("remoteId", "")
-                if (ownerId != 0L && remoteId.isNotBlank()) {
-                    pendingRemoteDeletes.add(PendingRemoteDelete(ownerId, remoteId))
-                }
-            }
-        }
-        try {
-            val str = p.getString("data", null) ?: return
-            val arr = JSONArray(str)
-            val list = mutableListOf<Playlist>()
-            for (i in 0 until arr.length()) {
-                val obj = arr.getJSONObject(i)
-
-                // Try new format first (tracks array with objects)
-                val tracks = mutableListOf<PlaylistTrack>()
-                try {
-                    val trackArr = obj.getJSONArray("tracks")
-                    for (j in 0 until trackArr.length()) {
-                        when (val item = trackArr.get(j)) {
-                            is JSONObject -> {
-                                tracks.add(PlaylistTrack(
-                                    id = item.getString("id"),
-                                    title = item.optString("title", ""),
-                                    artist = item.optString("artist", ""),
-                                    coverUrl = item.optString("coverUrl", "").takeIf { it.isNotEmpty() },
-                                    durationMs = item.optLong("durationMs", 0L)
-                                ))
-                            }
-                            is String -> {
-                                // Legacy format: just track ID string
-                                tracks.add(PlaylistTrack(id = item, title = "", artist = ""))
-                            }
-                        }
-                    }
-                } catch (_: Exception) {
-                    // Fallback: try legacy "trackIds" array
-                    try {
-                        val legacyArr = obj.getJSONArray("trackIds")
-                        for (j in 0 until legacyArr.length()) {
-                            tracks.add(PlaylistTrack(id = legacyArr.getString(j), title = "", artist = ""))
-                        }
-                    } catch (_: Exception) {}
-                }
-
-                val coverId = obj.optString("cover", "")
-                val remoteId = obj.optString("remoteId", "")
-                val createdAt = obj.optLong("created", 0L)
-                list.add(Playlist(
-                    id = obj.getString("id"),
-                    name = obj.getString("name"),
-                    tracks = tracks,
-                    createdAt = createdAt,
-                    coverTrackId = if (coverId.isEmpty()) null else coverId,
-                    remoteId = remoteId.takeIf { it.isNotEmpty() },
-                    remoteOwnerId = obj.optLong("remoteOwnerId", 0L).takeIf { it != 0L },
-                    modifiedAt = obj.optLong("modifiedAt", createdAt),
-                    remoteUpdatedAt = obj.optLong("remoteUpdatedAt", 0L),
-                    lastSyncedAt = obj.optLong("lastSyncedAt", 0L),
-                ))
-            }
-            _playlists.value = list
-        } catch (_: Exception) {}
-    }
 }
