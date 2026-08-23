@@ -299,6 +299,15 @@ class FavoriteTrackDatabase private constructor(context: Context) : SQLiteOpenHe
         }
     }
 
+    fun getByCloudTrackId(cloudTrackId: String): FavoriteTrackEntity? {
+        return readableDatabase.rawQuery(
+            "SELECT * FROM favorite_tracks WHERE accountId = ? AND cloudTrackId = ? LIMIT 1",
+            arrayOf(ACTIVE_ACCOUNT_ID.toString(), cloudTrackId),
+        ).use { cursor ->
+            if (cursor.moveToFirst()) cursorToEntity(cursor) else null
+        }
+    }
+
     fun isFavorite(trackId: String): Boolean {
         return readableDatabase.rawQuery(
             "SELECT 1 FROM favorite_tracks WHERE accountId = ? AND " +
@@ -391,6 +400,14 @@ class FavoriteTrackDatabase private constructor(context: Context) : SQLiteOpenHe
         writableDatabase.execSQL(
             "DELETE FROM favorite_tracks WHERE accountId = ? AND (trackId = ? OR cloudTrackId = ?)",
             arrayOf<Any?>(ACTIVE_ACCOUNT_ID, trackId, trackId)
+        )
+        reloadFavorites()
+    }
+
+    fun deleteByLocalTrackId(trackId: String) {
+        writableDatabase.execSQL(
+            "DELETE FROM favorite_tracks WHERE accountId = ? AND trackId = ?",
+            arrayOf<Any?>(ACTIVE_ACCOUNT_ID, trackId),
         )
         reloadFavorites()
     }

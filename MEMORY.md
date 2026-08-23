@@ -1146,3 +1146,9 @@ Add второго аккаунта; неверный пароль не сбра
   Код теперь очищается при `NeedPassword`, а `AuthAttempt.awaitingPassword`
   делает password continuation приоритетным и направляет его в `oauth/token` с
   `grant_type=phone_confirmation_sid`, новым sid и без ecosystem `code`.
+- После первой полной library sync официальный VK показал все композиции, но
+  локальный My Audio остался больше из-за нескольких pending SQLite-строк,
+  совпадающих с одной облачной копией. После pull синхронизация теперь удаляет
+  только дополнительные pending-строки, когда уже существует отдельная synced
+  строка с тем же реальным `cloudTrackId` и совпадают title/artist/duration.
+  Разные дубли, реально присутствующие в облачной библиотеке VK, сохраняются.

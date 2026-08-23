@@ -121,6 +121,19 @@ class LibraryRepository private constructor(context: Context) {
         return result
     }
 
+    private suspend fun collapsePendingDuplicates(cloudLikes: List<LibraryTrack>): Int {
+        var removed = 0
+        for (candidate in db.getPendingInserts()) {
+            val cloudTrack = cloudLikes.firstOrNull { candidate.matchesCloud(it) } ?: continue
+            val cloudId = stableTrackId(cloudTrack.id)
+            val linked = db.getByCloudTrackId(cloudId) ?: db.getByTrackId(cloudId) ?: continue
+            if (linked.trackId == candidate.trackId || linked.pendingDelete || !linked.isSynced) continue
+            db.deleteByLocalTrackId(candidate.trackId)
+            removed++
+        }
+        return removed
+    }
+
     suspend fun syncWithCloud(): Result<Unit> = syncMutex.withLock {
         if (!MusicBackend.isInitialized || !MusicAuth.isLoggedIn.value) {
             return@withLock Result.success(Unit)
@@ -150,7 +163,7 @@ class LibraryRepository private constructor(context: Context) {
 
                 for (cloudTrack in cloudLikes) {
                     val cloudId = stableTrackId(cloudTrack.id)
-                    val cloudExisting = db.getByTrackId(cloudId)
+                    val cloudExisting = db.getByCloudTrackId(cloudId) ?: db.getByTrackId(cloudId)
                     val mergeMatch = if (cloudExisting?.pendingDelete == true) {
                         null
                     } else {
@@ -221,6 +234,8 @@ class LibraryRepository private constructor(context: Context) {
                         )
                     }
                 }
+
+                val deduplicated = collapsePendingDuplicates(cloudLikes)
 
                 for (candidate in mergeCandidates) {
                     if (candidate.trackId in claimedLocalIds) continue
@@ -331,7 +346,7 @@ class LibraryRepository private constructor(context: Context) {
                 com.lmg.vk.debug.DebugLog.add(
                     "LIBRARY SYNC cloud=${cloudLikes.size} local=${localEntities.size} " +
                         "pending=${pendingInserts.size} submitted=${submittedInserts.size} " +
-                        "failed=${failedMutations.distinct().size}",
+                        "deduplicated=$deduplicated failed=${failedMutations.distinct().size}",
                 )
 
                 if (failedMutations.isEmpty()) {
