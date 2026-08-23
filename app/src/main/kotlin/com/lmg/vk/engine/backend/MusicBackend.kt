@@ -1404,7 +1404,6 @@ object MusicBackend {
         releases.map { it.toArtistAlbum() }
     }.getOrDefault(emptyList())
 
-    // ---------- лайки / библиотека ----------
     suspend fun getLibraryLikes(source: String = "all", limit: Int = 500, offset: Int = 0): LibraryLikesResponse? =
         runCatching {
             val tracks = audioApi.getAudios(
@@ -1420,19 +1419,35 @@ object MusicBackend {
             )
         }.getOrNull()
 
-    /**
-     * Добавляет аудио и возвращает настоящий id копии в библиотеке пользователя.
-     * Официальный `audio.add` меняет owner/audio id; Boolean скрывал эту замену
-     * и оставлял локальную БД привязанной к исходной, позже удаляемой записи.
-     */
-    suspend fun addTrackToLibrary(trackId: String): String? = runCatching {
-        val track = resolveTrack(trackId)
-        audioApi.add(track.fullId, track.access_key).requireData().fullId
-    }.getOrNull()
+    suspend fun addTracksToLibrary(trackIds: Collection<String>): Set<String> = runCatching {
+        requireInitialized()
+        val requests = trackIds.mapNotNull { trackId ->
+            val normalized = normalizeTrackId(trackId)
+            val parts = normalized.split('_', limit = 3)
+            if (parts.size < 2) return@mapNotNull null
+            val fullId = parts.take(2).joinToString("_")
+            val accessKey = parts.getOrNull(2)?.takeIf(String::isNotBlank)
+                ?: trackCache[fullId]?.access_key?.takeIf(String::isNotBlank)
+            val requestId = accessKey?.let { "${fullId}_$it" } ?: fullId
+            fullId to requestId
+        }.distinctBy { it.first }
+        audioApi.addBatch(requests.map { it.second }).requireData()
+        requests.mapTo(linkedSetOf()) { it.first }
+    }.getOrDefault(emptySet())
+
+    suspend fun addTrackToLibrary(trackId: String): Boolean = runCatching {
+        val normalized = normalizeTrackId(trackId)
+        val parts = normalized.split('_', limit = 3)
+        val fullId = parts.take(2).joinToString("_")
+        val accessKey = parts.getOrNull(2)?.takeIf(String::isNotBlank)
+            ?: trackCache[fullId]?.access_key?.takeIf(String::isNotBlank)
+        audioApi.add(fullId, accessKey).requireData()
+        true
+    }.getOrDefault(false)
 
     suspend fun likeTrack(trackId: String, liked: Boolean = true): Boolean {
         if (!liked) return unlikeTrack(trackId)
-        return addTrackToLibrary(trackId) != null
+        return addTrackToLibrary(trackId)
     }
 
     suspend fun unlikeTrack(trackId: String): Boolean = runCatching {
@@ -1440,7 +1455,6 @@ object MusicBackend {
         true
     }.getOrDefault(false)
 
-    // ---------- плейлисты пользователя ----------
     suspend fun getUserPlaylists(limit: Int = 100): UserPlaylistsResponse {
         val ownerId = currentUserId()
         val requested = limit.coerceIn(1, 1000)

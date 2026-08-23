@@ -10,8 +10,6 @@ import com.lmg.vk.network.MappingVkResponseParser
 import com.lmg.vk.network.MoshiEnvelopeParser
 import com.lmg.vk.network.VkItems
 import com.lmg.vk.network.dto.music.AudioPlaylist
-import com.lmg.vk.network.dto.music.AudioAddResponse
-import com.lmg.vk.network.dto.music.AudioAddResult
 import com.lmg.vk.network.dto.music.AudioGetAutoflowMixParamsResponse
 import com.lmg.vk.network.dto.music.AudioLyricsContainer
 import com.lmg.vk.network.dto.music.AudioRelatedArtistsResponse
@@ -736,9 +734,6 @@ class VkAudioApi(
         return client.execute(method)
     }
 
-    // ---------------------------------------------------------------
-    // Лайки/дизлайки (C2193e): audio_ids = csv полных id ("owner_audio")
-    // ---------------------------------------------------------------
     suspend fun addDislike(audioFullId: String): VkResult<AudioAudioDto> {
         val method = VkMethod(
             "audio.addDislike",
@@ -752,40 +747,37 @@ class VkAudioApi(
     suspend fun removeDislike(audioFullId: String): VkResult<Unit> =
         executeSimpleList("audio.removeDislike", audioFullId)
 
-    /**
-     * Актуальный batch-контракт официального клиента. VK возвращает новый
-     * owner/audio id пользовательской копии; терять его нельзя, иначе локальная
-     * строка продолжит ссылаться на исходник и задвоится при следующем audio.get.
-     */
-    suspend fun add(audioFullId: String, accessKey: String? = null): VkResult<AudioAddResult> {
+    suspend fun add(audioFullId: String, accessKey: String? = null): VkResult<Unit> {
         val normalized = audioFullId.removePrefix("vk_")
-        val requestId = if (normalized.count { it == '_' } < 2 && !accessKey.isNullOrBlank()) {
-            "${normalized}_$accessKey"
-        } else {
-            normalized
-        }
-        val method = VkMethod(
-            "audio.add",
-            MoshiEnvelopeParser<AudioAddResponse>(AudioAddResponse::class.java),
-        ).apply {
-            param("audio_ids", requestId)
-        }
-        return when (val result = client.execute(method)) {
-            is VkResult.Success -> {
-                val item = result.data.items.orEmpty().firstOrNull()
-                val error = result.data.errors.orEmpty().firstOrNull()
-                when {
-                    item != null -> VkResult.Success(item)
-                    error != null -> VkResult.Error(
-                        code = error.error_code.toIntOrNull() ?: -1,
-                        message = error.error_msg.ifBlank { "VK не добавил аудио" },
-                    )
-                    else -> VkResult.Error(-1, "VK вернул пустой ответ audio.add")
-                }
-            }
+        val parts = normalized.split('_', limit = 3)
+        val fullId = parts.take(2).joinToString("_")
+        val resolvedAccessKey = parts.getOrNull(2)?.takeIf(String::isNotBlank) ?: accessKey
+        return executeTrackMutation("audio.add", fullId, resolvedAccessKey)
+    }
 
-            is VkResult.Error -> result
+    suspend fun addBatch(audioFullIds: Collection<String>): VkResult<Int> {
+        val requestIds = audioFullIds.map { it.removePrefix("vk_") }.distinct()
+        if (requestIds.isEmpty()) return VkResult.Success(1)
+        val code = buildString {
+            requestIds.forEach { requestId ->
+                val parts = requestId.split('_', limit = 3)
+                require(parts.size >= 2) { "Invalid VK audio id: $requestId" }
+                append("API.audio.add({\"audio_id\":")
+                append(parts[1].toInt())
+                append(",\"owner_id\":")
+                append(parts[0].toLong())
+                parts.getOrNull(2)?.takeIf(String::isNotBlank)?.let { accessKey ->
+                    append(",\"access_key\":")
+                    append(JSONObject.quote(accessKey))
+                }
+                append("});\n\n")
+            }
+            append("return 1;")
         }
+        val method = VkMethod("execute", IntParser).apply {
+            param("code", code)
+        }
+        return client.execute(method)
     }
 
     suspend fun delete(audioFullId: String): VkResult<Unit> =
@@ -794,11 +786,6 @@ class VkAudioApi(
     suspend fun restore(audioFullId: String): VkResult<Unit> =
         executeTrackMutation("audio.restore", audioFullId)
 
-    /**
-     * Priority 3 подтвердил второй, новый контракт `audio.restore`:
-     * ответом является 39-польный `AudioAudioDto` (C18422e/C14729e).
-     * Старый Unit-вариант выше сохранён отдельно.
-     */
     suspend fun restoreDetailed(audioFullId: String): VkResult<AudioAudioDto> {
         val (ownerId, audioId) = parseAudioFullId(audioFullId)
         val method = VkMethod(
@@ -842,9 +829,6 @@ class VkAudioApi(
             normalized.substring(separator + 1).toInt()
     }
 
-    // ---------------------------------------------------------------
-    // Парсеры (в оригинале — синглтоны C15802e/C5107e/C5438e/C4524e/C5170e)
-    // ---------------------------------------------------------------
     private object AudioTrackListParser : VkResponseParser<List<AudioTrack>> {
         private val delegate = MappingVkResponseParser(
             MoshiEnvelopeParser<VkItems<AudioTrack>>(
@@ -857,7 +841,6 @@ class VkAudioApi(
         }
     }
 
-    /** `{count, items}` целиком — когда общее количество важно так же, как список. */
     private object AudioTrackPageParser : VkResponseParser<VkItems<AudioTrack>> {
         private val delegate = MoshiEnvelopeParser<VkItems<AudioTrack>>(
             Types.newParameterizedType(VkItems::class.java, AudioTrack::class.java),
