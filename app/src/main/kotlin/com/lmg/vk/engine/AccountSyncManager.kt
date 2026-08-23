@@ -34,7 +34,7 @@ object AccountSyncManager {
         _state.value = SyncState(accountId = accountId)
     }
 
-    suspend fun syncAll(cleanupLibraryDuplicates: Boolean = false): Result<Unit> = mutex.withLock {
+    suspend fun syncAll(): Result<Unit> = mutex.withLock {
         if (MusicAuth.isAuthorizationInProgress) return@withLock Result.success(Unit)
         val context = appContext
             ?: return@withLock Result.failure(IllegalStateException("Account sync is not initialized"))
@@ -51,7 +51,7 @@ object AccountSyncManager {
             if (MusicAuth.profileId.value != accountId) {
                 throw CancellationException("VK account changed during synchronization")
             }
-            LibraryRepository.getInstance(context).syncWithCloud(cleanupLibraryDuplicates)
+            LibraryRepository.getInstance(context).syncWithCloud()
                 .exceptionOrNull()
                 ?.let(failures::add)
             if (MusicAuth.profileId.value != accountId) {

@@ -23,6 +23,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -47,8 +48,13 @@ import com.kyant.backdrop.backdrops.LayerBackdrop
 import com.lmg.vk.engine.AppSettings
 import com.lmg.vk.engine.PlayerController
 import com.lmg.vk.engine.PlayerSettings
+import com.lmg.vk.data.local.db.LibraryDuplicateGroup
+import com.lmg.vk.data.local.db.LibraryDuplicateScan
+import com.lmg.vk.data.local.db.LibraryRepository
 import com.lmg.vk.ui.LauncherIconManager
 import com.lmg.vk.ui.components.SectionTopBar
+import com.lmg.vk.ui.glass.GlassDialog
+import com.lmg.vk.ui.glass.GlassDialogButton
 import com.lmg.vk.ui.glass.liquidClickable
 import com.lmg.vk.ui.rememberWindowInfo
 import com.lmg.vk.ui.icons.LmgDrawables
@@ -68,12 +74,9 @@ private enum class SettingsPage(
     NETWORK("Network", "Connection and proxy settings"),
     APPEARANCE("Themes and interface", "Theme, contrast and application icon"),
     DIAGNOSTICS("Diagnostics", "Playback log and troubleshooting"),
+    DUPLICATES("Сканирование дублей", "Поиск одинаковых треков в библиотеке VK"),
 }
 
-/**
- * Настройки сгруппированы по модели VK X: корневой экран показывает только
- * смысловые разделы, а конкретные параметры живут на отдельных страницах.
- */
 @Suppress("UNUSED_PARAMETER")
 @Composable
 fun SettingsScreen(
@@ -97,6 +100,11 @@ fun SettingsScreen(
     var debugTaps by remember { mutableStateOf(0) }
     var debugLastTapAt by remember { mutableStateOf(0L) }
     var launcherIcon by remember { mutableStateOf(LauncherIconManager.current(context)) }
+    var duplicateScan by remember { mutableStateOf<LibraryDuplicateScan?>(null) }
+    var duplicateError by remember { mutableStateOf<String?>(null) }
+    var duplicateStatus by remember { mutableStateOf<String?>(null) }
+    var duplicateLoading by remember { mutableStateOf(false) }
+    var showDuplicateRemovalDialog by remember { mutableStateOf(false) }
 
     val sleepTimerMinutes by AppSettings.sleepTimerMinutes.collectAsState()
     val crossfadeMs by PlayerSettings.crossfadeMs.collectAsState()
@@ -104,6 +112,7 @@ fun SettingsScreen(
     val increaseContrast by PlayerSettings.increaseContrast.collectAsState()
     val broadcastToStatus by AppSettings.broadcastToStatus.collectAsState()
     val vkLoggedIn by com.lmg.vk.engine.backend.MusicAuth.isLoggedIn.collectAsState()
+    val activeAccountId by com.lmg.vk.engine.backend.MusicAuth.profileId.collectAsState()
     val accounts by com.lmg.vk.engine.backend.MusicAuth.accounts.collectAsState()
     val proxyEnabled by com.lmg.vk.network.proxy.VkProxyRepository.enabled.collectAsState()
     val vpnBypassEnabled by AppSettings.vpnBypassEnabled.collectAsState()
@@ -111,13 +120,54 @@ fun SettingsScreen(
     val isVpnBypassApplied by com.lmg.vk.network.VpnBypassManager.isBypassApplied.collectAsState()
 
     LaunchedEffect(page) { scroll.scrollTo(0) }
+    LaunchedEffect(activeAccountId) {
+        duplicateScan = null
+        duplicateError = null
+        duplicateStatus = null
+    }
     LaunchedEffect(Unit) { com.lmg.vk.network.VpnBypassManager.updateStateAndApply() }
-    BackHandler(enabled = page != SettingsPage.ROOT) { page = SettingsPage.ROOT }
+    BackHandler(enabled = page != SettingsPage.ROOT) {
+        page = if (page == SettingsPage.DUPLICATES) SettingsPage.VK else SettingsPage.ROOT
+    }
 
     val headerBack: (() -> Unit)? = when {
+        page == SettingsPage.DUPLICATES -> ({ page = SettingsPage.VK })
         page != SettingsPage.ROOT -> ({ page = SettingsPage.ROOT })
         showBack -> onBack
         else -> null
+    }
+
+    fun scanDuplicates() {
+        if (duplicateLoading) return
+        duplicateLoading = true
+        duplicateError = null
+        duplicateStatus = null
+        proxyScope.launch {
+            LibraryRepository.getInstance(context).scanCloudDuplicates()
+                .onSuccess { duplicateScan = it }
+                .onFailure { duplicateError = it.message ?: "Не удалось просканировать библиотеку" }
+            duplicateLoading = false
+        }
+    }
+
+    fun removeDuplicates() {
+        if (duplicateLoading) return
+        duplicateLoading = true
+        duplicateError = null
+        duplicateStatus = null
+        proxyScope.launch {
+            LibraryRepository.getInstance(context).removeScannedCloudDuplicates()
+                .onSuccess { result ->
+                    duplicateScan = result.scan
+                    duplicateStatus = when {
+                        result.removed == 0 && result.failed > 0 -> "VK не разрешил удалить дубли"
+                        result.failed > 0 -> "Удалено: ${result.removed} · Не удалено: ${result.failed}"
+                        else -> "Удалено дублей: ${result.removed}"
+                    }
+                }
+                .onFailure { duplicateError = it.message ?: "Не удалось удалить дубли" }
+            duplicateLoading = false
+        }
     }
 
     Box(modifier = Modifier.fillMaxSize().background(colors.settingsBackground)) {
@@ -270,6 +320,24 @@ fun SettingsScreen(
                                 },
                             )
                         }
+
+                        Spacer(Modifier.height(sectionGap))
+                        SectionLabel("Библиотека VK")
+                        PlainCard {
+                            SettingsActionItem(
+                                title = "Сканирование дублей",
+                                subtitle = if (vkLoggedIn) {
+                                    "Найти одинаковые треки без фоновой синхронизации"
+                                } else {
+                                    "Сначала войдите в аккаунт VK"
+                                },
+                                icon = lmgVector(LmgDrawables.ScanViewfinderOutline28),
+                                onClick = {
+                                    if (vkLoggedIn) page = SettingsPage.DUPLICATES
+                                    else onOpenProfile()
+                                },
+                            )
+                        }
                     }
 
                     SettingsPage.PLAYBACK -> {
@@ -405,12 +473,197 @@ fun SettingsScreen(
                             )
                         }
                     }
+
+                    SettingsPage.DUPLICATES -> {
+                        SectionLabel("Облачная библиотека")
+                        PlainCard {
+                            SettingsActionItem(
+                                title = if (duplicateLoading) "Сканирование…" else "Сканировать библиотеку",
+                                subtitle = "Только чтение · ничего не удаляется автоматически",
+                                icon = lmgVector(LmgDrawables.ScanViewfinderOutline28),
+                                onClick = {
+                                    if (!duplicateLoading) scanDuplicates()
+                                },
+                            )
+                        }
+
+                        if (duplicateLoading) {
+                            Spacer(Modifier.height(20.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(22.dp),
+                                    color = colors.accent,
+                                    strokeWidth = 2.dp,
+                                )
+                                Spacer(Modifier.width(10.dp))
+                                Text(
+                                    text = "Подождите, библиотека проверяется",
+                                    color = colors.textSecondary,
+                                    fontSize = 13.sp,
+                                )
+                            }
+                        }
+
+                        duplicateError?.let { message ->
+                            Spacer(Modifier.height(16.dp))
+                            DuplicateScannerMessage(message, Color(0xFFFC3C44))
+                        }
+
+                        duplicateStatus?.let { message ->
+                            Spacer(Modifier.height(16.dp))
+                            DuplicateScannerMessage(message, colors.accent)
+                        }
+
+                        duplicateScan?.let { scan ->
+                            Spacer(Modifier.height(sectionGap))
+                            SectionLabel("Результат")
+                            PlainCard {
+                                DuplicateScanSummary(scan)
+                                if (scan.groups.isNotEmpty()) {
+                                    scan.groups.forEach { group ->
+                                        PlainDivider()
+                                        DuplicateGroupItem(group)
+                                    }
+                                }
+                            }
+
+                            if (scan.duplicateCount > 0) {
+                                Spacer(Modifier.height(sectionGap))
+                                SectionLabel("Очистка")
+                                PlainCard {
+                                    SettingsActionItem(
+                                        title = "Удалить точные дубли",
+                                        subtitle = "Не более 5 за один запуск · останутся самые старые копии",
+                                        icon = lmgVector(LmgDrawables.DeleteOutline28),
+                                        onClick = {
+                                            if (!duplicateLoading) showDuplicateRemovalDialog = true
+                                        },
+                                    )
+                                }
+                            }
+                        }
+
+                        GlassDialog(
+                            visible = showDuplicateRemovalDialog,
+                            onDismiss = { showDuplicateRemovalDialog = false },
+                            icon = lmgVector(LmgDrawables.DeleteOutline28),
+                            iconTint = Color(0xFFFC3C44),
+                            title = "Удалить точные дубли?",
+                            message = "Будут удалены до 5 новых копий. Самая старая запись каждого трека останется в VK.",
+                            primaryButton = GlassDialogButton(
+                                text = "Удалить",
+                                onClick = {
+                                    showDuplicateRemovalDialog = false
+                                    removeDuplicates()
+                                },
+                            ),
+                            secondaryButton = GlassDialogButton(
+                                text = "Отмена",
+                                onClick = { showDuplicateRemovalDialog = false },
+                                backgroundColor = colors.glassTint,
+                                textColor = colors.textPrimary,
+                            ),
+                        )
+                    }
                 }
 
                 Spacer(Modifier.height(110.dp))
             }
         }
     }
+}
+
+@Composable
+private fun DuplicateScanSummary(scan: LibraryDuplicateScan) {
+    val colors = LiquidTheme.colors
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            imageVector = lmgVector(LmgDrawables.CopyOutline28),
+            contentDescription = null,
+            tint = if (scan.duplicateCount == 0) colors.accent else colors.iconDefault,
+            modifier = Modifier.size(22.dp),
+        )
+        Spacer(Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = if (scan.duplicateCount == 0) "Дубли не найдены" else "Найдено дублей: ${scan.duplicateCount}",
+                color = colors.textPrimary,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Text(
+                text = "Проверено треков: ${scan.totalTracks} · Групп: ${scan.groups.size}",
+                color = colors.textSecondary,
+                fontSize = 12.sp,
+            )
+        }
+    }
+}
+
+@Composable
+private fun DuplicateGroupItem(group: LibraryDuplicateGroup) {
+    val colors = LiquidTheme.colors
+    val track = group.keeper
+    val durationSeconds = (track.durationMs / 1_000L).coerceAtLeast(0L)
+    val duration = "%d:%02d".format(durationSeconds / 60L, durationSeconds % 60L)
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(40.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(colors.accent.copy(alpha = 0.12f)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text = (group.duplicates.size + 1).toString(),
+                color = colors.accent,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold,
+            )
+        }
+        Spacer(Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = track.title,
+                color = colors.textPrimary,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Medium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = "${track.artist.orEmpty()} · $duration · ${group.duplicates.size} лишних",
+                color = colors.textSecondary,
+                fontSize = 12.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
+@Composable
+private fun DuplicateScannerMessage(message: String, tint: Color) {
+    Text(
+        text = message,
+        color = tint,
+        fontSize = 13.sp,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(tint.copy(alpha = 0.10f))
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+    )
 }
 
 @Composable

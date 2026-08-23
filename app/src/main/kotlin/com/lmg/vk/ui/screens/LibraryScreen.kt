@@ -216,7 +216,7 @@ fun LibraryScreen(
                 isPlaylistsLoading = true
                 try {
                     if (syncEverything) {
-                        AccountSyncManager.syncAll(cleanupLibraryDuplicates = true)
+                        AccountSyncManager.syncAll()
                     } else if (syncPlaylists) {
                         PlaylistSyncManager.sync()
                     }
