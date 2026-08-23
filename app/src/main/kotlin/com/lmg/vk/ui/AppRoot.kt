@@ -32,6 +32,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.PredictiveBackHandler
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -151,11 +152,10 @@ private fun PredictiveBackLayer(
                 tween(140, easing = com.lmg.vk.ui.theme.AppleEasings.Standard),
             )
             onBack()
-        } catch (_: CancellationException) {
+        } catch (cancellation: CancellationException) {
             completing = false
-            scope.launch {
-                progress.animateTo(0f, spring(dampingRatio = 0.82f, stiffness = 520f))
-            }
+            progress.animateTo(0f, spring(dampingRatio = 0.82f, stiffness = 520f))
+            throw cancellation
         }
     }
 }
@@ -408,6 +408,15 @@ fun AppRoot() {
 
     val expandProgress = remember { Animatable(0f) }
     var screenHeightPx by remember { mutableStateOf(1f) }
+    val navBackEnabled = topRootOverlay == null &&
+        lrcPublishTrack == null &&
+        tagEditTrack == null &&
+        expandProgress.value <= 0.5f
+
+    DisposableEffect(navController, navBackEnabled) {
+        navController.enableOnBackPressed(navBackEnabled)
+        onDispose { navController.enableOnBackPressed(true) }
+    }
 
     fun animateExpand() {
         scope.launch {
@@ -1145,7 +1154,7 @@ fun AppRoot() {
             }
             rootBackCompleting = true
             completeRootBack(overlay, 140)
-        } catch (_: CancellationException) {
+        } catch (cancellation: CancellationException) {
             rootBackCompleting = false
             rootBackProgress.animateTo(
                 0f,
@@ -1156,6 +1165,7 @@ fun AppRoot() {
                 rootBackUnderlay = null
                 rootBackUsesBase = false
             }
+            throw cancellation
         }
     }
 }
