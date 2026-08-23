@@ -28,6 +28,7 @@ import com.lmg.vk.logging.CrashHandler
 import com.lmg.vk.network.EncryptedVkSessionStore
 import com.lmg.vk.network.VkApiClient
 import com.lmg.vk.network.VkApiLocator
+import com.lmg.vk.network.VkUserAgents
 import com.lmg.vk.network.proxy.VkProxyRepository
 import com.lmg.vk.network.proxy.installVkProxy
 import com.lmg.vk.ui.DeviceTier
@@ -136,6 +137,7 @@ class LmgApplication : Application(), ImageLoaderFactory {
     override fun onCreate() {
         super.onCreate()
 
+        VkUserAgents.init(this)
         connectivityManager = getSystemService(ConnectivityManager::class.java)
 
         // Java-крэши: синхронно и ПЕРВЫМ — Fishnet ниже подшивается к уже

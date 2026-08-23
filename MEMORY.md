@@ -978,3 +978,17 @@ Add второго аккаунта; неверный пароль не сбра
   хэшам можно проверить сохранение anonymous token и sid между шагами.
 - Проверка: `git diff --check` и статическая сверка областей логирования.
   Gradle, сборка и тестовые задачи не запускались по правилу владельца.
+
+# VK ID auth: физический размер дисплея в User-Agent
+
+- Полевой лог подтвердил успешный повтор `auth.validateAccount` после
+  SmartCaptcha и ошибку VK `3615` непосредственно на `ecosystem.sendOtpSms`.
+- Заголовки, Bearer anonymous token, порядок form-параметров, `sid`, `flow_type`
+  и `sak_version` совпадают с восстановленным transport 8.14.1.
+- Устранено подтверждённое различие native identity: размер экрана для Android
+  User-Agent теперь получается через `WindowManager` и `Display.getRealSize`,
+  а не из масштабированных системных display metrics.
+- `VkUserAgents` получает application context в начале `LmgApplication.onCreate`;
+  при недоступном display сохраняется прежний безопасный fallback.
+- Проверка: `git diff --check` и статическая сверка ранней инициализации.
+  Gradle, сборка и тестовые задачи не запускались по правилу владельца.
