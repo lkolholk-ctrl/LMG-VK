@@ -1140,3 +1140,9 @@ Add второго аккаунта; неверный пароль не сбра
   не должен менять облачный счётчик.
 - CI compile-fix: в `VpnBypassManager.kt` добавлен пропущенный импорт
   `NetworkVitality`, используемый после смены привязанного сетевого маршрута.
+- Полевой лог парольного аккаунта выявил UI/backend routing bug: после успешного
+  ecosystem OTP пароль отправлялся повторным `ecosystem.checkOtp`, потому что
+  введённый SMS-код оставался в `AuthScreen` и имел приоритет над password-step.
+  Код теперь очищается при `NeedPassword`, а `AuthAttempt.awaitingPassword`
+  делает password continuation приоритетным и направляет его в `oauth/token` с
+  `grant_type=phone_confirmation_sid`, новым sid и без ecosystem `code`.

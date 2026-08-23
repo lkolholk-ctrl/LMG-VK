@@ -3289,6 +3289,7 @@ object MusicAuth {
         var captchaAttempt: Int? = null,
         var legacyTokenValidation: Boolean = false,
         var oauthCode: String? = null,
+        var awaitingPassword: Boolean = false,
     )
 
     internal fun init(client: VkApiClient, store: VkSessionStore) {
@@ -3298,7 +3299,6 @@ object MusicAuth {
         applySession(store.session)
     }
 
-    /** Полный VK ID-флоу: anonymous token → validateAccount → OTP → token. */
     suspend fun signIn(
         username: String,
         password: String = "",
@@ -3315,11 +3315,13 @@ object MusicAuth {
         return signInMutex.withLock {
             val normalizedUsername = username.trim()
             val isCaptchaContinuation = !captchaKey.isNullOrBlank() && !captchaSid.isNullOrBlank()
-            val isOtpContinuation = !isCaptchaContinuation &&
-                !code.isNullOrBlank() &&
-                !validationSid.isNullOrBlank()
-            val isPasswordContinuation = !isCaptchaContinuation && !isOtpContinuation &&
-                !validationSid.isNullOrBlank() && password.isNotBlank()
+            val currentAttempt = activeAuthAttempt
+            val isPasswordContinuation = !isCaptchaContinuation &&
+                !validationSid.isNullOrBlank() &&
+                password.isNotBlank() &&
+                currentAttempt?.awaitingPassword == true
+            val isOtpContinuation = !isCaptchaContinuation && !isPasswordContinuation &&
+                !code.isNullOrBlank() && !validationSid.isNullOrBlank()
 
             if (!isOtpContinuation && !isCaptchaContinuation && !isPasswordContinuation) {
                 activeAuthAttempt = null
@@ -3332,11 +3334,11 @@ object MusicAuth {
                 activeAuthAttempt = null
                 return@withLock VkLoginResult.Failure("The login changed. Start authorization again.")
             }
+            if ((isOtpContinuation || isPasswordContinuation) && validationSid != attempt.sid) {
+                return@withLock VkLoginResult.Failure("VK verification session changed. Start again.")
+            }
 
             if (isOtpContinuation) {
-                if (validationSid != attempt.sid) {
-                    return@withLock VkLoginResult.Failure("VK verification session changed. Start again.")
-                }
                 if (attempt.legacyTokenValidation) {
                     attempt.oauthCode = requireNotNull(code)
                 } else {
@@ -3360,6 +3362,7 @@ object MusicAuth {
                             }
                             attempt.sid = checkedSid
                             attempt.canSkipPassword = checked.data.canSkipPassword == true
+                            attempt.awaitingPassword = !attempt.canSkipPassword
                             attempt.grantType = if (attempt.canSkipPassword) {
                                 "without_password"
                             } else {
@@ -3391,7 +3394,6 @@ object MusicAuth {
         }
     }
 
-    /** Создаёт новую попытку; один token/sid используется до конца OTP/captcha. */
     private suspend fun startAuthAttempt(
         registry: VkMethodsRegistry,
         username: String,
@@ -3426,6 +3428,7 @@ object MusicAuth {
             anonymousToken = currentAnonymousToken,
             sid = sid,
             verificationMethod = method,
+            awaitingPassword = method == AuthVerificationMethod.PASSWORD,
         )
         activeAuthAttempt = attempt
 
@@ -3523,6 +3526,7 @@ object MusicAuth {
                     } else {
                         attempt.sid = response.validationSid
                         attempt.legacyTokenValidation = true
+                        attempt.awaitingPassword = false
                         VkLoginResult.TwoFactor(
                             validationSid = response.validationSid,
                             destination = response.legacyDestination,
