@@ -28,6 +28,8 @@ class VkMethod<T>(
     /** User-Agent конкретной ветки официального клиента VK. */
     var userAgent: String? = null
 
+    var authorizationToken: String? = null
+
     /** Флаг one-shot из `C5577e.appmetrica`: такой вызов не имеет тела ответа. */
     var isOneShot: Boolean = false
 

@@ -98,6 +98,7 @@ class VkApiClient(
                 apiVersion = method.apiVersion,
                 params = method.params,
                 userAgent = method.userAgent,
+                authorizationToken = method.authorizationToken,
             )
 
             // OAuth `token` возвращает полезный JSON (2FA/captcha/client_error)
@@ -208,11 +209,13 @@ class VkApiClient(
         apiVersion: String,
         params: Map<String, String>,
         userAgent: String?,
+        authorizationToken: String? = null,
     ): RawHttpResponse {
         val explicit = params["access_token"].takeUnless { it.isNullOrEmpty() }
         val token: String? = if (endpoint != VkEndpoint.API_METHOD) {
             null
         } else when {
+            !authorizationToken.isNullOrBlank() -> authorizationToken
             explicit != null -> explicit
             // C8221e отправляет auth.refreshTokens без Authorization: протухший
             // access token не должен мешать обмену сохранённого exchange token.

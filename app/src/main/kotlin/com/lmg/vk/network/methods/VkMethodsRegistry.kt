@@ -705,7 +705,7 @@ class VkMethodsRegistry(private val client: VkApiClient) {
             param("supported_ways", "callreset,codegen,email,reserve_code,password,push,sms")
             param("flow_type", "auth_without_password")
             param("sak_version", "1.112")
-            param("access_token", anonymousToken)
+            authorizationToken = anonymousToken
             userAgent = VkUserAgents.auth
         }
         return client.execute(method)
@@ -804,7 +804,7 @@ class VkMethodsRegistry(private val client: VkApiClient) {
             param("verification_method", verificationMethod.ifBlank { "codegen" })
             param("flow_type", "tg_flow")
             param("sak_version", "1.142")
-            param("access_token", anonymousToken)
+            authorizationToken = anonymousToken
             userAgent = VkUserAgents.auth
         }
         return client.execute(method)
@@ -822,7 +822,7 @@ class VkMethodsRegistry(private val client: VkApiClient) {
             param("sid", sid)
             param("flow_type", "tg_flow")
             param("sak_version", "1.142")
-            param("access_token", anonymousToken)
+            authorizationToken = anonymousToken
             userAgent = VkUserAgents.auth
         }
         return client.execute(method)
@@ -841,7 +841,7 @@ class VkMethodsRegistry(private val client: VkApiClient) {
             param("sid", sid)
             param("flow_type", "tg_flow")
             param("sak_version", "1.142")
-            param("access_token", anonymousToken)
+            authorizationToken = anonymousToken
             userAgent = VkUserAgents.auth
         }
         return client.execute(method)

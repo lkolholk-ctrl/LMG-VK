@@ -938,8 +938,9 @@ branch → finishSignIn(getUserExchangeTokens → installSession)`).
 
 8. **`access_token` параметром vs `Bearer`.**
    При явном `access_token` исходный транспорт берёт его для `Bearer` и не удаляет
-   из form-body. Для `validateAccount` и `ecosystem.*` это не избыточный fallback,
-   а точное транспортное поведение: один анонимный токен передаётся обоими способами.
+   из form-body. Но builders `validateAccount` и `ecosystem.*` не кладут
+   `access_token` в мапу: общий транспорт берёт текущий анонимный токен
+   и передаёт его только в `Authorization: Bearer`.
 
 9. **`accounts_trusted_hashes` в `validateAccount` и `vk_connect_auth` / `app_id`
    (`token`, `get_anonym_token`) — параметров нет в доках.**
