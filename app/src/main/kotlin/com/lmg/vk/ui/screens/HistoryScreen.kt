@@ -1,200 +1,230 @@
 package com.lmg.vk.ui.screens
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBars
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.windowInsetsTopHeight
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Icon
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.lmg.vk.data.local.db.AppDatabase
-import com.lmg.vk.data.local.db.ListenHistoryEntity
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.lmg.vk.engine.PlayerController
 import com.lmg.vk.engine.Track
-import com.lmg.vk.engine.backend.MusicAuth
-import com.lmg.vk.ui.glass.AlbumArtImage
-import com.lmg.vk.ui.glass.liquidClickable
+import com.lmg.vk.engine.VkAudioIdentity
+import com.lmg.vk.ui.components.DetailTrackRow
 import com.lmg.vk.ui.components.SectionTopBar
 import com.lmg.vk.ui.components.SectionTopBarAction
-import com.lmg.vk.ui.theme.LiquidMotion
+import com.lmg.vk.ui.icons.LmgGlyphs
+import com.lmg.vk.ui.theme.LiquidSurfaces
 import com.lmg.vk.ui.theme.LiquidTheme
-import kotlinx.coroutines.launch
+import com.lmg.vk.ui.viewmodel.VkHistoryViewModel
 
-/**
- * Экран «История прослушивания» — реальный список из Room ([ListenHistoryEntity]),
- * реактивно обновляется (Flow). Тап по строке — играет трек. Есть очистка.
- */
 @Composable
 fun HistoryScreen(
     onBack: () -> Unit = {},
-    showBack: Boolean = true,
-    title: String = "History"
+    viewModel: VkHistoryViewModel = viewModel(),
 ) {
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-    val lc = LiquidTheme.colors
+    val colors = LiquidTheme.colors
+    val state by viewModel.state.collectAsState()
+    val listState = rememberLazyListState()
+    var pendingRemoval by remember { mutableStateOf<Track?>(null) }
 
-    val dao = remember { AppDatabase.getInstance(context).listenHistoryDao() }
-    val activeAccountId by MusicAuth.profileId.collectAsState()
-    val accountId = activeAccountId ?: 0L
-    val history by remember(accountId) { dao.observe(accountId) }
-        .collectAsState(initial = emptyList())
+    BackHandler(onBack = onBack)
 
-    // Адаптив: в широком окне (телефон-альбом / планшет) не растягиваем строки
-    // на всю ширину — центрируем список узкой колонкой ~600dp боковыми отступами.
-    val win = com.lmg.vk.ui.rememberWindowInfo()
-    val histSidePad = if (win.useSideBySide) 24.dp else 20.dp
-    // В широком окне (телефон-альбом / планшет) делаем шапку и строки компактнее
-    // ~на 25%, в тон LandscapeHome — чтобы не выглядело портретно-крупным.
-    val compact = win.useSideBySide
+    LaunchedEffect(listState, state.accountId) {
+        snapshotFlow {
+            val info = listState.layoutInfo
+            val last = info.visibleItemsInfo.lastOrNull()?.index ?: 0
+            last to info.totalItemsCount
+        }.collect { (last, total) ->
+            if (total > 0 && last >= total - 5) viewModel.loadMore()
+        }
+    }
 
-    Box(modifier = Modifier.fillMaxSize().background(lc.settingsBackground)) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(LiquidSurfaces.sheet(colors.isDark)),
+    ) {
         LazyColumn(
+            state = listState,
             modifier = Modifier.fillMaxSize(),
-            contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 96.dp),
+            contentPadding = PaddingValues(bottom = 112.dp),
         ) {
-            item(key = "history_header") {
+            item(key = "vk_history_header") {
                 SectionTopBar(
-                    title = title,
-                    subtitle = if (history.isEmpty()) "Your listening history" else "${history.size} recent tracks",
-                    isDark = lc.isDark,
-                    onBack = if (showBack) onBack else null,
-                    actions = if (history.isNotEmpty()) {
+                    title = "История VK",
+                    subtitle = when {
+                        state.accountId == null -> "Войдите в аккаунт VK"
+                        state.tracks.isEmpty() -> "Недавние прослушивания"
+                        else -> "${state.tracks.size} треков"
+                    },
+                    isDark = colors.isDark,
+                    onBack = onBack,
+                    actions = if (state.accountId != null) {
                         {
                             SectionTopBarAction(
-                                label = "Clear history",
-                                icon = com.lmg.vk.ui.icons.LmgGlyphs.DeleteOutline28,
+                                label = "Обновить",
+                                icon = LmgGlyphs.RefreshOutline28,
                                 filled = false,
-                                onClick = { scope.launch { dao.clear(accountId) } },
+                                enabled = !state.isLoading,
+                                onClick = viewModel::refresh,
                             )
                         }
-                    } else {
-                        null
-                    },
+                    } else null,
                 )
             }
 
-            item { Spacer(modifier = Modifier.height(8.dp)) }
+            item { Spacer(Modifier.height(8.dp)) }
 
-            if (history.isEmpty()) {
-                item(key = "history_empty") {
+            when {
+                state.isLoading -> item(key = "vk_history_loading") {
                     Box(
-                        modifier = Modifier.fillMaxWidth().height(240.dp),
-                        contentAlignment = Alignment.Center
+                        modifier = Modifier.fillMaxWidth().height(260.dp),
+                        contentAlignment = Alignment.Center,
                     ) {
-                        Text(
-                            text = "Nothing played yet",
-                            color = lc.textSecondary,
-                            fontSize = 15.sp
+                        CircularProgressIndicator(
+                            color = colors.iconMuted,
+                            modifier = Modifier.size(30.dp),
+                            strokeWidth = 3.dp,
                         )
                     }
                 }
-            } else {
-                items(history, key = { it.trackId }) { entry ->
-                    Box(modifier = Modifier.fillMaxWidth().padding(horizontal = histSidePad)) {
-                        HistoryRow(entry = entry, compact = compact, onClick = { playEntry(context, entry) })
+
+                state.accountId == null -> item(key = "vk_history_auth") {
+                    HistoryMessage("История VK доступна после входа в аккаунт")
+                }
+
+                state.tracks.isEmpty() && state.error != null -> item(key = "vk_history_error") {
+                    HistoryMessage(state.error.orEmpty())
+                }
+
+                state.tracks.isEmpty() -> item(key = "vk_history_empty") {
+                    HistoryMessage("В истории пока ничего нет")
+                }
+
+                else -> {
+                    itemsIndexed(
+                        items = state.tracks,
+                        key = { _, track -> VkAudioIdentity.stableFullId(track.id) },
+                    ) { index, track ->
+                        val removing = VkAudioIdentity.stableFullId(track.id) in state.removingIds
+                        DetailTrackRow(
+                            position = index + 1,
+                            title = track.title,
+                            subtitle = track.artist,
+                            durationMs = track.durationMs,
+                            coverUrl = track.coverUrl,
+                            isDark = colors.isDark,
+                            showDivider = index < state.tracks.lastIndex,
+                            enabled = !removing,
+                            onMore = { pendingRemoval = track },
+                            onClick = {
+                                if (track.isAvailable) {
+                                    val playable = state.tracks.filter(Track::isAvailable)
+                                    val playableIndex = playable.indexOfFirst {
+                                        VkAudioIdentity.stableFullId(it.id) ==
+                                            VkAudioIdentity.stableFullId(track.id)
+                                    }
+                                    if (playableIndex >= 0) {
+                                        PlayerController.playFromList(context, playable, playableIndex)
+                                    }
+                                }
+                            },
+                        )
+                    }
+
+                    if (state.isLoadingMore) {
+                        item(key = "vk_history_loading_more") {
+                            Box(
+                                modifier = Modifier.fillMaxWidth().padding(24.dp),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                CircularProgressIndicator(
+                                    color = colors.iconMuted,
+                                    modifier = Modifier.size(24.dp),
+                                    strokeWidth = 2.dp,
+                                )
+                            }
+                        }
+                    } else if (state.error != null) {
+                        item(key = "vk_history_more_error") {
+                            TextButton(
+                                onClick = {
+                                    if (state.nextFrom != null) viewModel.loadMore() else viewModel.refresh()
+                                },
+                                modifier = Modifier.fillMaxWidth().padding(12.dp),
+                            ) {
+                                Text("${state.error}. Повторить")
+                            }
+                        }
                     }
                 }
             }
         }
     }
-}
 
-private fun playEntry(context: android.content.Context, entry: ListenHistoryEntity) {
-    val track = Track(
-        id = entry.trackId,
-        title = entry.title,
-        artist = entry.artist,
-        albumName = "",
-        uri = com.lmg.vk.engine.VkAudioIdentity.playbackUri(),
-        durationMs = entry.durationMs,
-        albumId = -1L,
-        coverUrl = entry.coverUrl
-    )
-    PlayerController.playFromList(context, listOf(track), 0)
-}
-
-@Composable
-private fun HistoryRow(entry: ListenHistoryEntity, compact: Boolean = false, onClick: () -> Unit) {
-    val lc = LiquidTheme.colors
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .liquidClickable(onClick = onClick)
-            .padding(vertical = if (compact) 5.dp else 8.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        AlbumArtImage(
-            uri = null,
-            coverUrl = entry.coverUrl,
-            contentDescription = entry.title,
-            modifier = Modifier
-                .size(if (compact) 40.dp else 52.dp)
-                .clip(RoundedCornerShape(if (compact) 8.dp else 10.dp))
-        )
-        Spacer(modifier = Modifier.width(if (compact) 10.dp else 12.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = entry.title,
-                color = lc.textPrimary,
-                fontSize = if (compact) 14.sp else 16.sp,
-                fontWeight = FontWeight.Medium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Text(
-                text = entry.artist,
-                color = lc.textSecondary,
-                fontSize = if (compact) 12.sp else 13.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
-        Spacer(modifier = Modifier.width(8.dp))
-        Text(
-            text = relativeTime(entry.playedAt),
-            color = lc.textTertiary,
-            fontSize = if (compact) 11.sp else 12.sp
+    pendingRemoval?.let { track ->
+        AlertDialog(
+            onDismissRequest = { pendingRemoval = null },
+            title = { Text("Убрать из истории?") },
+            text = { Text("${track.artist} — ${track.title}") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        pendingRemoval = null
+                        viewModel.remove(track)
+                    },
+                ) {
+                    Text("Убрать")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingRemoval = null }) {
+                    Text("Отмена")
+                }
+            },
         )
     }
 }
 
-/** Грубое относительное время: «just now / 5m / 3h / 2d». */
-private fun relativeTime(playedAt: Long): String {
-    if (playedAt <= 0L) return ""
-    val diff = System.currentTimeMillis() - playedAt
-    val min = diff / 60_000L
-    return when {
-        min < 1 -> "now"
-        min < 60 -> "${min}m"
-        min < 60 * 24 -> "${min / 60}h"
-        else -> "${min / (60 * 24)}d"
+@Composable
+private fun HistoryMessage(text: String) {
+    val colors = LiquidTheme.colors
+    Box(
+        modifier = Modifier.fillMaxWidth().height(240.dp).padding(horizontal = 32.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = text,
+            color = colors.textSecondary,
+            fontSize = 15.sp,
+            textAlign = TextAlign.Center,
+        )
     }
 }

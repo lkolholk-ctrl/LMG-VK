@@ -10,6 +10,7 @@ import com.lmg.vk.engine.VkMixCategoryType
 import com.lmg.vk.engine.VkMixOption
 import com.lmg.vk.engine.VkMixSession
 import com.lmg.vk.engine.VkMixSettings
+import com.lmg.vk.engine.VkAudioIdentity
 import com.lmg.vk.engine.backend.wave.WaveBatchResponse
 import com.lmg.vk.engine.backend.wave.WaveSessionStartResponse
 import com.lmg.vk.data.local.db.FavoriteTrackDatabase
@@ -422,6 +423,31 @@ object MusicBackend {
                 } ?: BatchTrackMetaItem(id = id, trackId = id, error = "track_not_found")
             },
         )
+    }
+
+    suspend fun getVkPlaybackHistory(): VkPlaybackHistoryPage {
+        requireInitialized()
+        return catalogApi.getAudio("https://vk.com/audio?section=recent")
+            .requireData()
+            .toVkPlaybackHistoryPage()
+    }
+
+    suspend fun getMoreVkPlaybackHistory(
+        blockId: String,
+        startFrom: String,
+        ref: String? = null,
+    ): VkPlaybackHistoryPage {
+        requireInitialized()
+        require(blockId.isNotBlank()) { "History block id is blank" }
+        require(startFrom.isNotBlank()) { "History cursor is blank" }
+        return catalogApi.getBlockItems(blockId, startFrom, ref)
+            .requireData()
+            .toVkPlaybackHistoryPage(blockId, ref)
+    }
+
+    suspend fun removeFromVkPlaybackHistory(trackId: String) {
+        requireInitialized()
+        audioApi.removeListenedAudio(VkAudioIdentity.stableFullId(trackId)).requireData()
     }
 
     // ---------- клипы (Apple Music video) ----------
@@ -2747,6 +2773,28 @@ object MusicBackend {
         section?.blocks.orEmpty().let(::addAll)
         catalog?.sections.orEmpty().flatMap { it.blocks.orEmpty() }.let(::addAll)
     }.distinctBy { it.id }
+
+    private fun VkCatalogResponse.toVkPlaybackHistoryPage(
+        fallbackBlockId: String? = null,
+        fallbackRef: String? = null,
+    ): VkPlaybackHistoryPage {
+        val blocks = allBlocks()
+        val block = blocks.firstOrNull { it.id == fallbackBlockId }
+            ?: blocks.firstOrNull { !it.audios_ids.isNullOrEmpty() }
+            ?: this.block
+        val merged = audios.orEmpty().mergeAudioTracksById()
+        cacheTracks(merged)
+        val byId = merged.associateBy { VkAudioIdentity.stableFullId(it.fullId) }
+        val ordered = block?.audios_ids.orEmpty().mapNotNull { id ->
+            byId[VkAudioIdentity.stableFullId(id)]
+        }.ifEmpty { merged }
+        return VkPlaybackHistoryPage(
+            tracks = ordered.map { it.toEngineTrack() },
+            blockId = block?.id?.takeIf(String::isNotBlank) ?: fallbackBlockId,
+            ref = block?.ref?.takeIf(String::isNotBlank) ?: fallbackRef,
+            nextFrom = block?.next_from?.takeIf(String::isNotBlank),
+        )
+    }
 
     private fun VkCatalogButton.actionType(): String? = action?.type ?: type
 

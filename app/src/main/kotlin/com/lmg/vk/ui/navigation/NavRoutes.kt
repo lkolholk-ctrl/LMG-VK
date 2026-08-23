@@ -82,6 +82,7 @@ object NavRoutes {
 
     // ── Экран «Загрузки» (скачанное на устройство; вход из Библиотеки) ──
     const val DOWNLOADS = "library/downloads"
+    const val VK_HISTORY = "library/vk-history"
 
     // ── Локальная медиатека (только внутри Библиотеки) ──
     const val LOCAL_LIBRARY = "library/local"

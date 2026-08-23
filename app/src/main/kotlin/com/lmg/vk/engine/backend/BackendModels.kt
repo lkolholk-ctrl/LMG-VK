@@ -341,6 +341,13 @@ data class ArtistTrackPage(
     val hasMore: Boolean,
 )
 
+data class VkPlaybackHistoryPage(
+    val tracks: List<com.lmg.vk.engine.Track>,
+    val blockId: String?,
+    val ref: String?,
+    val nextFrom: String?,
+)
+
 @Serializable
 data class ArtistSong(
     val id: String = "",

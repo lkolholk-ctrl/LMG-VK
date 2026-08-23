@@ -105,6 +105,7 @@ fun LibraryScreen(
     onNavigateToArtist: (String) -> Unit = {},
     onOpenPlaylist: (String) -> Unit = {},
     onOpenLocalLibrary: () -> Unit = {},
+    onOpenVkHistory: () -> Unit = {},
     // Вход на экран «Загрузки». Дефолт — прежнее поведение (внутренний вид
     // LibraryView.DOWNLOADS), поэтому старые вызовы LibraryScreen не ломаются.
     onOpenDownloads: (() -> Unit)? = null,
@@ -389,8 +390,8 @@ fun LibraryScreen(
                             LibrarySectionTitle(
                                 title = "Recently played",
                                 count = recentTracks.size.takeIf { it > 0 },
-                                action = "See all",
-                                onAction = { currentView = LibraryView.RECENT },
+                                action = "История VK",
+                                onAction = onOpenVkHistory,
                             )
                         }
                     }

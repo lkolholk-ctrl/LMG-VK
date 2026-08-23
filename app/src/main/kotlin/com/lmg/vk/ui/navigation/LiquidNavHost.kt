@@ -24,6 +24,7 @@ import com.lmg.vk.ui.screens.SettingsScreen
 import com.lmg.vk.ui.screens.AlbumDetailScreen
 import com.lmg.vk.ui.screens.ArtistDetailScreen
 import com.lmg.vk.ui.screens.LibraryScreen
+import com.lmg.vk.ui.screens.HistoryScreen
 import com.lmg.vk.ui.screens.LocalAlbumDetailScreen
 import com.lmg.vk.ui.screens.LocalArtistDetailScreen
 import com.lmg.vk.ui.screens.LocalLibraryScreen
@@ -138,6 +139,7 @@ fun LiquidNavHost(
                     onOpenPlaylist = { navController.navigate(NavRoutes.playlist(NavRoutes.TAB_LIBRARY, it)) },
                     onOpenLocalLibrary = { navController.navigate(NavRoutes.LOCAL_LIBRARY) },
                     onOpenDownloads = { navController.navigate(NavRoutes.DOWNLOADS) },
+                    onOpenVkHistory = { navController.navigate(NavRoutes.VK_HISTORY) },
                     backdrop = backdrop
                 )
             }
@@ -148,6 +150,10 @@ fun LiquidNavHost(
             // вход только оттуда, и бэкстек должен оставаться внутри вкладки.
             composable(NavRoutes.DOWNLOADS) {
                 com.lmg.vk.ui.screens.DownloadsScreen(onBack = { navController.popBackStack() })
+            }
+
+            composable(NavRoutes.VK_HISTORY) {
+                HistoryScreen(onBack = { navController.popBackStack() })
             }
 
             composable(NavRoutes.LOCAL_LIBRARY) {
