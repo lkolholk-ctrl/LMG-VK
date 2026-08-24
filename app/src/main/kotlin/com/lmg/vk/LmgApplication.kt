@@ -30,6 +30,7 @@ import com.lmg.vk.network.EncryptedVkSessionStore
 import com.lmg.vk.network.VkApiClient
 import com.lmg.vk.network.VkApiLocator
 import com.lmg.vk.network.VkUserAgents
+import com.lmg.vk.network.VkTokenRefreshWorker
 import com.lmg.vk.network.proxy.VkProxyRepository
 import com.lmg.vk.network.proxy.installVkProxy
 import com.lmg.vk.ui.DeviceTier
@@ -97,6 +98,7 @@ class LmgApplication : Application(), ImageLoaderFactory {
                     if (currentNetwork == network) return
                     currentNetwork = network
                     NetworkVitality.onDefaultNetworkChanged()
+                    MusicAuth.onNetworkAvailable()
                 }
 
                 override fun onLost(network: android.net.Network) {
@@ -207,6 +209,7 @@ class LmgApplication : Application(), ImageLoaderFactory {
         VkApiLocator.init(vkApiClient)
         VkApiLocator.initMediaClient(vkNetworkClient)
         MusicBackend.init(vkApiClient, vkSessionStore)
+        VkTokenRefreshWorker.schedule(this)
 
         // ── Сетевая живучесть ─────────────────────────────────────────────
         NetworkVitality.registerReviver("vk-http") { evictImageConnections() }

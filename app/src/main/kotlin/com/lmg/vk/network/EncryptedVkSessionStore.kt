@@ -84,6 +84,28 @@ class EncryptedVkSessionStore(context: Context) : VkMultiSessionStore {
         cached
     }
 
+    override fun updateSession(
+        expected: VkAuthSession,
+        transform: (VkAuthSession) -> VkAuthSession,
+    ): VkAuthSession? = synchronized(lock) {
+        val updated = cachedSessions.toMutableList()
+        val index = updated.indexOfFirst { sameAccount(it, expected) }
+        if (index < 0) return@synchronized null
+        val current = updated[index]
+        if (current.accessToken != expected.accessToken ||
+            current.exchangeToken != expected.exchangeToken
+        ) {
+            return@synchronized null
+        }
+        val replacement = transform(current)
+        if (!sameAccount(current, replacement)) return@synchronized null
+        updated[index] = replacement
+        cachedSessions = updated.toList()
+        if (sameAccount(cached, current)) cached = replacement
+        persist()
+        replacement
+    }
+
     private fun readState(): RestoredState {
         val payload = preferences.getString(KEY_PAYLOAD, null)
             ?: return RestoredState(VkAuthSession.EMPTY, emptyList())

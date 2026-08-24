@@ -19,6 +19,7 @@ import kotlinx.coroutines.CancellationException
 import com.lmg.vk.network.dto.VKError
 import com.lmg.vk.network.dto.VkErrorCodes
 import java.security.MessageDigest
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Восстановлено из `defpackage.C8221e` — ядро сетевого слоя LMG VK.
@@ -53,6 +54,8 @@ class VkApiClient(
     ) -> Map<String, String>?)? = null
 
     private val tokenMutex = Mutex()
+    private val refreshFailures = ConcurrentHashMap<RefreshAttemptKey, Int>()
+    private val refreshRetryAt = ConcurrentHashMap<RefreshAttemptKey, Long>()
 
     @Volatile
     private var selectedApiDomain: String = apiDomain
@@ -93,6 +96,16 @@ class VkApiClient(
     // ------------------------------------------------------------------
     suspend fun <T> execute(method: VkMethod<T>): VkResult<T> {
         return try {
+            val usesImplicitSession = method.endpoint == VkEndpoint.API_METHOD &&
+                method.name != "auth.refreshTokens" &&
+                method.authorizationToken.isNullOrBlank() &&
+                method.params["access_token"].isNullOrBlank()
+            val resolvedAuthorizationToken = if (usesImplicitSession) {
+                getValidToken()
+            } else {
+                method.authorizationToken
+            }
+            val requestSession = sessionStore.session
             val raw = rawCall(
                 name = method.name,
                 endpoint = method.endpoint,
@@ -100,7 +113,7 @@ class VkApiClient(
                 apiVersion = method.apiVersion,
                 params = method.params,
                 userAgent = method.userAgent,
-                authorizationToken = method.authorizationToken,
+                authorizationToken = resolvedAuthorizationToken,
             )
 
             // OAuth `token` возвращает полезный JSON (2FA/captcha/client_error)
@@ -166,10 +179,11 @@ class VkApiClient(
                 }
 
                 VkErrorCodes.TOKEN_EXPIRED -> {
-                    if (method.name != "auth.refreshTokens" && !method.tokenRefreshRetried) {
+                    if (usesImplicitSession && !method.tokenRefreshRetried) {
                         method.tokenRefreshRetried = true
-                        if (refreshToken()) {
-                            return execute(method) // один ретрай после refresh
+                        val refreshed = refreshSession(requestSession, force = true)
+                        if (refreshed != null && sessionStore.session.userId == requestSession.userId) {
+                            return execute(method)
                         }
                     }
                     VkResult.Error(error.error_code, error.error_msg)
@@ -319,37 +333,88 @@ class VkApiClient(
 
     suspend fun getValidToken(): String {
         val current = sessionStore.session
-        // VK может вернуть expires_in=0: это означает, что явный срок жизни
-        // токена не задан. Такой токен остаётся рабочим до ошибки 1117 и не
-        // должен принудительно обновляться перед каждым API-вызовом.
-        if (current.accessToken.isNotBlank() && !current.isExpired) {
+        if (current.accessToken.isBlank() || !shouldRefreshToken(current)) {
             return current.accessToken
         }
         return tokenMutex.withLock {
-            // double-check после захвата mutex
             val rechecked = sessionStore.session
-            if (rechecked.accessToken.isNotBlank() && !rechecked.isExpired) {
+            if (rechecked.accessToken.isBlank() || !shouldRefreshToken(rechecked)) {
                 return@withLock rechecked.accessToken
             }
-            performTokenRefresh()
-            sessionStore.session.accessToken
+            performTokenRefresh(rechecked, force = false)?.accessToken ?: sessionStore.session.accessToken
         }
     }
 
     /** Принудительный refresh (вызов auth.refreshTokens). Возвращает успех. */
     suspend fun refreshToken(): Boolean {
         return tokenMutex.withLock {
-            performTokenRefresh()
+            performTokenRefresh(sessionStore.session, force = true) != null
         }
     }
 
-    private suspend fun performTokenRefresh(): Boolean {
-        val session = sessionStore.session
-        if (session.exchangeToken.isBlank()) return false
-        return VkAuthApi(this, sessionStore).refreshTokens()
+    suspend fun refreshSession(session: VkAuthSession, force: Boolean = false): VkAuthSession? {
+        return tokenMutex.withLock {
+            performTokenRefresh(session, force)
+        }
+    }
+
+    suspend fun refreshSessions(
+        sessions: List<VkAuthSession>,
+        force: Boolean = false,
+    ): Map<Long, VkAuthSession> {
+        return tokenMutex.withLock {
+            performTokenRefresh(sessions, force)
+        }
+    }
+
+    fun shouldRefreshToken(
+        session: VkAuthSession,
+        nowSeconds: Long = System.currentTimeMillis() / 1000,
+    ): Boolean {
+        if (session.accessToken.isBlank() || session.exchangeToken.isBlank()) return false
+        return session.expiresAt > 0L && session.expiresAt <= nowSeconds + TOKEN_REFRESH_MARGIN_SECONDS
+    }
+
+    private suspend fun performTokenRefresh(
+        session: VkAuthSession,
+        force: Boolean,
+    ): VkAuthSession? = performTokenRefresh(listOf(session), force)[session.userId]
+
+    private suspend fun performTokenRefresh(
+        sessions: List<VkAuthSession>,
+        force: Boolean,
+    ): Map<Long, VkAuthSession> {
+        val now = System.currentTimeMillis()
+        val eligible = sessions.filter { session ->
+            if (session.userId == 0L || session.exchangeToken.isBlank()) return@filter false
+            val key = RefreshAttemptKey(session.userId, session.accessToken, session.exchangeToken)
+            force || (refreshRetryAt[key] ?: 0L) <= now
+        }
+        if (eligible.isEmpty()) return emptyMap()
+        val refreshed = VkAuthApi(this, sessionStore).refreshTokens(eligible)
+        eligible.forEach { session ->
+            val key = RefreshAttemptKey(session.userId, session.accessToken, session.exchangeToken)
+            if (refreshed.containsKey(session.userId)) {
+                refreshFailures.remove(key)
+                refreshRetryAt.remove(key)
+            } else {
+                val failureCount = refreshFailures.merge(key, 1, Int::plus) ?: 1
+                val retryDelay = when (failureCount) {
+                    1 -> 60_000L
+                    2 -> 5L * 60_000L
+                    3 -> 15L * 60_000L
+                    4 -> 60L * 60_000L
+                    else -> 6L * 60L * 60_000L
+                }
+                refreshRetryAt[key] = now + retryDelay
+            }
+        }
+        return refreshed
     }
 
     companion object {
+        const val TOKEN_REFRESH_MARGIN_SECONDS = 6L * 60L * 60L
+
         /** api_id официального Android-клиента VK (хардкод в оригинале). */
         const val VK_ANDROID_CLIENT_ID = RecoveredServiceConfig.VK_ANDROID_CLIENT_ID
 
@@ -436,6 +501,12 @@ class VkApiClient(
             .replace('\r', ' ')
             .take(240)
     }
+
+    private data class RefreshAttemptKey(
+        val userId: Long,
+        val accessToken: String,
+        val exchangeToken: String,
+    )
 }
 
 /** Имена восстановлены без обфускации из EnumC6583e. */
@@ -453,6 +524,20 @@ interface MayCarryVkError {
 /** Хранилище сессии (в jadx поля `billing`/`metrica` клиента + C6594e-флоу). */
 interface VkSessionStore {
     var session: VkAuthSession
+
+    fun updateSession(
+        expected: VkAuthSession,
+        transform: (VkAuthSession) -> VkAuthSession,
+    ): VkAuthSession? {
+        val current = session
+        if (current.userId != expected.userId ||
+            current.accessToken != expected.accessToken ||
+            current.exchangeToken != expected.exchangeToken
+        ) {
+            return null
+        }
+        return transform(current).also { session = it }
+    }
 }
 
 interface VkMultiSessionStore : VkSessionStore {

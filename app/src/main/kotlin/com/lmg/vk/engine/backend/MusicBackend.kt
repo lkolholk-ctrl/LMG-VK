@@ -71,7 +71,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -3326,13 +3328,20 @@ object MusicAuth {
     private var methods: VkMethodsRegistry? = null
     private val anonymousTokenMutex = Mutex()
     private val signInMutex = Mutex()
+    private val tokenMaintenanceMutex = Mutex()
     private val activeSignInCalls = java.util.concurrent.atomic.AtomicInteger(0)
     private val authorizationUiActive = java.util.concurrent.atomic.AtomicBoolean(false)
+    private val tokenMaintenanceStarted = java.util.concurrent.atomic.AtomicBoolean(false)
+    private val lastNetworkMaintenanceAt = java.util.concurrent.atomic.AtomicLong(0L)
+    private val exchangeTokenFailures = ConcurrentHashMap<ExchangeAttemptKey, Int>()
+    private val exchangeTokenRetryAt = ConcurrentHashMap<ExchangeAttemptKey, Long>()
     private var anonymousToken: String = ""
     private var anonymousTokenExpiresAt: Long = 0L
     @Volatile
     private var activeAuthAttempt: AuthAttempt? = null
     private var activeContentAccountId = Long.MIN_VALUE
+    private const val TOKEN_MAINTENANCE_INTERVAL_MS = 5L * 60L * 1_000L
+    private const val NETWORK_MAINTENANCE_THROTTLE_MS = 30_000L
 
     val isAuthorizationInProgress: Boolean
         get() = authorizationUiActive.get() || activeSignInCalls.get() > 0 || activeAuthAttempt != null
@@ -3371,7 +3380,110 @@ object MusicAuth {
         methods = VkMethodsRegistry(client)
         sessionStore = store
         applySession(store.session)
+        startTokenMaintenance()
     }
+
+    private fun startTokenMaintenance() {
+        if (!tokenMaintenanceStarted.compareAndSet(false, true)) return
+        authScope.launch {
+            delay(2_000L)
+            while (currentCoroutineContext().isActive) {
+                maintainSavedSessions()
+                delay(TOKEN_MAINTENANCE_INTERVAL_MS)
+            }
+        }
+    }
+
+    internal fun onNetworkAvailable() {
+        val now = System.currentTimeMillis()
+        while (true) {
+            val previous = lastNetworkMaintenanceAt.get()
+            if (now - previous < NETWORK_MAINTENANCE_THROTTLE_MS) return
+            if (lastNetworkMaintenanceAt.compareAndSet(previous, now)) break
+        }
+        authScope.launch { maintainSavedSessions(force = true) }
+    }
+
+    internal suspend fun refreshSavedSessions() {
+        maintainSavedSessions()
+    }
+
+    private suspend fun maintainSavedSessions(
+        targetUserId: Long? = null,
+        force: Boolean = false,
+    ) = tokenMaintenanceMutex.withLock {
+        val client = apiClient ?: return@withLock
+        val store = sessionStore ?: return@withLock
+        val registry = methods ?: return@withLock
+        val sessions = ((store as? VkMultiSessionStore)?.sessions
+            ?: listOf(store.session))
+            .filter { it.accessToken.isNotBlank() && (targetUserId == null || it.userId == targetUserId) }
+        val activeBefore = store.session
+        val dueSessions = ArrayList<VkAuthSession>(sessions.size)
+        sessions.forEach { saved ->
+            var session = saved
+            val exchangeKey = ExchangeAttemptKey(session.userId, session.accessToken)
+            val now = System.currentTimeMillis()
+            if (session.exchangeToken.isBlank() &&
+                !session.isExpired &&
+                (force || (exchangeTokenRetryAt[exchangeKey] ?: 0L) <= now)
+            ) {
+                val result = registry.getUserExchangeTokens(session.accessToken)
+                if (result is VkResult.Success) {
+                    val exchangeToken = result.data.usersExchangeTokens.orEmpty()
+                        .firstOrNull { it.userId == session.userId }
+                        ?.commonToken
+                        .orEmpty()
+                    if (exchangeToken.isNotBlank()) {
+                        store.updateSession(session) { current ->
+                            current.copy(exchangeToken = exchangeToken)
+                        }?.let {
+                            session = it
+                            exchangeTokenFailures.remove(exchangeKey)
+                            exchangeTokenRetryAt.remove(exchangeKey)
+                        }
+                    } else {
+                        deferExchangeTokenRecovery(exchangeKey, now)
+                    }
+                } else {
+                    deferExchangeTokenRecovery(exchangeKey, now)
+                }
+            }
+            if (client.shouldRefreshToken(session)) dueSessions += session
+        }
+        val refreshedSessions = client.refreshSessions(dueSessions, force)
+        dueSessions.forEach { session ->
+            val refreshed = refreshedSessions[session.userId]
+            if (refreshed != null) {
+                com.lmg.vk.debug.DebugLog.add(
+                    "VK TOKEN refresh ok account=${refreshed.userId} expires_at=${refreshed.expiresAt}",
+                )
+            } else {
+                com.lmg.vk.debug.DebugLog.add(
+                    "VK TOKEN refresh deferred account=${session.userId}",
+                )
+            }
+        }
+        val activeAfter = store.session
+        if (activeBefore != activeAfter) applySession(activeAfter) else updateAccountSummaries()
+    }
+
+    private fun deferExchangeTokenRecovery(key: ExchangeAttemptKey, now: Long) {
+        val failures = exchangeTokenFailures.merge(key, 1, Int::plus) ?: 1
+        val delay = when (failures) {
+            1 -> 60_000L
+            2 -> 5L * 60_000L
+            3 -> 15L * 60_000L
+            4 -> 60L * 60_000L
+            else -> 6L * 60L * 60_000L
+        }
+        exchangeTokenRetryAt[key] = now + delay
+    }
+
+    private data class ExchangeAttemptKey(
+        val userId: Long,
+        val accessToken: String,
+    )
 
     suspend fun signIn(
         username: String,
@@ -3728,8 +3840,10 @@ object MusicAuth {
                     ?.commonToken
                     .orEmpty()
                 val store = sessionStore
-                if (exchangeToken.isNotBlank() && store?.session?.accessToken == response.accessToken) {
-                    store.session = store.session.copy(exchangeToken = exchangeToken)
+                if (exchangeToken.isNotBlank()) {
+                    store?.updateSession(completedSession) { current ->
+                        current.copy(exchangeToken = exchangeToken)
+                    }
                 }
             }
         }
@@ -3839,6 +3953,7 @@ object MusicAuth {
         activeAuthAttempt = null
         applySession(session)
         authScope.launch {
+            maintainSavedSessions(userId, force = false)
             runCatching { fetchUserData() }
             runCatching { VkProfileRepository.refresh(userId) }
         }
@@ -3855,6 +3970,7 @@ object MusicAuth {
             applySession(remaining)
             if (remaining.userId != 0L) {
                 authScope.launch {
+                    maintainSavedSessions(remaining.userId, force = false)
                     runCatching { fetchUserData() }
                     runCatching { VkProfileRepository.refresh(remaining.userId) }
                 }
@@ -3911,16 +4027,19 @@ object MusicAuth {
                 is VkResult.Error -> null
             } ?: return false
 
-            if (store.session.userId != initialSession.userId) return false
+            val currentSession = store.session
+            if (currentSession.userId != initialSession.userId) return false
             VkProfileRepository.seedProfile(profile)
-            val updated = initialSession.copy(
-                userId = profile.id.takeIf { it != 0L } ?: initialSession.userId,
-                username = profile.domain.ifBlank { initialSession.username },
-                firstName = profile.firstName.ifBlank { profile.displayName },
-                lastName = profile.lastName,
-                avatar = profile.bestPhotoUrl,
-            )
-            store.session = updated
+            val updated = store.updateSession(currentSession) { current ->
+                current.copy(
+                    userId = profile.id.takeIf { it != 0L } ?: current.userId,
+                    username = profile.domain.ifBlank { current.username },
+                    firstName = profile.firstName.ifBlank { profile.displayName },
+                    lastName = profile.lastName,
+                    avatar = profile.bestPhotoUrl,
+                )
+            }
+                ?: return false
             applySession(updated)
             true
         } finally {
@@ -3951,6 +4070,7 @@ object MusicAuth {
         activeAuthAttempt = null
         if (next.userId != 0L) {
             authScope.launch {
+                maintainSavedSessions(next.userId, force = false)
                 runCatching { fetchUserData() }
                 runCatching { VkProfileRepository.refresh(next.userId) }
             }

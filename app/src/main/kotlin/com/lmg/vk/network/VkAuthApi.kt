@@ -50,18 +50,30 @@ class VkAuthApi(
     )
 
     data class RefreshedToken(
+        val index: Int,
+        val userId: Long,
         val accessToken: String,
         val expiresInSeconds: Long,
     )
 
-    suspend fun refreshTokens(): Boolean {
-        val session = sessionStore.session
+    suspend fun refreshTokens(): Boolean = refreshTokens(sessionStore.session) != null
 
+    suspend fun refreshTokens(session: VkAuthSession): VkAuthSession? {
+        return refreshTokens(listOf(session))[session.userId]
+    }
+
+    suspend fun refreshTokens(sessions: List<VkAuthSession>): Map<Long, VkAuthSession> {
+        val eligible = sessions
+            .filter { it.userId != 0L && it.exchangeToken.isNotBlank() }
+            .distinctBy(VkAuthSession::userId)
+        if (eligible.isEmpty()) return emptyMap()
+        val activeUserId = sessionStore.session.userId
+        val activeIndex = eligible.indexOfFirst { it.userId == activeUserId }.coerceAtLeast(0)
         val method = VkMethod("auth.refreshTokens", RefreshTokensParser).apply {
             param("client_id", VkApiClient.VK_ANDROID_CLIENT_ID.toLong())
             param("client_secret", RecoveredServiceConfig.VK_ANDROID_CLIENT_SECRET)
-            param("exchange_tokens", listOf(session.exchangeToken).joinToString(","))
-            param("active_index", 0)
+            param("exchange_tokens", eligible.joinToString(",") { it.exchangeToken })
+            param("active_index", activeIndex)
             param("scope", "all")
             param("initiator", "expired_token")
             userAgent = VkUserAgents.auth
@@ -69,23 +81,26 @@ class VkAuthApi(
 
         return when (val result = client.execute(method)) {
             is VkResult.Success -> {
-                val token = result.data.firstOrNull() ?: return false
-                // Account could be switched while refresh was in flight. Never
-                // reactivate the old session with a late response.
-                if (sessionStore.session.userId != session.userId) return false
                 val nowSeconds = System.currentTimeMillis() / 1000
-                sessionStore.session = session.copy(
-                    accessToken = token.accessToken,
-                    // Как и OAuth /token, refresh может вернуть expires_in=0.
-                    // Храним 0 как "срок не указан", а не как "истёк сейчас".
-                    expiresAt = token.expiresInSeconds
-                        .takeIf { it > 0L }
-                        ?.let { nowSeconds + it }
-                        ?: 0L,
-                )
-                true
+                buildMap {
+                    result.data.forEach { token ->
+                        val expected = eligible.firstOrNull { it.userId == token.userId }
+                            ?: eligible.getOrNull(token.index)
+                            ?: return@forEach
+                        val updated = sessionStore.updateSession(expected) { current ->
+                            current.copy(
+                                accessToken = token.accessToken,
+                                expiresAt = token.expiresInSeconds
+                                    .takeIf { it > 0L }
+                                    ?.let { nowSeconds + it }
+                                    ?: 0L,
+                            )
+                        }
+                        if (updated != null) put(updated.userId, updated)
+                    }
+                }
             }
-            is VkResult.Error -> false
+            is VkResult.Error -> emptyMap()
         }
     }
 
@@ -98,7 +113,9 @@ class VkAuthApi(
             val parsed = delegate.parse(raw)
             return VkParsedResponse(
                 data = parsed.data?.success.orEmpty().mapNotNull { item ->
-                    item.accessToken?.let { RefreshedToken(it.token, it.expiresIn) }
+                    item.accessToken?.let {
+                        RefreshedToken(item.index, item.userId, it.token, it.expiresIn)
+                    }
                 },
                 error = parsed.error,
             )
