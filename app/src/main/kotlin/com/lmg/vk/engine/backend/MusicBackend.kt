@@ -3888,6 +3888,7 @@ object MusicAuth {
                 .takeIf { it > 0 }
                 ?.let { nowSeconds + it }
                 ?: 0L,
+            createdAt = nowSeconds,
             trustedHash = response.trustedHash,
         )
         val multiStore = sessionStore as? VkMultiSessionStore

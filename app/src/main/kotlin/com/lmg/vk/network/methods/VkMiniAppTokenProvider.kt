@@ -98,6 +98,7 @@ class VkMiniAppTokenProvider(
         val method = VkMethod("authorize", parser).apply {
             endpoint = VkEndpoint.OAUTH
             httpMethod = VkHttpMethod.GET
+            apiVersion = VkMethod.AUTH_API_VERSION
             param("scope", scope)
             param("client_id", appId)
             param("source_url", sourceUrl)

@@ -112,10 +112,12 @@ class VkApiClient(
                 name = method.name,
                 endpoint = method.endpoint,
                 httpMethod = method.httpMethod,
-                apiVersion = method.apiVersion,
+                apiVersion = resolvedApiVersion(method),
                 params = method.params,
                 userAgent = method.userAgent,
                 authorizationToken = resolvedAuthorizationToken,
+                retryCounter = method.transientRetryCount + method.rateLimitRetryCount +
+                    if (method.tokenRefreshRetried) 1 else 0,
             )
 
             // OAuth `token` возвращает полезный JSON (2FA/captcha/client_error)
@@ -138,7 +140,11 @@ class VkApiClient(
 
             // Для oauth-методов ошибка лежит прямо в конверте; для обычных —
             // проверяем ещё и data-as-error случаи.
-            val error: VKError? = (parsed.data as? MayCarryVkError)?.carriedError ?: parsed.error
+            val error: VKError? = (parsed.data as? MayCarryVkError)?.carriedError
+                ?: parsed.error
+                ?: parsed.executeErrors
+                    .takeIf { parsed.data == null }
+                    ?.firstOrNull { it.error_code !in EXECUTE_IGNORED_CODES }
             traceAuthResult(
                 method.name,
                 method.endpoint,
@@ -292,6 +298,13 @@ class VkApiClient(
             method.name.startsWith("ecosystem.")
     }
 
+    private fun resolvedApiVersion(method: VkMethod<*>): String =
+        if (method.apiVersion == VkMethod.DEFAULT_API_VERSION && isAuthenticationRequest(method)) {
+            VkMethod.AUTH_API_VERSION
+        } else {
+            method.apiVersion
+        }
+
     // ------------------------------------------------------------------
     // Сырой HTTP-вызов (в jadx: `appmetrica(name, isOAuth, version, params, ua, cont)`)
     // ------------------------------------------------------------------
@@ -303,6 +316,7 @@ class VkApiClient(
         params: Map<String, String>,
         userAgent: String?,
         authorizationToken: String? = null,
+        retryCounter: Int = 0,
     ): RawHttpResponse {
         val explicit = params["access_token"].takeUnless { it.isNullOrEmpty() }
         val token: String? = if (endpoint != VkEndpoint.API_METHOD) {
@@ -337,8 +351,11 @@ class VkApiClient(
                 "VK AUTH WIRE headers User-Agent=${wireText(resolvedUserAgent)} " +
                     "X-VK-Android-Client=${if (endpoint != VkEndpoint.OAUTH) "new" else "absent"} " +
                     "X-Screen=${if (endpoint != VkEndpoint.OAUTH) "nowhere" else "absent"} " +
+                    "X-Retry-Counter=${if (endpoint != VkEndpoint.OAUTH) retryCounter else "absent"} " +
+                    "X-Fake-Push-Token=${if (endpoint != VkEndpoint.OAUTH) "true" else "absent"} " +
+                    "X-Get-Processing-Time=${if (endpoint != VkEndpoint.OAUTH) "1" else "absent"} " +
                     "Authorization=${wireFingerprint(token)} " +
-                    "Content-Type=${if (httpMethod == VkHttpMethod.POST) "application/x-www-form-urlencoded" else "absent"}",
+                    "Content-Type=${if (httpMethod == VkHttpMethod.POST) "application/x-www-form-urlencoded;charset=utf-8" else "absent"}",
             )
             DebugLog.add(
                 "VK AUTH WIRE params " + requestParams.entries.joinToString("&") { (key, value) ->
@@ -372,11 +389,14 @@ class VkApiClient(
             if (endpoint != VkEndpoint.OAUTH) {
                 header("X-VK-Android-Client", "new")
                 header("X-Screen", "nowhere")
+                header("X-Fake-Push-Token", "true")
+                header("X-Get-Processing-Time", "1")
+                header("X-Retry-Counter", retryCounter.toString())
             }
             token?.let { header("Authorization", "Bearer $it") }
             header("User-Agent", resolvedUserAgent)
             if (httpMethod == VkHttpMethod.POST) {
-                header("Content-Type", "application/x-www-form-urlencoded")
+                header("Content-Type", "application/x-www-form-urlencoded;charset=utf-8")
                 setBody(FormDataContent(Parameters.build {
                     requestParams.forEach { (key, value) -> append(key, value) }
                 }))
@@ -436,7 +456,16 @@ class VkApiClient(
         nowSeconds: Long = System.currentTimeMillis() / 1000,
     ): Boolean {
         if (session.accessToken.isBlank() || session.exchangeToken.isBlank()) return false
-        return session.expiresAt > 0L && session.expiresAt <= nowSeconds + TOKEN_REFRESH_MARGIN_SECONDS
+        if (session.expiresAt <= 0L) return false
+        val lifetime = session.expiresAt - session.createdAt
+        val margin = if (session.createdAt > 0L && lifetime > 0L) {
+            (lifetime * TOKEN_REFRESH_LIFETIME_FRACTION)
+                .toLong()
+                .coerceAtLeast(TOKEN_REFRESH_MIN_MARGIN_SECONDS)
+        } else {
+            TOKEN_REFRESH_FALLBACK_MARGIN_SECONDS
+        }
+        return session.expiresAt <= nowSeconds + margin
     }
 
     private suspend fun performTokenRefresh(
@@ -477,7 +506,9 @@ class VkApiClient(
     }
 
     companion object {
-        const val TOKEN_REFRESH_MARGIN_SECONDS = 6L * 60L * 60L
+        private const val TOKEN_REFRESH_LIFETIME_FRACTION = 0.05
+        private const val TOKEN_REFRESH_MIN_MARGIN_SECONDS = 60L
+        private const val TOKEN_REFRESH_FALLBACK_MARGIN_SECONDS = 5L * 60L
 
         private const val MAX_TRANSPORT_RETRIES = 24
         private const val TRANSPORT_RETRY_INITIAL_MS = 1_000.0
@@ -487,6 +518,8 @@ class VkApiClient(
         private const val RATE_LIMIT_RETRY_INITIAL_MS = 1_000.0
         private const val RATE_LIMIT_RETRY_FACTOR = 1.2
         private const val RATE_LIMIT_RETRY_MAX_MS = 8_000L
+
+        private val EXECUTE_IGNORED_CODES = setOf(1, 14, 17, 3610, 4, 5, 6, 9, 10, 24, 25)
 
         /** api_id официального Android-клиента VK (хардкод в оригинале). */
         const val VK_ANDROID_CLIENT_ID = RecoveredServiceConfig.VK_ANDROID_CLIENT_ID
@@ -657,7 +690,7 @@ fun RawHttpResponse.urlFragmentOrNull(): String? =
  * uk->ua, kk->kz, языки из whitelist — как есть, иначе en. Кэшируется.
  */
 object VkLocales {
-    private val SUPPORTED = arrayOf("ru", "en", "ua", "kz", "pt") // whitelist[5] из оригинала
+    private val SUPPORTED = arrayOf("ru", "ua", "en", "pt", "kz", "es", "uz", "be", "az", "hy", "vi")
 
     @Volatile
     private var cached: String? = null

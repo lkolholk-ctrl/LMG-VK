@@ -94,6 +94,7 @@ class VkAuthApi(
                                     .takeIf { it > 0L }
                                     ?.let { nowSeconds + it }
                                     ?: 0L,
+                                createdAt = nowSeconds,
                             )
                         }
                         if (updated != null) put(updated.userId, updated)

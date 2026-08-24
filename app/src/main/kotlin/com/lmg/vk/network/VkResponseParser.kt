@@ -48,6 +48,7 @@ interface RawHttpResponse {
 data class VkParsedResponse<T>(
     val data: T?,
     val error: VKError?,
+    val executeErrors: List<VKError> = emptyList(),
 )
 
 /** Базовый парсер конверта VKResponse<T> через Moshi. */
@@ -56,7 +57,7 @@ class MoshiVkResponseParser<T>(
 ) : VkResponseParser<T> {
     override suspend fun parse(raw: RawHttpResponse): VkParsedResponse<T> {
         val envelope = decode(raw.bodyText())
-        return VkParsedResponse(envelope.response, envelope.error)
+        return VkParsedResponse(envelope.response, envelope.error, envelope.execute_errors.orEmpty())
     }
 }
 
@@ -90,7 +91,7 @@ class MoshiEnvelopeParser<T>(
         val envelope = requireNotNull(adapter.fromJson(raw.bodyText())) {
             "Empty VK response from ${raw.url}"
         }
-        return VkParsedResponse(envelope.response, envelope.error)
+        return VkParsedResponse(envelope.response, envelope.error, envelope.execute_errors.orEmpty())
     }
 }
 
@@ -119,6 +120,6 @@ class MappingVkResponseParser<I, O>(
 ) : VkResponseParser<O> {
     override suspend fun parse(raw: RawHttpResponse): VkParsedResponse<O> {
         val parsed = delegate.parse(raw)
-        return VkParsedResponse(parsed.data?.let(transform), parsed.error)
+        return VkParsedResponse(parsed.data?.let(transform), parsed.error, parsed.executeErrors)
     }
 }

@@ -17,6 +17,7 @@ data class VkAuthSession(
     val userId: Long = 0L,
     val accessToken: String = "",
     val expiresAt: Long = 0L,
+    val createdAt: Long = 0L,
     val trustedHash: String = "",
     val exchangeToken: String = "",
     val metadataExpiresAt: Long = 0L,
