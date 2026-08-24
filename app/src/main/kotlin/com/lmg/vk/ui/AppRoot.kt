@@ -264,6 +264,9 @@ fun AppRoot() {
     var accountActionError by remember { mutableStateOf<String?>(null) }
     var accountPendingRemoval by remember { mutableStateOf<com.lmg.vk.engine.backend.VkAccountSummary?>(null) }
     val accounts by com.lmg.vk.engine.backend.MusicAuth.accounts.collectAsState()
+    LaunchedEffect(accountsDialogOpen) {
+        if (accountsDialogOpen) com.lmg.vk.engine.backend.MusicAuth.refreshSavedSessions()
+    }
     val activeCaptchaPrompt by com.lmg.vk.network.GlobalCaptchaManager.activePrompt.collectAsState()
     val activeValidationPrompt by com.lmg.vk.network.GlobalCaptchaManager.activeValidation.collectAsState()
     val hiddenRootOverlay = overlayNavReturn?.overlay
@@ -1046,12 +1049,7 @@ fun AppRoot() {
                 accounts = accounts,
                 errorMessage = accountActionError,
                 onSelectAccount = { account ->
-                    if (account.isExpired) {
-                        accountsDialogOpen = false
-                        reopenAccountsAfterAuth = true
-                        authAddingAccount = true
-                        openRootOverlay(RootOverlay.AUTH)
-                    } else if (!account.isActive && com.lmg.vk.engine.backend.MusicAuth.switchAccount(account.userId)) {
+                    if (!account.isActive && com.lmg.vk.engine.backend.MusicAuth.switchAccount(account.userId)) {
                         accountsDialogOpen = false
                     } else if (!account.isActive) {
                         accountActionError = context.getString(R.string.wait_for_sync)

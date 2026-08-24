@@ -267,15 +267,13 @@ private fun AccountPickerItem(
 
             Spacer(Modifier.height(2.dp))
 
-            val subtitleText = when {
-                account.isExpired -> stringResource(R.string.vk_account_session_expired)
-                account.username.isNotBlank() -> "vk.com/${account.username}"
-                else -> "VK ID ${account.userId}"
-            }
+            val subtitleText = account.username.takeIf(String::isNotBlank)
+                ?.let { "vk.com/$it" }
+                ?: "VK ID ${account.userId}"
             Text(
                 text = subtitleText,
                 fontFamily = VkSansText,
-                color = if (account.isExpired) DestructiveColor else colors.textSecondary,
+                color = colors.textSecondary,
                 fontSize = 12.sp,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,

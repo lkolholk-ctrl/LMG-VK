@@ -451,7 +451,7 @@ class LibraryRepository private constructor(context: Context) {
                 }
 
                 val failedMutations = mutableListOf<String>()
-                val submittedInserts = mutableListOf<FavoriteTrackEntity>()
+                var submittedInsertCount = 0
                 val allPendingInserts = db.getPendingInserts()
                 val pendingInserts = allPendingInserts.filter { candidate ->
                     allowedMutationIds == null || candidate.trackId in allowedMutationIds
@@ -471,48 +471,26 @@ class LibraryRepository private constructor(context: Context) {
                         }
                     }
                     if (claimed.isEmpty()) continue
-                    MusicBackend.addTracksToLibrary(claimed.map { it.addRequestId() })
-                    submittedInserts += claimed
-                }
-
-                if (submittedInserts.isNotEmpty()) {
+                    submittedInsertCount += claimed.size
                     try {
-                        val unconfirmed = submittedInserts.toMutableList()
-                        val claimedCloudIds = mutableSetOf<String>()
-                        for (confirmationDelay in CONFIRMATION_RETRY_DELAYS_MS) {
-                            delay(confirmationDelay)
-                            val refreshedCloud = fetchCloudLikes()
-                            val iterator = unconfirmed.iterator()
-                            while (iterator.hasNext()) {
-                                val submitted = iterator.next()
-                                val current = db.getByTrackId(submitted.trackId)
-                                if (current == null) {
-                                    iterator.remove()
-                                    continue
-                                }
-                                val match = refreshedCloud.firstOrNull { cloudTrack ->
-                                    val cloudId = stableTrackId(cloudTrack.id)
-                                    cloudId !in cloudIds &&
-                                        cloudId !in claimedCloudIds &&
-                                        current.matchesCloud(cloudTrack)
-                                }
-                                if (match != null) {
-                                    val cloudId = stableTrackId(match.id)
-                                    claimedCloudIds += cloudId
-                                    finalizeCloudIdentity(current.trackId, cloudId)
-                                    iterator.remove()
-                                }
+                        val additions = MusicBackend.addTracksToLibrary(
+                            claimed.map { it.addRequestId() },
+                        )
+                        for (submitted in claimed) {
+                            val cloudId = additions[stableTrackId(submitted.trackId)]
+                            if (cloudId == null) {
+                                failedMutations += submitted.trackId
+                            } else {
+                                finalizeCloudIdentity(submitted.trackId, cloudId)
                             }
-                            if (unconfirmed.isEmpty()) break
                         }
-                        failedMutations += unconfirmed.map { it.trackId }
                     } finally {
-                        submittedInserts.forEach { inFlight.remove(it.trackId) }
+                        claimed.forEach { inFlight.remove(it.trackId) }
                     }
                 }
 
                 val remainingMutationSlots =
-                    (MAX_CLOUD_MUTATIONS_PER_SYNC - submittedInserts.size).coerceAtLeast(0)
+                    (MAX_CLOUD_MUTATIONS_PER_SYNC - submittedInsertCount).coerceAtLeast(0)
                 val pendingDeletes = if (MusicAuth.isAuthorizationInProgress) {
                     emptyList()
                 } else {
@@ -549,7 +527,7 @@ class LibraryRepository private constructor(context: Context) {
                 updatePlayerControllerFavorites()
                 com.lmg.vk.debug.DebugLog.add(
                     "LIBRARY SYNC cloud=${cloudLikes.size} local=${localEntities.size} " +
-                        "pending=${allPendingInserts.size} submitted=${submittedInserts.size} " +
+                        "pending=${allPendingInserts.size} submitted=$submittedInsertCount " +
                         "deduplicated=$deduplicated failed=${failedMutations.distinct().size}",
                 )
 
@@ -570,10 +548,40 @@ class LibraryRepository private constructor(context: Context) {
         }
     }
 
+    private suspend fun addPendingTrackToCloud(trackId: String): Result<Unit> = syncMutex.withLock {
+        if (
+            !MusicBackend.isInitialized ||
+            !MusicAuth.isLoggedIn.value ||
+            MusicAuth.isAuthorizationInProgress
+        ) {
+            return@withLock Result.failure(IllegalStateException("VK account is unavailable"))
+        }
+        val accountId = MusicAuth.profileId.value
+            ?: return@withLock Result.failure(IllegalStateException("VK account is unavailable"))
+        val current = db.getByTrackId(stableTrackId(trackId))
+            ?: return@withLock Result.failure(IllegalStateException("Track is absent locally"))
+        if (current.isSynced && current.cloudTrackId != null) return@withLock Result.success(Unit)
+        if (!inFlight.add(current.trackId)) {
+            return@withLock Result.failure(IllegalStateException("Track addition is already in progress"))
+        }
+        try {
+            val cloudId = MusicBackend.addTrackToLibraryAndGetId(current.addRequestId())
+                ?: return@withLock Result.failure(IllegalStateException("VK rejected audio.add"))
+            if (MusicAuth.profileId.value != accountId) {
+                return@withLock Result.failure(IllegalStateException("VK account changed during audio.add"))
+            }
+            finalizeCloudIdentity(current.trackId, cloudId)
+            Result.success(Unit)
+        } finally {
+            inFlight.remove(current.trackId)
+        }
+    }
+
     suspend fun likeTrack(track: Track): Result<Unit> = withContext(Dispatchers.IO) {
         try {
             val bareId = stableTrackId(track.id)
             val keyFromId = accessKeyFromId(track.id)
+            val accountId = MusicAuth.profileId.value
 
             val existing = db.getByTrackId(bareId)
             if (existing != null) {
@@ -589,33 +597,38 @@ class LibraryRepository private constructor(context: Context) {
                     current = current.copy(accessKey = keyFromId)
                     db.update(current)
                 }
-                if (!current.isSynced) requestCloudSync(current.trackId)
-                return@withContext Result.success(Unit)
+                if (current.isSynced && current.cloudTrackId != null) {
+                    return@withContext Result.success(Unit)
+                }
+                return@withContext addPendingTrackToCloud(current.trackId)
             }
 
-            db.insert(
-                FavoriteTrackEntity(
-                    trackId = bareId,
-                    title = track.title,
-                    artistName = track.artist,
-                    albumTitle = track.albumName.takeIf { it.isNotBlank() },
-                    durationMs = track.durationMs,
-                    imageUrl = track.coverUrl,
-                    artistId = track.artists.firstOrNull()?.id,
-                    collectionId = track.albumName.takeIf { it.isNotBlank() },
-                    genre = track.genre,
-                    isExplicit = track.isExplicit,
-                    source = track.source,
-                    isAvailable = track.isAvailable,
-                    accessKey = keyFromId,
-                    isSynced = false,
-                    pendingDelete = false
-                )
+            val pending = FavoriteTrackEntity(
+                trackId = bareId,
+                title = track.title,
+                artistName = track.artist,
+                albumTitle = track.albumName.takeIf { it.isNotBlank() },
+                durationMs = track.durationMs,
+                imageUrl = track.coverUrl,
+                artistId = track.artists.firstOrNull()?.id,
+                collectionId = track.albumName.takeIf { it.isNotBlank() },
+                genre = track.genre,
+                isExplicit = track.isExplicit,
+                source = track.source,
+                isAvailable = track.isAvailable,
+                accessKey = keyFromId,
+                isSynced = false,
+                pendingDelete = false,
             )
+            db.insert(pending)
             updatePlayerControllerFavorites()
-            requestCloudSync(bareId)
-
-            Result.success(Unit)
+            val result = addPendingTrackToCloud(bareId)
+            if (result.isFailure && MusicAuth.profileId.value == accountId) {
+                val current = db.getByTrackId(bareId)
+                if (current?.isSynced != true) db.deleteByLocalTrackId(bareId)
+                updatePlayerControllerFavorites()
+            }
+            result
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -652,8 +665,7 @@ class LibraryRepository private constructor(context: Context) {
             unlikeTrack(bareId)
             false
         } else {
-            likeTrack(track)
-            true
+            likeTrack(track).isSuccess
         }
     }
 
@@ -668,27 +680,25 @@ class LibraryRepository private constructor(context: Context) {
                 stableTrackId(it.id) == bareId
             }
             if (trackFromQueue != null) {
-                likeTrack(trackFromQueue)
+                likeTrack(trackFromQueue).isSuccess
             } else {
                 val metadata = MusicBackend.getTrackMeta(trackId) ?: return@withContext false
-                db.insert(
-                    FavoriteTrackEntity(
-                        trackId = bareId,
+                likeTrack(
+                    Track(
+                        id = trackId,
                         title = metadata.title,
-                        artistName = metadata.artist,
-                        albumTitle = metadata.collectionId,
+                        artist = metadata.artist,
+                        albumName = metadata.collectionId.orEmpty(),
+                        uri = VkAudioIdentity.playbackUri(),
                         durationMs = metadata.durationMs,
-                        imageUrl = metadata.cover,
-                        collectionId = metadata.collectionId,
+                        albumId = metadata.collectionId?.hashCode()?.toLong()
+                            ?: bareId.hashCode().toLong(),
+                        coverUrl = metadata.cover,
+                        source = "vk",
                         genre = metadata.genre,
-                        accessKey = accessKeyFromId(trackId),
-                        isSynced = false
-                    )
-                )
-                updatePlayerControllerFavorites()
-                requestCloudSync(bareId)
+                    ),
+                ).isSuccess
             }
-            true
         }
     }
 
@@ -727,7 +737,6 @@ class LibraryRepository private constructor(context: Context) {
         private const val MAX_CLOUD_DUPLICATE_DELETES = 5
         private const val CLOUD_DUPLICATE_DELETE_DELAY_MS = 750L
         private const val TARGETED_SYNC_DELAY_MS = 1_500L
-        private val CONFIRMATION_RETRY_DELAYS_MS = longArrayOf(1_500L, 3_000L, 6_000L)
         val isCloudSyncInProgress: Boolean get() = CLOUD_SYNCS.get() > 0
 
         @Volatile

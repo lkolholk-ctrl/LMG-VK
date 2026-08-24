@@ -10,6 +10,7 @@ import com.lmg.vk.network.MappingVkResponseParser
 import com.lmg.vk.network.MoshiEnvelopeParser
 import com.lmg.vk.network.VkItems
 import com.lmg.vk.network.dto.music.AudioPlaylist
+import com.lmg.vk.network.dto.music.AudioAddResponse
 import com.lmg.vk.network.dto.music.AudioGetAutoflowMixParamsResponse
 import com.lmg.vk.network.dto.music.AudioLyricsContainer
 import com.lmg.vk.network.dto.music.AudioRelatedArtistsResponse
@@ -759,35 +760,26 @@ class VkAudioApi(
     suspend fun removeDislike(audioFullId: String): VkResult<Unit> =
         executeSimpleList("audio.removeDislike", audioFullId)
 
-    suspend fun add(audioFullId: String, accessKey: String? = null): VkResult<Unit> {
+    suspend fun add(
+        audioFullId: String,
+        accessKey: String? = null,
+        ref: String? = null,
+        trackCode: String? = null,
+    ): VkResult<AudioAddResponse> {
         val normalized = audioFullId.removePrefix("vk_")
         val parts = normalized.split('_', limit = 3)
         val fullId = parts.take(2).joinToString("_")
         val resolvedAccessKey = parts.getOrNull(2)?.takeIf(String::isNotBlank) ?: accessKey
-        return executeTrackMutation("audio.add", fullId, resolvedAccessKey)
-    }
-
-    suspend fun addBatch(audioFullIds: Collection<String>): VkResult<Int> {
-        val requestIds = audioFullIds.map { it.removePrefix("vk_") }.distinct()
-        if (requestIds.isEmpty()) return VkResult.Success(1)
-        val code = buildString {
-            requestIds.forEach { requestId ->
-                val parts = requestId.split('_', limit = 3)
-                require(parts.size >= 2) { "Invalid VK audio id: $requestId" }
-                append("API.audio.add({\"audio_id\":")
-                append(parts[1].toInt())
-                append(",\"owner_id\":")
-                append(parts[0].toLong())
-                parts.getOrNull(2)?.takeIf(String::isNotBlank)?.let { accessKey ->
-                    append(",\"access_key\":")
-                    append(JSONObject.quote(accessKey))
-                }
-                append("});\n\n")
-            }
-            append("return 1;")
-        }
-        val method = VkMethod("execute", IntParser).apply {
-            param("code", code)
+        val (ownerId, audioId) = parseAudioFullId(fullId)
+        val method = VkMethod(
+            "audio.add",
+            MoshiEnvelopeParser<AudioAddResponse>(AudioAddResponse::class.java),
+        ).apply {
+            param("audio_id", audioId)
+            param("owner_id", ownerId)
+            param("ref", ref)
+            param("access_key", resolvedAccessKey)
+            param("track_code", trackCode)
         }
         return client.execute(method)
     }

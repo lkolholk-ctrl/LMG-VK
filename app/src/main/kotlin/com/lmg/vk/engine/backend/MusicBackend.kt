@@ -1471,7 +1471,7 @@ object MusicBackend {
             )
         }.getOrNull()
 
-    suspend fun addTracksToLibrary(trackIds: Collection<String>): Set<String> = runCatching {
+    suspend fun addTracksToLibrary(trackIds: Collection<String>): Map<String, String> {
         requireInitialized()
         val requests = trackIds.mapNotNull { trackId ->
             val normalized = normalizeTrackId(trackId)
@@ -1483,19 +1483,45 @@ object MusicBackend {
             val requestId = accessKey?.let { "${fullId}_$it" } ?: fullId
             fullId to requestId
         }.distinctBy { it.first }
-        audioApi.addBatch(requests.map { it.second }).requireData()
-        requests.mapTo(linkedSetOf()) { it.first }
-    }.getOrDefault(emptySet())
+        val added = linkedMapOf<String, String>()
+        for ((fullId, requestId) in requests) {
+            val cached = trackCache[fullId]
+            when (
+                val result = audioApi.add(
+                    audioFullId = requestId,
+                    accessKey = cached?.access_key,
+                    trackCode = cached?.track_code?.takeIf(String::isNotBlank),
+                )
+            ) {
+                is VkResult.Success -> {
+                    val item = result.data.items.orEmpty().firstOrNull { responseItem ->
+                        responseItem.audio_raw_id.removePrefix("vk_") == fullId
+                    } ?: result.data.items.orEmpty().singleOrNull()
+                    if (item != null) {
+                        added[fullId] = item.fullId
+                    } else {
+                        val error = result.data.errors.orEmpty().firstOrNull()
+                        com.lmg.vk.debug.DebugLog.add(
+                            "VK LIBRARY add failed id=$fullId code=${error?.error_code.orEmpty()} " +
+                                "message=${error?.error_msg.orEmpty()}",
+                        )
+                    }
+                }
+                is VkResult.Error -> com.lmg.vk.debug.DebugLog.add(
+                    "VK LIBRARY add failed id=$fullId code=${result.code} message=${result.message}",
+                )
+            }
+        }
+        return added
+    }
 
-    suspend fun addTrackToLibrary(trackId: String): Boolean = runCatching {
-        val normalized = normalizeTrackId(trackId)
-        val parts = normalized.split('_', limit = 3)
-        val fullId = parts.take(2).joinToString("_")
-        val accessKey = parts.getOrNull(2)?.takeIf(String::isNotBlank)
-            ?: trackCache[fullId]?.access_key?.takeIf(String::isNotBlank)
-        audioApi.add(fullId, accessKey).requireData()
-        true
-    }.getOrDefault(false)
+    suspend fun addTrackToLibraryAndGetId(trackId: String): String? {
+        val fullId = VkAudioIdentity.stableFullId(normalizeTrackId(trackId))
+        return addTracksToLibrary(listOf(trackId))[fullId]
+    }
+
+    suspend fun addTrackToLibrary(trackId: String): Boolean =
+        addTrackToLibraryAndGetId(trackId) != null
 
     suspend fun likeTrack(trackId: String, liked: Boolean = true): Boolean {
         if (!liked) return unlikeTrack(trackId)
@@ -3317,7 +3343,6 @@ data class VkAccountSummary(
     val username: String,
     val avatarUrl: String,
     val isActive: Boolean,
-    val isExpired: Boolean,
 )
 
 object MusicAuth {
@@ -3457,7 +3482,6 @@ object MusicAuth {
             val exchangeKey = ExchangeAttemptKey(session.userId, session.accessToken)
             val now = System.currentTimeMillis()
             if (session.exchangeToken.isBlank() &&
-                !session.isExpired &&
                 (force || (exchangeTokenRetryAt[exchangeKey] ?: 0L) <= now)
             ) {
                 val result = registry.getUserExchangeTokens(session.accessToken)
@@ -4031,7 +4055,6 @@ object MusicAuth {
                     username = account.username,
                     avatarUrl = account.avatar,
                     isActive = account.userId == activeId,
-                    isExpired = account.isExpired,
                 )
             }
     }
