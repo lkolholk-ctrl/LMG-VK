@@ -225,7 +225,7 @@
     <string name="wait_for_sync">Дождитесь завершения синхронизации библиотеки</string>
     <string name="vk_id_label">VK ID</string>
     <string name="address_label">Адрес</string>
-    <string name="section_my_music">МОЯ МУЗЫКА</string>
+    <string name="section_my_music">Моя музыка</string>
     <string name="tracks_in_vk">Треки в VK</string>
     <string name="my_tracks_on_vk">Мои треки в VK</string>
     <string name="open_vk_audio">Откройте свои аудио в VK</string>
@@ -235,16 +235,16 @@
     <string name="add_another_account">Добавить ещё один аккаунт</string>
     <string name="refresh_profile">Обновить профиль</string>
     <string name="updating_ellipsis">Обновляем…</string>
-    <string name="reload_profile_hint">Перезагрузить профиль, друзей и музыку</string>
-    <string name="edit_profile_value">Статус, информация и весь профиль</string>
+    <string name="reload_profile_hint">Загрузить свежие данные из VK</string>
+    <string name="edit_profile_value">Изменить статус и информацию о себе</string>
     <string name="copy_vk_link">Скопировать ссылку на профиль VK</string>
     <string name="vk_link_copied">Ссылка на профиль VK скопирована</string>
     <string name="share_profile">Поделиться профилем</string>
-    <string name="share_profile_value">Отправить ссылку через приложения</string>
+    <string name="share_profile_value">Отправить ссылку на профиль</string>
     <string name="share_vk_profile">Поделиться профилем VK</string>
-    <string name="browser_profile_page">Страница профиля в браузере</string>
-    <string name="settings_value">Воспроизведение, оформление и данные</string>
-    <string name="connect_vk_account">Подключите ваш аккаунт VK</string>
+    <string name="browser_profile_page">Открыть страницу в браузере</string>
+    <string name="settings_value">Настройки приложения</string>
+    <string name="connect_vk_account">Войти в аккаунт VK</string>
     <string name="app_version_line">LMG VK • %1$s</string>
     <string name="online_friends">Друзья онлайн</string>
     <string name="no_friends_match">Нет друзей по запросу «%1$s»</string>
@@ -308,7 +308,7 @@
     <string name="open_in_vk">Открыть в VK</string>
     <string name="website">Сайт</string>
     <string name="section_actions">ДЕЙСТВИЯ</string>
-    <string name="section_social">СОЦИАЛЬНЫЕ СВЯЗИ</string>
+    <string name="section_social">Друзья и сообщества</string>
     <string name="online_status">Онлайн</string>
     <string name="section_profile">ПРОФИЛЬ</string>
     <string name="mutual_friends">Общие друзья</string>
@@ -528,7 +528,7 @@
     <string name="settings_page_appearance">Темы и интерфейс</string>
     <string name="settings_page_appearance_subtitle">Тема, контраст и иконка приложения</string>
     <string name="settings_page_diagnostics">Диагностика</string>
-    <string name="settings_page_diagnostics_subtitle">Лог воспроизведения и поиск неполадок</string>
+    <string name="settings_page_diagnostics_subtitle">Проверка работы приложения и поиск ошибок</string>
     <string name="settings_page_duplicates">Сканирование дублей</string>
     <string name="settings_page_duplicates_subtitle">Поиск одинаковых треков в библиотеке VK</string>
     <string name="duplicates_scan_failed">Не удалось просканировать библиотеку</string>
@@ -540,7 +540,7 @@
     <string name="debug_tools_off">Отладочные инструменты: ВЫКЛ</string>
     <string name="settings_vk_subtitle_alt">Статус, рекомендации и аккаунт</string>
     <string name="sign_in_configure_vk_music">Войдите и настройте VK Музыку</string>
-    <string name="playback_log_troubleshooting">Лог воспроизведения и поиск неполадок</string>
+    <string name="playback_log_troubleshooting">Проверка воспроизведения и помощь с ошибками</string>
     <string name="section_account">Аккаунт</string>
     <string name="vk_profile_title">Профиль VK</string>
     <string name="profile_and_account_data">Профиль и данные аккаунта</string>
@@ -576,7 +576,7 @@
     <string name="increase_contrast_subtitle">Более плотный текст и меньше прозрачности стекла</string>
     <string name="section_app_icon">Иконка приложения</string>
     <string name="icon_selected_toast">Иконка «%1$s» выбрана</string>
-    <string name="debug_log_subtitle">Очистите лог, воспроизведите трек и отправьте результат</string>
+    <string name="debug_log_subtitle">Запишите проблему и отправьте журнал для проверки</string>
     <string name="debug_filter_cd">Фильтр</string>
     <string name="section_cloud_library">Облачная библиотека</string>
     <string name="scanning_ellipsis">Сканирование…</string>
@@ -607,8 +607,10 @@
     <string name="auto_theme">Автотема</string>
     <string name="crossfade_off">Кроссфейд выкл</string>
     <string name="crossfade_seconds">Кроссфейд: %1$d с</string>
+    <string name="seconds_short">%1$d с</string>
     <string name="timer_off">таймер выкл</string>
     <string name="timer_minutes">Таймер: %1$d мин</string>
+    <string name="minutes_short">%1$d мин</string>
     <string name="vpn_outside_active">VK вне VPN</string>
     <string name="vpn_bypass_pending">Обход VPN ожидает прямое подключение</string>
     <string name="vpn_bypass_enabled">Обход VPN включён</string>
@@ -911,6 +913,12 @@
         <item quantity="few">%1$d трека</item>
         <item quantity="many">%1$d треков</item>
         <item quantity="other">%1$d трека</item>
+    </plurals>
+    <plurals name="saved_accounts_count">
+        <item quantity="one">%1$d сохранённый аккаунт</item>
+        <item quantity="few">%1$d сохранённых аккаунта</item>
+        <item quantity="many">%1$d сохранённых аккаунтов</item>
+        <item quantity="other">%1$d сохранённых аккаунтов</item>
     </plurals>
     <plurals name="playlist_count">
         <item quantity="one">%1$d плейлист</item>

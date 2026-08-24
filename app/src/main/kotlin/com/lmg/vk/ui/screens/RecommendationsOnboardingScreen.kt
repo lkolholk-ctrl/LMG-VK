@@ -9,18 +9,18 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.windowInsetsBottomHeight
-import androidx.compose.foundation.layout.windowInsetsTopHeight
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -38,6 +38,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.TextStyle
@@ -49,12 +50,14 @@ import androidx.compose.ui.unit.sp
 import com.lmg.vk.R
 import com.lmg.vk.ui.icons.LmgDrawables
 import com.lmg.vk.ui.icons.lmgVector
+import com.lmg.vk.ui.components.SectionTopBar
 import com.lmg.vk.ui.glass.AlbumArtImage
 import com.lmg.vk.ui.glass.liquidClickable
 import com.lmg.vk.ui.rememberWindowInfo
 import com.lmg.vk.ui.theme.AppFontFamily
-import com.lmg.vk.ui.theme.VkSansDisplay
 import com.lmg.vk.ui.theme.LiquidMotion
+import com.lmg.vk.ui.theme.LiquidMetrics
+import com.lmg.vk.ui.theme.LiquidSurfaces
 import com.lmg.vk.ui.theme.LiquidTheme
 import com.lmg.vk.ui.viewmodel.OnboardingArtist
 import com.lmg.vk.ui.viewmodel.OnboardingSubmitState
@@ -88,7 +91,7 @@ fun RecommendationsOnboardingScreen(
 ) {
     val lc = LiquidTheme.colors
     val compact = rememberWindowInfo().useSideBySide
-    val sidePad = 20.dp
+    val sidePad = LiquidMetrics.ScreenPadding
 
     val viewModel: OnboardingViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
     val state by viewModel.state.collectAsState()
@@ -101,52 +104,20 @@ fun RecommendationsOnboardingScreen(
     }
 
     Box(modifier = Modifier.fillMaxSize().background(lc.settingsBackground)) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            Spacer(modifier = Modifier.windowInsetsTopHeight(WindowInsets.statusBars))
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // ── Заголовок ──
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = sidePad),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(if (compact) 34.dp else 40.dp)
-                        .clip(CircleShape)
-                        .background(if (lc.isDark) Color(0xFF1C1C1E) else Color(0xFFF2F2F7))
-                        .liquidClickable(pressedScale = LiquidMotion.PressIcon) { onBack() },
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        imageVector = com.lmg.vk.ui.icons.LmgGlyphs.ArrowLeftOutline28,
-                        contentDescription = null,
-                        tint = lc.iconDefault,
-                        modifier = Modifier.size(if (compact) 18.dp else 22.dp),
-                    )
-                }
-                Spacer(modifier = Modifier.width(if (compact) 12.dp else 16.dp))
-                Text(
-                    text = stringResource(R.string.tune_recommendations),
-                    color = lc.textPrimary,
-                    fontSize = if (compact) 20.sp else 24.sp,
-                    fontWeight = FontWeight.Bold,
-                    fontFamily = VkSansDisplay,
-                    modifier = Modifier.weight(1f),
-                )
-            }
-
-            Spacer(modifier = Modifier.height(4.dp))
-
-            Text(
-                text = stringResource(R.string.onboarding_mark_artists_hint),
-                color = lc.textSecondary,
-                fontSize = if (compact) 12.sp else 13.sp,
-                fontFamily = AppFontFamily,
-                modifier = Modifier.padding(horizontal = sidePad),
+        Column(
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .fillMaxHeight()
+                .widthIn(max = 720.dp),
+        ) {
+            SectionTopBar(
+                title = stringResource(R.string.tune_recommendations),
+                subtitle = stringResource(R.string.onboarding_mark_artists_hint),
+                isDark = lc.isDark,
+                onBack = onBack,
             )
 
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(6.dp))
 
             // ── Прогресс выбора (шкала оригинала) ──
             OnboardingProgress(state = state, compact = compact, sidePad = sidePad)
@@ -301,9 +272,15 @@ private fun OnboardingSearchField(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = sidePad)
-            .height(if (compact) 40.dp else 46.dp)
-            .clip(RoundedCornerShape(12.dp))
-            .background(if (lc.isDark) Color(0xFF1C1C1E) else Color(0xFFF2F2F7))
+            .height(if (compact) 44.dp else 50.dp)
+            .shadow(
+                elevation = LiquidMetrics.ButtonElevation,
+                shape = LiquidMetrics.CardShape,
+                ambientColor = LiquidSurfaces.shadowTint(lc.isDark),
+                spotColor = LiquidSurfaces.shadowTint(lc.isDark),
+            )
+            .clip(LiquidMetrics.CardShape)
+            .background(LiquidSurfaces.card(lc.isDark))
             .padding(horizontal = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -362,8 +339,14 @@ private fun ArtistPickCard(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(if (lc.isDark) Color(0xFF1C1C1E) else Color(0xFFF2F2F7))
+            .shadow(
+                elevation = LiquidMetrics.CoverElevation,
+                shape = LiquidMetrics.CardShape,
+                ambientColor = LiquidSurfaces.shadowTint(lc.isDark),
+                spotColor = LiquidSurfaces.shadowTint(lc.isDark),
+            )
+            .clip(LiquidMetrics.CardShape)
+            .background(LiquidSurfaces.card(lc.isDark))
             .liquidClickable(onClick = onClick)
             .padding(10.dp),
     ) {
@@ -373,7 +356,7 @@ private fun ArtistPickCard(
                 coverUrl = artist.coverUrl,
                 modifier = Modifier
                     .fillMaxSize()
-                    .clip(RoundedCornerShape(12.dp)),
+                    .clip(LiquidMetrics.CoverShape),
             )
             // Отметка выбора поверх обложки — как в оригинале, где выбранная
             // карточка притемняется и получает галочку.
@@ -381,7 +364,7 @@ private fun ArtistPickCard(
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .clip(RoundedCornerShape(12.dp))
+                        .clip(LiquidMetrics.CoverShape)
                         .background(Color.Black.copy(alpha = 0.45f)),
                     contentAlignment = Alignment.Center,
                 ) {
@@ -444,8 +427,14 @@ private fun FinishButton(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = sidePad, vertical = 8.dp)
-            .height(if (compact) 44.dp else 50.dp)
-            .clip(RoundedCornerShape(14.dp))
+            .height(LiquidMetrics.ActionButtonHeight)
+            .shadow(
+                elevation = if (enabled) LiquidMetrics.ButtonElevation else 0.dp,
+                shape = LiquidMetrics.Pill,
+                ambientColor = LiquidSurfaces.shadowTint(lc.isDark),
+                spotColor = LiquidSurfaces.shadowTint(lc.isDark),
+            )
+            .clip(LiquidMetrics.Pill)
             .background(
                 if (enabled) lc.accent else lc.accent.copy(alpha = 0.22f),
             )

@@ -322,7 +322,8 @@ internal fun CrossfadeSelector(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 12.dp, vertical = 10.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(
             imageVector = com.lmg.vk.ui.icons.LmgGlyphs.SlidersOutline28,
@@ -355,7 +356,7 @@ internal fun CrossfadeSelector(
                     label = "crossfadeText"
                 )
                 Text(
-                    text = if (sec == 0) stringResource(R.string.off_label) else "${sec}s",
+                    text = if (sec == 0) stringResource(R.string.off_label) else stringResource(R.string.seconds_short, sec),
                     color = textColor,
                     fontSize = 13.sp,
                     fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal
@@ -375,7 +376,8 @@ internal fun SleepTimerSelector(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 12.dp, vertical = 10.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(
             imageVector = com.lmg.vk.ui.icons.LmgGlyphs.ClockOutline28,
@@ -411,7 +413,7 @@ internal fun SleepTimerSelector(
                     label = "sleepText"
                 )
                 Text(
-                    text = if (minutes == 0) stringResource(R.string.off_label) else "${minutes}m",
+                    text = if (minutes == 0) stringResource(R.string.off_label) else stringResource(R.string.minutes_short, minutes),
                     color = textColor,
                     fontSize = 13.sp,
                     fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal

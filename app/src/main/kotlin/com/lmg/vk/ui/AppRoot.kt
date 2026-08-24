@@ -399,8 +399,9 @@ fun AppRoot() {
         }
     }
 
-    // Бар/сайдбар видны на вкладках и деталях; прячем под полными оверлеями.
-    val barsVisible = !settingsOpen && !authOpen && !profileOpen && !searchOpen
+    val fullScreenRoute = currentRoute == NavRoutes.RECOMMENDATIONS_ONBOARDING ||
+        currentRoute == NavRoutes.DEBUG_LOG
+    val barsVisible = !settingsOpen && !authOpen && !profileOpen && !searchOpen && !fullScreenRoute
 
     val currentTrack by PlayerController.currentTrack.collectAsState()
     val isPlaying by PlayerController.isPlaying.collectAsState()

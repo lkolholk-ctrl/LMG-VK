@@ -469,8 +469,11 @@ fun ProfileScreen(
                             label = stringResource(R.string.vk_accounts_title),
                             value = when (accounts.size) {
                                 0 -> stringResource(R.string.add_another_account)
-                                1 -> "1 saved account"
-                                else -> "${accounts.size} saved accounts"
+                                else -> pluralStringResource(
+                                    R.plurals.saved_accounts_count,
+                                    accounts.size,
+                                    accounts.size,
+                                )
                             },
                             compact = compact,
                             onClick = {
