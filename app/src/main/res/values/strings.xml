@@ -101,7 +101,8 @@
     <string name="feedback_undo">Отменить</string>
     <string name="feedback_undoing">Отменяем…</string>
     <string name="feedback_retry_undo">Повторить отмену</string>
-    <string name="feedback_less">Меньше такого</string>
+    <string name="feedback_dont_recommend">Не рекомендовать</string>
+    <string name="feedback_update_failed">VK не применил изменение рекомендаций</string>
     <string name="vkmix_empty_tracks">VK Mix не вернул треки</string>
     <string name="vkmix_loading_settings">Загружаем настройки VK Mix…</string>
     <string name="vkmix_empty_title">VK Mix пока пуст</string>

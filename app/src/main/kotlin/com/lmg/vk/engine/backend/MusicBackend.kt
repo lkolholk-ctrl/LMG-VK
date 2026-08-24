@@ -1337,15 +1337,16 @@ object MusicBackend {
             .filter { it.isAvailable }
     }.getOrDefault(emptyList())
 
-    /** Official negative feedback. `audio.addDislike` returns the updated track. */
     suspend fun dislikeTrack(trackId: String) {
-        val updated = audioApi.addDislike(normalizeTrackId(trackId)).requireData()
-        cacheTrack(updated.toAudioTrack())
+        check(audioApi.addDislike(normalizeTrackId(trackId)).requireData()) {
+            str(R.string.feedback_update_failed)
+        }
     }
 
-    /** The response form is unconfirmed, therefore removeDislike remains Unit. */
     suspend fun removeTrackDislike(trackId: String) {
-        audioApi.removeDislike(normalizeTrackId(trackId)).requireData()
+        check(audioApi.removeDislike(normalizeTrackId(trackId)).requireData()) {
+            str(R.string.feedback_update_failed)
+        }
     }
 
     suspend fun getArtistTopTracks(artistId: String): List<Track> =

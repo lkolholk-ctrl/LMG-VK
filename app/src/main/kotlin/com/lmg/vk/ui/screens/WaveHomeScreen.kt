@@ -210,7 +210,6 @@ fun WaveHomeScreen(
         else (idx + 1 until minOf(idx + 4, queueList.size)).map { it to queueList[it] }
     }
 
-    // Official dislike belongs only to an active VK Mix streaming source.
     val showWaveFeedback = track != null &&
         PlayerController.playbackContext is PlaybackContext.VkMix &&
         backend == PlaybackBackend.EXO_STREAMING
@@ -566,7 +565,7 @@ fun WaveHomeScreen(
                                     } else {
                                         stringResource(R.string.action_retry)
                                     }
-                                    VkMixFeedbackState.Idle -> stringResource(R.string.feedback_less)
+                                    VkMixFeedbackState.Idle -> stringResource(R.string.feedback_dont_recommend)
                                 },
                                 tint = Color.White.copy(alpha = 0.78f),
                                 enabled = feedbackForTrack !is VkMixFeedbackState.Submitting &&
@@ -1682,7 +1681,6 @@ private fun CurrentLyricLine(track: Track) {
     }
 }
 
-/** Official VK Mix dislike/undo chip. */
 @Composable
 private fun WaveFeedbackChip(
     icon: androidx.compose.ui.graphics.vector.ImageVector,

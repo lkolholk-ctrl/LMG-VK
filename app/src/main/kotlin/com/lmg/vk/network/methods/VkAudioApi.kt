@@ -747,18 +747,29 @@ class VkAudioApi(
         return client.execute(method)
     }
 
-    suspend fun addDislike(audioFullId: String): VkResult<AudioAudioDto> {
+    suspend fun addDislike(audioFullId: String): VkResult<Boolean> {
         val method = VkMethod(
             "audio.addDislike",
-            MoshiEnvelopeParser<AudioAudioDto>(AudioAudioDto::class.java),
+            MappingVkResponseParser(
+                MoshiEnvelopeParser<Int>(Int::class.javaObjectType),
+            ) { it != 0 },
         ).apply {
             param("audio_ids", listOf(audioFullId).joinToString(","))
         }
         return client.execute(method)
     }
 
-    suspend fun removeDislike(audioFullId: String): VkResult<Unit> =
-        executeSimpleList("audio.removeDislike", audioFullId)
+    suspend fun removeDislike(audioFullId: String): VkResult<Boolean> {
+        val method = VkMethod(
+            "audio.removeDislike",
+            MappingVkResponseParser(
+                MoshiEnvelopeParser<Int>(Int::class.javaObjectType),
+            ) { it != 0 },
+        ).apply {
+            param("audio_ids", listOf(audioFullId).joinToString(","))
+        }
+        return client.execute(method)
+    }
 
     suspend fun add(
         audioFullId: String,
