@@ -16,10 +16,12 @@ import io.ktor.http.path
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.delay
 import com.lmg.vk.network.dto.VKError
 import com.lmg.vk.network.dto.VkErrorCodes
 import java.security.MessageDigest
 import java.util.concurrent.ConcurrentHashMap
+import kotlin.math.pow
 
 /**
  * Восстановлено из `defpackage.C8221e` — ядро сетевого слоя LMG VK.
@@ -122,6 +124,9 @@ class VkApiClient(
             val hasStructuredOAuthError = (method.endpoint == VkEndpoint.OAUTH || method.endpoint == VkEndpoint.API_OAUTH) && method.name == "token"
             if (raw.statusCode !in 200..299 && !hasStructuredOAuthError) {
                 traceAuthResult(method.name, method.endpoint, raw.statusCode, "http_error")
+                if (raw.statusCode in 500..599 && awaitTransportRetry(method, raw.statusCode.toString())) {
+                    return execute(method)
+                }
                 return VkResult.Error(raw.statusCode, "HTTP ${raw.statusCode}: ${raw.url}")
             }
 
@@ -143,7 +148,12 @@ class VkApiClient(
             )
 
             if (error == null) {
-                if (parsed.data != null) return VkResult.Success(parsed.data)
+                if (parsed.data != null) {
+                    method.tokenRefreshRetried = false
+                    method.transientRetryCount = 0
+                    method.rateLimitRetryCount = 0
+                    return VkResult.Success(parsed.data)
+                }
                 error("[unboxVkResponse] raw as no error but response is null, needs investigating")
             }
 
@@ -178,7 +188,7 @@ class VkApiClient(
                     VkResult.Error(error.error_code, error.error_msg)
                 }
 
-                VkErrorCodes.TOKEN_EXPIRED -> {
+                in VkErrorCodes.TOKEN_REFRESH_REQUIRED -> {
                     if (usesImplicitSession && !method.tokenRefreshRetried) {
                         method.tokenRefreshRetried = true
                         val refreshed = refreshSession(requestSession, force = true)
@@ -189,11 +199,28 @@ class VkApiClient(
                     VkResult.Error(error.error_code, error.error_msg)
                 }
 
+                in VkErrorCodes.TRANSIENT -> {
+                    if (awaitTransportRetry(method, error.error_code.toString())) {
+                        return execute(method)
+                    }
+                    VkResult.Error(error.error_code, error.error_msg)
+                }
+
+                VkErrorCodes.TOO_MANY_REQUESTS -> {
+                    if (awaitRateLimitRetry(method)) {
+                        return execute(method)
+                    }
+                    VkResult.Error(error.error_code, error.error_msg)
+                }
+
                 else -> VkResult.Error(error.error_code, error.error_msg)
             }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
+            if (e is IllegalStateException && awaitTransportRetry(method, e.javaClass.simpleName)) {
+                return execute(method)
+            }
             if (isAuthWireMethod(method.name, method.endpoint)) {
                 DebugLog.add(
                     "VK AUTH WIRE failure method=${method.name} type=${e.javaClass.simpleName}",
@@ -226,6 +253,43 @@ class VkApiClient(
                 VkResult.Error(-1, "$label: ${e.message ?: "неизвестная ошибка"}")
             }
         }
+    }
+
+    private suspend fun awaitTransportRetry(method: VkMethod<*>, reason: String): Boolean {
+        if (isAuthenticationRequest(method) || method.isOneShot) return false
+        val attempt = method.transientRetryCount
+        if (attempt >= MAX_TRANSPORT_RETRIES) return false
+        method.transientRetryCount = attempt + 1
+        val delayMillis = (TRANSPORT_RETRY_INITIAL_MS * TRANSPORT_RETRY_FACTOR.pow(attempt))
+            .toLong()
+            .coerceAtMost(TRANSPORT_RETRY_MAX_MS)
+        DebugLog.add(
+            "VK API retry method=${method.name} reason=$reason attempt=${attempt + 1} delay_ms=$delayMillis",
+        )
+        delay(delayMillis)
+        return true
+    }
+
+    private suspend fun awaitRateLimitRetry(method: VkMethod<*>): Boolean {
+        if (isAuthenticationRequest(method) || method.isOneShot) return false
+        val attempt = method.rateLimitRetryCount
+        if (attempt >= MAX_RATE_LIMIT_RETRIES) return false
+        method.rateLimitRetryCount = attempt + 1
+        val delayMillis = (RATE_LIMIT_RETRY_INITIAL_MS * RATE_LIMIT_RETRY_FACTOR.pow(attempt))
+            .toLong()
+            .coerceAtMost(RATE_LIMIT_RETRY_MAX_MS)
+        DebugLog.add(
+            "VK API retry method=${method.name} reason=6 attempt=${attempt + 1} delay_ms=$delayMillis",
+        )
+        delay(delayMillis)
+        return true
+    }
+
+    private fun isAuthenticationRequest(method: VkMethod<*>): Boolean {
+        return method.endpoint != VkEndpoint.API_METHOD ||
+            method.name == "get_anonym_token" ||
+            method.name.startsWith("auth.") ||
+            method.name.startsWith("ecosystem.")
     }
 
     // ------------------------------------------------------------------
@@ -414,6 +478,15 @@ class VkApiClient(
 
     companion object {
         const val TOKEN_REFRESH_MARGIN_SECONDS = 6L * 60L * 60L
+
+        private const val MAX_TRANSPORT_RETRIES = 24
+        private const val TRANSPORT_RETRY_INITIAL_MS = 1_000.0
+        private const val TRANSPORT_RETRY_FACTOR = 1.5
+        private const val TRANSPORT_RETRY_MAX_MS = 60_000L
+        private const val MAX_RATE_LIMIT_RETRIES = 24
+        private const val RATE_LIMIT_RETRY_INITIAL_MS = 1_000.0
+        private const val RATE_LIMIT_RETRY_FACTOR = 1.2
+        private const val RATE_LIMIT_RETRY_MAX_MS = 8_000L
 
         /** api_id официального Android-клиента VK (хардкод в оригинале). */
         const val VK_ANDROID_CLIENT_ID = RecoveredServiceConfig.VK_ANDROID_CLIENT_ID

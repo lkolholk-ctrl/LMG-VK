@@ -52,6 +52,29 @@ object VkErrorCodes {
     /** Токен протух/отозван: делаем auth.refreshTokens и один ретрай. */
     const val TOKEN_EXPIRED = 1117
 
+    const val INVALID_SIGNATURE = 4
+
+    const val AUTHORIZATION_FAILED = 5
+
+    const val ACCESS_TOKEN_INVALID = 3610
+
+    const val UNKNOWN_ERROR = 1
+
+    const val INTERNAL_SERVER_ERROR = 10
+
+    const val DATABASE_ERROR = 13
+
+    const val TOO_MANY_REQUESTS = 6
+
+    val TOKEN_REFRESH_REQUIRED = setOf(
+        INVALID_SIGNATURE,
+        AUTHORIZATION_FAILED,
+        ACCESS_TOKEN_INVALID,
+        TOKEN_EXPIRED,
+    )
+
+    val TRANSIENT = setOf(UNKNOWN_ERROR, INTERNAL_SERVER_ERROR, DATABASE_ERROR)
+
     /** Внутренний код: one-shot метод без контента. */
     const val NO_CONTENT = 993
 

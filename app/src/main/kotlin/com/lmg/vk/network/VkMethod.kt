@@ -33,8 +33,11 @@ class VkMethod<T>(
     /** Флаг one-shot из `C5577e.appmetrica`: такой вызов не имеет тела ответа. */
     var isOneShot: Boolean = false
 
-    /** Внутренний флаг: уже пробовали refresh token после ошибки 1117. */
     internal var tokenRefreshRetried: Boolean = false
+
+    internal var transientRetryCount: Int = 0
+
+    internal var rateLimitRetryCount: Int = 0
 
     val params: LinkedHashMap<String, String> = LinkedHashMap()
 
