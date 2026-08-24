@@ -58,6 +58,7 @@ import com.lmg.vk.network.dto.music.VkAudioContentCard
 import com.lmg.vk.network.dto.music.VkCatalogLink
 import com.lmg.vk.network.dto.music.VkCatalogProfile
 import com.lmg.vk.network.dto.music.VkCatalogResponse
+import com.lmg.vk.network.dto.music.VkCatalogSection
 import com.lmg.vk.network.dto.music.VkCatalogVideo
 import com.lmg.vk.network.dto.music.VkCatalogAudioBook
 import com.lmg.vk.network.dto.music.VkCatalogAudioBookPerson
