@@ -11,9 +11,10 @@ import com.squareup.moshi.JsonClass
 
 @JsonClass(generateAdapter = true)
 data class AudioLyricsContainer(
-    val md5: String = "",
-    val lyrics: AudioLyrics,
-    val credits: String = "",
+    val text: String? = null,
+    val md5: String? = null,
+    val lyrics: AudioLyrics? = null,
+    val credits: String? = null,
 )
 
 @JsonClass(generateAdapter = true)

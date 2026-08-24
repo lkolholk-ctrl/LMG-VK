@@ -94,6 +94,9 @@ data class AudioPlaylistPermissions(
     @Json(name = "edit") val edit: Boolean = false,
     @Json(name = "share") val share: Boolean = false,
     @Json(name = "play") val play: Boolean = false,
+    @Json(name = "boom_download") val boomDownload: Boolean = false,
+    @Json(name = "view_content") val viewContent: Boolean = false,
+    @Json(name = "view_content_queue") val viewContentQueue: Boolean = false,
 )
 
 /** Из `ua.lmg.vkapi2.objects.music.playlist.album.AudioAlbum`. */
@@ -109,9 +112,11 @@ data class AudioAlbum(
 
 @JsonClass(generateAdapter = true)
 data class AlbumThumb(
+    val id: String? = null,
     val width: Int = 0,
     val height: Int = 0,
     val src: String = "",
+    val url: String? = null,
     val photo_34: String? = null,
     val photo_68: String? = null,
     val photo_135: String? = null,
@@ -143,6 +148,7 @@ data class AlbumThumb(
             .maxByOrNull { it.width.toLong() * it.height.toLong() }
             ?.src
             ?: fixedPhotoUrl()
+            ?: url
             ?: src
 
     /**
@@ -154,7 +160,7 @@ data class AlbumThumb(
      */
     fun thumbUrlFor(minSidePx: Int): String {
         val candidates = sizes.orEmpty().filter { it.src.isNotBlank() }
-        if (candidates.isEmpty()) return fixedPhotoUrl() ?: src
+        if (candidates.isEmpty()) return fixedPhotoUrl() ?: url ?: src
         val sorted = candidates.sortedBy { minOf(it.width, it.height) }
         return sorted.firstOrNull { minOf(it.width, it.height) >= minSidePx }?.src
             // Всё меньше запрошенного — отдаём самый крупный, что есть.

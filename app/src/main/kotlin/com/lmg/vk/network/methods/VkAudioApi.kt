@@ -11,9 +11,15 @@ import com.lmg.vk.network.MoshiEnvelopeParser
 import com.lmg.vk.network.VkItems
 import com.lmg.vk.network.dto.music.AudioPlaylist
 import com.lmg.vk.network.dto.music.AudioAddResponse
+import com.lmg.vk.network.dto.music.AudioAudioIdDto
 import com.lmg.vk.network.dto.music.AudioGetAutoflowMixParamsResponse
+import com.lmg.vk.network.dto.music.AudioGetKidsModeResponseDto
+import com.lmg.vk.network.dto.music.AudioGetPlaylistExtendedResponseDto
+import com.lmg.vk.network.dto.music.AudioGetUserConfigResponseDto
 import com.lmg.vk.network.dto.music.AudioLyricsContainer
+import com.lmg.vk.network.dto.music.AudioRadioStationDto
 import com.lmg.vk.network.dto.music.AudioRelatedArtistsResponse
+import com.lmg.vk.network.dto.music.AudioRestrictionInfoDto
 import com.lmg.vk.network.dto.music.AudioSearchMainResponse
 import com.lmg.vk.network.dto.music.AudioStreamMixSettingsResponse
 import com.lmg.vk.network.dto.VKError
@@ -133,10 +139,9 @@ class VkAudioApi(
         isChild: Boolean = false,
     ): VkResult<List<AudioTrack>> {
         require(count in 0..1000)
-        val listType = Types.newParameterizedType(List::class.java, AudioTrack::class.java)
         val method = VkMethod(
             "audio.getRecommendations",
-            MoshiEnvelopeParser<List<AudioTrack>>(listType),
+            AudioTrackListParser,
         ).apply {
             param("target_audio", targetAudio?.removePrefix("vk_"))
             param("count", count)
@@ -306,11 +311,16 @@ class VkAudioApi(
         return client.execute(method)
     }
 
-    suspend fun getRestrictionsInfo(): VkResult<Any> =
-        client.execute(VkMethod("audio.getRestrictionsInfo", AnyParser))
+    suspend fun getRestrictionsInfo(): VkResult<List<AudioRestrictionInfoDto>> {
+        return client.execute(VkMethod("audio.getRestrictionsInfo", RestrictionInfoListParser))
+    }
 
-    suspend fun getKidsMode(): VkResult<Any> =
-        client.execute(VkMethod("audio.getKidsMode", AnyParser))
+    suspend fun getKidsMode(): VkResult<AudioGetKidsModeResponseDto> {
+        val parser = MoshiEnvelopeParser<AudioGetKidsModeResponseDto>(
+            AudioGetKidsModeResponseDto::class.java,
+        )
+        return client.execute(VkMethod("audio.getKidsMode", parser))
+    }
 
     suspend fun setKidsMode(state: Boolean): VkResult<Unit> {
         val method = VkMethod("audio.setKidsMode", UnitParser).apply {
@@ -319,16 +329,20 @@ class VkAudioApi(
         return client.execute(method)
     }
 
-    suspend fun radioGetById(stationIds: Collection<Int>): VkResult<Any> {
+    suspend fun radioGetById(stationIds: Collection<Int>): VkResult<List<AudioRadioStationDto>> {
         require(stationIds.isNotEmpty())
-        val method = VkMethod("audio.radioGetById", AnyParser).apply {
+        val method = VkMethod("audio.radioGetById", RadioStationListParser).apply {
             param("station_ids", stationIds.joinToString(","))
         }
         return client.execute(method)
     }
 
-    suspend fun getUserConfig(): VkResult<Any> =
-        client.execute(VkMethod("audio.getUserConfig", AnyParser))
+    suspend fun getUserConfig(): VkResult<AudioGetUserConfigResponseDto> {
+        val parser = MoshiEnvelopeParser<AudioGetUserConfigResponseDto>(
+            AudioGetUserConfigResponseDto::class.java,
+        )
+        return client.execute(VkMethod("audio.getUserConfig", parser))
+    }
 
     /**
      * Скрытый путь получения ссылки из VK MP3 MOD (prefs-флаг `audio_rip`).
@@ -375,8 +389,8 @@ class VkAudioApi(
         playlistId: Int,
         ownerId: Long,
         audioIds: Collection<String>,
-    ): VkResult<Any> {
-        val method = VkMethod("audio.addToPlaylist", MoshiEnvelopeParser<Any>(Any::class.java)).apply {
+    ): VkResult<List<AudioAudioIdDto>> {
+        val method = VkMethod("audio.addToPlaylist", AudioIdListParser).apply {
             param("owner_id", ownerId)
             param("playlist_id", playlistId)
             param("audio_ids", audioIds.joinToString(",") { it.removePrefix("vk_") })
@@ -406,9 +420,9 @@ class VkAudioApi(
         return client.execute(method)
     }
 
-    suspend fun createPlaylistByFilter(ownerId: Long, filter: String?): VkResult<Any> {
+    suspend fun createPlaylistByFilter(ownerId: Long, filter: String?): VkResult<AudioPlaylist> {
         require(filter == null || filter.length <= 256)
-        val method = VkMethod("audio.createPlaylistByFilter", AnyParser).apply {
+        val method = VkMethod("audio.createPlaylistByFilter", PlaylistParser).apply {
             param("owner_id", ownerId)
             param("filter", filter)
         }
@@ -777,7 +791,9 @@ class VkAudioApi(
         ref: String? = null,
     ): VkResult<AudioPlaylist> {
         require(trackCount == null || trackCount in 0..30)
-        val method = VkMethod("audio.getPlaylistById", PlaylistParser).apply {
+        require(extraFields.isEmpty() || extended == true)
+        val parser = if (extraFields.isEmpty()) PlaylistParser else ExtendedPlaylistParser
+        val method = VkMethod("audio.getPlaylistById", parser).apply {
             param("owner_id", ownerId)
             param("playlist_id", playlistId)
             extended?.let { param("extended", it) }
@@ -994,10 +1010,47 @@ class VkAudioApi(
         }
     }
 
-    private object AnyParser : VkResponseParser<Any> {
-        private val delegate = MoshiEnvelopeParser<Any>(Any::class.java)
+    private object AudioIdListParser : VkResponseParser<List<AudioAudioIdDto>> {
+        private val delegate = MoshiEnvelopeParser<List<AudioAudioIdDto>>(
+            Types.newParameterizedType(List::class.java, AudioAudioIdDto::class.java),
+        )
 
-        override suspend fun parse(raw: RawHttpResponse): VkParsedResponse<Any> = delegate.parse(raw)
+        override suspend fun parse(raw: RawHttpResponse): VkParsedResponse<List<AudioAudioIdDto>> =
+            delegate.parse(raw)
+    }
+
+    private object RestrictionInfoListParser : VkResponseParser<List<AudioRestrictionInfoDto>> {
+        private val delegate = MoshiEnvelopeParser<List<AudioRestrictionInfoDto>>(
+            Types.newParameterizedType(List::class.java, AudioRestrictionInfoDto::class.java),
+        )
+
+        override suspend fun parse(raw: RawHttpResponse): VkParsedResponse<List<AudioRestrictionInfoDto>> =
+            delegate.parse(raw)
+    }
+
+    private object RadioStationListParser : VkResponseParser<List<AudioRadioStationDto>> {
+        private val delegate = MoshiEnvelopeParser<List<AudioRadioStationDto>>(
+            Types.newParameterizedType(List::class.java, AudioRadioStationDto::class.java),
+        )
+
+        override suspend fun parse(raw: RawHttpResponse): VkParsedResponse<List<AudioRadioStationDto>> =
+            delegate.parse(raw)
+    }
+
+    private object ExtendedPlaylistParser : VkResponseParser<AudioPlaylist> {
+        private val delegate = MappingVkResponseParser(
+            MoshiEnvelopeParser<AudioGetPlaylistExtendedResponseDto>(
+                AudioGetPlaylistExtendedResponseDto::class.java,
+            ),
+        ) { response ->
+            response.playlist.copy(
+                duration = response.duration ?: response.playlist.duration,
+                audio_ids = response.audio_ids?.map { it.audio_id } ?: response.playlist.audio_ids,
+            )
+        }
+
+        override suspend fun parse(raw: RawHttpResponse): VkParsedResponse<AudioPlaylist> =
+            delegate.parse(raw)
     }
 
     private object StringListParser : VkResponseParser<List<String>> {

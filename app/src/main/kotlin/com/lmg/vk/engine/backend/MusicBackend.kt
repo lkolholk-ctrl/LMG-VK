@@ -37,7 +37,10 @@ import com.lmg.vk.network.dto.music.AudioPlaylistDto
 import com.lmg.vk.network.dto.music.AudioRecommendedPlaylistDto
 import com.lmg.vk.network.dto.music.AudioAudioDto
 import com.lmg.vk.network.dto.music.AudioArtistDto
+import com.lmg.vk.network.dto.music.AudioChartInfo
 import com.lmg.vk.network.dto.music.AudioPhotoDto
+import com.lmg.vk.network.dto.music.BaseImageDto
+import com.lmg.vk.network.dto.music.Genre
 import com.lmg.vk.network.dto.music.AudioSearchMainResponse
 import com.lmg.vk.network.dto.music.AudioStreamMix
 import com.lmg.vk.network.dto.music.AudioStreamMixSettings
@@ -1621,7 +1624,7 @@ object MusicBackend {
         // credits приходят В ОТВЕТЕ getLyrics, поэтому без lyrics_id спрашивать
         // нечего — VK ответит ошибкой, а не пустым полем.
         if (!track.has_lyrics && track.lyrics_id == null) return@runCatching null
-        audioApi.getLyrics(track.fullId).requireData().credits.takeIf { it.isNotBlank() }
+        audioApi.getLyrics(track.fullId).requireData().credits?.takeIf { it.isNotBlank() }
     }.getOrNull()
 
     suspend fun getLyricsResult(trackId: String): Result<LyricsParser.Lyrics?> = runCatching {
@@ -1630,7 +1633,7 @@ object MusicBackend {
         if (!track.has_lyrics && track.lyrics_id == null) return@runCatching null
         val container = audioApi.getLyrics(track.fullId).requireData()
         val lyrics = container.lyrics
-        val timestamps = lyrics.timestamps.orEmpty()
+        val timestamps = lyrics?.timestamps.orEmpty()
         val lines = if (timestamps.isNotEmpty()) {
             timestamps.map {
                 LyricsParser.LyricLine(
@@ -1640,7 +1643,10 @@ object MusicBackend {
                 )
             }
         } else {
-            lyrics.text.orEmpty().map { LyricsParser.LyricLine(timeMs = -1L, text = it) }
+            val text = lyrics?.text.orEmpty().ifEmpty {
+                container.text.orEmpty().lineSequence().filter(String::isNotBlank).toList()
+            }
+            text.map { LyricsParser.LyricLine(timeMs = -1L, text = it) }
         }
         LyricsParser.Lyrics(
             lines = lines,
@@ -2154,6 +2160,7 @@ object MusicBackend {
     )
 
     private fun AudioPhotoDto.toAlbumThumb() = AlbumThumb(
+        id = id,
         width = width,
         height = height,
         src = bestUrl.orEmpty(),
@@ -2167,6 +2174,13 @@ object MusicBackend {
         sizes = sizes,
     )
 
+    private fun BaseImageDto.toAlbumThumb() = AlbumThumb(
+        id = id,
+        width = width,
+        height = height,
+        src = url,
+    )
+
     private fun AudioAudioDto.toAudioTrack() = AudioTrack(
         artist = artist,
         id = id,
@@ -2178,7 +2192,9 @@ object MusicBackend {
         is_licensed = is_licensed == true,
         track_code = track_code.orEmpty(),
         url = url.orEmpty(),
+        audio_streams = audio_streams,
         date = date?.toLong() ?: 0L,
+        genre_id = genre_id,
         content_restricted = content_restricted ?: 0,
         album = album?.let { value ->
             AudioAlbum(
@@ -2191,17 +2207,69 @@ object MusicBackend {
             )
         },
         main_artists = main_artists.orEmpty().map {
-            MainArtist(id = it.id.orEmpty(), domain = it.domain.orEmpty(), name = it.name)
+            MainArtist(
+                id = it.id.orEmpty(),
+                domain = it.domain.orEmpty(),
+                name = it.name,
+                photo = it.photo.orEmpty().map { photo -> photo.toAlbumThumb() },
+                bio = it.bio,
+                genres = it.genres.orEmpty().map { genre -> Genre(genre.id, genre.name) },
+                is_album_cover = it.is_album_cover,
+                can_follow = it.can_follow,
+                is_followed = it.is_followed,
+                track_code = it.track_code,
+                can_play = it.can_play,
+                video_owner_id = it.video_owner_id,
+                flags_context = it.flags_context,
+                listeners_count = it.listeners_count,
+            )
         },
         featured_artists = featured_artists.orEmpty().map {
-            MainArtist(id = it.id.orEmpty(), domain = it.domain.orEmpty(), name = it.name)
+            MainArtist(
+                id = it.id.orEmpty(),
+                domain = it.domain.orEmpty(),
+                name = it.name,
+                photo = it.photo.orEmpty().map { photo -> photo.toAlbumThumb() },
+                bio = it.bio,
+                genres = it.genres.orEmpty().map { genre -> Genre(genre.id, genre.name) },
+                is_album_cover = it.is_album_cover,
+                can_follow = it.can_follow,
+                is_followed = it.is_followed,
+                track_code = it.track_code,
+                can_play = it.can_play,
+                video_owner_id = it.video_owner_id,
+                flags_context = it.flags_context,
+                listeners_count = it.listeners_count,
+            )
         },
         subtitle = subtitle,
+        track_genre_id = track_genre_id,
+        album_part_number = album_part_number,
         is_focus_track = is_focus_track == true,
         has_lyrics = has_lyrics == true,
+        dislike = dislike == true,
+        podcast_info = podcast_info,
+        audio_chart_info = audio_chart_info?.let {
+            AudioChartInfo(position = it.position ?: 0, state = it.state ?: 0)
+        },
+        stream_duration = stream_duration ?: 0,
         release_audio_id = release_audio_id,
+        like = like,
         thumb = thumb?.toAlbumThumb(),
         main_color = main_color,
+        flags_context = flags_context ?: 0,
+        ads = ads,
+        stories_allowed = stories_allowed,
+        short_videos_allowed = short_videos_allowed,
+        stories_cover_allowed = stories_cover_allowed,
+        audio_voice_assistant = audio_voice_assistant,
+        original_sound_video_id = original_sound_video_id,
+        in_clips_favorite_allowed = in_clips_favorite_allowed,
+        in_clips_favorite = in_clips_favorite,
+        special_project_id = special_project_id,
+        legal_notices_type = legal_notices_type,
+        preview_url = preview_url,
+        audio_loudness = audio_loudness,
     )
 
     /**
@@ -2788,7 +2856,7 @@ object MusicBackend {
         year = year?.takeIf { it > 0 }?.toString()
             ?: original_year?.takeIf { it > 0 }?.toString(),
         cover = coverUrl().orEmpty(),
-        type = album_type ?: type,
+        type = album?.type ?: album_type ?: type,
         isAlbum = true,
         timestamp = update_time.takeIf { it > 0 }?.toLong()
             ?: create_time.takeIf { it > 0 }?.toLong(),

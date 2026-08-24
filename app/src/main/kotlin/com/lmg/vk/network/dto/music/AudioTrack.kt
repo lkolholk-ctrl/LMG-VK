@@ -22,6 +22,7 @@ data class AudioTrack(
     val is_licensed: Boolean = false,
     val track_code: String = "",
     val url: String = "",
+    val audio_streams: List<AudioStreamDto>? = null,
     val date: Long = 0L,
     val genre_id: Int? = null,
     val content_restricted: Int = 0,
@@ -41,16 +42,25 @@ data class AudioTrack(
     val stream_duration: Int = 0,
     val release_audio_id: String? = null,
     val like: Boolean? = null,
-    /** Сгенерированная VK обложка самого трека, когда album.thumb отсутствует. */
     val thumb: AlbumThumb? = null,
-    /** Цвет, который VK присылает вместе с обложкой для оформления плеера. */
     val main_color: String? = null,
-    /** Presence-only fields used by official VK's Autoflow suitability gate. */
     val nft_info: Any? = null,
     val external_audio: Any? = null,
     val audiobook_chapter: Any? = null,
-    /** Official ContextFlags mask which selects track_mix vs similar tracks. */
     val flags_context: Int = 0,
+    val ads: AudioAdsDto? = null,
+    val stories_allowed: Boolean? = null,
+    val short_videos_allowed: Boolean? = null,
+    val stories_cover_allowed: Boolean? = null,
+    val audio_voice_assistant: AudioVoiceAssistantDto? = null,
+    val original_sound_video_id: String? = null,
+    val in_clips_favorite_allowed: Boolean? = null,
+    val in_clips_favorite: Boolean? = null,
+    val special_project_id: Int? = null,
+    val legal_notices_type: Int? = null,
+    val can_download_short_video: Boolean? = null,
+    val preview_url: AudioPreviewUrlDto? = null,
+    val audio_loudness: AudioLoudnessDto? = null,
 ) {
     /** Полный id VK: "ownerId_audioId" — используется в audio.getById/плеере. */
     val fullId: String get() = "${owner_id}_$id"
@@ -144,6 +154,16 @@ data class MainArtist(
     val name: String = "",
     val photo: List<AlbumThumb>? = null,
     val is_cached: Boolean = false,
+    val bio: String? = null,
+    val genres: List<Genre>? = null,
+    val is_album_cover: Boolean? = null,
+    val can_follow: Boolean? = null,
+    val is_followed: Boolean? = null,
+    val track_code: String? = null,
+    val can_play: Boolean? = null,
+    val video_owner_id: Long? = null,
+    val flags_context: Int? = null,
+    val listeners_count: Int? = null,
 )
 
 /** Из `ua.lmg.vkapi2.objects.music.AudioChartInfo`. */

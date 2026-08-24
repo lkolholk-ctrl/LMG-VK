@@ -42,6 +42,7 @@ data class AudioAudioDto(
     val is_licensed: Boolean? = null,
     val track_code: String? = null,
     val url: String? = null,
+    val audio_streams: List<AudioStreamDto>? = null,
     val date: Int? = null,
     val content_restricted: Int? = null,
     val album_id: Int? = null,
@@ -78,6 +79,22 @@ data class AudioAudioDto(
     /** Track-level cover: именно здесь VK возвращает цветной fallback. */
     val thumb: AudioPhotoDto? = null,
     val main_color: String? = null,
+    val ads: AudioAdsDto? = null,
+    val audio_loudness: AudioLoudnessDto? = null,
+    val audio_voice_assistant: AudioVoiceAssistantDto? = null,
+    val dislike: Boolean? = null,
+    val file_size: Long? = null,
+    val flags_context: Int? = null,
+    val itunes_preview: Any? = null,
+    val legal_notices_type: Int? = null,
+    val like: Boolean? = null,
+    val meta: AudioAudioMetaDto? = null,
+    val permissions: AudioAudioPermissionsDto? = null,
+    val preview_url: AudioPreviewUrlDto? = null,
+    val region_restrictions: Any? = null,
+    val rightholder_marks: List<String>? = null,
+    val special_project_id: Int? = null,
+    val stream_duration: Int? = null,
 ) {
     val fullId: String get() = "${owner_id}_$id"
 
@@ -112,10 +129,14 @@ data class AudioArtistDto(
     val can_play: Boolean? = null,
     val genres: List<AudioGenreDto>? = null,
     val bio: String? = null,
-    val pages: List<Any?>? = null,
+    val pages: List<Int>? = null,
     val profiles: List<Any?>? = null,
     val groups: List<Any?>? = null,
     val track_code: String? = null,
+    val flags_context: Int? = null,
+    val listeners_count: Int? = null,
+    val popular_audios_block_id: String? = null,
+    val video_owner_id: Long? = null,
 )
 
 @JsonClass(generateAdapter = true)
@@ -185,6 +206,9 @@ data class AudioPlaylistDto(
     val audios_total_file_size: Float? = null,
     val exclusive: Boolean? = null,
     val icon: String? = null,
+    val album: AudioPlaylistAlbumItemDto? = null,
+    val flags_context: Int? = null,
+    val main_color: String? = null,
 ) {
     val fullId: String get() = "${owner_id}_$id"
     fun coverUrl(): String? = photo?.bestUrl
@@ -207,6 +231,8 @@ data class AudioPlaylistPermissionsDto(
     val delete: Boolean? = null,
     val boom_download: Boolean? = null,
     val save_as_copy: Boolean? = null,
+    val view_content: Boolean? = null,
+    val view_content_queue: Boolean? = null,
 )
 
 @JsonClass(generateAdapter = true)
@@ -229,16 +255,19 @@ data class AudioPhotoDto(
     val photo_1200: String? = null,
     val sizes: List<AudioPhotoSizesDto>? = null,
 ) {
-    val bestUrl: String? get() = listOfNotNull(
-        photo_1200,
-        photo_600,
-        photo_300,
-        photo_270,
-        photo_135,
-        photo_68,
-        photo_34,
-    ).firstOrNull { it.isNotBlank() }
-        ?: sizes.orEmpty().maxByOrNull { it.width * it.height }?.src
+    val bestUrl: String? get() = sizes.orEmpty()
+        .filter { it.src.isNotBlank() }
+        .maxByOrNull { it.width.toLong() * it.height.toLong() }
+        ?.src
+        ?: listOfNotNull(
+            photo_1200,
+            photo_600,
+            photo_300,
+            photo_270,
+            photo_135,
+            photo_68,
+            photo_34,
+        ).firstOrNull { it.isNotBlank() }
 }
 
 @JsonClass(generateAdapter = true)

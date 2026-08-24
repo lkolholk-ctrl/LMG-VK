@@ -18,6 +18,7 @@ data class AudioLyricTimestamp(
     val end: Long,
     val line: String,
     val interlude: Boolean = false,
+    val countdown: Int? = null,
 )
 
 /** Из `ua.lmg.vkapi2.objects.music.Genre`. */
@@ -52,6 +53,7 @@ data class RadioStation(
     val is_followed: Boolean = false,
     val is_enabled: Boolean? = null,
     val stream_url: String? = null,
+    val track_code: String? = null,
 ) {
     /** liked — рантайм-поле (в адаптере вычисляется, не из JSON). */
     @Transient
