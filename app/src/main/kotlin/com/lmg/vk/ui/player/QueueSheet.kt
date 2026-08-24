@@ -263,7 +263,7 @@ fun QueueSheet(
                                     .size(44.dp)
                                     .pressScale {
                                         scope.launch {
-                                            libraryRepo.toggleFavorite(currentTrack)
+                                            libraryRepo.toggleFavorite(currentTrack, "player")
                                         }
                                     },
                                 contentAlignment = Alignment.Center

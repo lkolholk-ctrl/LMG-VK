@@ -541,7 +541,7 @@ fun FullPlayer(
                         onDoubleTap = {
                             currentTrackObj?.let { track ->
                                 scope.launch {
-                                    libraryRepo.toggleFavorite(track)
+                                    libraryRepo.toggleFavorite(track, "player")
                                 }
                             }
                         },
@@ -785,7 +785,7 @@ fun FullPlayer(
                         onToggle = {
                             currentTrackObj?.let { track ->
                                 scope.launch {
-                                    libraryRepo.toggleFavorite(track)
+                                    libraryRepo.toggleFavorite(track, "player")
                                 }
                             }
                         }

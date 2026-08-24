@@ -707,7 +707,9 @@ fun AppRoot() {
                         coverUrl = miniTrack.coverUrl,
                         tint = albumColorsForBar.darkMuted,
                         isLiked = miniLiked,
-                        onToggleLike = { scope.launch { miniLibraryRepo.toggleFavorite(miniTrack) } },
+                        onToggleLike = {
+                            scope.launch { miniLibraryRepo.toggleFavorite(miniTrack, "player") }
+                        },
                         onExpand = { animateExpand() },
                         onPlayPause = { PlayerController.togglePlayPause(context) },
                         onSkipNext = { PlayerController.skipNext(context) },

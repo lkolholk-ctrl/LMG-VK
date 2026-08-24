@@ -512,7 +512,7 @@ fun PlaylistDetailScreen(
                 track = selected,
                 isFavorite = com.lmg.vk.engine.VkAudioIdentity.stableFullId(selected.id) in favoriteIds,
                 onToggleFavorite = {
-                    scope.launch { libraryRepository.toggleFavorite(selected) }
+                    scope.launch { libraryRepository.toggleFavorite(selected, "my_playlists") }
                 },
                 onCache = if (isPremium && selected.id !in downloadedIds) {
                     { AudioDownloadManager.downloadTrack(context, selected) }

@@ -800,7 +800,7 @@ fun LibraryScreen(
                             .stableFullId(t.id) in favoriteIds,
                         onToggleFavorite = {
                             scope.launch {
-                                LibraryRepository.getInstance(context).toggleFavorite(t)
+                                LibraryRepository.getInstance(context).toggleFavorite(t, "my_music")
                             }
                         },
                         onAddToPlaylist = { playlistPickerTrack = t },

@@ -529,7 +529,9 @@ fun WaveHomeScreen(
                                     modifier = Modifier.padding(horizontal = 16.dp)
                                 )
                             }
-                            FlatCircleButton(onClick = { PlayerController.toggleFavorite(track.id) }) {
+                            FlatCircleButton(
+                                onClick = { PlayerController.toggleFavorite(track.id, "recoms_mix") },
+                            ) {
                                 Icon(
                                     imageVector = com.lmg.vk.ui.icons.LmgGlyphs.FavoriteOutline28,
                                     contentDescription = stringResource(R.string.action_like),

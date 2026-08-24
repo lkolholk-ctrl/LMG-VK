@@ -1471,7 +1471,10 @@ object MusicBackend {
             )
         }.getOrNull()
 
-    suspend fun addTracksToLibrary(trackIds: Collection<String>): Map<String, String> {
+    suspend fun addTracksToLibrary(
+        trackIds: Collection<String>,
+        ref: String? = "my_music",
+    ): Map<String, String> {
         requireInitialized()
         val requests = trackIds.mapNotNull { trackId ->
             val normalized = normalizeTrackId(trackId)
@@ -1490,6 +1493,7 @@ object MusicBackend {
                 val result = audioApi.add(
                     audioFullId = requestId,
                     accessKey = cached?.access_key,
+                    ref = ref,
                     trackCode = cached?.track_code?.takeIf(String::isNotBlank),
                 )
             ) {
@@ -1515,17 +1519,21 @@ object MusicBackend {
         return added
     }
 
-    suspend fun addTrackToLibraryAndGetId(trackId: String): String? {
+    suspend fun addTrackToLibraryAndGetId(trackId: String, ref: String? = "other"): String? {
         val fullId = VkAudioIdentity.stableFullId(normalizeTrackId(trackId))
-        return addTracksToLibrary(listOf(trackId))[fullId]
+        return addTracksToLibrary(listOf(trackId), ref)[fullId]
     }
 
-    suspend fun addTrackToLibrary(trackId: String): Boolean =
-        addTrackToLibraryAndGetId(trackId) != null
+    suspend fun addTrackToLibrary(trackId: String, ref: String? = "other"): Boolean =
+        addTrackToLibraryAndGetId(trackId, ref) != null
 
-    suspend fun likeTrack(trackId: String, liked: Boolean = true): Boolean {
+    suspend fun likeTrack(
+        trackId: String,
+        liked: Boolean = true,
+        ref: String? = "other",
+    ): Boolean {
         if (!liked) return unlikeTrack(trackId)
-        return addTrackToLibrary(trackId)
+        return addTrackToLibrary(trackId, ref)
     }
 
     suspend fun unlikeTrack(trackId: String): Boolean = runCatching {

@@ -2733,16 +2733,16 @@ object PlayerController {
         }
     }
 
-    fun toggleFavorite(trackId: String) {
+    fun toggleFavorite(trackId: String, ref: String = "player") {
         ioScope.launch {
             val repo = appContext?.let {
                 com.lmg.vk.data.local.db.LibraryRepository.getInstance(it)
             } ?: return@launch
             val track = _currentTrack.value
             if (track != null && track.id == trackId) {
-                repo.toggleFavorite(track)
+                repo.toggleFavorite(track, ref)
             } else {
-                repo.toggleFavoriteById(trackId)
+                repo.toggleFavoriteById(trackId, ref)
             }
         }
     }

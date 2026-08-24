@@ -548,7 +548,10 @@ class LibraryRepository private constructor(context: Context) {
         }
     }
 
-    private suspend fun addPendingTrackToCloud(trackId: String): Result<Unit> = syncMutex.withLock {
+    private suspend fun addPendingTrackToCloud(
+        trackId: String,
+        ref: String,
+    ): Result<Unit> = syncMutex.withLock {
         if (
             !MusicBackend.isInitialized ||
             !MusicAuth.isLoggedIn.value ||
@@ -565,7 +568,7 @@ class LibraryRepository private constructor(context: Context) {
             return@withLock Result.failure(IllegalStateException("Track addition is already in progress"))
         }
         try {
-            val cloudId = MusicBackend.addTrackToLibraryAndGetId(current.addRequestId())
+            val cloudId = MusicBackend.addTrackToLibraryAndGetId(current.addRequestId(), ref)
                 ?: return@withLock Result.failure(IllegalStateException("VK rejected audio.add"))
             if (MusicAuth.profileId.value != accountId) {
                 return@withLock Result.failure(IllegalStateException("VK account changed during audio.add"))
@@ -577,7 +580,10 @@ class LibraryRepository private constructor(context: Context) {
         }
     }
 
-    suspend fun likeTrack(track: Track): Result<Unit> = withContext(Dispatchers.IO) {
+    suspend fun likeTrack(
+        track: Track,
+        ref: String = "other",
+    ): Result<Unit> = withContext(Dispatchers.IO) {
         try {
             val bareId = stableTrackId(track.id)
             val keyFromId = accessKeyFromId(track.id)
@@ -600,7 +606,7 @@ class LibraryRepository private constructor(context: Context) {
                 if (current.isSynced && current.cloudTrackId != null) {
                     return@withContext Result.success(Unit)
                 }
-                return@withContext addPendingTrackToCloud(current.trackId)
+                return@withContext addPendingTrackToCloud(current.trackId, ref)
             }
 
             val pending = FavoriteTrackEntity(
@@ -622,7 +628,7 @@ class LibraryRepository private constructor(context: Context) {
             )
             db.insert(pending)
             updatePlayerControllerFavorites()
-            val result = addPendingTrackToCloud(bareId)
+            val result = addPendingTrackToCloud(bareId, ref)
             if (result.isFailure && MusicAuth.profileId.value == accountId) {
                 val current = db.getByTrackId(bareId)
                 if (current?.isSynced != true) db.deleteByLocalTrackId(bareId)
@@ -658,18 +664,24 @@ class LibraryRepository private constructor(context: Context) {
         }
     }
 
-    suspend fun toggleFavorite(track: Track): Boolean = withContext(Dispatchers.IO) {
+    suspend fun toggleFavorite(
+        track: Track,
+        ref: String = "other",
+    ): Boolean = withContext(Dispatchers.IO) {
         val bareId = stableTrackId(track.id)
         val isCurrentlyLiked = db.isFavorite(bareId)
         if (isCurrentlyLiked) {
             unlikeTrack(bareId)
             false
         } else {
-            likeTrack(track).isSuccess
+            likeTrack(track, ref).isSuccess
         }
     }
 
-    suspend fun toggleFavoriteById(trackId: String): Boolean = withContext(Dispatchers.IO) {
+    suspend fun toggleFavoriteById(
+        trackId: String,
+        ref: String = "player",
+    ): Boolean = withContext(Dispatchers.IO) {
         val bareId = stableTrackId(trackId)
         val isCurrentlyLiked = db.isFavorite(bareId)
         if (isCurrentlyLiked) {
@@ -680,7 +692,7 @@ class LibraryRepository private constructor(context: Context) {
                 stableTrackId(it.id) == bareId
             }
             if (trackFromQueue != null) {
-                likeTrack(trackFromQueue).isSuccess
+                likeTrack(trackFromQueue, ref).isSuccess
             } else {
                 val metadata = MusicBackend.getTrackMeta(trackId) ?: return@withContext false
                 likeTrack(
@@ -697,6 +709,7 @@ class LibraryRepository private constructor(context: Context) {
                         source = "vk",
                         genre = metadata.genre,
                     ),
+                    ref,
                 ).isSuccess
             }
         }

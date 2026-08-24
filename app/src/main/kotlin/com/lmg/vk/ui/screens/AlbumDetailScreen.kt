@@ -526,7 +526,7 @@ fun AlbumDetailScreen(
                 track = selected,
                 isFavorite = com.lmg.vk.engine.VkAudioIdentity.stableFullId(selected.id) in favoriteIds,
                 onToggleFavorite = {
-                    scope.launch { libraryRepository.toggleFavorite(selected) }
+                    scope.launch { libraryRepository.toggleFavorite(selected, "other") }
                 },
                 onCache = if (isPremium && selected.id !in downloadedIds) {
                     { AudioDownloadManager.downloadTrack(context, selected) }

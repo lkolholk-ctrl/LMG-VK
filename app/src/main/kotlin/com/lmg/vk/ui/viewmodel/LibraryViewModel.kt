@@ -198,7 +198,7 @@ class LibraryViewModel(context: Context) : ViewModel() {
      */
     fun toggleFavorite(track: Track) {
         viewModelScope.launch(Dispatchers.IO) {
-            repository.toggleFavorite(track)
+            repository.toggleFavorite(track, "my_music")
         }
     }
 
