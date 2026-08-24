@@ -109,6 +109,8 @@ fun AudioTrack.withVkArtworkFallback(fallback: AudioTrack?): AudioTrack {
         )
     }
     return copy(
+        access_key = access_key ?: fallback.access_key,
+        track_code = track_code.ifBlank { fallback.track_code },
         album = mergedAlbum,
         thumb = thumb.realVkThumbOrNull()
             ?: fallback.thumb.realVkThumbOrNull()

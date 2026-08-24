@@ -35,12 +35,24 @@ class VkAudioApi(
     private val client: VkApiClient,
 ) {
     /** `audio.getById`: точечный resolve полных VK id (`owner_id_audio_id`). */
-    suspend fun getById(audioFullIds: Collection<String>): VkResult<List<AudioTrack>> {
-        if (audioFullIds.isEmpty()) return VkResult.Success(emptyList())
-        val method = VkMethod("audio.getById", DirectAudioTrackListParser).apply {
-            param("audios", audioFullIds.joinToString(",") { it.removePrefix("vk_") })
+    suspend fun getById(
+        audioFullIds: Collection<String>,
+        ref: String? = null,
+    ): VkResult<List<AudioTrack>> {
+        val ids = audioFullIds.map { it.removePrefix("vk_") }
+        if (ids.isEmpty()) return VkResult.Success(emptyList())
+        val tracks = ArrayList<AudioTrack>(ids.size)
+        for (chunk in ids.chunked(100)) {
+            val method = VkMethod("audio.getById", DirectAudioTrackListParser).apply {
+                param("audios", chunk.joinToString(","))
+                param("ref", ref)
+            }
+            when (val result = client.execute(method)) {
+                is VkResult.Success -> tracks.addAll(result.data)
+                is VkResult.Error -> return result
+            }
         }
-        return client.execute(method)
+        return VkResult.Success(tracks)
     }
 
     /** `audio.getLyrics` (C13029e, id=12). Параметр — полный audio_id. */

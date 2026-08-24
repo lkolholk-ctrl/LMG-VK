@@ -56,6 +56,17 @@ sealed class PlaybackContext {
     object Global : PlaybackContext()
 }
 
+private fun PlaybackContext.playbackRef(): String = when (this) {
+    PlaybackContext.Downloads -> "downloads"
+    is PlaybackContext.Catalog -> "catalog"
+    is PlaybackContext.Playlist -> "playlist"
+    is PlaybackContext.Album -> "album"
+    is PlaybackContext.Artist -> "artist"
+    is PlaybackContext.OwnerAudio -> "user_profile"
+    is PlaybackContext.VkMix -> session.sourceRef
+    PlaybackContext.Global -> "other"
+}
+
 enum class PlaybackBackend {
     EXO_STREAMING,
     JUCE_LOCAL
@@ -692,9 +703,11 @@ object PlayerController {
         appContext = context.applicationContext
     }
 
+    @Volatile
     private var activeAccountId = Long.MIN_VALUE
     @Volatile
     private var queueAccountId = 0L
+    private var playbackStartJob: Job? = null
 
     fun playbackAccountId(): Long = queueAccountId
 
@@ -705,6 +718,8 @@ object PlayerController {
         val hasOnlinePlayback = _currentTrack.value?.isOnlineTrack == true ||
             _queueFlow.value.any { it.isOnlineTrack }
         activeAccountId = resolvedUserId
+        playbackStartJob?.cancel()
+        playbackStartJob = null
         _favoriteIds.value = emptySet()
         _recentlyPlayed.value = emptyList()
         streamUrlCache.clear()
@@ -1139,7 +1154,8 @@ object PlayerController {
         }
 
         _isVideoClip.value = false   // обычный трек — не видеоклип
-        ioScope.launch {
+        playbackStartJob?.cancel()
+        playbackStartJob = ioScope.launch {
             // ── ABSOLUTE QUEUE PURGE: wipe old queue before loading ──
             withContext(Dispatchers.Main) {
                 endMixPromptPlayback("change_source")
@@ -1180,10 +1196,32 @@ object PlayerController {
                 endlessEngine.registerTracks(tracks.map { it.id })
             }
 
-            // Resolve stream URL for the starting track upfront (fast — single IOS client)
-            // Other tracks in the queue will be resolved on demand by ResolvingDataSource
+            val refreshedStreams = if (startTrack.isOnlineTrack) {
+                try {
+                    MusicBackend.refreshPlaybackStreams(
+                        trackIds = tracks.map(Track::id),
+                        ref = newContext.playbackRef(),
+                    )
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (_: Exception) {
+                    emptyMap()
+                }
+            } else {
+                emptyMap()
+            }
+            val refreshedUris = buildMap {
+                tracks.forEach { track ->
+                    val info = refreshedStreams[VkAudioIdentity.stableFullId(track.id)]
+                        ?: return@forEach
+                    val result = cacheAndReturn(track.id, info)
+                    if (result is StreamResult.Success) put(track.id, result.uri)
+                }
+            }
+
             val startStreamResult = if (startTrack.isOnlineTrack) {
-                resolveStreamUrl(startTrack.id)
+                refreshedUris[startTrack.id]?.let { StreamResult.Success(it) }
+                    ?: resolveStreamUrl(startTrack.id)
             } else {
                 StreamResult.Success(startTrack.uri)
             }
@@ -1193,8 +1231,8 @@ object PlayerController {
                     val immutableTracks = tracks.toList()
 
                     val mediaItems = tracks.mapIndexed { i, track ->
-                        // Start track gets resolved URL, others use trackId (resolved on demand)
-                        val uri = if (i == startIndex) startStreamResult.uri else track.uri
+                        val uri = refreshedUris[track.id]
+                            ?: if (i == startIndex) startStreamResult.uri else track.uri
                         buildMediaItem(track, uri)
                     }
 
@@ -1283,6 +1321,8 @@ object PlayerController {
             android.util.Log.e("VOIDPIXEL_MEDIA", "playLocalOnJuce: empty tracks or bad startIndex=$startIndex")
             return
         }
+        playbackStartJob?.cancel()
+        playbackStartJob = null
         queueAccountId = activeAccountId.coerceAtLeast(0L)
         val startTrackId = tracks[startIndex].id
         val localTracks = tracks.filter { kindOf(it) == TrackKind.LOCAL }

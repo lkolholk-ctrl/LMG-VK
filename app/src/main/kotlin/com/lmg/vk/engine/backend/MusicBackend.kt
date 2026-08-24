@@ -407,6 +407,37 @@ object MusicBackend {
     suspend fun getStreamUrl(trackId: String, source: String? = null): String? =
         runCatching { getTrackInfo(trackId, streamQuality).url }.getOrNull()
 
+    suspend fun refreshPlaybackStreams(
+        trackIds: Collection<String>,
+        quality: String = streamQuality,
+        ref: String? = null,
+    ): Map<String, StreamInfo> {
+        requireInitialized()
+        val requestIds = trackIds.asSequence()
+            .filter(VkAudioIdentity::isFullId)
+            .map(::playbackRequestId)
+            .distinct()
+            .toList()
+        if (requestIds.isEmpty()) return emptyMap()
+        val refreshed = LinkedHashMap<String, StreamInfo>(requestIds.size)
+        for (chunk in requestIds.chunked(100)) {
+            when (val result = audioApi.getById(chunk, ref)) {
+                is VkResult.Success -> result.data.forEach { received ->
+                    val track = cacheTrack(received)
+                    if (track.isAvailable && track.url.isPlayableStreamUrl()) {
+                        val info = track.toStreamInfo(quality)
+                        streamCache[track.fullId] = CachedStream(info, System.currentTimeMillis())
+                        refreshed[track.fullId] = info
+                    }
+                }
+                is VkResult.Error -> com.lmg.vk.debug.DebugLog.add(
+                    "VK PLAYBACK refresh failed code=${result.code} batch=${chunk.size}",
+                )
+            }
+        }
+        return refreshed
+    }
+
     suspend fun getTrackMeta(trackId: String): TrackMeta? =
         runCatching { resolveTrack(trackId).toTrackMeta() }.getOrNull()
 
@@ -1845,17 +1876,18 @@ object MusicBackend {
         requireInitialized()
         val id = streamCacheKey(trackId)
         if (!forceNetwork) trackCache[id]?.let { return it }
-        // Третий сегмент `_access_key` обязателен для чужих/ограниченных записей:
-        // без него VK на audio.getById возвращает трек, но БЕЗ поля url (либо с
-        // плейсхолдером). Ключ приходит в выдаче поиска/каталога и лежит в
-        // trackCache, а `fullId` его теряет — поэтому берём его отсюда, как
-        // `AudioFile.asIdWithKey()` в VK MP3 Mod.
-        val explicitKey = normalizeTrackId(trackId).split('_').getOrNull(2)?.takeIf { it.isNotBlank() }
-        val accessKey = explicitKey ?: trackCache[id]?.access_key?.takeIf { it.isNotBlank() }
-        val requestId = accessKey?.let { "${id}_$it" } ?: id
+        val requestId = playbackRequestId(trackId)
         val track = audioApi.getById(listOf(requestId)).requireData().firstOrNull()
             ?: throw backendFailure(404, "Трек $id не найден")
         return cacheTrack(track)
+    }
+
+    private fun playbackRequestId(trackId: String): String {
+        val normalized = normalizeTrackId(trackId)
+        val id = streamCacheKey(normalized)
+        val explicitKey = normalized.split('_').getOrNull(2)?.takeIf(String::isNotBlank)
+        val accessKey = explicitKey ?: trackCache[id]?.access_key?.takeIf(String::isNotBlank)
+        return accessKey?.let { "${id}_$it" } ?: id
     }
 
     /**
