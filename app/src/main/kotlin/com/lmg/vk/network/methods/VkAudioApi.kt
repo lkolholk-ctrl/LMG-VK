@@ -129,19 +129,18 @@ class VkAudioApi(
     /** `audio.getRecommendations` (C13029e, id=15). */
     suspend fun getRecommendations(
         targetAudio: String? = null,
-        offset: Int = 0,
         count: Int = 100,
-        userId: Long? = null,
+        isChild: Boolean = false,
     ): VkResult<List<AudioTrack>> {
+        require(count in 0..1000)
         val listType = Types.newParameterizedType(List::class.java, AudioTrack::class.java)
         val method = VkMethod(
             "audio.getRecommendations",
             MoshiEnvelopeParser<List<AudioTrack>>(listType),
         ).apply {
-            param("offset", offset.coerceAtLeast(0))
-            param("count", count.coerceIn(1, 100))
-            userId?.let { param("user_id", it) }
             param("target_audio", targetAudio?.removePrefix("vk_"))
+            param("count", count)
+            param("is_child", isChild)
         }
         return client.execute(method)
     }
@@ -156,18 +155,7 @@ class VkAudioApi(
     suspend fun getSimilarTrackRecommendations(
         targetAudio: String,
         isChild: Boolean = false,
-    ): VkResult<List<AudioTrack>> {
-        val listType = Types.newParameterizedType(List::class.java, AudioTrack::class.java)
-        val method = VkMethod(
-            "audio.getRecommendations",
-            MoshiEnvelopeParser<List<AudioTrack>>(listType),
-        ).apply {
-            param("target_audio", targetAudio.removePrefix("vk_"))
-            param("count", 100)
-            param("is_child", isChild)
-        }
-        return client.execute(method)
-    }
+    ): VkResult<List<AudioTrack>> = getRecommendations(targetAudio, 100, isChild)
 
     /** `audio.getStreamMixAudios` (C13029e, id=17). */
     suspend fun getStreamMixAudios(
@@ -209,11 +197,17 @@ class VkAudioApi(
     }
 
     /** `audio.getStreamMixSettings` (C7914e/C6114e). */
-    suspend fun getStreamMixSettings(mixId: String): VkResult<AudioStreamMixSettingsResponse> {
+    suspend fun getStreamMixSettings(
+        mixId: String?,
+        needUserSettings: Boolean = true,
+    ): VkResult<AudioStreamMixSettingsResponse> {
         val method = VkMethod(
             "audio.getStreamMixSettings",
             MoshiEnvelopeParser<AudioStreamMixSettingsResponse>(AudioStreamMixSettingsResponse::class.java),
-        ).apply { param("mix_id", mixId) }
+        ).apply {
+            param("mix_id", mixId)
+            param("need_user_settings", needUserSettings)
+        }
         return client.execute(method)
     }
 
@@ -296,19 +290,45 @@ class VkAudioApi(
         return client.execute(method)
     }
 
-    suspend fun followRadioStation(stationId: Int): VkResult<Unit> {
+    suspend fun followRadioStation(stationId: Int, ref: String? = null): VkResult<Unit> {
         val method = VkMethod("audio.followRadioStation", UnitParser).apply {
             param("station_id", stationId)
+            param("ref", ref)
         }
         return client.execute(method)
     }
 
-    suspend fun unfollowRadioStation(stationId: Int): VkResult<Unit> {
+    suspend fun unfollowRadioStation(stationId: Int, ref: String? = null): VkResult<Unit> {
         val method = VkMethod("audio.unfollowRadioStation", UnitParser).apply {
             param("station_id", stationId)
+            param("ref", ref)
         }
         return client.execute(method)
     }
+
+    suspend fun getRestrictionsInfo(): VkResult<Any> =
+        client.execute(VkMethod("audio.getRestrictionsInfo", AnyParser))
+
+    suspend fun getKidsMode(): VkResult<Any> =
+        client.execute(VkMethod("audio.getKidsMode", AnyParser))
+
+    suspend fun setKidsMode(state: Boolean): VkResult<Unit> {
+        val method = VkMethod("audio.setKidsMode", UnitParser).apply {
+            param("state", state)
+        }
+        return client.execute(method)
+    }
+
+    suspend fun radioGetById(stationIds: Collection<Int>): VkResult<Any> {
+        require(stationIds.isNotEmpty())
+        val method = VkMethod("audio.radioGetById", AnyParser).apply {
+            param("station_ids", stationIds.joinToString(","))
+        }
+        return client.execute(method)
+    }
+
+    suspend fun getUserConfig(): VkResult<Any> =
+        client.execute(VkMethod("audio.getUserConfig", AnyParser))
 
     /**
      * Скрытый путь получения ссылки из VK MP3 MOD (prefs-флаг `audio_rip`).
@@ -355,12 +375,10 @@ class VkAudioApi(
         playlistId: Int,
         ownerId: Long,
         audioIds: Collection<String>,
-        accessKey: String? = null,
     ): VkResult<Any> {
         val method = VkMethod("audio.addToPlaylist", MoshiEnvelopeParser<Any>(Any::class.java)).apply {
-            param("playlist_id", playlistId)
             param("owner_id", ownerId)
-            param("access_key", accessKey)
+            param("playlist_id", playlistId)
             param("audio_ids", audioIds.joinToString(",") { it.removePrefix("vk_") })
         }
         return client.execute(method)
@@ -370,10 +388,29 @@ class VkAudioApi(
     suspend fun createPlaylist(
         ownerId: Long,
         title: String,
+        description: String? = null,
+        audioIds: Collection<String>? = null,
+        noDiscover: Boolean? = null,
     ): VkResult<AudioPlaylist> {
+        require(title.length <= 1024)
+        require(description == null || description.length <= 1024)
         val method = VkMethod("audio.createPlaylist", PlaylistParser).apply {
             param("owner_id", ownerId)
             param("title", title)
+            param("description", description)
+            audioIds?.let { ids ->
+                param("audio_ids", ids.joinToString(",") { it.removePrefix("vk_") })
+            }
+            noDiscover?.let { param("no_discover", it) }
+        }
+        return client.execute(method)
+    }
+
+    suspend fun createPlaylistByFilter(ownerId: Long, filter: String?): VkResult<Any> {
+        require(filter == null || filter.length <= 256)
+        val method = VkMethod("audio.createPlaylistByFilter", AnyParser).apply {
+            param("owner_id", ownerId)
+            param("filter", filter)
         }
         return client.execute(method)
     }
@@ -413,21 +450,20 @@ class VkAudioApi(
         return client.execute(method)
     }
 
-    suspend fun followArtist(userId: Long, artistId: String): VkResult<Unit> =
-        followArtistMethod("audio.followArtist", userId, artistId)
+    suspend fun followArtist(artistId: String, ref: String = "banner"): VkResult<Unit> =
+        followArtistMethod("audio.followArtist", artistId, ref)
 
-    suspend fun unfollowArtist(userId: Long, artistId: String): VkResult<Unit> =
-        followArtistMethod("audio.unfollowArtist", userId, artistId)
+    suspend fun unfollowArtist(artistId: String, ref: String = "banner"): VkResult<Unit> =
+        followArtistMethod("audio.unfollowArtist", artistId, ref)
 
     private suspend fun followArtistMethod(
         name: String,
-        userId: Long,
         artistId: String,
+        ref: String,
     ): VkResult<Unit> {
         val method = VkMethod(name, UnitParser).apply {
-            param("user_id", userId)
             param("artist_id", artistId)
-            param("ref", "banner")
+            param("ref", ref)
         }
         return client.execute(method)
     }
@@ -443,15 +479,14 @@ class VkAudioApi(
         return client.execute(method)
     }
 
-    suspend fun followCurator(userId: Long, curatorId: Long): VkResult<Unit> =
-        curatorMutation("audio.followCurator", userId, curatorId)
+    suspend fun followCurator(curatorId: String): VkResult<Unit> =
+        curatorMutation("audio.followCurator", curatorId)
 
-    suspend fun unfollowCurator(userId: Long, curatorId: Long): VkResult<Unit> =
-        curatorMutation("audio.unfollowCurator", userId, curatorId)
+    suspend fun unfollowCurator(curatorId: String): VkResult<Unit> =
+        curatorMutation("audio.unfollowCurator", curatorId)
 
-    private suspend fun curatorMutation(name: String, userId: Long, curatorId: Long): VkResult<Unit> {
+    private suspend fun curatorMutation(name: String, curatorId: String): VkResult<Unit> {
         val method = VkMethod(name, UnitParser).apply {
-            param("user_id", userId)
             param("curator_id", curatorId)
         }
         return client.execute(method)
@@ -570,16 +605,45 @@ class VkAudioApi(
     // audio.get — треки пользователя/плейлиста (AbstractC1085e.ad)
     // ---------------------------------------------------------------
     suspend fun getAudios(
-        ownerId: Long,
+        ownerId: Long?,
         offset: Int,
         count: Int,
         playlistId: Int? = null,
+        shuffleSeed: Int? = null,
+        extended: Boolean? = true,
+        accessKey: String? = null,
+        ref: String? = null,
     ): VkResult<List<AudioTrack>> {
         val method = VkMethod("audio.get", AudioTrackListParser).apply {
-            param("count", count)
-            param("offset", offset)
-            param("owner_id", ownerId)
+            ownerId?.let { param("owner_id", it) }
             playlistId?.let { param("playlist_id", it) }
+            shuffleSeed?.let { param("shuffle_seed", it) }
+            param("offset", offset)
+            param("count", count)
+            extended?.let { param("extended", it) }
+            param("access_key", accessKey)
+            param("ref", ref)
+        }
+        return client.execute(method)
+    }
+
+    suspend fun getLegacyAudios(
+        ownerId: Long?,
+        offset: Int,
+        count: Int,
+        playlistId: Int? = null,
+        extended: Boolean? = true,
+        accessKey: String? = null,
+        ref: String? = null,
+    ): VkResult<List<AudioTrack>> {
+        val method = VkMethod("getAudios", AudioTrackListParser).apply {
+            ownerId?.let { param("owner_id", it) }
+            playlistId?.let { param("playlist_id", it) }
+            param("offset", offset)
+            param("count", count)
+            extended?.let { param("extended", it) }
+            param("access_key", accessKey)
+            param("ref", ref)
         }
         return client.execute(method)
     }
@@ -590,16 +654,24 @@ class VkAudioApi(
      * а не длина выданной страницы.
      */
     suspend fun getAudiosPage(
-        ownerId: Long,
+        ownerId: Long?,
         offset: Int,
         count: Int,
         playlistId: Int? = null,
+        shuffleSeed: Int? = null,
+        extended: Boolean? = true,
+        accessKey: String? = null,
+        ref: String? = null,
     ): VkResult<VkItems<AudioTrack>> {
         val method = VkMethod("audio.get", AudioTrackPageParser).apply {
-            param("count", count)
-            param("offset", offset)
-            param("owner_id", ownerId)
+            ownerId?.let { param("owner_id", it) }
             playlistId?.let { param("playlist_id", it) }
+            shuffleSeed?.let { param("shuffle_seed", it) }
+            param("offset", offset)
+            param("count", count)
+            extended?.let { param("extended", it) }
+            param("access_key", accessKey)
+            param("ref", ref)
         }
         return client.execute(method)
     }
@@ -695,40 +767,47 @@ class VkAudioApi(
         return client.execute(method)
     }
 
-    // ---------------------------------------------------------------
-    // audio.getPlaylistById (C4271e)
-    // ---------------------------------------------------------------
-    /**
-     * `audio.getPlaylistById`.
-     *
-     * [extraFields] — набор дополнительных полей ответа. Допустимые значения
-     * сверены с декомпилом 8.185 (`AudioGetPlaylistByIdExtraFieldsDto`), их
-     * ровно четыре: `album_parts_first_audios`, `audio_ids`,
-     * `extra_recommendations_section_id`, `owner`.
-     *
-     * Практический смысл:
-     *  - `audio_ids` — лёгкий список id без полных объектов треков, дешевле для
-     *    построения очереди;
-     *  - `album_parts_first_audios` — первый трек каждой части многодискового
-     *    альбома, даёт заголовки «Диск 1 / Диск 2».
-     *
-     * `duration` в этот список НЕ входит, хотя в первичном отчёте по декомпилу
-     * он упоминался — проверка по самому DTO это не подтвердила.
-     *
-     * `access_key` и `extended` СОЗНАТЕЛЬНО не добавлены: официальный клиент их
-     * шлёт, но это путь доступа к трекам — зона, менять которую в этом проекте
-     * запрещено владельцем.
-     */
     suspend fun getPlaylistById(
         ownerId: Long,
         playlistId: Int,
         extraFields: List<String> = emptyList(),
+        extended: Boolean? = true,
+        accessKey: String? = null,
+        trackCount: Int? = null,
+        ref: String? = null,
     ): VkResult<AudioPlaylist> {
+        require(trackCount == null || trackCount in 0..30)
         val method = VkMethod("audio.getPlaylistById", PlaylistParser).apply {
-            param("playlist_id", playlistId)
             param("owner_id", ownerId)
+            param("playlist_id", playlistId)
+            extended?.let { param("extended", it) }
             extraFields.takeIf { it.isNotEmpty() }
                 ?.let { param("extra_fields", it.joinToString(",")) }
+            param("access_key", accessKey)
+            trackCount?.let { param("track_count", it) }
+            param("ref", ref)
+        }
+        return client.execute(method)
+    }
+
+    suspend fun removeFromPlaylist(
+        ownerId: Long,
+        playlistId: Int,
+        audioIds: Collection<String>,
+    ): VkResult<AudioPlaylist> {
+        require(audioIds.isNotEmpty())
+        val method = VkMethod("audio.removeFromPlaylist", PlaylistParser).apply {
+            param("owner_id", ownerId)
+            param("playlist_id", playlistId)
+            param("audio_ids", audioIds.joinToString(",") { it.removePrefix("vk_") })
+        }
+        return client.execute(method)
+    }
+
+    suspend fun removeKidsAudios(audioIds: Collection<String>): VkResult<List<String>> {
+        require(audioIds.isNotEmpty())
+        val method = VkMethod("kidsCollection.removeAudios", StringListParser).apply {
+            param("audio_ids", audioIds.joinToString(",") { it.removePrefix("vk_") })
         }
         return client.execute(method)
     }
@@ -911,8 +990,23 @@ class VkAudioApi(
 
         override suspend fun parse(raw: RawHttpResponse): VkParsedResponse<Unit> {
             val parsed = delegate.parse(raw)
-            return VkParsedResponse(parsed.data?.let { Unit }, parsed.error)
+            return VkParsedResponse(parsed.data?.let { Unit }, parsed.error, parsed.executeErrors)
         }
+    }
+
+    private object AnyParser : VkResponseParser<Any> {
+        private val delegate = MoshiEnvelopeParser<Any>(Any::class.java)
+
+        override suspend fun parse(raw: RawHttpResponse): VkParsedResponse<Any> = delegate.parse(raw)
+    }
+
+    private object StringListParser : VkResponseParser<List<String>> {
+        private val delegate = MoshiEnvelopeParser<List<String>>(
+            Types.newParameterizedType(List::class.java, String::class.java),
+        )
+
+        override suspend fun parse(raw: RawHttpResponse): VkParsedResponse<List<String>> =
+            delegate.parse(raw)
     }
 
     private object IntParser : VkResponseParser<Int> {

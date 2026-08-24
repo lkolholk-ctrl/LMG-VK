@@ -59,9 +59,19 @@ class VkMethodsRegistry(private val client: VkApiClient) {
     // ======================= AUDIO (дополнение к VkAudioApi) =======================
 
     /** audio.add — добавить трек к себе. */
-    suspend fun audioAdd(audioId: Int, ownerId: Long, accessKey: String? = null) =
+    suspend fun audioAdd(
+        audioId: Int,
+        ownerId: Long,
+        ref: String? = null,
+        accessKey: String? = null,
+        trackCode: String? = null,
+    ) =
         executeUnit("audio.add") {
-            param("audio_id", audioId); param("owner_id", ownerId); param("access_key", accessKey)
+            param("audio_id", audioId)
+            param("owner_id", ownerId)
+            param("ref", ref)
+            param("access_key", accessKey)
+            param("track_code", trackCode)
         }
 
     /** audio.delete / audio.restore. */
@@ -101,7 +111,7 @@ class VkMethodsRegistry(private val client: VkApiClient) {
      */
     suspend fun getIdsBySource(
         source: String,
-        entityId: String,
+        entityId: String?,
         ref: String? = null,
     ): VkResult<List<String>> {
         val method = VkMethod("audio.getIdsBySource", AudioIdsParser).apply {
@@ -126,8 +136,11 @@ class VkMethodsRegistry(private val client: VkApiClient) {
         }
 
     /** audio.getStreamMixSettings — настройки «микса» (волна/поток). */
-    suspend fun getStreamMixSettings(mixId: String) =
-        execute<Any>("audio.getStreamMixSettings") { param("mix_id", mixId) }
+    suspend fun getStreamMixSettings(mixId: String?, needUserSettings: Boolean = true) =
+        execute<Any>("audio.getStreamMixSettings") {
+            param("mix_id", mixId)
+            param("need_user_settings", needUserSettings)
+        }
 
     /**
      * audio.reorderInPlaylist.
@@ -159,11 +172,17 @@ class VkMethodsRegistry(private val client: VkApiClient) {
         execute<Any>("audio.recommendationsOnboarding") { }
 
     /** audio.followRadioStation / unfollow. */
-    suspend fun followRadioStation(stationId: Int) =
-        executeUnit("audio.followRadioStation") { param("station_id", stationId) }
+    suspend fun followRadioStation(stationId: Int, ref: String? = null) =
+        executeUnit("audio.followRadioStation") {
+            param("station_id", stationId)
+            param("ref", ref)
+        }
 
-    suspend fun unfollowRadioStation(stationId: Int) =
-        executeUnit("audio.unfollowRadioStation") { param("station_id", stationId) }
+    suspend fun unfollowRadioStation(stationId: Int, ref: String? = null) =
+        executeUnit("audio.unfollowRadioStation") {
+            param("station_id", stationId)
+            param("ref", ref)
+        }
 
     /** audio.searchArtists / searchMain. */
     suspend fun searchArtists(query: String, offset: Int, count: Int) =
@@ -946,7 +965,7 @@ class VkMethodsRegistry(private val client: VkApiClient) {
 
         override suspend fun parse(raw: RawHttpResponse): VkParsedResponse<Unit> {
             val parsed = delegate.parse(raw)
-            return VkParsedResponse(parsed.data?.let { Unit }, parsed.error)
+            return VkParsedResponse(parsed.data?.let { Unit }, parsed.error, parsed.executeErrors)
         }
     }
 

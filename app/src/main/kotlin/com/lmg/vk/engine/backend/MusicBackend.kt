@@ -286,21 +286,12 @@ object MusicBackend {
     private val streamCache = ConcurrentHashMap<String, CachedStream>()
     private val waveMutex = Mutex()
     private val waveQueue = ArrayDeque<AudioTrack>()
+    private val waveSeenIds = HashSet<String>()
     private var activeWaveMix: AudioStreamMix? = null
     private var activeWaveAppend = false
 
-    /**
-     * Источник волны уже выбран в этой сессии.
-     *
-     * Без флага ensureWaveSourceLocked уходил в сеть на КАЖДЫЙ вызов, когда
-     * подходящего микса нет: activeWaveMix остаётся null, recommendationOffset
-     * ещё 0 — условие раннего выхода не срабатывает. А takeWaveTracks зовётся на
-     * каждом переходе трека и каждом рефилле очереди, то есть тяжёлый
-     * catalog.getAudioAuto() повторялся без конца.
-     */
     private var waveSourceResolved = false
     private var waveSessionId: String? = null
-    private var recommendationOffset = 0
     private var waveAccountId = Long.MIN_VALUE
 
     fun init(client: VkApiClient, sessions: VkSessionStore) {
@@ -828,7 +819,6 @@ object MusicBackend {
         val recommendations = async {
             audioApi.getRecommendations(
                 count = 50,
-                userId = currentUserId(),
             ).getOrNull().orEmpty().map(::cacheTrack)
         }
         val popular = async {
@@ -1178,11 +1168,10 @@ object MusicBackend {
 
     suspend fun setArtistFollowed(artistId: String, followed: Boolean): Boolean = runCatching {
         val normalizedId = artistId.removePrefix("vk_")
-        val userId = currentUserId()
         val result = if (followed) {
-            audioApi.followArtist(userId, normalizedId)
+            audioApi.followArtist(normalizedId)
         } else {
-            audioApi.unfollowArtist(userId, normalizedId)
+            audioApi.unfollowArtist(normalizedId)
         }
         result.requireData()
         true
@@ -2016,10 +2005,8 @@ object MusicBackend {
             } else {
                 audioApi.getRecommendations(
                     targetAudio = seedTrackId,
-                    offset = recommendationOffset,
-                    count = count.coerceIn(5, 100),
-                    userId = currentUserId(),
-                ).requireData().also { recommendationOffset += it.size }
+                    count = 100,
+                ).requireData()
             }
 
             if (loaded.isEmpty()) {
@@ -2029,8 +2016,7 @@ object MusicBackend {
                 break
             }
             val enriched = loaded.map(::cacheTrack)
-            val queuedIds = waveQueue.asSequence().map(AudioTrack::fullId).toHashSet()
-            enriched.filterNot { it.fullId in queuedIds }.forEach(waveQueue::addLast)
+            enriched.filter { waveSeenIds.add(it.fullId) }.forEach(waveQueue::addLast)
         }
 
         if (currentUserId() != accountId) {
@@ -2043,24 +2029,8 @@ object MusicBackend {
         }
     }
 
-    /**
-     * Выбирает источник волны: настраиваемый микс VK либо рекомендации.
-     *
-     * ДЛЯ ТРЕКА берём микс с `is_tunable = true` — только такие принимают
-     * `entity_id`, то есть умеют строиться вокруг заданной сущности. Обычный
-     * микс на `entity_id` ответит своей лентой, и «волна по треку» ничем не
-     * отличалась бы от общей.
-     *
-     * ЗАПРОС ДЕЛАЕТСЯ ОДИН РАЗ на сессию волны. Без флага [waveSourceResolved]
-     * получалось так: если подходящего микса нет (или каталог ответил ошибкой),
-     * `activeWaveMix` остаётся null, `recommendationOffset` ещё 0 — и условие
-     * выхода в начале не срабатывает. А `takeWaveTracks` зовётся на КАЖДОМ
-     * переходе трека и на каждом рефилле очереди, то есть тяжёлый
-     * `catalog.getAudioAuto()` уходил в сеть снова и снова. Именно это и вешало
-     * приложение вместе с телефоном.
-     */
     private suspend fun ensureWaveSourceLocked(seedTrackId: String?) {
-        if (activeWaveMix != null || recommendationOffset > 0 || waveSourceResolved) return
+        if (activeWaveMix != null || waveSourceResolved) return
         waveSourceResolved = true
         val mixes = when (val catalog = catalogApi.getAudioAuto()) {
             is VkResult.Success -> catalog.data.audio_stream_mixes.orEmpty()
@@ -2079,12 +2049,12 @@ object MusicBackend {
 
     private fun resetWaveLocked() {
         waveQueue.clear()
+        waveSeenIds.clear()
         activeWaveMix = null
         activeWaveAppend = false
         // Новая волна — заново выбираем источник (у станции по треку он другой,
         // чем у личной волны).
         waveSourceResolved = false
-        recommendationOffset = 0
         waveSessionId = null
     }
 
