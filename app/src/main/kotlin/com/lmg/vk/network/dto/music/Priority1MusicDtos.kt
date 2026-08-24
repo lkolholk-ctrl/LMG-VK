@@ -3,12 +3,6 @@ package com.lmg.vk.network.dto.music
 import com.squareup.moshi.Json
 import com.squareup.moshi.JsonClass
 
-/**
- * DTO, подтверждённые восстановлением Priority 1 из VK X 8.12.1.
- * Имена JSON-полей взяты из сгенерированных адаптеров APK, а не подобраны
- * по ответам сервера.
- */
-
 @JsonClass(generateAdapter = true)
 data class AudioLyricsContainer(
     val text: String? = null,
@@ -176,9 +170,6 @@ data class VkCatalogResponse(
     val artist_videos: List<VkCatalogVideo>? = null,
     val videos: List<VkCatalogVideo>? = null,
     val links: List<VkCatalogLink>? = null,
-    // Catalog2ResponseJsonAdapter VK X: banner and curator blocks are part of
-    // the main music catalog (for example, "Сегодня в плеере" and editorial
-    // selections), not application-owned recommendations.
     val catalog_banners: List<VkCatalogBanner>? = null,
     val curators: List<VkCatalogProfile>? = null,
     val audio_content_cards: List<VkAudioContentCard>? = null,
@@ -201,6 +192,22 @@ data class VkCatalogResponse(
     val audio_stream_mixes: List<AudioStreamMix>? = null,
     /** VK Music 8.37 Catalog2 extended entity (`audio_signal_common_info`). */
     val audio_signal_common_info: List<VkAudioSignalCommonInfo>? = null,
+)
+
+@JsonClass(generateAdapter = true)
+data class VkAccountToggle(
+    val name: String,
+    val value: String,
+    val enabled: Boolean,
+    val ab_group_id: Int? = null,
+    val experiment_id: Int? = null,
+)
+
+@JsonClass(generateAdapter = true)
+data class VkCatalogSearchRecent(
+    val entity_type: String,
+    val id: String? = null,
+    val owner_id: String? = null,
 )
 
 /** Exact useful subset of official VK Music `AudioRecommendedPlaylistDto`. */
@@ -237,11 +244,20 @@ data class VkAudioSignalCommonInfo(
     val audios: List<String>? = null,
 )
 
-/** Структура Catalog2Response из одноимённого адаптера VK X. */
 @JsonClass(generateAdapter = true)
 data class VkCatalogRoot(
     val default_section: String = "",
     val sections: List<VkCatalogSection> = emptyList(),
+    val buttons: List<VkCatalogButton>? = null,
+    val footer: VkCatalogBlocksContainer? = null,
+    val header: VkCatalogBlocksContainer? = null,
+    val pinned_section: String? = null,
+    val session_id: String? = null,
+)
+
+@JsonClass(generateAdapter = true)
+data class VkCatalogBlocksContainer(
+    val blocks: List<VkCatalogBlock>? = null,
 )
 
 @JsonClass(generateAdapter = true)
@@ -250,9 +266,17 @@ data class VkCatalogSection(
     val title: String = "",
     val next_from: String? = null,
     val blocks: List<VkCatalogBlock>? = null,
+    val actions: List<VkCatalogButton>? = null,
+    val animated_icon_url: String? = null,
+    val data_type: String? = null,
+    val icon: String? = null,
+    val icon_url: String? = null,
+    val session_id: String? = null,
+    val style: String? = null,
+    val subsections: List<VkCatalogSection>? = null,
+    val url: String? = null,
 )
 
-/** Общая wire-модель sealed Catalog2Block из адаптеров VK X. */
 @JsonClass(generateAdapter = true)
 data class VkCatalogBlock(
     val id: String = "",
@@ -260,9 +284,9 @@ data class VkCatalogBlock(
     /** Context propagated back to catalog.getBlockItems as optional `ref`. */
     val ref: String? = null,
     val layout: VkCatalogLayout? = null,
-    /** Catalog2Block.actions: VK X extracts section_id from header actions. */
     val actions: List<VkCatalogButton>? = null,
     val next_from: String? = null,
+    val albums_ids: List<String>? = null,
     val audios_ids: List<String>? = null,
     val playlists_ids: List<String>? = null,
     val artists_ids: List<String>? = null,
@@ -271,6 +295,7 @@ data class VkCatalogBlock(
     val links_ids: List<String>? = null,
     val catalog_banner_ids: List<String>? = null,
     val curators_ids: List<String>? = null,
+    val concerts_ids: List<String>? = null,
     val group_ids: List<String>? = null,
     val audio_content_card_ids: List<String>? = null,
     val music_owners_ids: List<String>? = null,
@@ -284,29 +309,36 @@ data class VkCatalogBlock(
     val audio_books_person_ids: List<String>? = null,
     val audio_followings_update_info_ids: List<String>? = null,
     val placeholder_ids: List<String>? = null,
-    val radio_stations_ids: List<String>? = null,
+    val radio_stations_ids: List<Int>? = null,
     val audio_stream_mixes_ids: List<String>? = null,
+    val catalog_users_ids: List<String>? = null,
+    val navigation_tab_ids: List<String>? = null,
+    val owner_ids: List<String>? = null,
+    val search_suggestions_ids: List<String>? = null,
+    val thumbs_ids: List<String>? = null,
+    val items_count: Int? = null,
+    val meta: VkCatalogBlockMeta? = null,
+    val subsection_id: String? = null,
+    val subtype: String? = null,
+    val title: String? = null,
+    val track_code: String? = null,
+    val url: String? = null,
     /** The official wire key is singular `_id`, but its value is an array. */
     val audio_signal_common_info_id: List<String>? = null,
 )
 
-/**
- * `Catalog2Button` — the recovered root catalog navigation item.
- *
- * `options` — это табы блока `subsection_tabs`: VK X берёт первый элемент
- * `Catalog2Block.actions` и рисует именно его `options`
- * (`src-deobf/C2077e.java:645-672`). Порядок ключей и типы — из
- * `ua_itaysonlab_catalogkit_objects_Catalog2ButtonJsonAdapter.java:22-42`.
- */
 @JsonClass(generateAdapter = true)
 data class VkCatalogButtonAction(
     val type: String? = null,
     val style: String? = null,
+    val action_title: String? = null,
     val consume_reason: String? = null,
     val block_id: String? = null,
     val section_id: String? = null,
     val title: String? = null,
     val hint_id: String? = null,
+    val target: String? = null,
+    val url: String? = null,
 )
 
 @JsonClass(generateAdapter = true)
@@ -328,6 +360,8 @@ data class VkCatalogButton(
     val id: String? = null,
     val mix_id: String? = null,
     val mix_options: String? = null,
+    val target: String? = null,
+    val click_event_type: String? = null,
     val description: String? = null,
     val style: String? = null,
     /** Compatibility with flattened CatalogButton action payloads. */
@@ -366,7 +400,6 @@ data class VkCatalogBanner(
         ?.url
 }
 
-/** `AudioContentCard` from the recovered VK X Catalog2Response adapter. */
 @JsonClass(generateAdapter = true)
 data class VkAudioContentCard(
     val editor_annotation: String? = null,
@@ -391,6 +424,14 @@ data class VkCatalogLayout(
     val title: String? = null,
     val subtitle: String? = null,
     val style: String? = null,
+    val custom_style: String? = null,
+    val grid_layout: List<List<String>>? = null,
+    val icon: String? = null,
+    val infinite_repeat: Boolean? = null,
+    val items_ignorable: Int? = null,
+    val merge_items: Boolean? = null,
+    val size: String? = null,
+    val type: String? = null,
     /**
      * Единственное поле layout'а `owner_cell` (`Catalog2Layout.OwnerCell`).
      *
@@ -408,9 +449,30 @@ data class VkCatalogLayout(
      * Тип Long, потому что owner может быть отрицательным (сообщество).
      */
     val owner_id: Long? = null,
+    val top_title: VkCatalogLayoutTopTitle? = null,
 )
 
-/** VKProfile: один DTO используется VK X для profiles, groups и curators. */
+@JsonClass(generateAdapter = true)
+data class VkCatalogLayoutTopTitle(
+    val icon: String? = null,
+    val text: String? = null,
+)
+
+@JsonClass(generateAdapter = true)
+data class VkCatalogBlockMeta(
+    val campaign_name: String? = null,
+    val disable_track_rec_shown: Boolean? = null,
+    val no_consecutive_play: Boolean? = null,
+    val show_all_info: VkCatalogShowAllInfo? = null,
+    val uxpoll_trigger: String? = null,
+)
+
+@JsonClass(generateAdapter = true)
+data class VkCatalogShowAllInfo(
+    val section_id: String? = null,
+    val title: String? = null,
+)
+
 @JsonClass(generateAdapter = true)
 data class VkCatalogProfile(
     val id: Long = 0L,

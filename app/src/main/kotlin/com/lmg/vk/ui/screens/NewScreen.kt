@@ -76,10 +76,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-/**
- * Таб «New» — главная выдача VK Music CatalogKit (`catalog.getAudioAuto`).
- * Локальные mood/recent/history карточки сюда не подмешиваются.
- */
 @Composable
 fun NewScreen(
     viewModel: HomeViewModel,
@@ -1775,14 +1771,6 @@ private fun NewTrackRow(
     }
 }
 
-/**
- * Крупная карточка для «больших» слайдеров VK X: `large_slider`,
- * `music_chart_large_slider`, `music_exclusive_slider`, `recomms_slider`.
- *
- * Отличие от [NewTrackCard] не только в размере: обложка здесь широкая (4:3), а
- * не квадратная, поэтому в один экран попадает меньше карточек — именно этим VK
- * и выделяет такие блоки среди обычных каруселей.
- */
 @Composable
 private fun NewLargeCard(
     item: com.lmg.vk.engine.backend.HomeItem,
@@ -2231,21 +2219,6 @@ private fun NewCloseableBanner(
     }
 }
 
-/**
- * Табы подразделов (`subsection_tabs`).
- *
- * Теперь по-настоящему: у каждого таба своя выдача, приходящая отдельным
- * запросом. Идентификатор таба — `replacement_id` из `actions[0].options`
- * (НЕ `section_id`, как предполагала спека — см. [HomeSubsectionTab]), а по
- * какому методу за ним идти, решает `parseCatalogTabRequest`.
- *
- * Выдача таба — это полноценные блоки CatalogKit, поэтому рисуем их тем же
- * [NewCatalogBlock]; собственной вёрстки у табов нет.
- *
- * Начальный таб — тот, у которого сервер поставил `selected` (так же ищет его
- * VK X в `AbstractC1574e`), иначе первый. Загрузку запускаем сразу: пустое место
- * под табами выглядело бы как сломанный блок.
- */
 @Composable
 private fun NewSubsectionTabs(
     block: com.lmg.vk.engine.backend.HomeBlock,
@@ -2444,11 +2417,6 @@ private val NEW_HERO_LAYOUTS = setOf(
     "small_banner_offer",
 )
 
-/**
- * «Большие» слайдеры VK X — крупная карточка 4:3 вместо квадрата.
- * Имена подтверждены реестром `Catalog2LayoutJsonAdapter` из VK X,
- * см. docs/vkx-port/06-new-section.md.
- */
 private val NEW_LARGE_SLIDER_LAYOUTS = setOf(
     "large_slider",
     "music_chart_large_slider",
@@ -2456,9 +2424,6 @@ private val NEW_LARGE_SLIDER_LAYOUTS = setOf(
     "recomms_slider",
     "audio_stream_mix",
     "audio_stream_mix_interactive",
-    // Из реестра официального клиента 8.185 (197 layout против 43 у VK X).
-    // Зацикленные карусели: вёрстка та же, отличие только в поведении прокрутки,
-    // которое мы всё равно не копируем.
     "infinite_large_slider",
     "infinite_promo_banners_slider",
     "infinite_podcast_banners_slider",
@@ -2481,11 +2446,6 @@ private val NEW_GRID_LAYOUTS = setOf(
     "chips",
 )
 
-/**
- * Технические блоки-разделители из реестра VK X: собственного содержимого не
- * несут, а нарисованные как карточки выглядели бы мусором. `header*` отсекается
- * раньше, в `MusicBackend` (заголовок применяется к следующему блоку).
- */
 private val NEW_SKIPPED_LAYOUTS = setOf(
     "separator",
     // separator_compact — настоящее имя в VK 8.185. Прежнее in_block_separator

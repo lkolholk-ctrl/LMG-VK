@@ -28,7 +28,6 @@ object HomeCacheManager {
     private const val KEY_BLOCKS = "blocks_json"
     private const val KEY_TIMESTAMP = "cached_at"
     private const val LEGACY_ACCOUNT_ID = "account_id"
-    private const val CACHE_TTL_MS = 24 * 60 * 60 * 1000L // 24 hours
     // v6 also stores actionable CatalogLink URLs. Older caches would turn
     // server artist/curator cards back into disabled grey placeholders.
     private const val CACHE_SCHEMA_VERSION = 6
@@ -177,9 +176,6 @@ object HomeCacheManager {
                         .apply()
                 }
                 ?: return@withContext null
-            val cachedAt = p.getLong(timestampKey, 0)
-            if (System.currentTimeMillis() - cachedAt > CACHE_TTL_MS) return@withContext null
-
             val json = JSONObject(jsonStr)
             if (json.optInt("version", 0) != CACHE_SCHEMA_VERSION) return@withContext null
             val blocksArray = json.getJSONArray("blocks")
@@ -339,16 +335,9 @@ object HomeCacheManager {
         }
     }
 
-    /**
-     * Check if cache is fresh (not expired).
-     */
     fun isFresh(): Boolean {
         val p = prefs ?: return false
-        val cachedAt = p.getLong(
-            accountKey(KEY_TIMESTAMP, AppDatabase.activeAccountId()),
-            0,
-        )
-        return cachedAt > 0 && (System.currentTimeMillis() - cachedAt) < CACHE_TTL_MS
+        return p.contains(accountKey(KEY_BLOCKS, AppDatabase.activeAccountId()))
     }
 
     /**

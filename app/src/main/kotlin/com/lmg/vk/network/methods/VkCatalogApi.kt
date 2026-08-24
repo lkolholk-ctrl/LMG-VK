@@ -4,40 +4,33 @@ import com.lmg.vk.network.MoshiEnvelopeParser
 import com.lmg.vk.network.VkApiClient
 import com.lmg.vk.network.VkMethod
 import com.lmg.vk.network.VkResult
+import com.lmg.vk.network.dto.music.VkAccountToggle
 import com.lmg.vk.network.dto.music.VkCatalogResponse
+import com.lmg.vk.network.dto.music.VkCatalogSearchRecent
+import org.json.JSONArray
+import org.json.JSONObject
 
-/**
- * Восстановленные catalog.* вызовы из C4600e.
- * Каталог VK сам содержит треки, плейлисты, артистов, радиостанции и StreamMix.
- */
 class VkCatalogApi(
     private val client: VkApiClient,
 ) {
-    /**
-     * Главная музыкальная страница: `catalog.getAudioAuto`.
-     *
-     * VK 8.185 and VK Music 8.37 send the active account as `owner_id` for
-     * the personalised root catalog. The old VK X request only sent
-     * `need_blocks`, which can now produce the minimal Popular-only showcase.
-     */
-    suspend fun getAudioAuto(ownerId: Long? = null): VkResult<VkCatalogResponse> {
-        val method = method("catalog.getAudioAuto").apply {
-            param("need_blocks", 1)
-            ownerId?.let { param("owner_id", it) }
-        }
-        return client.execute(method)
-    }
-
-    /** Универсальная главная по URL каталога: `catalog.getAudio`, C4600e id=7. */
-    suspend fun getAudio(url: String): VkResult<VkCatalogResponse> {
+    suspend fun getAudio(
+        ref: String? = null,
+        needBlocks: Boolean? = true,
+        url: String? = null,
+        ownerId: Long? = null,
+        appliedToggles: List<VkAccountToggle> = emptyList(),
+    ): VkResult<VkCatalogResponse> {
         val method = method("catalog.getAudio").apply {
-            param("need_blocks", 1)
+            ref?.let { param("ref", it) }
+            needBlocks?.let { param("need_blocks", it) }
             param("url", url)
+            ownerId?.let { param("owner_id", it) }
+            appliedToggles.takeIf { it.isNotEmpty() }
+                ?.let { param("applied_toggles", encodeToggles(it)) }
         }
         return client.execute(method)
     }
 
-    /** Страница исполнителя: `catalog.getAudioArtist`, C4600e id=4. */
     suspend fun getAudioArtist(artistId: String): VkResult<VkCatalogResponse> {
         val method = method("catalog.getAudioArtist").apply {
             param("need_blocks", 1)
@@ -46,49 +39,93 @@ class VkCatalogApi(
         return client.execute(method)
     }
 
-    /** Поиск CatalogKit: `catalog.getAudioSearch`, C4600e id=16. */
     suspend fun searchAudio(
         query: String,
         requestedSectionId: String? = null,
         needBlocks: Boolean = true,
         showSuggests: Boolean = true,
+        screenRef: String? = "search_music",
+        suggestTrackCode: String? = null,
+        searchRecents: List<VkCatalogSearchRecent> = emptyList(),
+        appliedToggles: List<VkAccountToggle> = emptyList(),
+        ref: String? = null,
     ): VkResult<VkCatalogResponse> {
         val method = method("catalog.getAudioSearch").apply {
             param("need_blocks", needBlocks)
             param("show_suggests", showSuggests)
-            param("query", query)
+            param("q", query)
+            param("screen_ref", screenRef)
+            param("suggest_trackcode", suggestTrackCode)
             param("requested_section_id", requestedSectionId)
+            searchRecents.takeIf { it.isNotEmpty() }
+                ?.let { param("search_recents", encodeSearchRecents(it)) }
+            appliedToggles.takeIf { it.isNotEmpty() }
+                ?.let { param("applied_toggles", encodeToggles(it)) }
+            param("ref", ref)
         }
         return client.execute(method)
     }
 
-    /** Дозагрузка секции: `catalog.getSection`, C4600e id=12. */
     suspend fun getSection(
         sectionId: String,
         startFrom: String? = null,
+        count: Int? = null,
+        forceRefresh: Boolean? = null,
+        appliedToggles: List<VkAccountToggle> = emptyList(),
+        ref: String? = null,
     ): VkResult<VkCatalogResponse> {
+        require(sectionId.isNotBlank())
+        require(count == null || count > 0)
         val method = method("catalog.getSection").apply {
-            param("need_blocks", 1)
             param("section_id", sectionId)
             startFrom?.let { param("start_from", it) }
+            count?.let { param("count", it) }
+            forceRefresh?.let { param("force_refresh", it) }
+            appliedToggles.takeIf { it.isNotEmpty() }
+                ?.let { param("applied_toggles", encodeToggles(it)) }
+            param("ref", ref)
         }
         return client.execute(method)
     }
 
-    /**
-     * Дозагрузка элементов одного блока по официальному контракту VK 8.185.
-     * `catalog.getSection` листает секции каталога и не взаимозаменяем с этим
-     * методом: здесь сервер ожидает именно `block_id` и курсор блока.
-     */
     suspend fun getBlockItems(
         blockId: String,
         startFrom: String? = null,
+        count: Int? = null,
+        merchant: String? = null,
+        purchaseFor: Long? = null,
+        entryPoint: String? = null,
+        appliedToggles: List<VkAccountToggle> = emptyList(),
         ref: String? = null,
     ): VkResult<VkCatalogResponse> {
+        require(blockId.isNotBlank())
+        require(count == null || count in 1..100)
+        require(merchant == null || merchant in setOf("apple", "google"))
+        require(
+            entryPoint == null ||
+                entryPoint in setOf("clips_player", "owner_page", "tvchannels_player"),
+        )
         val method = method("catalog.getBlockItems").apply {
             param("block_id", blockId)
             startFrom?.let { param("start_from", it) }
+            count?.let { param("count", it) }
+            param("merchant", merchant)
+            purchaseFor?.let { param("purchase_for", it) }
+            param("entry_point", entryPoint)
+            appliedToggles.takeIf { it.isNotEmpty() }
+                ?.let { param("applied_toggles", encodeToggles(it)) }
             ref?.let { param("ref", it) }
+        }
+        return client.execute(method)
+    }
+
+    suspend fun hideBlock(blockId: String): VkResult<Int> {
+        require(blockId.isNotBlank())
+        val method = VkMethod(
+            "catalog.hideBlock",
+            MoshiEnvelopeParser<Int>(Int::class.javaObjectType),
+        ).apply {
+            param("block_id", blockId)
         }
         return client.execute(method)
     }
@@ -149,14 +186,36 @@ class VkCatalogApi(
         return client.execute(method)
     }
 
-    /** Вторая форма C4600e id=29: context/query без requested_section_id. */
     suspend fun searchAudioByContext(context: String, query: String): VkResult<VkCatalogResponse> {
         val method = method("catalog.getAudioSearch").apply {
             param("context", context)
-            param("query", query)
+            param("q", query)
+            param("need_blocks", true)
         }
         return client.execute(method)
     }
+
+    private fun encodeToggles(items: List<VkAccountToggle>): String = JSONArray().apply {
+        items.forEach { item ->
+            put(JSONObject().apply {
+                put("name", item.name)
+                put("value", item.value)
+                put("enabled", item.enabled)
+                item.ab_group_id?.let { put("ab_group_id", it) }
+                item.experiment_id?.let { put("experiment_id", it) }
+            })
+        }
+    }.toString()
+
+    private fun encodeSearchRecents(items: List<VkCatalogSearchRecent>): String = JSONArray().apply {
+        items.forEach { item ->
+            put(JSONObject().apply {
+                put("entity_type", item.entity_type)
+                item.id?.let { put("id", it) }
+                item.owner_id?.let { put("owner_id", it) }
+            })
+        }
+    }.toString()
 
     private fun method(name: String): VkMethod<VkCatalogResponse> = VkMethod(
         name,
