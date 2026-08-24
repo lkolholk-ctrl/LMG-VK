@@ -78,6 +78,18 @@ data class AudioAudioIdDto(
 )
 
 @JsonClass(generateAdapter = true)
+data class AudioDeleteExtendedResponseDto(
+    val audio_ids: List<String> = emptyList(),
+)
+
+@JsonClass(generateAdapter = true)
+data class AudioPlaylistOriginalFollowedDto(
+    val access_key: String? = null,
+    val owner_id: Long = 0L,
+    val playlist_id: Int = 0,
+)
+
+@JsonClass(generateAdapter = true)
 data class AudioAudioRawIdTrackedDto(
     val audio_id: String,
     val track_code: String,

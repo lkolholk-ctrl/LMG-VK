@@ -38,7 +38,9 @@ import com.lmg.vk.network.dto.VkOwnerUploadServer
 import com.lmg.vk.network.dto.VkSaveOwnerCoverResponse
 import com.lmg.vk.network.dto.VkSaveOwnerPhotoResponse
 import com.lmg.vk.network.dto.gen.auth.ValidatePhoneResponse
+import com.lmg.vk.network.dto.music.AudioAddResponse
 import com.lmg.vk.network.dto.music.AudioAudioDto
+import com.lmg.vk.network.dto.music.AudioDeleteExtendedResponseDto
 import com.lmg.vk.network.dto.music.AudioPlaylistReorderAction
 import com.lmg.vk.network.dto.music.ProfileLibrarySearchResponse
 import com.squareup.moshi.Json
@@ -58,31 +60,43 @@ class VkMethodsRegistry(private val client: VkApiClient) {
 
     // ======================= AUDIO (дополнение к VkAudioApi) =======================
 
-    /** audio.add — добавить трек к себе. */
     suspend fun audioAdd(
         audioId: Int,
         ownerId: Long,
         ref: String? = null,
         accessKey: String? = null,
         trackCode: String? = null,
-    ) =
-        executeUnit("audio.add") {
+    ): VkResult<AudioAddResponse> {
+        val method = VkMethod(
+            "audio.add",
+            MoshiEnvelopeParser<AudioAddResponse>(AudioAddResponse::class.java),
+        ).apply {
             param("audio_id", audioId)
             param("owner_id", ownerId)
             param("ref", ref)
             param("access_key", accessKey)
             param("track_code", trackCode)
         }
+        return client.execute(method)
+    }
 
-    /** audio.delete / audio.restore. */
-    suspend fun audioDelete(audioId: Int, ownerId: Long) =
-        executeUnit("audio.delete") { param("audio_id", audioId); param("owner_id", ownerId) }
+    suspend fun audioDelete(
+        audioId: Int,
+        ownerId: Long,
+    ): VkResult<AudioDeleteExtendedResponseDto> {
+        val method = VkMethod(
+            "audio.delete",
+            MoshiEnvelopeParser<AudioDeleteExtendedResponseDto>(
+                AudioDeleteExtendedResponseDto::class.java,
+            ),
+        ).apply {
+            param("audio_id", audioId)
+            param("owner_id", ownerId)
+        }
+        return client.execute(method)
+    }
 
-    suspend fun audioRestore(audioId: Int, ownerId: Long) =
-        executeUnit("audio.restore") { param("audio_id", audioId); param("owner_id", ownerId) }
-
-    /** Новый bruhcollective-контракт: `audio.restore` возвращает `AudioAudioDto`. */
-    suspend fun audioRestoreDetailed(audioId: Int, ownerId: Long): VkResult<AudioAudioDto> {
+    suspend fun audioRestore(audioId: Int, ownerId: Long): VkResult<AudioAudioDto> {
         val method = VkMethod(
             "audio.restore",
             MoshiEnvelopeParser<AudioAudioDto>(AudioAudioDto::class.java),
@@ -92,6 +106,9 @@ class VkMethodsRegistry(private val client: VkApiClient) {
         }
         return client.execute(method)
     }
+
+    suspend fun audioRestoreDetailed(audioId: Int, ownerId: Long): VkResult<AudioAudioDto> =
+        audioRestore(audioId, ownerId)
 
     /**
      * `audio.getIdsBySource` — id треков по источнику.
@@ -153,10 +170,16 @@ class VkMethodsRegistry(private val client: VkApiClient) {
         playlistId: Int,
         ownerId: Long,
         actions: List<AudioPlaylistReorderAction>,
-    ) = executeUnit("audio.reorderInPlaylist") {
-        param("playlist_id", playlistId)
-        param("owner_id", ownerId)
-        param("actions", AudioPlaylistReorderAction.encode(actions))
+    ): VkResult<Int> {
+        val method = VkMethod(
+            "audio.reorderInPlaylist",
+            MoshiEnvelopeParser<Int>(Int::class.javaObjectType),
+        ).apply {
+            param("playlist_id", playlistId)
+            param("owner_id", ownerId)
+            param("actions", AudioPlaylistReorderAction.encode(actions))
+        }
+        return client.execute(method)
     }
 
     /**
@@ -287,9 +310,9 @@ class VkMethodsRegistry(private val client: VkApiClient) {
             param("fields", PROFILE_FIELDS)
         }
 
-    suspend fun getAudioPlaylistCoverUploadServer(playlistId: Int, ownerId: Long) =
+    suspend fun getAudioPlaylistCoverUploadServer(ownerId: Long) =
         execute<Any>("photos.getAudioPlaylistCoverUploadServer") {
-            param("playlist_id", playlistId); param("owner_id", ownerId)
+            param("owner_id", ownerId)
         }
 
     suspend fun getAudioUploadServer() = execute<Any>("audio.getUploadServer") {}
@@ -1044,20 +1067,6 @@ class VkMethodsRegistry(private val client: VkApiClient) {
      */
     data class GroupsByIdResponse(val group: VkGroup?)
 
-    /**
-     * `groups.getById` меняла форму ответа между версиями API: до v5.130
-     * `response` — плоский массив (так его и читает `GroupsGetById.java` в
-     * реверсе VK MP3 Mod: `response[0]`), с v5.130+ — объект `{"groups": [...]}`
-     * (VK X: `API.groups.getById({...}).groups[0]`, `C13029e.java:41`). Проект
-     * ходит с `v=5.272`, но поддерживаются обе формы: различаем по фактическому
-     * типу узла, а не по версии в запросе — версию задаёт [VkMethod], и
-     * молчаливая рассинхронизация с ней стоила бы пустого экрана.
-     *
-     * Тело читается РОВНО ОДИН раз: `bodyText()` у Ktor-обёртки читает канал
-     * ответа, и на второй вызов для того же ответа полагаться нельзя. Поэтому
-     * обе формы разбираются из уже полученной строки, а не двумя проходами
-     * готовых парсеров по [RawHttpResponse].
-     */
     private object GroupByIdParser : VkResponseParser<GroupsByIdResponse> {
         private val groupAdapter = VkJson.moshi.adapter(VkGroup::class.java)
 
@@ -1153,14 +1162,6 @@ class VkMethodsRegistry(private val client: VkApiClient) {
             ",career,schools,universities,relatives,relation,personal,contacts," +
             "description,descriptions,profile_buttons"
 
-        /**
-         * `photo_base` ОБЯЗАТЕЛЕН и стоит первым: с токеном официального клиента
-         * `photo_100`/`photo_200` приходят ПУСТЫМИ (лог с устройства: «friends:
-         * 0/40 с ссылкой»), аватар отдаётся именно через `photo_base`. Так же
-         * поступает VK X, и в нашем профиле фото работало ровно потому, что это
-         * поле есть в CURRENT_PROFILE_FIELDS. Остальные оставлены как фолбэк —
-         * на других токенах приходят они.
-         */
         const val FRIEND_FIELDS =
             "photo_base,photo_100,photo_200,domain,screen_name,online,online_info," +
                 "last_seen,verified,sex,can_see_audio"

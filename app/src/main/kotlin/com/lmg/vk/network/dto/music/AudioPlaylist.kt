@@ -26,16 +26,29 @@ data class AudioPlaylist(
     val is_curator: Boolean? = null,
     val audios: List<AudioTrack>? = null,
     val year: Int = 0,
-    val followed: FollowedMetadata? = null,
-    val original: OriginalPlaylist? = null,
+    val original_year: Int? = null,
+    val followed: AudioPlaylistOriginalFollowedDto? = null,
+    val original: AudioPlaylistOriginalFollowedDto? = null,
     val photo: AlbumThumb? = null,
     val thumbs: List<AlbumThumb>? = null,
     val access_key: String? = null,
     val is_explicit: Boolean? = null,
+    val exclusive: Boolean? = null,
     val subtitle: String? = null,
-    val main_artists: List<MainArtist>? = null,
+    val artists: List<AudioArtistDto>? = null,
+    val main_artists: List<AudioArtistDto>? = null,
+    val main_artist: String? = null,
+    val featured_artists: List<AudioArtistDto>? = null,
     val subtitle_badge: Boolean = false,
+    val play_button: Boolean? = null,
     val no_discover: Boolean = false,
+    val playlist_id: Int? = null,
+    val uma_album_id: Int? = null,
+    val track_code: String? = null,
+    val match_score: Float? = null,
+    val audios_total_file_size: Float? = null,
+    val actions: List<AudioPlaylistActionDto>? = null,
+    val flags_context: Int? = null,
     val audio_chart_info: AudioChartInfo? = null,
     val meta: AudioPlaylistMeta? = null,
     val restriction: MusicDynamicRestriction? = null,
@@ -178,23 +191,10 @@ data class AlbumThumb(
     ).firstOrNull { it.isNotBlank() }
 }
 
-/** Из `playlist.metadata.FollowedMetadata` / `OriginalPlaylist` / `AudioPlaylistMeta`. */
-@JsonClass(generateAdapter = true)
-data class FollowedMetadata(
-    val follower_id: Long = 0L,
-    val is_followed: Boolean = false,
-)
-
-@JsonClass(generateAdapter = true)
-data class OriginalPlaylist(
-    val id: Int = 0,
-    val owner_id: Long = 0L,
-    val access_key: String? = null,
-    val title: String? = null,
-)
-
 @JsonClass(generateAdapter = true)
 data class AudioPlaylistMeta(
     val view: String? = null,
     val variant: String? = null,
+    val promo_style: String? = null,
+    val promo_title: String? = null,
 )

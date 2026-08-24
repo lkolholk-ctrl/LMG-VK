@@ -222,7 +222,6 @@ class LmgApplication : Application(), ImageLoaderFactory {
         // Фоновые стартовые задачи (без таймаута главного потока).
         appScope.launch {
             PlaylistManager.changes.collectLatest {
-                // Склеиваем серию add/remove/rename в один сетевой editPlaylist.
                 delay(900)
                 if (MusicAuth.isLoggedIn.value) runCatching { PlaylistSyncManager.sync() }
             }

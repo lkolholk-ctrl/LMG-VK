@@ -39,6 +39,26 @@ class VkCatalogApi(
         return client.execute(method)
     }
 
+    suspend fun getAudioPlaylist(
+        ownerId: Long,
+        playlistId: Int,
+        accessKey: String? = null,
+        ref: String? = null,
+        needBlocks: Boolean = true,
+        appliedToggles: List<VkAccountToggle> = emptyList(),
+    ): VkResult<VkCatalogResponse> {
+        val method = method("catalog.getAudioPlaylist").apply {
+            param("owner_id", ownerId)
+            param("id", playlistId)
+            param("ref", ref)
+            param("need_blocks", needBlocks)
+            param("access_key", accessKey)
+            appliedToggles.takeIf { it.isNotEmpty() }
+                ?.let { param("applied_toggles", encodeToggles(it)) }
+        }
+        return client.execute(method)
+    }
+
     suspend fun searchAudio(
         query: String,
         requestedSectionId: String? = null,

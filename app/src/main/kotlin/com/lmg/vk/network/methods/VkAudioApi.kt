@@ -12,11 +12,14 @@ import com.lmg.vk.network.VkItems
 import com.lmg.vk.network.dto.music.AudioPlaylist
 import com.lmg.vk.network.dto.music.AudioAddResponse
 import com.lmg.vk.network.dto.music.AudioAudioIdDto
+import com.lmg.vk.network.dto.music.AudioDeleteExtendedResponseDto
 import com.lmg.vk.network.dto.music.AudioGetAutoflowMixParamsResponse
 import com.lmg.vk.network.dto.music.AudioGetKidsModeResponseDto
 import com.lmg.vk.network.dto.music.AudioGetPlaylistExtendedResponseDto
 import com.lmg.vk.network.dto.music.AudioGetUserConfigResponseDto
 import com.lmg.vk.network.dto.music.AudioLyricsContainer
+import com.lmg.vk.network.dto.music.AudioPlaylistOriginalFollowedDto
+import com.lmg.vk.network.dto.music.AudioPlaylistReorderAction
 import com.lmg.vk.network.dto.music.AudioRadioStationDto
 import com.lmg.vk.network.dto.music.AudioRelatedArtistsResponse
 import com.lmg.vk.network.dto.music.AudioRestrictionInfoDto
@@ -398,7 +401,6 @@ class VkAudioApi(
         return client.execute(method)
     }
 
-    /** `audio.createPlaylist`: контракт owner_id/title подтверждён VK MP3. */
     suspend fun createPlaylist(
         ownerId: Long,
         title: String,
@@ -412,7 +414,7 @@ class VkAudioApi(
             param("owner_id", ownerId)
             param("title", title)
             param("description", description)
-            audioIds?.let { ids ->
+            audioIds?.takeIf { it.isNotEmpty() }?.let { ids ->
                 param("audio_ids", ids.joinToString(",") { it.removePrefix("vk_") })
             }
             noDiscover?.let { param("no_discover", it) }
@@ -420,30 +422,44 @@ class VkAudioApi(
         return client.execute(method)
     }
 
-    suspend fun createPlaylistByFilter(ownerId: Long, filter: String?): VkResult<AudioPlaylist> {
+    suspend fun createPlaylistByFilter(ownerId: Long, filter: String?): VkResult<Int> {
         require(filter == null || filter.length <= 256)
-        val method = VkMethod("audio.createPlaylistByFilter", PlaylistParser).apply {
+        val method = VkMethod("audio.createPlaylistByFilter", IntParser).apply {
             param("owner_id", ownerId)
             param("filter", filter)
         }
         return client.execute(method)
     }
 
-    /**
-     * `audio.editPlaylist`: title меняет имя, audio_ids атомарно заменяет состав.
-     * Именно эти две формы восстановлены из `AudioEdit` в архиве VK MP3.
-     */
     suspend fun editPlaylist(
         ownerId: Long,
         playlistId: Int,
         title: String,
-        audioIds: Collection<String>,
-    ): VkResult<Unit> {
-        val method = VkMethod("audio.editPlaylist", UnitParser).apply {
+        description: String? = null,
+        noDiscover: Boolean,
+    ): VkResult<Int> {
+        require(title.length <= 1024)
+        require(description == null || description.length <= 1024)
+        val method = VkMethod("audio.editPlaylist", IntParser).apply {
             param("owner_id", ownerId)
             param("playlist_id", playlistId)
             param("title", title)
-            param("audio_ids", audioIds.joinToString(",") { it.removePrefix("vk_") })
+            param("description", description)
+            param("no_discover", noDiscover)
+        }
+        return client.execute(method)
+    }
+
+    suspend fun reorderInPlaylist(
+        ownerId: Long,
+        playlistId: Int,
+        actions: List<AudioPlaylistReorderAction>,
+    ): VkResult<Int> {
+        require(actions.isNotEmpty())
+        val method = VkMethod("audio.reorderInPlaylist", IntParser).apply {
+            param("owner_id", ownerId)
+            param("playlist_id", playlistId)
+            param("actions", AudioPlaylistReorderAction.encode(actions))
         }
         return client.execute(method)
     }
@@ -510,11 +526,18 @@ class VkAudioApi(
         playlistId: Int,
         ownerId: Long,
         accessKey: String? = null,
-    ): VkResult<Int> {
-        val method = VkMethod("audio.followPlaylist", IntParser).apply {
+        ref: String? = null,
+    ): VkResult<AudioPlaylistOriginalFollowedDto> {
+        val method = VkMethod(
+            "audio.followPlaylist",
+            MoshiEnvelopeParser<AudioPlaylistOriginalFollowedDto>(
+                AudioPlaylistOriginalFollowedDto::class.java,
+            ),
+        ).apply {
             param("playlist_id", playlistId)
             param("owner_id", ownerId)
             param("access_key", accessKey)
+            param("ref", ref)
         }
         return client.execute(method)
     }
@@ -643,8 +666,8 @@ class VkAudioApi(
 
     suspend fun getLegacyAudios(
         ownerId: Long?,
-        offset: Int,
-        count: Int,
+        offset: Int? = null,
+        count: Int? = null,
         playlistId: Int? = null,
         extended: Boolean? = true,
         accessKey: String? = null,
@@ -653,8 +676,8 @@ class VkAudioApi(
         val method = VkMethod("getAudios", AudioTrackListParser).apply {
             ownerId?.let { param("owner_id", it) }
             playlistId?.let { param("playlist_id", it) }
-            param("offset", offset)
-            param("count", count)
+            offset?.let { param("offset", it) }
+            count?.let { param("count", it) }
             extended?.let { param("extended", it) }
             param("access_key", accessKey)
             param("ref", ref)
@@ -810,12 +833,12 @@ class VkAudioApi(
         ownerId: Long,
         playlistId: Int,
         audioIds: Collection<String>,
-    ): VkResult<AudioPlaylist> {
+    ): VkResult<Int> {
         require(audioIds.isNotEmpty())
-        val method = VkMethod("audio.removeFromPlaylist", PlaylistParser).apply {
+        val method = VkMethod("audio.removeFromPlaylist", IntParser).apply {
             param("owner_id", ownerId)
             param("playlist_id", playlistId)
-            param("audio_ids", audioIds.joinToString(",") { it.removePrefix("vk_") })
+            param("audio_ids", audioIds.joinToString(",") { bareAudioFullId(it) })
         }
         return client.execute(method)
     }
@@ -828,16 +851,13 @@ class VkAudioApi(
         return client.execute(method)
     }
 
-    /** Удаление плейлиста; контракт подтверждён execute-кодом из `C9518e`. */
     suspend fun deletePlaylist(
         ownerId: Long,
         playlistId: Int,
-        accessKey: String? = null,
-    ): VkResult<Unit> {
-        val method = VkMethod("audio.deletePlaylist", UnitParser).apply {
+    ): VkResult<Int> {
+        val method = VkMethod("audio.deletePlaylist", IntParser).apply {
             param("playlist_id", playlistId)
             param("owner_id", ownerId)
-            param("access_key", accessKey)
         }
         return client.execute(method)
     }
@@ -890,13 +910,21 @@ class VkAudioApi(
         return client.execute(method)
     }
 
-    suspend fun delete(audioFullId: String): VkResult<Unit> =
-        executeTrackMutation("audio.delete", audioFullId)
+    suspend fun delete(audioFullId: String): VkResult<AudioDeleteExtendedResponseDto> {
+        val (ownerId, audioId) = parseAudioFullId(audioFullId)
+        val method = VkMethod(
+            "audio.delete",
+            MoshiEnvelopeParser<AudioDeleteExtendedResponseDto>(
+                AudioDeleteExtendedResponseDto::class.java,
+            ),
+        ).apply {
+            param("audio_id", audioId)
+            param("owner_id", ownerId)
+        }
+        return client.execute(method)
+    }
 
-    suspend fun restore(audioFullId: String): VkResult<Unit> =
-        executeTrackMutation("audio.restore", audioFullId)
-
-    suspend fun restoreDetailed(audioFullId: String): VkResult<AudioAudioDto> {
+    suspend fun restore(audioFullId: String): VkResult<AudioAudioDto> {
         val (ownerId, audioId) = parseAudioFullId(audioFullId)
         val method = VkMethod(
             "audio.restore",
@@ -907,6 +935,8 @@ class VkAudioApi(
         }
         return client.execute(method)
     }
+
+    suspend fun restoreDetailed(audioFullId: String): VkResult<AudioAudioDto> = restore(audioFullId)
 
     private suspend fun executeSimpleList(name: String, audioFullId: String): VkResult<Unit> {
         val method = VkMethod(name, UnitParser).apply {
@@ -931,12 +961,16 @@ class VkAudioApi(
 
     private fun parseAudioFullId(fullId: String): Pair<Long, Int> {
         val normalized = fullId.removePrefix("vk_")
-        val separator = normalized.indexOf('_')
-        require(separator > 0 && separator < normalized.lastIndex) {
+        val parts = normalized.split('_', limit = 3)
+        require(parts.size >= 2) {
             "Invalid VK audio id: $fullId"
         }
-        return normalized.substring(0, separator).toLong() to
-            normalized.substring(separator + 1).toInt()
+        return parts[0].toLong() to parts[1].toInt()
+    }
+
+    private fun bareAudioFullId(fullId: String): String {
+        val (ownerId, audioId) = parseAudioFullId(fullId)
+        return "${ownerId}_$audioId"
     }
 
     private object AudioTrackListParser : VkResponseParser<List<AudioTrack>> {

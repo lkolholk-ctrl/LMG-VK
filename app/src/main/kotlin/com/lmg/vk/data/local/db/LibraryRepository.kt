@@ -139,7 +139,7 @@ class LibraryRepository private constructor(context: Context) {
     private suspend fun fetchCloudLikes(): List<LibraryTrack> {
         val result = mutableListOf<LibraryTrack>()
         var offset = 0
-        val limit = 500
+        val limit = 1000
         while (true) {
             val response = MusicBackend.getLibraryLikes(
                 source = "all",

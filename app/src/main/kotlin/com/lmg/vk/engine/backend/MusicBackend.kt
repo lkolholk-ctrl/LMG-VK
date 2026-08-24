@@ -34,6 +34,7 @@ import com.lmg.vk.network.dto.music.AudioPlaylist
 import com.lmg.vk.network.dto.music.AudioAlbum
 import com.lmg.vk.network.dto.music.AlbumThumb
 import com.lmg.vk.network.dto.music.AudioPlaylistDto
+import com.lmg.vk.network.dto.music.AudioPlaylistReorderAction
 import com.lmg.vk.network.dto.music.AudioRecommendedPlaylistDto
 import com.lmg.vk.network.dto.music.AudioAudioDto
 import com.lmg.vk.network.dto.music.AudioArtistDto
@@ -1473,14 +1474,16 @@ object MusicBackend {
 
     suspend fun getLibraryLikes(source: String = "all", limit: Int = 500, offset: Int = 0): LibraryLikesResponse? =
         runCatching {
-            val tracks = audioApi.getAudios(
+            val page = audioApi.getAudiosPage(
                 ownerId = currentUserId(),
                 offset = offset,
                 count = limit.coerceIn(1, 6000),
-            ).requireData().map(::cacheTrack)
+            ).requireData()
+            val tracks = page.items.map(::cacheTrack)
             LibraryLikesResponse(
                 items = tracks.map { it.toLibraryTrack() },
-                count = tracks.size,
+                count = page.count,
+                total = page.count,
                 offset = offset,
                 limit = limit,
             )
@@ -1602,31 +1605,102 @@ object MusicBackend {
         true
     }.getOrDefault(false)
 
-    /** Создать плейлист в текущем VK-аккаунте и вернуть полный id owner_playlist. */
     suspend fun createUserPlaylist(name: String, trackIds: List<String>): String? = runCatching {
         val ownerId = currentUserId()
-        val created = audioApi.createPlaylist(ownerId, name.trim()).requireData()
+        val title = name.trim()
+        require(title.isNotEmpty())
+        val audioIds = trackIds.mapNotNull(::playlistAudioRequestId)
+            .distinctBy(::streamCacheKey)
+        val created = audioApi.createPlaylist(
+            ownerId = ownerId,
+            title = title,
+            audioIds = audioIds,
+            noDiscover = false,
+        ).requireData()
         val playlistId = created.id
         require(playlistId != 0) { "VK returned an empty playlist id" }
         val resolvedOwnerId = created.owner_id.takeIf { it != 0L } ?: ownerId
-        val audioIds = trackIds.map(::normalizeTrackId).filter { it.isVkAudioFullId() }
-        if (audioIds.isNotEmpty()) {
-            audioApi.editPlaylist(resolvedOwnerId, playlistId, name.trim(), audioIds).requireData()
-        }
         "${resolvedOwnerId}_$playlistId"
     }.getOrNull()
 
-    /** Полностью применить локальное имя и порядок треков к связанному VK-плейлисту. */
     suspend fun updateUserPlaylist(
         playlistId: String,
         name: String,
         trackIds: List<String>,
     ): Boolean = runCatching {
         val (ownerId, id) = parsePlaylistId(playlistId)
-        val audioIds = trackIds.map(::normalizeTrackId).filter { it.isVkAudioFullId() }
-        audioApi.editPlaylist(ownerId, id, name.trim(), audioIds).requireData()
+        val title = name.trim()
+        require(title.isNotEmpty())
+        val playlist = audioApi.getPlaylistById(ownerId, id).requireData()
+        val desiredIds = trackIds.map { streamCacheKey(it) }
+            .filter { it.isVkAudioFullId() }
+            .distinct()
+        val currentTracks = getAllPlaylistTracks(ownerId, id, playlist.access_key)
+        val currentIds = currentTracks.map { it.fullId }.distinct()
+
+        audioApi.editPlaylist(
+            ownerId = ownerId,
+            playlistId = id,
+            title = title,
+            description = playlist.description,
+            noDiscover = playlist.no_discover,
+        ).requireData()
+
+        val desiredSet = desiredIds.toHashSet()
+        val currentSet = currentIds.toHashSet()
+        val removed = currentIds.filterNot(desiredSet::contains)
+        removed.chunked(1000).forEach { ids ->
+            audioApi.removeFromPlaylist(ownerId, id, ids).requireData()
+        }
+        val added = desiredIds.filterNot(currentSet::contains)
+            .mapNotNull(::playlistAudioRequestId)
+        added.chunked(1000).forEach { ids ->
+            audioApi.addToPlaylist(id, ownerId, ids).requireData()
+        }
+
+        val updatedTracks = getAllPlaylistTracks(ownerId, id, playlist.access_key)
+        val updatedById = updatedTracks.associateBy { it.fullId }
+        val orderedTracks = desiredIds.mapNotNull { updatedById[it] }
+        val updatedIds = updatedTracks.map { it.fullId }
+        val actions = orderedTracks.mapIndexedNotNull { index, track ->
+            if (updatedIds.getOrNull(index) == track.fullId) null
+            else AudioPlaylistReorderAction(track.owner_id, track.id, index)
+        }
+        if (actions.isNotEmpty()) {
+            audioApi.reorderInPlaylist(ownerId, id, actions).requireData()
+        }
         true
     }.getOrDefault(false)
+
+    private suspend fun getAllPlaylistTracks(
+        ownerId: Long,
+        playlistId: Int,
+        accessKey: String?,
+    ): List<AudioTrack> {
+        val tracks = mutableListOf<AudioTrack>()
+        var offset = 0
+        while (offset < 10_000) {
+            val page = audioApi.getAudios(
+                ownerId = ownerId,
+                playlistId = playlistId,
+                offset = offset,
+                count = 100,
+                extended = true,
+                accessKey = accessKey,
+            ).requireData()
+            tracks += page
+            if (page.size < 100) break
+            offset += page.size
+        }
+        return tracks
+    }
+
+    private fun playlistAudioRequestId(trackId: String): String? {
+        val fullId = streamCacheKey(trackId)
+        if (!fullId.isVkAudioFullId()) return null
+        val trackCode = trackCache[fullId]?.track_code?.takeIf(String::isNotBlank)
+        return trackCode?.let { "${fullId}_$it" } ?: fullId
+    }
 
     // ---------- тексты ----------
     /**
