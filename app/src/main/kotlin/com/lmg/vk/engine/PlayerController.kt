@@ -20,6 +20,7 @@ import com.lmg.vk.engine.backend.MusicBackend
 import com.lmg.vk.engine.backend.StreamInfo
 import com.lmg.vk.engine.backend.VkAutoflowSource
 import com.lmg.vk.data.local.WaveRepository
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
