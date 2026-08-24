@@ -33,6 +33,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.lmg.vk.R
@@ -184,7 +185,7 @@ fun PlaylistPickerSheet(
                                 Text(
                                     stringResource(
                                         R.string.playlist_track_status,
-                                        stringResource(R.plurals.track_count, playlist.tracks.size),
+                                        pluralStringResource(R.plurals.track_count, playlist.tracks.size, playlist.tracks.size),
                                         stringResource(if (playlist.remoteId != null) R.string.playlist_synced else R.string.playlist_local),
                                     ),
                                     color = LiquidSurfaces.textSecondary(colors.isDark),

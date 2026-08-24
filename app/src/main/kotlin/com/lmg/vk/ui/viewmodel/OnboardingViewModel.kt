@@ -245,7 +245,7 @@ class OnboardingViewModel : ViewModel() {
                 isLoading = false,
                 error = result.message.ifBlank {
                     if (query.isBlank()) {
-                        "ВКонтакте не вернул исполнителей для настройки"
+                        "VK не вернул исполнителей для настройки"
                     } else {
                         "Поиск исполнителей не удался"
                     }

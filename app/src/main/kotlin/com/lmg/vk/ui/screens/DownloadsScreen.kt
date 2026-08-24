@@ -335,7 +335,7 @@ fun DownloadsScreen(onBack: () -> Unit = {}) {
                     textColor = Color.White
                 ),
                 secondaryButton = GlassDialogButton(
-                    text = "Cancel",
+                    text = stringResource(R.string.action_cancel),
                     onClick = { itemToDelete = null },
                     backgroundColor = lc.textPrimary.copy(alpha = 0.08f),
                     textColor = lc.textSecondary
@@ -366,7 +366,7 @@ fun DownloadsScreen(onBack: () -> Unit = {}) {
                     textColor = Color.White
                 ),
                 secondaryButton = GlassDialogButton(
-                    text = "Cancel",
+                    text = stringResource(R.string.action_cancel),
                     onClick = { confirmClearAll = false },
                     backgroundColor = lc.textPrimary.copy(alpha = 0.08f),
                     textColor = lc.textSecondary

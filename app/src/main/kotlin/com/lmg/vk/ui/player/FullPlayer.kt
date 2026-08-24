@@ -765,7 +765,7 @@ fun FullPlayer(
                                                     } else {
                                                         Toast.makeText(
                                                             context,
-                                                            stringResource(R.string.artist_page_unavailable),
+                                                            context.getString(R.string.artist_page_unavailable),
                                                             Toast.LENGTH_SHORT
                                                         ).show()
                                                     }
@@ -1462,7 +1462,7 @@ fun FullPlayer(
                 onClick = { showPromoDialog = false }
             ),
             secondaryButton = GlassDialogButton(
-                text = "Cancel",
+                text = stringResource(R.string.action_cancel),
                 onClick = { showPromoDialog = false },
                 backgroundColor = Color.White.copy(alpha = 0.08f),
                 textColor = Color.White.copy(alpha = 0.7f)
@@ -1486,7 +1486,7 @@ fun FullPlayer(
                 backgroundColor = Color(0xFFFF5252)
             ),
             secondaryButton = GlassDialogButton(
-                text = "Cancel",
+                text = stringResource(R.string.action_cancel),
                 onClick = { showDeleteConfirmDialog = false },
                 backgroundColor = Color.White.copy(alpha = 0.08f),
                 textColor = Color.White.copy(alpha = 0.7f)

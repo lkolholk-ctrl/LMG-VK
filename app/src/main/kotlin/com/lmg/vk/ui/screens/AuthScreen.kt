@@ -356,9 +356,11 @@ fun AuthScreen(
                     AuthStep.Phone -> stringResource(R.string.auth_with_vk_account)
                     AuthStep.TwoFactor -> buildString {
                         append(stringResource(R.string.auth_two_factor_subtitle, destination.ifBlank { stringResource(R.string.auth_your_vk_account) }))
-                        if (expectedCodeLength > 0) append(" (")
-                        append(pluralStringResource(R.plurals.auth_code_digits, expectedCodeLength, expectedCodeLength))
-                        if (expectedCodeLength > 0) append(")")
+                        if (expectedCodeLength > 0) {
+                            append(" (")
+                            append(pluralStringResource(R.plurals.auth_code_digits, expectedCodeLength, expectedCodeLength))
+                            append(")")
+                        }
                     }
                     AuthStep.Password -> stringResource(R.string.auth_password_subtitle)
                     AuthStep.Captcha -> stringResource(R.string.captcha_subtitle)

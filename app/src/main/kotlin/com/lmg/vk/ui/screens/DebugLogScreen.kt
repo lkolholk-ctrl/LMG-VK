@@ -239,13 +239,13 @@ fun DebugLogScreen(onBack: () -> Unit = {}) {
                     text = stringResource(R.string.debug_copy_all),
                     icon = com.lmg.vk.ui.icons.LmgGlyphs.CopyOutline28,
                     modifier = Modifier.weight(1f),
-                    onClick = { copyLogToClipboard(context, buildLogText(lines)) }
+                    onClick = { copyLogToClipboard(context, buildLogText(context, lines)) }
                 )
                 LogActionButton(
                     text = stringResource(R.string.debug_share),
                     icon = com.lmg.vk.ui.icons.LmgGlyphs.ShareOutline28,
                     modifier = Modifier.weight(1f),
-                    onClick = { shareLogText(context, buildLogText(lines)) }
+                    onClick = { shareLogText(context, buildLogText(context, lines)) }
                 )
                 LogActionButton(
                     text = stringResource(R.string.debug_clear),
@@ -391,7 +391,7 @@ private fun LogActionButton(
  * присланному логу было видно, на какой сборке и железе воспроизводился баг:
  * без этого приходится переспрашивать.
  */
-private fun buildLogText(lines: List<String>): String = buildString {
+private fun buildLogText(context: Context, lines: List<String>): String = buildString {
     append("LMG VK ").append(com.lmg.vk.BuildConfig.VERSION_NAME).append('\n')
     append(android.os.Build.MANUFACTURER).append(' ').append(android.os.Build.MODEL)
         .append(" · Android ").append(android.os.Build.VERSION.RELEASE).append('\n')

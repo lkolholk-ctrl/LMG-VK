@@ -38,6 +38,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
@@ -305,7 +306,7 @@ fun PlaylistDetailScreen(
                                 playlistInfo?.artist?.takeIf(String::isNotBlank) ?: stringResource(R.string.vk_music_brand)
                             },
                             facts = buildList {
-                                if (tracks.isNotEmpty()) add(stringResource(R.plurals.songs_count, tracks.size, tracks.size))
+                                if (tracks.isNotEmpty()) add(pluralStringResource(R.plurals.songs_count, tracks.size, tracks.size))
                                 val total = tracks.sumOf { it.durationMs }
                                 if (total > 0) add(formatTotalDuration(total))
                                 playlistInfo?.followers?.takeIf { it > 0 }?.let { add(stringResource(R.string.followers_count, formatPlaylistCount(it))) }

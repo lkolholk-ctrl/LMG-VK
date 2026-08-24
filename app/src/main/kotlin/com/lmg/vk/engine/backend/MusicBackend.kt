@@ -95,6 +95,9 @@ class BackendException(
     val requiredRegion: String? = null,
 ) : Exception(message)
 
+private fun str(resId: Int, vararg formatArgs: Any): String =
+    MusicBackend.appContext.getString(resId, *formatArgs)
+
 /** Человекочитаемое описание ошибки по коду. */
 fun backendUserMessage(kind: Int, code: Int): String = when (code) {
     0 -> str(R.string.err_no_network)
@@ -107,7 +110,7 @@ fun backendUserMessage(kind: Int, code: Int): String = when (code) {
     404 -> str(R.string.err_not_found)
     429 -> str(R.string.err_too_many_requests)
     451 -> str(R.string.err_region_unavailable)
-    else -> str(R.string.err_backend_generic_code)
+    else -> str(R.string.err_backend_generic_code, code)
 }
 
 /** Человекочитаемое описание ошибки для UI (из исключения). */
@@ -144,8 +147,6 @@ data class VkAutoflowSource(
 object MusicBackend {
 
     internal lateinit var appContext: android.content.Context
-
-    private fun str(resId: Int): String = appContext.getString(resId)
 
     private data class VkMixPromptEvent(
         val sequence: Long,
@@ -2336,7 +2337,7 @@ object MusicBackend {
     private fun AudioRecommendedPlaylistDto.toHomeItem(): HomeItem? {
         val fullId = fullId ?: return null
         val match = percentage_title?.takeIf(String::isNotBlank)
-            ?: percentage?.takeIf { it > 0f }?.let { str(R.string.match_percent).format(it.toInt()) }
+            ?: percentage?.takeIf { it > 0f }?.let { str(R.string.match_percent, it.toInt()) }
             ?: str(R.string.vk_recommendation)
         return HomeItem(
             id = "recommended_playlist_$fullId",
@@ -3644,7 +3645,7 @@ object MusicAuth {
                             VkLoginResult.Captcha(error.captchaSid, error.captchaImg)
                         }
                         else -> VkLoginResult.Failure(
-                            error.error_msg.ifBlank { str(R.string.err_vk_generic_code).format(error.error_code) },
+                            error.error_msg.ifBlank { str(R.string.err_vk_generic_code, error.error_code) },
                         )
                     }
                 }

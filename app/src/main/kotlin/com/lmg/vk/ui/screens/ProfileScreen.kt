@@ -37,7 +37,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import com.lmg.vk.R
 import com.lmg.vk.ui.glass.GlassDialog
-import com.lmg.vk.R
 import com.lmg.vk.ui.glass.GlassDialogButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -62,6 +61,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -157,9 +157,10 @@ fun ProfileScreen(
     // photo_max_orig это 400px, и растянутый на ширину экрана он даёт мыло.
     // fallbackAvatar — превью из сессии, лучше мыло, чем пустая шапка.
     val avatarUrl = profile?.largePhotoUrl?.takeIf(String::isNotBlank) ?: fallbackAvatar
+    val currentProfileId = profileId
     val accountSubtitle = when {
         !slug.isNullOrBlank() -> "vk.com/$slug"
-        profileId != null -> stringResource(R.string.vk_id_value, profileId)
+        currentProfileId != null -> stringResource(R.string.vk_id_value, currentProfileId)
         isLoggedIn -> stringResource(R.string.vk_account_label)
         else -> stringResource(R.string.sign_in_restore_library)
     }
@@ -1009,7 +1010,7 @@ private fun PlaylistRow(playlist: AudioPlaylist, compact: Boolean, onClick: () -
             )
             Text(
                 text = if (playlist.count > 0) {
-                    stringResource(R.plurals.track_count, playlist.count)
+                    pluralStringResource(R.plurals.track_count, playlist.count, playlist.count)
                 } else {
                     stringResource(R.string.open_in_library)
                 },
@@ -1794,7 +1795,7 @@ private fun ProfilePlaylistCover(
         )
         if (playlist.count > 0) {
             Text(
-                text = stringResource(R.plurals.track_count, playlist.count),
+                text = pluralStringResource(R.plurals.track_count, playlist.count, playlist.count),
                 fontFamily = VkSansText,
                 color = LiquidSurfaces.textTertiary(colors.isDark),
                 fontSize = 11.sp,

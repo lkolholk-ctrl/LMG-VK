@@ -168,7 +168,7 @@ class YearRecapViewModel : ViewModel() {
             is VkResult.Error -> if (MusicAuth.profileId.value == accountId) {
                 _state.value = _state.value.copy(
                     isLoading = false,
-                    error = result.message.ifBlank { "ВКонтакте не вернул итоги года" },
+                    error = result.message.ifBlank { "VK не вернул итоги года" },
                 )
             }
         }
@@ -197,7 +197,7 @@ class YearRecapViewModel : ViewModel() {
             is VkResult.Error -> if (MusicAuth.profileId.value == accountId) {
                 _state.value = _state.value.copy(
                     isLoading = false,
-                    error = result.message.ifBlank { "ВКонтакте не вернул итоги года артиста" },
+                    error = result.message.ifBlank { "VK не вернул итоги года артиста" },
                 )
             }
         }

@@ -176,9 +176,9 @@ fun SettingsScreen(
                 .onSuccess { result ->
                     duplicateScan = result.scan
                     duplicateStatus = when {
-                        result.removed == 0 && result.failed > 0 -> stringResource(R.string.duplicates_delete_forbidden)
-                        result.failed > 0 -> stringResource(R.string.duplicates_partial_result, result.removed, result.failed)
-                        else -> stringResource(R.string.duplicates_removed_count, result.removed)
+                        result.removed == 0 && result.failed > 0 -> context.getString(R.string.duplicates_delete_forbidden)
+                        result.failed > 0 -> context.getString(R.string.duplicates_partial_result, result.removed, result.failed)
+                        else -> context.getString(R.string.duplicates_removed_count, result.removed)
                     }
                 }
                 .onFailure { duplicateError = it.message ?: context.getString(R.string.duplicates_remove_failed) }
@@ -217,7 +217,7 @@ fun SettingsScreen(
                             AppSettings.setDebugUiEnabled(enabled)
                             android.widget.Toast.makeText(
                                 context,
-                                if (enabled) stringResource(R.string.debug_tools_on) else stringResource(R.string.debug_tools_off),
+                                if (enabled) context.getString(R.string.debug_tools_on) else context.getString(R.string.debug_tools_off),
                                 android.widget.Toast.LENGTH_SHORT,
                             ).show()
                         }
@@ -369,7 +369,7 @@ fun SettingsScreen(
                         }
 
                         Spacer(Modifier.height(sectionGap))
-                        SectionLabel(stringResource(R.string.sleep_timer_section)),
+                        SectionLabel(stringResource(R.string.sleep_timer_section))
                         PlainCard {
                             SleepTimerSelector(
                                 options = listOf(0, 15, 30, 45, 60, 90),
@@ -379,7 +379,7 @@ fun SettingsScreen(
                         }
 
                         Spacer(Modifier.height(sectionGap))
-                        SectionLabel(stringResource(R.string.crossfade_section)),
+                        SectionLabel(stringResource(R.string.crossfade_section))
                         PlainCard {
                             CrossfadeSelector(
                                 options = listOf(0, 4, 9, 12, 15, 18),
@@ -470,7 +470,7 @@ fun SettingsScreen(
                                         launcherIcon = icon
                                         android.widget.Toast.makeText(
                                             context,
-                                            context.getString(R.string.icon_selected_toast, stringResource(icon.titleRes)),
+                                            context.getString(R.string.icon_selected_toast, context.getString(icon.titleRes)),
                                             android.widget.Toast.LENGTH_SHORT,
                                         ).show()
                                     }

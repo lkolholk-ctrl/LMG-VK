@@ -141,12 +141,12 @@ class VkYearStatsApi(
         /** Токен мини-приложения получить не удалось (нет прав/сети/редиректа). */
         const val ERROR_NO_MINI_APP_TOKEN = -8001
         const val MSG_NO_MINI_APP_TOKEN =
-            "ВКонтакте не выдал доступ к «Итогам года». Попробуйте позже."
+            "VK не выдал доступ к «Итогам года». Попробуйте позже."
 
         /** VK всё ещё готовит плейлист (`status = pending`). */
         const val ERROR_STILL_PENDING = -8002
         const val MSG_STILL_PENDING =
-            "ВКонтакте ещё готовит плейлист. Попробуйте через минуту."
+            "VK ещё готовит плейлист. Попробуйте через минуту."
 
         /** Дефолтное имя плейлиста из оригинала (`FRESH C4673e.java:248`). */
         const val DEFAULT_PLAYLIST_TITLE = "My 2025"

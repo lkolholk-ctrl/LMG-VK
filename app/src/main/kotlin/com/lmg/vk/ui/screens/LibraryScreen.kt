@@ -48,6 +48,7 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -184,8 +185,10 @@ fun LibraryScreen(
     val accountSyncState by AccountSyncManager.state.collectAsState()
     val isAnySyncing = isSyncing || playlistSyncState.isSyncing || accountSyncState.isSyncing
     val snackbarHostState = remember { SnackbarHostState() }
+    val syncedLabel = stringResource(R.string.playlist_synced)
+    val localLabel = stringResource(R.string.playlist_local)
 
-    val allPlaylistCells = remember(localPlaylists, importedPlaylists, activeAccountId) {
+    val allPlaylistCells = remember(localPlaylists, importedPlaylists, activeAccountId, syncedLabel, localLabel) {
         val linkedRemoteIds = localPlaylists
             .filter { it.remoteOwnerId == activeAccountId }
             .mapNotNull { it.remoteId }
@@ -198,7 +201,7 @@ fun LibraryScreen(
                 name = p.name,
                 trackCount = p.tracks.size,
                 covers = p.tracks.mapNotNull { it.coverUrl }.distinct().take(4),
-                badge = if (syncedToActiveAccount) "Synced" else "Local",
+                badge = if (syncedToActiveAccount) syncedLabel else localLabel,
                 isImported = false,
                 isCloud = syncedToActiveAccount,
             )
@@ -338,8 +341,8 @@ fun LibraryScreen(
                         SectionTopBar(
                             title = stringResource(R.string.tab_library),
                             subtitle = listOf(
-                                stringResource(R.plurals.track_count, favorites.size),
-                                stringResource(R.plurals.playlist_count, allPlaylistCells.size),
+                                pluralStringResource(R.plurals.track_count, favorites.size, favorites.size),
+                                pluralStringResource(R.plurals.playlist_count, allPlaylistCells.size, allPlaylistCells.size),
                                 stringResource(R.string.offline_tracks_suffix, downloadedTracks.size),
                             ).joinToString(" · "),
                             isDark = lc.isDark,
@@ -649,7 +652,7 @@ fun LibraryScreen(
                         SectionTopBar(
                             title = stringResource(R.string.recent_title),
                             subtitle = if (recentTracks.isEmpty()) stringResource(R.string.listening_history)
-                                else stringResource(R.plurals.recent_tracks_count, recentTracks.size, recentTracks.size),
+                                else pluralStringResource(R.plurals.recent_tracks_count, recentTracks.size, recentTracks.size),
                             isDark = lc.isDark,
                             onBack = ::returnToMain,
                         )
@@ -698,9 +701,9 @@ fun LibraryScreen(
                         SectionTopBar(
                             title = stringResource(R.string.my_tracks),
                             subtitle = if (libraryQuery.isBlank()) {
-                                stringResource(R.plurals.favorite_tracks_count, favorites.size, favorites.size)
+                                pluralStringResource(R.plurals.favorite_tracks_count, favorites.size, favorites.size)
                             } else {
-                                stringResource(R.plurals.search_results_count, matchingFavorites.size, matchingFavorites.size)
+                                pluralStringResource(R.plurals.search_results_count, matchingFavorites.size, matchingFavorites.size)
                             },
                             isDark = lc.isDark,
                             onBack = ::returnToMain,
@@ -1145,7 +1148,7 @@ fun LibraryScreen(
                 // ── Screen-level modal dialog for imported playlist deletion ──
                 importedPlaylistToDelete?.let { playlist ->
                     val dialogTitle = stringResource(R.string.delete_playlist_title)
-                    val dialogMessage = stringResource(R.string.delete_imported_playlist_message, playlist.name)
+                    val dialogMessage = stringResource(R.string.delete_imported_playlist_message, playlist.name.orEmpty())
                     val deleteText = stringResource(R.string.action_delete)
                     val cancelText = stringResource(R.string.action_cancel)
                     GlassDialog(
@@ -1386,7 +1389,7 @@ private fun LibraryQuickSections(
     val items = listOf(
         LibraryQuickItem(
             title = stringResource(R.string.playlists_title),
-            subtitle = stringResource(R.plurals.playlist_count_saved, playlistCount, playlistCount),
+            subtitle = pluralStringResource(R.plurals.playlist_count_saved, playlistCount, playlistCount),
             icon = lmgVector(LmgDrawables.PlaylistOutline28),
             onClick = onPlaylists,
         ),
@@ -1697,7 +1700,7 @@ private fun ProfileLibrarySearchResults(
                                 overflow = TextOverflow.Ellipsis,
                             )
                             Text(
-                                stringResource(R.string.playlist_tracks_prefix, stringResource(R.plurals.track_count, playlist.trackCount)),
+                                stringResource(R.string.playlist_tracks_prefix, pluralStringResource(R.plurals.track_count, playlist.trackCount, playlist.trackCount)),
                                 color = lc.textSecondary,
                                 fontSize = 13.sp,
                             )
@@ -1871,7 +1874,7 @@ private fun PlaylistCell(
             overflow = TextOverflow.Ellipsis
         )
         Text(
-            stringResource(R.plurals.track_count, data.trackCount),
+            pluralStringResource(R.plurals.track_count, data.trackCount, data.trackCount),
             color = lc.textSecondary,
             fontSize = 12.sp
         )

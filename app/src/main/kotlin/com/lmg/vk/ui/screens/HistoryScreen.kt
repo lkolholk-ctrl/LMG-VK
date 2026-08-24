@@ -28,6 +28,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -84,7 +85,7 @@ fun HistoryScreen(
                     subtitle = when {
                         state.accountId == null -> stringResource(R.string.sign_in_vk_account)
                         state.tracks.isEmpty() -> stringResource(R.string.recent_listenings)
-                        else -> stringResource(R.plurals.track_count, state.tracks.size)
+                        else -> pluralStringResource(R.plurals.track_count, state.tracks.size, state.tracks.size)
                     },
                     isDark = colors.isDark,
                     onBack = onBack,
@@ -182,7 +183,7 @@ fun HistoryScreen(
                                 },
                                 modifier = Modifier.fillMaxWidth().padding(12.dp),
                             ) {
-                                Text(stringResource(R.string.error_retry_suffix, state.error))
+                                Text(stringResource(R.string.error_retry_suffix, state.error.orEmpty()))
                             }
                         }
                     }

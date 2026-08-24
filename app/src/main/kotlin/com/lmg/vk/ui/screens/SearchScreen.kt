@@ -352,7 +352,7 @@ fun SearchScreen(
                                         fontWeight = FontWeight.SemiBold
                                     )
                                     Text(
-                                        text = "Clear",
+                                        text = stringResource(R.string.action_clear),
                                         color = SearchAccent,
                                         fontSize = 13.sp,
                                         fontWeight = FontWeight.Medium,
@@ -434,7 +434,7 @@ fun SearchScreen(
                                         )
                                         Spacer(modifier = Modifier.height(16.dp))
                                         Text(
-                                            text = "Retry",
+                                            text = stringResource(R.string.action_retry),
                                             color = Color.White,
                                             fontSize = 14.sp,
                                             fontWeight = FontWeight.SemiBold,

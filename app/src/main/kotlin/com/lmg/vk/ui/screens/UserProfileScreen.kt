@@ -51,6 +51,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -289,7 +290,7 @@ fun UserProfileScreen(
                                 item(key = "profile-playlist:${playlist.fullId}") {
                                     MusicPreviewRow(
                                         title = playlist.title.ifBlank { stringResource(R.string.playlist_fallback) },
-                                        subtitle = stringResource(R.plurals.track_count, playlist.count),
+                                        subtitle = pluralStringResource(R.plurals.track_count, playlist.count, playlist.count),
                                         imageUrl = playlistPreviewUrl(playlist),
                                         icon = LmgGlyphs.ChevronRightOutline24,
                                         onClick = { onOpenPlaylist(playlist.fullId) },
@@ -775,6 +776,7 @@ private fun UserProfileHeader(
     onFriendship: () -> Unit,
     onShare: () -> Unit,
 ) {
+    val context = LocalContext.current
     val colors = LiquidTheme.colors
     val coverPhoto = profile.coverUrl
     val avatarPhoto = profile.animatedAvatarUrl ?: profile.largePhotoUrl.takeIf(String::isNotBlank)

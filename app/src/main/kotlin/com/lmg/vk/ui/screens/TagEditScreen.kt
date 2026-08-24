@@ -181,7 +181,7 @@ fun TagEditScreen(track: Track, onBack: () -> Unit) {
                         .padding(vertical = 14.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(if (saving) "…" else "Save",
+                    Text(if (saving) "…" else stringResource(R.string.action_save),
                         color = if (saving) lc.textSecondary else Color.White,
                         fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
                 }
