@@ -37,10 +37,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.lmg.vk.R
 import com.lmg.vk.engine.AudioDownloadManager
 import com.lmg.vk.engine.PlaybackContext
 import com.lmg.vk.engine.backend.Album
@@ -123,7 +125,7 @@ fun PlaylistDetailScreen(
 
     LaunchedEffect(playlistId, reloadKey, activeAccountId) {
         if (playlistId.isBlank()) {
-            errorMsg = "Invalid playlist"
+            errorMsg = context.getString(R.string.invalid_playlist)
             return@LaunchedEffect
         }
 
@@ -139,7 +141,7 @@ fun PlaylistDetailScreen(
 
         if (isLocalPlaylist) {
             if (localPlaylist == null) {
-                errorMsg = "Playlist not found"
+                errorMsg = context.getString(R.string.playlist_not_found)
                 isLoading = false
                 return@LaunchedEffect
             }
@@ -160,9 +162,9 @@ fun PlaylistDetailScreen(
                         MusicBackend.getUserPlaylistTracks(playlistId, limit = limit, offset = offset)
                     if (response == null) {
                         errorMsg = if (page == 1) {
-                            "Failed to load playlist"
+                            context.getString(R.string.playlist_load_failed)
                         } else {
-                            "Some tracks could not be loaded"
+                            context.getString(R.string.tracks_partially_loaded)
                         }
                         break
                     }
@@ -222,9 +224,9 @@ fun PlaylistDetailScreen(
 
     val name = remember(playlistId, playlistInfo, localPlaylist) {
         if (isLocalPlaylist) {
-            localPlaylist?.name ?: "Playlist"
+            localPlaylist?.name ?: context.getString(R.string.playlist_fallback)
         } else {
-            playlistInfo?.title ?: "Playlist"
+            playlistInfo?.title ?: context.getString(R.string.playlist_fallback)
         }
     }
     val playableTracks = remember(tracks) { tracks.filter { it.isAvailable } }
@@ -298,15 +300,15 @@ fun PlaylistDetailScreen(
                             // Обложки у плейлиста нет — берём обложку первого трека:
                             // пустой квадрат смотрелся бы как ошибка загрузки.
                             subtitle = if (isLocalPlaylist) {
-                                "Your playlist"
+                                stringResource(R.string.your_playlist)
                             } else {
-                                playlistInfo?.artist?.takeIf(String::isNotBlank) ?: "VK Music"
+                                playlistInfo?.artist?.takeIf(String::isNotBlank) ?: stringResource(R.string.vk_music_brand)
                             },
                             facts = buildList {
-                                if (tracks.isNotEmpty()) add("${tracks.size} songs")
+                                if (tracks.isNotEmpty()) add(stringResource(R.plurals.songs_count, tracks.size, tracks.size))
                                 val total = tracks.sumOf { it.durationMs }
                                 if (total > 0) add(formatTotalDuration(total))
-                                playlistInfo?.followers?.takeIf { it > 0 }?.let { add("${formatPlaylistCount(it)} followers") }
+                                playlistInfo?.followers?.takeIf { it > 0 }?.let { add(stringResource(R.string.followers_count, formatPlaylistCount(it))) }
                             },
                             coverUrl = playlistInfo?.cover?.toDetailThumb()
                                 ?: tracks.firstOrNull()?.coverUrl,
@@ -403,7 +405,7 @@ fun PlaylistDetailScreen(
                                 )
                                 Icon(
                                     com.lmg.vk.ui.icons.LmgGlyphs.ArrowRightOutline28,
-                                    contentDescription = "Open artist",
+                                    contentDescription = stringResource(R.string.open_artist),
                                     tint = LiquidSurfaces.textSecondary(isDark),
                                     modifier = Modifier.size(19.dp),
                                 )
@@ -426,7 +428,7 @@ fun PlaylistDetailScreen(
                     if (tracks.isEmpty() && !isLoading) {
                         item {
                             Text(
-                                text = "This playlist is empty",
+                                text = stringResource(R.string.playlist_empty),
                                 color = LiquidSurfaces.textSecondary(isDark),
                                 fontSize = 14.sp,
                                 modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 32.dp),
@@ -535,7 +537,7 @@ fun PlaylistDetailScreen(
                     val added = PlaylistManager.addTrack(playlist.id, selected)
                     Toast.makeText(
                         context,
-                        if (added) "Added to ${playlist.name}" else "Already in ${playlist.name}",
+                        if (added) context.getString(R.string.added_to_playlist, playlist.name) else context.getString(R.string.already_in_playlist, playlist.name),
                         Toast.LENGTH_SHORT,
                     ).show()
                     playlistPickerTrack = null
@@ -546,9 +548,9 @@ fun PlaylistDetailScreen(
 
         if (showRenameDialog && localPlaylist != null) {
             PlaylistNameDialog(
-                title = "Rename playlist",
+                title = stringResource(R.string.rename_playlist),
                 initialName = localPlaylist.name,
-                confirmLabel = "Rename",
+                confirmLabel = stringResource(R.string.action_rename),
                 onConfirm = { newName ->
                     PlaylistManager.rename(playlistId, newName)
                     showRenameDialog = false
@@ -591,11 +593,11 @@ private fun PlaylistActionsRow(
     ) {
         PlaylistActionButton(
             title = when {
-                isSynced -> "Synced"
-                isLocal -> "Local"
-                isOwned -> "Yours"
-                isFollowing -> "Added"
-                else -> "Add"
+                isSynced -> stringResource(R.string.playlist_synced)
+                isLocal -> stringResource(R.string.playlist_local)
+                isOwned -> stringResource(R.string.yours)
+                isFollowing -> stringResource(R.string.in_library)
+                else -> stringResource(R.string.action_add)
             },
             icon = if (isLocal || isOwned || isFollowing) {
                 com.lmg.vk.ui.icons.LmgGlyphs.BookmarkCheckOutline28
@@ -606,10 +608,10 @@ private fun PlaylistActionsRow(
             isDark = isDark,
             onClick = onAdd,
         )
-        PlaylistActionButton("Cache", com.lmg.vk.ui.icons.LmgGlyphs.DownloadOutline28, cacheEnabled, isDark, onCache)
-        PlaylistActionButton("Queue", com.lmg.vk.ui.icons.LmgGlyphs.ListPlayOutline28, queueEnabled, isDark, onQueue)
+        PlaylistActionButton(stringResource(R.string.action_cache), com.lmg.vk.ui.icons.LmgGlyphs.DownloadOutline28, cacheEnabled, isDark, onCache)
+        PlaylistActionButton(stringResource(R.string.action_queue), com.lmg.vk.ui.icons.LmgGlyphs.ListPlayOutline28, queueEnabled, isDark, onQueue)
         if (isLocal) {
-            PlaylistActionButton("Rename", lmgVector(LmgDrawables.ListPenOutline20), true, isDark, onRename)
+            PlaylistActionButton(stringResource(R.string.action_rename), lmgVector(LmgDrawables.ListPenOutline20), true, isDark, onRename)
         }
     }
 }
@@ -668,9 +670,9 @@ private fun PlaylistCacheProgress(
     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp)) {
         Text(
             text = when {
-                total > 0 && cached >= total -> "Playlist cached"
-                isActive -> "Caching playlist · $cached/$total"
-                else -> "Cached tracks · $cached/$total"
+                total > 0 && cached >= total -> stringResource(R.string.playlist_cached)
+                isActive -> stringResource(R.string.caching_playlist, cached, total)
+                else -> stringResource(R.string.cached_tracks_progress, cached, total)
             },
             color = LiquidSurfaces.textSecondary(isDark),
             fontSize = 12.sp,
@@ -690,7 +692,7 @@ private fun PlaylistLoadingMore(loaded: Int, total: Int?, isDark: Boolean) {
     ) {
         CircularProgressIndicator(modifier = Modifier.size(22.dp), strokeWidth = 2.dp)
         Text(
-            text = total?.let { "Loading tracks · $loaded/$it" } ?: "Loading tracks · $loaded",
+            text = total?.let { stringResource(R.string.loading_tracks_total, loaded, it) } ?: stringResource(R.string.loading_tracks, loaded),
             color = LiquidSurfaces.textSecondary(isDark),
             fontSize = 12.sp,
             modifier = Modifier.padding(top = 7.dp),
@@ -710,7 +712,7 @@ private fun RetryButton(isDark: Boolean, onClick: () -> Unit) {
     ) {
         Icon(com.lmg.vk.ui.icons.LmgGlyphs.RefreshOutline28, null, tint = LiquidSurfaces.textPrimary(isDark), modifier = Modifier.size(17.dp))
         Text(
-            "Retry",
+            stringResource(R.string.action_retry),
             color = LiquidSurfaces.textPrimary(isDark),
             fontSize = 12.sp,
             fontWeight = FontWeight.SemiBold,
@@ -722,10 +724,10 @@ private fun RetryButton(isDark: Boolean, onClick: () -> Unit) {
 @Composable
 private fun PlaylistMetadata(info: Album, isDark: Boolean) {
     val lines = buildList {
-        info.plays?.takeIf { it > 0 }?.let { add("${formatPlaylistCount(it)} plays") }
-        info.followers?.takeIf { it > 0 }?.let { add("${formatPlaylistCount(it)} followers") }
-        info.createdAt?.takeIf { it > 0L }?.let { add("Created ${formatPlaylistDate(it)}") }
-        info.updatedAt?.takeIf { it > 0L }?.let { add("Updated ${formatPlaylistDate(it)}") }
+        info.plays?.takeIf { it > 0 }?.let { add(stringResource(R.string.plays_count, formatPlaylistCount(it))) }
+        info.followers?.takeIf { it > 0 }?.let { add(stringResource(R.string.followers_count, formatPlaylistCount(it))) }
+        info.createdAt?.takeIf { it > 0L }?.let { add(stringResource(R.string.created_at, formatPlaylistDate(it))) }
+        info.updatedAt?.takeIf { it > 0L }?.let { add(stringResource(R.string.updated_at, formatPlaylistDate(it))) }
     }
     if (lines.isEmpty() && info.description.isNullOrBlank()) return
     Column(
@@ -745,7 +747,7 @@ private fun formatPlaylistDate(seconds: Long): String =
     SimpleDateFormat("d MMM yyyy", Locale.getDefault()).format(Date(seconds * 1000L))
 
 private fun formatPlaylistCount(value: Int): String = when {
-    value >= 1_000_000 -> "%.1fM".format(Locale.US, value / 1_000_000f)
-    value >= 1_000 -> "%.1fK".format(Locale.US, value / 1_000f)
+    value >= 1_000_000 -> "%.1f млн".format(value / 1_000_000f)
+    value >= 1_000 -> "%.1f тыс.".format(value / 1_000f)
     else -> value.toString()
 }

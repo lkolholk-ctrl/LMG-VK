@@ -15,10 +15,10 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 enum class UserConnectionsKind(val routeValue: String, val title: String) {
-    FRIENDS("friends", "Friends"),
-    MUTUAL("mutual", "Mutual friends"),
-    FOLLOWERS("followers", "Followers"),
-    SUBSCRIPTIONS("subscriptions", "Subscriptions");
+    FRIENDS("friends", "Друзья"),
+    MUTUAL("mutual", "Общие друзья"),
+    FOLLOWERS("followers", "Подписчики"),
+    SUBSCRIPTIONS("subscriptions", "Подписки");
 
     companion object {
         fun fromRoute(value: String): UserConnectionsKind? = entries.firstOrNull { it.routeValue == value }

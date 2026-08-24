@@ -1,5 +1,6 @@
 package com.lmg.vk.ui.screens
 
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -49,6 +50,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -57,6 +59,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.lmg.vk.R
 import com.lmg.vk.engine.PlayerController
 import com.lmg.vk.engine.ProfileImageKind
 import com.lmg.vk.engine.backend.MusicBackend
@@ -127,26 +130,26 @@ fun UserProfileScreen(
         when {
             state.isLoading && state.profile == null -> UserProfileLoading()
             state.notFound -> UserProfileMessage(
-                title = "Profile not found",
-                message = "VK did not return a user with id $userId.",
+                title = stringResource(R.string.profile_not_found),
+                message = stringResource(R.string.profile_not_found_message, userId),
             )
             state.error != null && state.profile == null -> UserProfileMessage(
-                title = "Couldn't open profile",
+                title = stringResource(R.string.profile_open_failed),
                 message = state.error!!,
-                actionLabel = "Retry",
+                actionLabel = stringResource(R.string.action_retry),
                 onAction = { viewModel.load(userId, force = true) },
             )
             state.profile != null -> {
                 val profile = state.profile!!
                 val profileUrl = "https://vk.com/${profile.addressSlug.ifBlank { "id$userId" }}"
                 val friendLabel = when {
-                    state.isOwnProfile && state.isSavingProfile -> "Saving..."
-                    state.isOwnProfile -> "Edit profile"
-                    state.isFriendActionLoading -> "Working..."
-                    profile.friendStatus == 1 -> "Request sent"
-                    profile.friendStatus == 2 -> "Accept request"
-                    profile.friendStatus == 3 || profile.isFriend == 1 -> "Friends"
-                    else -> "Add friend"
+                    state.isOwnProfile && state.isSavingProfile -> stringResource(R.string.status_saving_short)
+                    state.isOwnProfile -> stringResource(R.string.edit_profile)
+                    state.isFriendActionLoading -> stringResource(R.string.working_ellipsis)
+                    profile.friendStatus == 1 -> stringResource(R.string.friend_request_sent)
+                    profile.friendStatus == 2 -> stringResource(R.string.accept_request)
+                    profile.friendStatus == 3 || profile.isFriend == 1 -> stringResource(R.string.friends_title)
+                    else -> stringResource(R.string.add_friend)
                 }
                 val friendIcon = when {
                     state.isOwnProfile -> lmgVector(LmgDrawables.UserPenOutline28)
@@ -195,7 +198,7 @@ fun UserProfileScreen(
                                     putExtra(Intent.EXTRA_TEXT, profileUrl)
                                 }
                                 runCatching {
-                                    context.startActivity(Intent.createChooser(intent, "Share VK profile"))
+                                    context.startActivity(Intent.createChooser(intent, context.getString(R.string.share_vk_profile)))
                                 }
                             },
                         )
@@ -204,12 +207,12 @@ fun UserProfileScreen(
                     profile.deactivated?.takeIf(String::isNotBlank)?.let { reason ->
                         item {
                             UserProfileNotice(
-                                if (reason == "banned") "This VK profile is blocked." else "This VK profile was deleted.",
+                                if (reason == "banned") stringResource(R.string.profile_blocked) else stringResource(R.string.profile_deleted),
                             )
                         }
                     }
                     if (!profile.isAccessible && profile.deactivated.isNullOrBlank()) {
-                        item { UserProfileNotice("This profile is private. Only public fields are available.") }
+                        item { UserProfileNotice(stringResource(R.string.profile_private_notice)) }
                     }
                     state.friendActionError?.let { error ->
                         item { UserProfileNotice(error) }
@@ -235,7 +238,7 @@ fun UserProfileScreen(
                     }
 
                     profile.actualStatusAudio?.let { statusAudio ->
-                        item { UserProfileSectionTitle("STATUS TRACK") }
+                        item { UserProfileSectionTitle(stringResource(R.string.section_status_track)) }
                         item {
                             MusicPreviewRow(
                                 title = statusAudio.title,
@@ -256,7 +259,7 @@ fun UserProfileScreen(
                     if (state.isMusicPreviewLoading || state.musicTracks.isNotEmpty() ||
                         state.musicPlaylists.isNotEmpty()
                     ) {
-                        item { UserProfileSectionTitle("MUSIC") }
+                        item { UserProfileSectionTitle(stringResource(R.string.section_music)) }
                         if (state.isMusicPreviewLoading) {
                             item {
                                 Box(Modifier.fillMaxWidth().padding(20.dp), contentAlignment = Alignment.Center) {
@@ -285,8 +288,8 @@ fun UserProfileScreen(
                             state.musicPlaylists.forEach { playlist ->
                                 item(key = "profile-playlist:${playlist.fullId}") {
                                     MusicPreviewRow(
-                                        title = playlist.title.ifBlank { "Playlist" },
-                                        subtitle = "${formatProfileCount(playlist.count)} tracks",
+                                        title = playlist.title.ifBlank { stringResource(R.string.playlist_fallback) },
+                                        subtitle = stringResource(R.plurals.track_count, playlist.count),
                                         imageUrl = playlistPreviewUrl(playlist),
                                         icon = LmgGlyphs.ChevronRightOutline24,
                                         onClick = { onOpenPlaylist(playlist.fullId) },
@@ -298,9 +301,12 @@ fun UserProfileScreen(
                             ) {
                                 item {
                                     UserProfileLinkRow(
-                                        title = "All music",
-                                        value = "${formatProfileCount(state.musicTotal)} tracks · " +
-                                            "${formatProfileCount(state.playlistTotal)} playlists",
+                                        title = stringResource(R.string.all_music),
+                                        value = stringResource(
+                                            R.string.tracks_playlists_summary,
+                                            formatProfileCount(state.musicTotal),
+                                            formatProfileCount(state.playlistTotal),
+                                        ),
                                         onClick = { onOpenMusic(profile.id) },
                                     )
                                 }
@@ -328,10 +334,10 @@ fun UserProfileScreen(
             onDismiss = { showRemoveFriendConfirm = false },
             icon = lmgVector(LmgDrawables.UserOutline28),
             iconTint = Color(0xFFFC3C44),
-            title = "Remove friend?",
-            message = "The user will remain available in followers if VK keeps the subscription.",
+            title = stringResource(R.string.remove_friend_question),
+            message = stringResource(R.string.remove_friend_message),
             primaryButton = GlassDialogButton(
-                text = "Remove",
+                text = stringResource(R.string.action_remove),
                 backgroundColor = Color(0xFFFC3C44),
                 onClick = {
                     showRemoveFriendConfirm = false
@@ -339,7 +345,7 @@ fun UserProfileScreen(
                 },
             ),
             secondaryButton = GlassDialogButton(
-                text = "Cancel",
+                text = stringResource(R.string.action_cancel),
                 onClick = { showRemoveFriendConfirm = false },
             ),
         )
@@ -356,11 +362,11 @@ fun UserProfileScreen(
             },
             icon = lmgVector(LmgDrawables.EditOutline28),
             iconTint = colors.accent,
-            title = "Edit VK profile",
-            subtitle = "Update status and bio on your VK profile",
+            title = stringResource(R.string.edit_vk_profile),
+            subtitle = stringResource(R.string.edit_profile_subtitle),
             dismissible = !state.isSavingProfile && !state.isUploadingImage,
             primaryButton = GlassDialogButton(
-                text = "Save",
+                text = stringResource(R.string.action_save),
                 backgroundColor = colors.accent,
                 enabled = !state.isSavingProfile && !state.isUploadingImage,
                 onClick = {
@@ -369,7 +375,7 @@ fun UserProfileScreen(
                 },
             ),
             secondaryButton = GlassDialogButton(
-                text = "Cancel",
+                text = stringResource(R.string.action_cancel),
                 enabled = !state.isSavingProfile && !state.isUploadingImage,
                 onClick = { showEditProfile = false },
             ),
@@ -381,7 +387,7 @@ fun UserProfileScreen(
                 OutlinedTextField(
                     value = editStatus,
                     onValueChange = { editStatus = it },
-                    label = { Text("Status", fontFamily = VkSansText) },
+                    label = { Text(stringResource(R.string.field_status), fontFamily = VkSansText) },
                     maxLines = 3,
                     shape = RoundedCornerShape(16.dp),
                     colors = OutlinedTextFieldDefaults.colors(
@@ -398,7 +404,7 @@ fun UserProfileScreen(
                 OutlinedTextField(
                     value = editAbout,
                     onValueChange = { editAbout = it },
-                    label = { Text("About", fontFamily = VkSansText) },
+                    label = { Text(stringResource(R.string.detail_about), fontFamily = VkSansText) },
                     minLines = 3,
                     maxLines = 7,
                     shape = RoundedCornerShape(16.dp),
@@ -446,7 +452,7 @@ fun UserProfileScreen(
                                 modifier = Modifier.size(18.dp),
                             )
                             Text(
-                                text = "Change photo",
+                                text = stringResource(R.string.change_photo),
                                 fontFamily = VkSansText,
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.SemiBold,
@@ -484,7 +490,7 @@ fun UserProfileScreen(
                                 modifier = Modifier.size(18.dp),
                             )
                             Text(
-                                text = "Change cover",
+                                text = stringResource(R.string.change_cover),
                                 fontFamily = VkSansText,
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.SemiBold,
@@ -509,7 +515,7 @@ fun UserProfileScreen(
                         )
                         Spacer(Modifier.width(8.dp))
                         Text(
-                            text = "Uploading image...",
+                            text = stringResource(R.string.uploading_image),
                             fontFamily = VkSansText,
                             fontSize = 13.sp,
                             color = colors.textSecondary,
@@ -518,7 +524,7 @@ fun UserProfileScreen(
                 }
 
                 Text(
-                    text = "Cover images must already be prepared close to VK's 2.5:1 format.",
+                    text = stringResource(R.string.cover_format_hint),
                     color = colors.textTertiary,
                     fontFamily = VkSansText,
                     fontSize = 12.sp,
@@ -549,19 +555,19 @@ fun UserProfileDetailsScreen(
         when {
             state.isLoading && state.profile == null -> UserProfileLoading()
             state.notFound -> UserProfileMessage(
-                title = "Profile not found",
-                message = "VK did not return a user with id $userId.",
+                title = stringResource(R.string.profile_not_found),
+                message = stringResource(R.string.profile_not_found_message, userId),
             )
             state.error != null && state.profile == null -> UserProfileMessage(
-                title = "Couldn't open information",
+                title = stringResource(R.string.info_open_failed),
                 message = state.error!!,
-                actionLabel = "Retry",
+                actionLabel = stringResource(R.string.action_retry),
                 onAction = { viewModel.load(userId, force = true, loadMusic = false) },
             )
             state.profile != null -> {
                 val profile = state.profile!!
-                val facts = remember(profile) { profileFacts(profile) }
-                val details = remember(profile) { profileDetails(profile) }
+                val facts = remember(profile) { profileFacts(context, profile) }
+                val details = remember(profile) { profileDetails(context, profile) }
                 val profileUrl = "https://vk.com/${profile.addressSlug.ifBlank { "id$userId" }}"
                 LazyColumn(
                     modifier = Modifier.fillMaxSize().widthIn(max = 640.dp).align(Alignment.TopCenter),
@@ -582,13 +588,13 @@ fun UserProfileDetailsScreen(
                         }
                     }
                     if (facts.isNotEmpty()) {
-                        item { UserProfileSectionTitle("PROFILE") }
+                        item { UserProfileSectionTitle(stringResource(R.string.section_profile)) }
                         item { UserProfileFacts(facts) }
                     }
-                    item { UserProfileSectionTitle("SOCIAL") }
+                    item { UserProfileSectionTitle(stringResource(R.string.section_social)) }
                     item {
                         UserProfileLinkRow(
-                            title = "Friends",
+                            title = stringResource(R.string.friends_title),
                             value = formatProfileCount(profile.counters?.friends ?: profile.friendsBlock?.friends?.size ?: 0),
                             onClick = { onOpenConnections("friends") },
                         )
@@ -596,7 +602,7 @@ fun UserProfileDetailsScreen(
                     profile.commonCount?.takeIf { it > 0 }?.let { count ->
                         item {
                             UserProfileLinkRow(
-                                title = "Mutual friends",
+                                title = stringResource(R.string.mutual_friends),
                                 value = formatProfileCount(count),
                                 onClick = { onOpenConnections("mutual") },
                             )
@@ -604,27 +610,27 @@ fun UserProfileDetailsScreen(
                     }
                     item {
                         UserProfileLinkRow(
-                            title = "Followers",
-                            value = profile.followersCount?.let(::formatProfileCount) ?: "View list",
+                            title = stringResource(R.string.followers_title),
+                            value = profile.followersCount?.let(::formatProfileCount) ?: stringResource(R.string.view_list),
                             onClick = { onOpenConnections("followers") },
                         )
                     }
                     item {
                         UserProfileLinkRow(
-                            title = "Subscriptions",
-                            value = "People and communities",
+                            title = stringResource(R.string.subscriptions_title),
+                            value = stringResource(R.string.people_and_communities),
                             onClick = { onOpenConnections("subscriptions") },
                         )
                     }
                     if (details.isNotEmpty()) {
-                        item { UserProfileSectionTitle("INFORMATION") }
+                        item { UserProfileSectionTitle(stringResource(R.string.information)) }
                         item { UserProfileDetails(details) }
                     }
                     val serverActions = profile.profileButtons.flatten().filter { button ->
                         button.text.isNotBlank() && isSupportedProfileActionUrl(button.action.url)
                     }
                     if (serverActions.isNotEmpty()) {
-                        item { UserProfileSectionTitle("ACTIONS") }
+                        item { UserProfileSectionTitle(stringResource(R.string.section_actions)) }
                         serverActions.forEach { button ->
                             item(key = "details-action:${button.uid}:${button.text}") {
                                 UserProfileLinkRow(
@@ -641,10 +647,10 @@ fun UserProfileDetailsScreen(
                             }
                         }
                     }
-                    item { UserProfileSectionTitle("LINKS") }
+                    item { UserProfileSectionTitle(stringResource(R.string.links)) }
                     item {
                         UserProfileLinkRow(
-                            title = "Open in VK",
+                            title = stringResource(R.string.open_in_vk),
                             value = profileUrl.removePrefix("https://"),
                             onClick = {
                                 runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(profileUrl))) }
@@ -654,7 +660,7 @@ fun UserProfileDetailsScreen(
                     profile.site?.takeIf(String::isNotBlank)?.let { site ->
                         item {
                             UserProfileLinkRow(
-                                title = "Website",
+                                title = stringResource(R.string.website),
                                 value = site,
                                 onClick = {
                                     val normalized = if (site.startsWith("http")) site else "https://$site"
@@ -669,7 +675,7 @@ fun UserProfileDetailsScreen(
             }
         }
         DetailTopBar(
-            title = "More information",
+            title = stringResource(R.string.more_information),
             showTitle = true,
             isDark = colors.isDark,
             onBack = onBack,
@@ -680,32 +686,33 @@ fun UserProfileDetailsScreen(
 private data class ProfileFact(val label: String, val value: String)
 private data class ProfileDetail(val label: String, val value: String)
 
-private fun profileFacts(profile: VkAccountProfile): List<ProfileFact> = buildList {
-    profile.locationLabel.takeIf(String::isNotBlank)?.let { add(ProfileFact("Location", it)) }
-    profile.homeTown?.takeIf(String::isNotBlank)?.let { add(ProfileFact("Hometown", it)) }
-    profile.bdate.takeIf(String::isNotBlank)?.let { add(ProfileFact("Birthday", it)) }
-    profile.occupation?.name?.takeIf(String::isNotBlank)?.let { add(ProfileFact("Occupation", it)) }
-    profile.imageStatus?.name?.takeIf(String::isNotBlank)?.let { add(ProfileFact("Image status", it)) }
+private fun profileFacts(context: Context, profile: VkAccountProfile): List<ProfileFact> = buildList {
+    profile.locationLabel.takeIf(String::isNotBlank)?.let { add(ProfileFact(context.getString(R.string.fact_location), it)) }
+    profile.homeTown?.takeIf(String::isNotBlank)?.let { add(ProfileFact(context.getString(R.string.fact_hometown), it)) }
+    profile.bdate.takeIf(String::isNotBlank)?.let { add(ProfileFact(context.getString(R.string.fact_birthday), it)) }
+    profile.occupation?.name?.takeIf(String::isNotBlank)?.let { add(ProfileFact(context.getString(R.string.fact_occupation), it)) }
+    profile.imageStatus?.name?.takeIf(String::isNotBlank)?.let { add(ProfileFact(context.getString(R.string.fact_image_status), it)) }
 }
 
-private fun profileDetails(profile: VkAccountProfile): List<ProfileDetail> = buildList {
-    profile.description?.takeIf(String::isNotBlank)?.let { add(ProfileDetail("Description", it)) }
-    profile.descriptions.filter(String::isNotBlank).forEach { add(ProfileDetail("Profile", it)) }
-    profile.about?.takeIf(String::isNotBlank)?.let { add(ProfileDetail("About", it)) }
-    profile.activities?.takeIf(String::isNotBlank)?.let { add(ProfileDetail("Activities", it)) }
-    profile.interests?.takeIf(String::isNotBlank)?.let { add(ProfileDetail("Interests", it)) }
-    profile.music?.takeIf(String::isNotBlank)?.let { add(ProfileDetail("Favorite music", it)) }
+private fun profileDetails(context: Context, profile: VkAccountProfile): List<ProfileDetail> = buildList {
+    val c = context
+    profile.description?.takeIf(String::isNotBlank)?.let { add(ProfileDetail(c.getString(R.string.detail_description), it)) }
+    profile.descriptions.filter(String::isNotBlank).forEach { add(ProfileDetail(c.getString(R.string.detail_profile), it)) }
+    profile.about?.takeIf(String::isNotBlank)?.let { add(ProfileDetail(c.getString(R.string.detail_about), it)) }
+    profile.activities?.takeIf(String::isNotBlank)?.let { add(ProfileDetail(c.getString(R.string.detail_activities), it)) }
+    profile.interests?.takeIf(String::isNotBlank)?.let { add(ProfileDetail(c.getString(R.string.detail_interests), it)) }
+    profile.music?.takeIf(String::isNotBlank)?.let { add(ProfileDetail(c.getString(R.string.detail_favorite_music), it)) }
     profile.career.forEach { career ->
         val work = listOfNotNull(
             career.position?.takeIf(String::isNotBlank),
             career.company?.takeIf(String::isNotBlank),
-        ).joinToString(" at ")
+        ).joinToString(" ${c.getString(R.string.career_at_join)} ")
         val extra = listOfNotNull(
             career.cityName?.takeIf(String::isNotBlank),
-            career.from?.let { from -> career.until?.let { "$from-$it" } ?: "$from-present" },
+            career.from?.let { from -> career.until?.let { c.getString(R.string.career_years, from, it.toString()) } ?: c.getString(R.string.career_present, from) },
         ).joinToString(" · ")
         listOf(work, extra).filter(String::isNotBlank).joinToString("\n")
-            .takeIf(String::isNotBlank)?.let { add(ProfileDetail("Career", it)) }
+            .takeIf(String::isNotBlank)?.let { add(ProfileDetail(c.getString(R.string.detail_career), it)) }
     }
     profile.universities.forEach { university ->
         val value = listOfNotNull(
@@ -714,7 +721,7 @@ private fun profileDetails(profile: VkAccountProfile): List<ProfileDetail> = bui
             university.chairName?.takeIf(String::isNotBlank),
             university.graduation?.takeIf { it > 0 }?.toString(),
         ).joinToString(" · ")
-        value.takeIf(String::isNotBlank)?.let { add(ProfileDetail("University", it)) }
+        value.takeIf(String::isNotBlank)?.let { add(ProfileDetail(c.getString(R.string.detail_university), it)) }
     }
     profile.schools.forEach { school ->
         val value = listOfNotNull(
@@ -722,12 +729,12 @@ private fun profileDetails(profile: VkAccountProfile): List<ProfileDetail> = bui
             school.speciality?.takeIf(String::isNotBlank),
             school.yearGraduated?.takeIf { it > 0 }?.toString(),
         ).joinToString(" · ")
-        value.takeIf(String::isNotBlank)?.let { add(ProfileDetail("School", it)) }
+        value.takeIf(String::isNotBlank)?.let { add(ProfileDetail(c.getString(R.string.detail_school), it)) }
     }
     profile.relation?.takeIf { it in 1..8 }?.let { relation ->
-        val label = relationLabel(relation)
+        val label = relationLabel(c, relation)
         val partner = profile.relationPartner?.displayName?.takeIf(String::isNotBlank)
-        add(ProfileDetail("Relationship", listOfNotNull(label, partner).joinToString(" · ")))
+        add(ProfileDetail(c.getString(R.string.detail_relationship), listOfNotNull(label, partner).joinToString(" · ")))
     }
     profile.relatives.forEach { relative ->
         relative.name?.takeIf(String::isNotBlank)?.let {
@@ -735,23 +742,23 @@ private fun profileDetails(profile: VkAccountProfile): List<ProfileDetail> = bui
         }
     }
     profile.personal?.langs?.takeIf { it.isNotEmpty() }?.let {
-        add(ProfileDetail("Languages", it.joinToString(", ")))
+        add(ProfileDetail(c.getString(R.string.detail_languages), it.joinToString(", ")))
     }
-    profile.personal?.religion?.takeIf(String::isNotBlank)?.let { add(ProfileDetail("Worldview", it)) }
-    profile.personal?.lifeMain?.let(::lifePriorityLabel)?.takeIf(String::isNotBlank)?.let {
-        add(ProfileDetail("Main in life", it))
+    profile.personal?.religion?.takeIf(String::isNotBlank)?.let { add(ProfileDetail(c.getString(R.string.detail_worldview), it)) }
+    profile.personal?.lifeMain?.let { lifePriorityLabel(c, it) }?.takeIf(String::isNotBlank)?.let {
+        add(ProfileDetail(c.getString(R.string.detail_life_main), it))
     }
-    profile.personal?.peopleMain?.let(::peoplePriorityLabel)?.takeIf(String::isNotBlank)?.let {
-        add(ProfileDetail("Main in people", it))
+    profile.personal?.peopleMain?.let { peoplePriorityLabel(c, it) }?.takeIf(String::isNotBlank)?.let {
+        add(ProfileDetail(c.getString(R.string.detail_people_main), it))
     }
-    profile.personal?.smoking?.let(::habitLabel)?.takeIf(String::isNotBlank)?.let {
-        add(ProfileDetail("Attitude to smoking", it))
+    profile.personal?.smoking?.let { habitLabel(c, it) }?.takeIf(String::isNotBlank)?.let {
+        add(ProfileDetail(c.getString(R.string.detail_smoking), it))
     }
-    profile.personal?.alcohol?.let(::habitLabel)?.takeIf(String::isNotBlank)?.let {
-        add(ProfileDetail("Attitude to alcohol", it))
+    profile.personal?.alcohol?.let { habitLabel(c, it) }?.takeIf(String::isNotBlank)?.let {
+        add(ProfileDetail(c.getString(R.string.detail_alcohol), it))
     }
-    profile.mobilePhone?.takeIf(String::isNotBlank)?.let { add(ProfileDetail("Mobile phone", it)) }
-    profile.homePhone?.takeIf(String::isNotBlank)?.let { add(ProfileDetail("Home phone", it)) }
+    profile.mobilePhone?.takeIf(String::isNotBlank)?.let { add(ProfileDetail(c.getString(R.string.detail_mobile_phone), it)) }
+    profile.homePhone?.takeIf(String::isNotBlank)?.let { add(ProfileDetail(c.getString(R.string.detail_home_phone), it)) }
     profile.skype?.takeIf(String::isNotBlank)?.let { add(ProfileDetail("Skype", it)) }
 }
 
@@ -771,7 +778,7 @@ private fun UserProfileHeader(
     val colors = LiquidTheme.colors
     val coverPhoto = profile.coverUrl
     val avatarPhoto = profile.animatedAvatarUrl ?: profile.largePhotoUrl.takeIf(String::isNotBlank)
-    val presence = profilePresence(profile)
+    val presence = profilePresence(context, profile)
     val bannerHeight = if (coverPhoto != null) 132.dp else 70.dp
     val avatarSize = if (compact) 82.dp else 92.dp
 
@@ -857,7 +864,7 @@ private fun UserProfileHeader(
                     Spacer(Modifier.width(7.dp))
                     Icon(
                         lmgVector(LmgDrawables.CheckCircleOutline28),
-                        contentDescription = "Verified",
+                        contentDescription = stringResource(R.string.verified_badge),
                         tint = Color(0xFF2787F5),
                         modifier = Modifier.size(19.dp),
                     )
@@ -900,7 +907,7 @@ private fun UserProfileHeader(
             ) {
                 Icon(LmgGlyphs.InfoCircleOutline28, null, tint = colors.iconMuted, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(6.dp))
-                Text("More information", color = colors.textSecondary, fontFamily = VkSansText, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                Text(stringResource(R.string.more_information), color = colors.textSecondary, fontFamily = VkSansText, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
             }
         }
 
@@ -912,7 +919,7 @@ private fun UserProfileHeader(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             UserProfileActionButton(
-                label = if (profile.canSeeAudio == 0) "Music closed" else "Music",
+                label = if (profile.canSeeAudio == 0) stringResource(R.string.music_closed_label) else stringResource(R.string.music_label),
                 icon = if (profile.canSeeAudio == 0) LmgGlyphs.LockOutline28 else LmgGlyphs.MusicNote24,
                 enabled = canOpenMusic,
                 filled = true,
@@ -920,7 +927,7 @@ private fun UserProfileHeader(
                 onClick = onOpenMusic,
             )
             UserProfileActionButton(
-                label = friendshipLabel ?: "Share",
+                label = friendshipLabel ?: stringResource(R.string.action_share),
                 icon = friendshipIcon.takeIf { friendshipLabel != null } ?: LmgGlyphs.ShareOutline28,
                 enabled = if (friendshipLabel != null) friendshipEnabled else true,
                 filled = false,
@@ -1012,7 +1019,7 @@ private fun CompactFriendsCard(
             )
             Text(
                 if (mutualCount > 0) "${formatProfileCount(mutualCount)} mutual"
-                else "No mutual friends",
+                else stringResource(R.string.no_mutual_friends),
                 fontFamily = VkSansText,
                 color = colors.textSecondary,
                 fontSize = 12.sp,
@@ -1266,60 +1273,60 @@ private fun UserProfileMessage(
     }
 }
 
-private fun profilePresence(profile: VkAccountProfile): String? {
+private fun profilePresence(context: Context, profile: VkAccountProfile): String? {
     if (profile.onlineInfo?.visible == false) return null
-    if (profile.isOnline) return "Online"
+    if (profile.isOnline) return context.getString(R.string.presence_online)
     val seconds = profile.onlineInfo?.lastSeen ?: profile.lastSeen?.time ?: return null
     if (seconds <= 0L) return null
     val elapsed = System.currentTimeMillis() - TimeUnit.SECONDS.toMillis(seconds)
     return when {
-        elapsed < TimeUnit.MINUTES.toMillis(2) -> "Recently online"
-        elapsed < TimeUnit.HOURS.toMillis(1) -> "Online ${elapsed / TimeUnit.MINUTES.toMillis(1)} min ago"
-        elapsed < TimeUnit.DAYS.toMillis(1) -> "Online ${elapsed / TimeUnit.HOURS.toMillis(1)} h ago"
-        else -> "Last seen ${DateFormat.getDateInstance(DateFormat.MEDIUM).format(Date(TimeUnit.SECONDS.toMillis(seconds)))}"
+        elapsed < TimeUnit.MINUTES.toMillis(2) -> context.getString(R.string.presence_recently)
+        elapsed < TimeUnit.HOURS.toMillis(1) -> context.getString(R.string.presence_minutes_ago, elapsed / TimeUnit.MINUTES.toMillis(1))
+        elapsed < TimeUnit.DAYS.toMillis(1) -> context.getString(R.string.presence_hours_ago, elapsed / TimeUnit.HOURS.toMillis(1))
+        else -> context.getString(R.string.presence_last_seen, DateFormat.getDateInstance(DateFormat.MEDIUM).format(Date(TimeUnit.SECONDS.toMillis(seconds))))
     }
 }
 
-private fun relationLabel(value: Int): String = when (value) {
-    1 -> "Single"
-    2 -> "In a relationship"
-    3 -> "Engaged"
-    4 -> "Married"
-    5 -> "It's complicated"
-    6 -> "Actively searching"
-    7 -> "In love"
-    8 -> "In a civil union"
+private fun relationLabel(context: Context, value: Int): String = when (value) {
+    1 -> context.getString(R.string.relation_single)
+    2 -> context.getString(R.string.relation_relationship)
+    3 -> context.getString(R.string.relation_engaged)
+    4 -> context.getString(R.string.relation_married)
+    5 -> context.getString(R.string.relation_complicated)
+    6 -> context.getString(R.string.relation_searching)
+    7 -> context.getString(R.string.relation_in_love)
+    8 -> context.getString(R.string.relation_civil_union)
     else -> ""
 }
 
-private fun lifePriorityLabel(value: Int): String = when (value) {
-    1 -> "Family and children"
-    2 -> "Career and money"
-    3 -> "Entertainment and leisure"
-    4 -> "Science and research"
-    5 -> "Improving the world"
-    6 -> "Personal development"
-    7 -> "Beauty and art"
-    8 -> "Fame and influence"
+private fun lifePriorityLabel(context: Context, value: Int): String = when (value) {
+    1 -> context.getString(R.string.life_family)
+    2 -> context.getString(R.string.life_career)
+    3 -> context.getString(R.string.life_leisure)
+    4 -> context.getString(R.string.life_science)
+    5 -> context.getString(R.string.life_world)
+    6 -> context.getString(R.string.life_development)
+    7 -> context.getString(R.string.life_art)
+    8 -> context.getString(R.string.life_fame)
     else -> ""
 }
 
-private fun peoplePriorityLabel(value: Int): String = when (value) {
-    1 -> "Intellect and creativity"
-    2 -> "Kindness and honesty"
-    3 -> "Health and beauty"
-    4 -> "Wealth and power"
-    5 -> "Courage and persistence"
-    6 -> "Humor and love of life"
+private fun peoplePriorityLabel(context: Context, value: Int): String = when (value) {
+    1 -> context.getString(R.string.people_intellect)
+    2 -> context.getString(R.string.people_kindness)
+    3 -> context.getString(R.string.people_health)
+    4 -> context.getString(R.string.people_wealth)
+    5 -> context.getString(R.string.people_courage)
+    6 -> context.getString(R.string.people_humor)
     else -> ""
 }
 
-private fun habitLabel(value: Int): String = when (value) {
-    1 -> "Very negative"
-    2 -> "Negative"
-    3 -> "Neutral"
-    4 -> "Compromise"
-    5 -> "Positive"
+private fun habitLabel(context: Context, value: Int): String = when (value) {
+    1 -> context.getString(R.string.habit_very_negative)
+    2 -> context.getString(R.string.habit_negative)
+    3 -> context.getString(R.string.habit_neutral)
+    4 -> context.getString(R.string.habit_compromise)
+    5 -> context.getString(R.string.habit_positive)
     else -> ""
 }
 
@@ -1329,7 +1336,7 @@ private fun isSupportedProfileActionUrl(value: String?): Boolean {
 }
 
 private fun formatProfileCount(value: Int): String = when {
-    value >= 1_000_000 -> String.format(Locale.US, "%.1fM", value / 1_000_000.0).replace(".0M", "M")
-    value >= 1_000 -> String.format(Locale.US, "%.1fK", value / 1_000.0).replace(".0K", "K")
+    value >= 1_000_000 -> "%.1f млн".format(value / 1_000_000.0).replace(".0 млн", " млн")
+    value >= 1_000 -> "%.1f тыс.".format(value / 1_000.0).replace(".0 тыс.", " тыс.")
     else -> value.toString()
 }

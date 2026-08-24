@@ -36,6 +36,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import com.lmg.vk.R
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -159,7 +161,7 @@ fun LocalLibraryScreen(
                     .padding(horizontal = 16.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Selected: ${selected.size}", color = lc.textSecondary, fontSize = 14.sp, modifier = Modifier.weight(1f))
+                Text(stringResource(R.string.selected_count, selected.size), color = lc.textSecondary, fontSize = 14.sp, modifier = Modifier.weight(1f))
                 Row(
                     Modifier.clip(CircleShape).background(lc.accent)
                         .liquidClickable(pressedScale = LiquidMotion.PressButton) { bulkOpen = true }
@@ -168,7 +170,7 @@ fun LocalLibraryScreen(
                 ) {
                     Icon(lmgVector(LmgDrawables.ListPenOutline20), null, tint = Color.White, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(8.dp))
-                    Text("Edit Tags", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                    Text(stringResource(R.string.edit_tags), color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                 }
             }
         }
@@ -178,7 +180,7 @@ fun LocalLibraryScreen(
                 Modifier.align(Alignment.BottomCenter).padding(bottom = 24.dp)
                     .clip(CircleShape).background(LiquidSurfaces.card(lc.isDark)).padding(horizontal = 16.dp, vertical = 10.dp)
             ) {
-                Text("Indexing library… $progress", color = lc.textSecondary, fontSize = 13.sp)
+                Text(stringResource(R.string.indexing_library, progress), color = lc.textSecondary, fontSize = 13.sp)
             }
         }
 
@@ -207,8 +209,8 @@ private fun LocalLibraryBrowseHeader(
     val screenWidth = LocalConfiguration.current.screenWidthDp.dp
     Column(modifier = Modifier.requiredWidth(screenWidth)) {
         SectionTopBar(
-            title = "On this device",
-            subtitle = "Artists, albums and tracks stored locally",
+            title = stringResource(R.string.on_this_device),
+            subtitle = stringResource(R.string.local_library_subtitle),
             isDark = lc.isDark,
             onBack = onBack,
         )
@@ -234,7 +236,7 @@ private fun SelectionHeader(count: Int, lc: LiquidColors, onClose: () -> Unit) {
             contentAlignment = Alignment.Center
         ) { Icon(com.lmg.vk.ui.icons.LmgGlyphs.CancelOutline28, null, tint = lc.iconDefault, modifier = Modifier.size(22.dp)) }
         Spacer(Modifier.width(14.dp))
-        Text(if (count == 0) "Select Tracks" else "Selected: $count",
+        Text(if (count == 0) stringResource(R.string.select_tracks) else stringResource(R.string.selected_count, count),
             color = lc.textPrimary, fontSize = 22.sp, fontWeight = FontWeight.Bold, fontFamily = VkSansDisplay)
     }
 }
@@ -329,10 +331,16 @@ private fun TracksTab(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 if (selectionMode) {
-                    SortChip("Select All (${tracks.size})", false, lc) { onSelectAllVisible(tracks) }
-                    SortChip("Deselect", false, lc) { onClearVisible() }
+                    SortChip(stringResource(R.string.select_all_count, tracks.size), false, lc) { onSelectAllVisible(tracks) }
+                    SortChip(stringResource(R.string.deselect), false, lc) { onClearVisible() }
                 }
-                val labels = listOf("Title", "Artist", "Album", "Added", "Duration")
+                val labels = listOf(
+                    stringResource(R.string.sort_title),
+                    stringResource(R.string.sort_artist),
+                    stringResource(R.string.section_albums),
+                    stringResource(R.string.sort_added),
+                    stringResource(R.string.sort_duration)
+                )
                 labels.forEachIndexed { i, t -> SortChip(t, sort == i, lc) { sort = i } }
             }
         }
@@ -406,19 +414,19 @@ private fun SearchResultsView(
         when {
             r == null -> item(key = "local_search_loading") {
                 Box(Modifier.fillMaxWidth().height(240.dp), contentAlignment = Alignment.Center) {
-                    Text("Searching…", color = lc.textTertiary, fontSize = 14.sp)
+                    Text(stringResource(R.string.searching_short), color = lc.textTertiary, fontSize = 14.sp)
                 }
             }
 
             r.artists.isEmpty() && r.albums.isEmpty() && r.tracks.isEmpty() -> item(key = "local_search_empty") {
                 Box(Modifier.fillMaxWidth().height(240.dp), contentAlignment = Alignment.Center) {
-                    Text("No results found", color = lc.textTertiary, fontSize = 14.sp)
+                    Text(stringResource(R.string.nothing_found), color = lc.textTertiary, fontSize = 14.sp)
                 }
             }
 
             else -> {
                 if (r.artists.isNotEmpty()) {
-                    item { Box(Modifier.padding(horizontal = sidePad)) { SectionLabel("Artists", lc) } }
+                    item { Box(Modifier.padding(horizontal = sidePad)) { SectionLabel(stringResource(R.string.section_artists), lc) } }
                     items(r.artists, key = { "a_" + it.name }) { artist ->
                         Box(Modifier.fillMaxWidth().padding(horizontal = sidePad)) {
                             ArtistRow(artist, lc, compact = win.useSideBySide) { onOpenArtist(artist.name) }
@@ -426,7 +434,7 @@ private fun SearchResultsView(
                     }
                 }
                 if (r.albums.isNotEmpty()) {
-                    item { Box(Modifier.padding(horizontal = sidePad)) { SectionLabel("Albums", lc) } }
+                    item { Box(Modifier.padding(horizontal = sidePad)) { SectionLabel(stringResource(R.string.section_albums), lc) } }
                     items(r.albums, key = { "al_" + it.albumId }) { album ->
                         Box(Modifier.fillMaxWidth().padding(horizontal = sidePad)) {
                             AlbumRow(album, lc, compact = win.useSideBySide) { onOpenAlbum(album.albumId, album.name) }
@@ -434,7 +442,7 @@ private fun SearchResultsView(
                     }
                 }
                 if (r.tracks.isNotEmpty()) {
-                    item { Box(Modifier.padding(horizontal = sidePad)) { SectionLabel("Tracks", lc) } }
+                    item { Box(Modifier.padding(horizontal = sidePad)) { SectionLabel(stringResource(R.string.section_songs), lc) } }
                     itemsIndexed(r.tracks) { index, track ->
                         Box(Modifier.fillMaxWidth().padding(horizontal = sidePad)) {
                             TrackRow(track, lc, compact = win.useSideBySide) {
@@ -478,14 +486,14 @@ fun LocalArtistDetailScreen(artistName: String, onBack: () -> Unit, onOpenAlbum:
                 }
                 Spacer(Modifier.height(12.dp))
                 if (albums.isNotEmpty()) {
-                    SectionLabel("Albums", lc)
+                    SectionLabel(stringResource(R.string.section_albums), lc)
                     LazyRow(contentPadding = PaddingValues(horizontal = 12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         items(albums, key = { it.albumId }) { al ->
                             Box(Modifier.width(if (win.useSideBySide) 118.dp else 140.dp).animateItem()) { AlbumCard(al, lc, compact = win.useSideBySide) { onOpenAlbum(al.albumId, al.name) } }
                         }
                     }
                     Spacer(Modifier.height(12.dp))
-                    SectionLabel("All Tracks", lc)
+                    SectionLabel(stringResource(R.string.all_tracks), lc)
                 }
             }
             itemsIndexed(tracks) { index, e -> TrackRow(e, lc, paddingH = 12.dp, compact = win.useSideBySide) { LocalLibraryStore.play(context, tracks, index) } }
@@ -559,7 +567,7 @@ private fun ArtistRow(a: ArtistAgg, lc: LiquidColors, compact: Boolean = false, 
         Column(Modifier.weight(1f)) {
             Text(a.name, color = lc.textPrimary, fontSize = if (compact) 13.5.sp else 15.sp, fontWeight = FontWeight.Medium,
                 maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text("${a.albumCount} albums · ${a.trackCount} tracks", color = lc.textSecondary, fontSize = if (compact) 11.5.sp else 12.sp)
+            Text(stringResource(R.string.albums_tracks_count, a.albumCount, a.trackCount), color = lc.textSecondary, fontSize = if (compact) 11.5.sp else 12.sp)
         }
     }
 }
@@ -653,7 +661,11 @@ private fun SectionLabel(text: String, lc: LiquidColors) {
 
 @Composable
 private fun Segments(selected: Int, lc: LiquidColors, onSelect: (Int) -> Unit) {
-    val items = listOf("Artists", "Albums", "Tracks")
+    val items = listOf(
+        stringResource(R.string.section_artists),
+        stringResource(R.string.section_albums),
+        stringResource(R.string.section_songs)
+    )
     val compact = com.lmg.vk.ui.rememberWindowInfo().useSideBySide
     Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         items.forEachIndexed { i, t ->
@@ -707,7 +719,7 @@ private fun SearchField(query: String, lc: LiquidColors, onChange: (String) -> U
             cursorBrush = SolidColor(lc.accent), modifier = Modifier.weight(1f),
             decorationBox = { inner ->
                 Box {
-                    if (query.isEmpty()) Text("Search tracks, artists, albums", color = lc.textTertiary, fontSize = if (compact) 13.sp else 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    if (query.isEmpty()) Text(stringResource(R.string.search_local_hint), color = lc.textTertiary, fontSize = if (compact) 13.sp else 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     inner()
                 }
             }

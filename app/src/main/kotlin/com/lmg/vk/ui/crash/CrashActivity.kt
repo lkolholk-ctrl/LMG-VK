@@ -33,9 +33,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
+import com.lmg.vk.R
 import com.lmg.vk.logging.CrashHandler
 import com.lmg.vk.ui.theme.LiquidMusicGlassTheme
 
@@ -44,7 +46,7 @@ class CrashActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        val crashText = CrashHandler.readAndClearAll(this) ?: "Log not found."
+        val crashText = CrashHandler.readAndClearAll(this) ?: getString(R.string.log_not_found)
 
         setContent {
             LiquidMusicGlassTheme {
@@ -64,9 +66,9 @@ class CrashActivity : ComponentActivity() {
             // Без явного подтверждения юзер думает, что «ничего не произошло»
             // (полевой отзыв: «Copy никуда не копируется»). Android 13+ рисует
             // системную плашку сам, но на 12 и ниже — нет, поэтому тостим всегда.
-            Toast.makeText(context, "Crash log copied to clipboard", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, R.string.crash_log_copied, Toast.LENGTH_SHORT).show()
         } catch (t: Throwable) {
-            Toast.makeText(context, "Copy failed: ${t.message}", Toast.LENGTH_LONG).show()
+            Toast.makeText(context, getString(R.string.copy_failed_toast, t.message), Toast.LENGTH_LONG).show()
         }
     }
 
@@ -102,9 +104,9 @@ class CrashActivity : ComponentActivity() {
             }
         }
         try {
-            context.startActivity(Intent.createChooser(fileIntent, "Send log via..."))
+            context.startActivity(Intent.createChooser(fileIntent, context.getString(R.string.debug_send_via)))
         } catch (t: Throwable) {
-            Toast.makeText(context, "No app to send the log: ${t.message}", Toast.LENGTH_LONG).show()
+            Toast.makeText(context, getString(R.string.no_send_app_toast, t.message), Toast.LENGTH_LONG).show()
         }
     }
 
@@ -142,13 +144,13 @@ private fun CrashScreen(
                 .padding(20.dp)
         ) {
             Text(
-                text = "The app crashed",
+                text = stringResource(R.string.app_crashed_title),
                 style = MaterialTheme.typography.headlineSmall,
                 color = Color.White
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = "Copy or send the crash log.",
+                text = stringResource(R.string.crash_copy_hint),
                 style = MaterialTheme.typography.bodyMedium,
                 color = Color.White.copy(alpha = 0.72f)
             )
@@ -158,12 +160,12 @@ private fun CrashScreen(
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 ActionButton(
-                    text = "Copy",
+                    text = stringResource(R.string.action_copy),
                     onClick = onCopy,
                     modifier = Modifier.weight(1f)
                 )
                 ActionButton(
-                    text = "Share",
+                    text = stringResource(R.string.action_share),
                     onClick = onShare,
                     modifier = Modifier.weight(1f)
                 )

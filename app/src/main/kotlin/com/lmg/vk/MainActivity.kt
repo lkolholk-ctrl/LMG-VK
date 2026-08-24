@@ -7,6 +7,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -26,6 +27,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.lmg.vk.R
 import com.lmg.vk.engine.NotificationRouter
 import com.lmg.vk.engine.PlayerController
 import com.lmg.vk.engine.PlayerSettings
@@ -103,8 +105,8 @@ class MainActivity : ComponentActivity() {
             val isEmulator = SecurityUtils.isEmulator()
             if (isRooted || isEmulator) {
                 val reasons = mutableListOf<String>()
-                if (isRooted) reasons.add("Root Check Triggered")
-                if (isEmulator) reasons.add("Emulator Check Triggered")
+                if (isRooted) reasons.add(getString(R.string.reason_root_detected))
+                if (isEmulator) reasons.add(getString(R.string.reason_emulator_detected))
                 kotlinx.coroutines.withContext(Dispatchers.Main) {
                     compromiseReason.value = reasons.joinToString("\n")
                     isSecurityCompromised.value = true
@@ -224,7 +226,7 @@ private fun SecurityBlockScreen(reasons: String, onClose: () -> Unit) {
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
-                text = "SECURITY INTEGRITY BLOCK",
+                text = stringResource(R.string.security_block_title),
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold,
                 color = Color(0xFFFF453A),
@@ -233,7 +235,7 @@ private fun SecurityBlockScreen(reasons: String, onClose: () -> Unit) {
             )
             Spacer(modifier = Modifier.height(12.dp))
             Text(
-                text = "This application is restricted from running in debugged, rooted, or unsafe environments.",
+                text = stringResource(R.string.security_block_body),
                 fontSize = 13.sp,
                 color = Color(0xFFD1D1D6),
                 textAlign = TextAlign.Center,
@@ -250,7 +252,7 @@ private fun SecurityBlockScreen(reasons: String, onClose: () -> Unit) {
             ) {
                 Column {
                     Text(
-                        text = "Integrity violations detected:",
+                        text = stringResource(R.string.integrity_violations),
                         fontSize = 11.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = Color(0xFFFF9500),
@@ -287,7 +289,7 @@ private fun SecurityBlockScreen(reasons: String, onClose: () -> Unit) {
                 shape = RoundedCornerShape(10.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text("Close", fontWeight = FontWeight.SemiBold)
+                Text(stringResource(R.string.action_close), fontWeight = FontWeight.SemiBold)
             }
         }
     }

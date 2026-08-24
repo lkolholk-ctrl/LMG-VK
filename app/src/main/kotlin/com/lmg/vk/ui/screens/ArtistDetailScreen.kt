@@ -58,6 +58,8 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -70,6 +72,7 @@ import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
+import com.lmg.vk.R
 import com.lmg.vk.engine.Track
 import com.lmg.vk.engine.PlaybackContext
 import com.lmg.vk.engine.backend.ArtistAlbum
@@ -156,7 +159,7 @@ fun ArtistDetailScreen(
         try {
             val result = MusicBackend.getArtist(artistId)
             if (result == null) {
-                error = MusicBackend.lastError.value ?: "Artist not found"
+                error = MusicBackend.lastError.value ?: context.getString(R.string.artist_not_found)
             } else {
                 artist = result
                 isFollowed = result.isFollowed
@@ -343,7 +346,7 @@ fun ArtistDetailScreen(
                         )
                         Spacer(Modifier.width(7.dp))
                         Text(
-                            "Retry",
+                            stringResource(R.string.action_retry),
                             color = LiquidSurfaces.textPrimary(colors.isDark),
                             fontWeight = FontWeight.SemiBold,
                         )
@@ -411,7 +414,7 @@ fun ArtistDetailScreen(
                                                 playbackContext = PlaybackContext.VkMix(mixSource.session),
                                             )
                                         } else {
-                                            Toast.makeText(context, "Artist mix is unavailable", Toast.LENGTH_SHORT).show()
+                                            Toast.makeText(context, R.string.artist_mix_unavailable, Toast.LENGTH_SHORT).show()
                                         }
                                         isMixBusy = false
                                     }
@@ -424,11 +427,11 @@ fun ArtistDetailScreen(
                                             isFollowed = target
                                             Toast.makeText(
                                                 context,
-                                                if (target) "Artist followed" else "Artist unfollowed",
+                                                if (target) R.string.artist_followed else R.string.artist_unfollowed,
                                                 Toast.LENGTH_SHORT,
                                             ).show()
                                         } else {
-                                            Toast.makeText(context, "Couldn't update follow", Toast.LENGTH_SHORT).show()
+                                            Toast.makeText(context, R.string.follow_update_failed, Toast.LENGTH_SHORT).show()
                                         }
                                         isFollowBusy = false
                                     }
@@ -476,7 +479,7 @@ fun ArtistDetailScreen(
                     }
 
                     art?.latestRelease?.let { latest ->
-                        item { SectionHeaderThemed(colors.isDark, "Latest release") }
+                        item { SectionHeaderThemed(colors.isDark, stringResource(R.string.latest_release)) }
                         item {
                             LatestReleaseCard(
                                 album = latest,
@@ -492,10 +495,10 @@ fun ArtistDetailScreen(
                         item {
                             SectionHeaderWithLink(
                                 isDark = colors.isDark,
-                                title = "Top songs",
+                                title = stringResource(R.string.top_songs),
                                 // Полный каталог открывается отдельным окном и не
                                 // превращает основную страницу в список из сотен строк.
-                                linkLabel = "See all",
+                                linkLabel = stringResource(R.string.see_all),
                                 onLinkClick = { showAllSongs = true }
                             )
                         }
@@ -547,35 +550,35 @@ fun ArtistDetailScreen(
                     }
 
                     if (albums.isNotEmpty()) {
-                        item { SectionHeaderThemed(colors.isDark, "Albums") }
+                        item { SectionHeaderThemed(colors.isDark, stringResource(R.string.section_albums)) }
                         item {
                             AlbumRow(albums, LiquidSurfaces.textPrimary(colors.isDark), LiquidSurfaces.textSecondary(colors.isDark), colors.isDark, onNavigateToAlbum)
                         }
                     }
 
                     if (singles.isNotEmpty()) {
-                        item { SectionHeaderThemed(colors.isDark, "Singles & EPs") }
+                        item { SectionHeaderThemed(colors.isDark, stringResource(R.string.singles_eps)) }
                         item {
                             AlbumRow(singles, LiquidSurfaces.textPrimary(colors.isDark), LiquidSurfaces.textSecondary(colors.isDark), colors.isDark, onNavigateToAlbum)
                         }
                     }
 
                     if (compilations.isNotEmpty()) {
-                        item { SectionHeaderThemed(colors.isDark, "Compilations") }
+                        item { SectionHeaderThemed(colors.isDark, stringResource(R.string.compilations)) }
                         item {
                             AlbumRow(compilations, LiquidSurfaces.textPrimary(colors.isDark), LiquidSurfaces.textSecondary(colors.isDark), colors.isDark, onNavigateToAlbum)
                         }
                     }
 
                     if (liveAlbums.isNotEmpty()) {
-                        item { SectionHeaderThemed(colors.isDark, "Live albums") }
+                        item { SectionHeaderThemed(colors.isDark, stringResource(R.string.live_albums)) }
                         item {
                             AlbumRow(liveAlbums, LiquidSurfaces.textPrimary(colors.isDark), LiquidSurfaces.textSecondary(colors.isDark), colors.isDark, onNavigateToAlbum)
                         }
                     }
 
                     if (playlists.isNotEmpty()) {
-                        item { SectionHeaderThemed(colors.isDark, "Playlists") }
+                        item { SectionHeaderThemed(colors.isDark, stringResource(R.string.playlists_title)) }
                         item {
                             LazyRow(
                                 contentPadding = PaddingValues(horizontal = LiquidMetrics.ScreenPadding),
@@ -617,7 +620,7 @@ fun ArtistDetailScreen(
                     }
 
                     if (similar.isNotEmpty()) {
-                        item { SectionHeaderThemed(colors.isDark, "Similar artists") }
+                        item { SectionHeaderThemed(colors.isDark, stringResource(R.string.similar_artists)) }
                         item {
                             LazyRow(
                                 contentPadding = PaddingValues(horizontal = LiquidMetrics.ScreenPadding),
@@ -656,14 +659,14 @@ fun ArtistDetailScreen(
                     }
 
                     if (appearsOn.isNotEmpty()) {
-                        item { SectionHeaderThemed(colors.isDark, "Participates in releases") }
+                        item { SectionHeaderThemed(colors.isDark, stringResource(R.string.participates_in_releases)) }
                         item {
                             AlbumRow(appearsOn, LiquidSurfaces.textPrimary(colors.isDark), LiquidSurfaces.textSecondary(colors.isDark), colors.isDark, onNavigateToAlbum)
                         }
                     }
 
                     art?.bio?.takeIf { it.isNotBlank() }?.let { bio ->
-                        item { SectionHeaderThemed(colors.isDark, "About ${art.name}") }
+                        item { SectionHeaderThemed(colors.isDark, stringResource(R.string.about_artist, art.name)) }
                         item {
                             Text(
                                 text = bio,
@@ -676,11 +679,11 @@ fun ArtistDetailScreen(
                     }
 
                     if (linkedArtists.isNotEmpty()) {
-                        item { SectionHeaderThemed(colors.isDark, "Links") }
+                        item { SectionHeaderThemed(colors.isDark, stringResource(R.string.links)) }
                         items(linkedArtists, key = { "linked-artist-${it.id}" }) { linked ->
                             ArtistLinkRow(
                                 title = linked.displayName,
-                                subtitle = "Artist",
+                                subtitle = stringResource(R.string.artist_label),
                                 cover = linked.cover,
                                 isDark = colors.isDark,
                                 onClick = { onNavigateToArtist(linked.id) },
@@ -693,19 +696,19 @@ fun ArtistDetailScreen(
                         val merch = links.filter { it.matches("merch", "shop", "store", "мерч", "магазин") }
                         val other = links.filterNot { it in concerts || it in merch }
                         if (concerts.isNotEmpty()) {
-                            item { SectionHeaderThemed(colors.isDark, "Concerts") }
+                            item { SectionHeaderThemed(colors.isDark, stringResource(R.string.concerts)) }
                             items(concerts, key = { "concert-${it.id}" }) { link ->
                                 ArtistLinkRow(link.title, link.subtitle, link.cover, colors.isDark)
                             }
                         }
                         if (merch.isNotEmpty()) {
-                            item { SectionHeaderThemed(colors.isDark, "Merch") }
+                            item { SectionHeaderThemed(colors.isDark, stringResource(R.string.merch)) }
                             items(merch, key = { "merch-${it.id}" }) { link ->
                                 ArtistLinkRow(link.title, link.subtitle, link.cover, colors.isDark)
                             }
                         }
                         if (other.isNotEmpty()) {
-                            item { SectionHeaderThemed(colors.isDark, "Information") }
+                            item { SectionHeaderThemed(colors.isDark, stringResource(R.string.information)) }
                             item {
                                 CompactInformationGrid(
                                     links = other,
@@ -718,7 +721,7 @@ fun ArtistDetailScreen(
                     art?.officialPages.orEmpty().let { pages ->
                         val profiles = pages.filterNot { it.isCommunity }
                         if (profiles.isNotEmpty()) {
-                            item { SectionHeaderThemed(colors.isDark, "Official profiles") }
+                            item { SectionHeaderThemed(colors.isDark, stringResource(R.string.official_profiles)) }
                             items(profiles, key = { "profile-${it.id}" }) { page ->
                                 ArtistLinkRow(page.name, page.subtitle, page.cover, colors.isDark)
                             }
@@ -730,7 +733,7 @@ fun ArtistDetailScreen(
                     // `owner_cell`) и похожие сообщества. Блок появляется
                     // только когда VK реально что-то отдал — пустоту не рисуем.
                     artistCommunities.own?.let { ownCommunity ->
-                        item { SectionHeaderThemed(colors.isDark, "Official community") }
+                        item { SectionHeaderThemed(colors.isDark, stringResource(R.string.official_community)) }
                         item {
                             ArtistCommunityRow(
                                 community = ownCommunity,
@@ -746,7 +749,7 @@ fun ArtistDetailScreen(
                             // только если блок пришёл без header'а.
                             SectionHeaderThemed(
                                 colors.isDark,
-                                artistCommunities.similarTitle ?: "Similar communities",
+                                artistCommunities.similarTitle ?: stringResource(R.string.similar_communities),
                             )
                         }
                         item {
@@ -761,8 +764,8 @@ fun ArtistDetailScreen(
                         item {
                             SectionHeaderWithLink(
                                 isDark = colors.isDark,
-                                title = "Music videos",
-                                linkLabel = "See all",
+                                title = stringResource(R.string.music_videos),
+                                linkLabel = stringResource(R.string.see_all),
                                 onLinkClick = { showAllVideos = true },
                             )
                         }
@@ -813,7 +816,7 @@ fun ArtistDetailScreen(
             ) {
                 Icon(
                     imageVector = com.lmg.vk.ui.icons.LmgGlyphs.ArrowLeftOutline28,
-                    contentDescription = "Back",
+                    contentDescription = stringResource(R.string.action_back),
                     tint = if (showTopBarTitle) {
                         LiquidSurfaces.textPrimary(colors.isDark)
                     } else {
@@ -960,7 +963,7 @@ private fun ArtistTracksDialog(
                                     strokeWidth = 2.dp,
                                 )
                                 loadError -> Text(
-                                    text = "Retry loading more",
+                                    text = stringResource(R.string.retry_load_more),
                                     color = LiquidTheme.colors.accent,
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.SemiBold,
@@ -1064,7 +1067,7 @@ private fun ArtistListDialogTopBar(
         ) {
             Icon(
                 imageVector = com.lmg.vk.ui.icons.LmgGlyphs.ArrowLeftOutline28,
-                contentDescription = "Back",
+                contentDescription = stringResource(R.string.action_back),
                 tint = LiquidSurfaces.textPrimary(isDark),
                 modifier = Modifier.size(22.dp),
             )
@@ -1203,8 +1206,8 @@ private fun ArtistHeader(
             Spacer(Modifier.height(14.dp))
 
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                HeaderButton("Play", com.lmg.vk.ui.icons.LmgGlyphs.Play28, filled = true, onClick = onPlay)
-                HeaderButton("Shuffle", com.lmg.vk.ui.icons.LmgGlyphs.ShuffleOutline28, filled = false, onClick = onShuffle)
+                HeaderButton(stringResource(R.string.action_play), com.lmg.vk.ui.icons.LmgGlyphs.Play28, filled = true, onClick = onPlay)
+                HeaderButton(stringResource(R.string.action_shuffle), com.lmg.vk.ui.icons.LmgGlyphs.ShuffleOutline28, filled = false, onClick = onShuffle)
             }
         }
     }
@@ -1277,14 +1280,14 @@ private fun PersonalStrip(
             .padding(horizontal = 18.dp, vertical = 16.dp)
     ) {
         Text(
-            text = "You played this artist $playCount times",
+            text = pluralStringResource(R.plurals.artist_played_times, playCount, playCount),
             color = textPrimary,
             fontSize = 15.sp,
             fontWeight = FontWeight.SemiBold
         )
         if (!favouriteTrack.isNullOrBlank()) {
             Text(
-                text = "Most played: $favouriteTrack",
+                text = stringResource(R.string.most_played_track, favouriteTrack),
                 color = textSecondary,
                 fontSize = 13.sp,
                 modifier = Modifier.padding(top = 4.dp)
@@ -1428,21 +1431,21 @@ private fun ArtistActionsStrip(
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         ArtistActionButton(
-            if (isMixBusy) "Loading…" else "Artist mix",
+            if (isMixBusy) stringResource(R.string.loading_short) else stringResource(R.string.artist_mix),
             com.lmg.vk.ui.icons.LmgGlyphs.MusicNoteWaveOutline28,
             !isMixBusy,
             isDark,
             onMix,
         )
         ArtistActionButton(
-            if (isFollowed) "Following" else "Follow",
+            if (isFollowed) stringResource(R.string.following) else stringResource(R.string.follow),
             if (isFollowed) com.lmg.vk.ui.icons.LmgGlyphs.Favorite28
             else lmgVector(LmgDrawables.FavoriteAddOutline28),
             followEnabled,
             isDark,
             onFollow,
         )
-        ArtistActionButton("Share", com.lmg.vk.ui.icons.LmgGlyphs.ShareOutline28, true, isDark, onShare)
+        ArtistActionButton(stringResource(R.string.action_share), com.lmg.vk.ui.icons.LmgGlyphs.ShareOutline28, true, isDark, onShare)
     }
 }
 
@@ -1456,11 +1459,11 @@ private fun ArtistCatalogSummary(
     isDark: Boolean,
 ) {
     val stats = listOf(
-        songs to "Songs",
-        releases to "Releases",
-        playlists to "Playlists",
-        videos to "Videos",
-    ).filter { it.first > 0 }
+        Triple(stringResource(R.string.section_songs), songs, songsAreMinimum),
+        Triple(stringResource(R.string.releases_title), releases, false),
+        Triple(stringResource(R.string.playlists_title), playlists, false),
+        Triple(stringResource(R.string.videos_title), videos, false),
+    ).filter { it.second > 0 }
 
     Row(
         modifier = Modifier
@@ -1471,13 +1474,13 @@ private fun ArtistCatalogSummary(
             .padding(horizontal = 8.dp, vertical = 12.dp),
         horizontalArrangement = Arrangement.SpaceEvenly,
     ) {
-        stats.forEach { (value, label) ->
+        stats.forEach { (label, value, plusAllowed) ->
             Column(
                 modifier = Modifier.weight(1f),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Text(
-                    if (label == "Songs" && songsAreMinimum) "$value+" else value.toString(),
+                    if (plusAllowed) "$value+" else value.toString(),
                     color = LiquidSurfaces.textPrimary(isDark),
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold,
@@ -1696,7 +1699,7 @@ private fun ArtistCommunityRow(
             // приходит не всегда, и «не подписаны» было бы домыслом.
             if (community.isFollowed) {
                 Text(
-                    text = "Вы подписаны",
+                    text = stringResource(R.string.subscribed_to_community),
                     color = LiquidSurfaces.textSecondary(isDark),
                     fontSize = 12.sp,
                     fontFamily = AppFontFamily,

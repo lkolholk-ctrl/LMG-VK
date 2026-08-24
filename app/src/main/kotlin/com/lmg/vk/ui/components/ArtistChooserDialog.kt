@@ -25,8 +25,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.lmg.vk.R
 import com.lmg.vk.engine.backend.MiniArtist
 import com.lmg.vk.ui.glass.GlassCustomDialog
 import com.lmg.vk.ui.glass.GlassDialogButton
@@ -60,10 +62,10 @@ internal fun ArtistChooserDialog(
         onDismiss = onDismiss,
         icon = lmgVector(LmgDrawables.Users3Outline28),
         iconTint = colors.accent,
-        title = "Choose artist",
-        subtitle = "Select an artist to view full profile",
+        title = stringResource(R.string.choose_artist),
+        subtitle = stringResource(R.string.choose_artist_subtitle),
         primaryButton = GlassDialogButton(
-            text = "Cancel",
+            text = stringResource(R.string.action_cancel),
             backgroundColor = if (isDark) Color.White.copy(alpha = 0.08f) else Color(0xFFF2F2F7),
             textColor = colors.textPrimary,
             onClick = onDismiss,

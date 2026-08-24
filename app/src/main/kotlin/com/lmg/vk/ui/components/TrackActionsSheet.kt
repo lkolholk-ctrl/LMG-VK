@@ -21,10 +21,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.lmg.vk.R
 import com.lmg.vk.ui.icons.LmgDrawables
 import com.lmg.vk.ui.icons.lmgVector
 import com.lmg.vk.audio.TrackDownloadManager
@@ -114,39 +116,39 @@ fun TrackActionsSheet(
 
             Spacer(Modifier.height(16.dp))
 
-            ActionRow(rowBg, com.lmg.vk.ui.icons.LmgGlyphs.PlayNextOutline24, "Play next") {
+            ActionRow(rowBg, com.lmg.vk.ui.icons.LmgGlyphs.PlayNextOutline24, stringResource(R.string.action_play_next)) {
                 PlayerController.insertNext(track)
                 onDismiss()
             }
             Spacer(Modifier.height(8.dp))
-            ActionRow(rowBg, lmgVector(LmgDrawables.ListInsertLastOutline28), "Add to queue") {
+            ActionRow(rowBg, lmgVector(LmgDrawables.ListInsertLastOutline28), stringResource(R.string.action_add_to_queue)) {
                 PlayerController.addToQueue(track)
                 onDismiss()
             }
             Spacer(Modifier.height(8.dp))
             if (onAddToPlaylist != null) {
-                ActionRow(rowBg, lmgVector(LmgDrawables.ListPlusOutline20), "Add to playlist") {
+                ActionRow(rowBg, lmgVector(LmgDrawables.ListPlusOutline20), stringResource(R.string.add_to_playlist)) {
                     onAddToPlaylist()
                     onDismiss()
                 }
                 Spacer(Modifier.height(8.dp))
             }
             if (onMoveUp != null) {
-                ActionRow(rowBg, lmgVector(LmgDrawables.ArrowUpOutline24), "Move up") {
+                ActionRow(rowBg, lmgVector(LmgDrawables.ArrowUpOutline24), stringResource(R.string.action_move_up)) {
                     onMoveUp()
                     onDismiss()
                 }
                 Spacer(Modifier.height(8.dp))
             }
             if (onMoveDown != null) {
-                ActionRow(rowBg, lmgVector(LmgDrawables.ChevronDown24), "Move down") {
+                ActionRow(rowBg, lmgVector(LmgDrawables.ChevronDown24), stringResource(R.string.action_move_down)) {
                     onMoveDown()
                     onDismiss()
                 }
                 Spacer(Modifier.height(8.dp))
             }
             if (onRemoveFromPlaylist != null) {
-                ActionRow(rowBg, lmgVector(LmgDrawables.ListDeleteOutline20), "Remove from playlist") {
+                ActionRow(rowBg, lmgVector(LmgDrawables.ListDeleteOutline20), stringResource(R.string.action_remove_from_playlist)) {
                     onRemoveFromPlaylist()
                     onDismiss()
                 }
@@ -157,7 +159,7 @@ fun TrackActionsSheet(
                     rowBg,
                     if (isFavorite) com.lmg.vk.ui.icons.LmgGlyphs.Favorite28
                     else lmgVector(LmgDrawables.FavoriteAddOutline28),
-                    if (isFavorite) "Remove from My tracks" else "Add to My tracks",
+                    stringResource(if (isFavorite) R.string.action_remove_from_my_tracks else R.string.action_add_to_my_tracks),
                 ) {
                     onToggleFavorite()
                     onDismiss()
@@ -165,7 +167,7 @@ fun TrackActionsSheet(
                 Spacer(Modifier.height(8.dp))
             }
             if (onCache != null) {
-                ActionRow(rowBg, com.lmg.vk.ui.icons.LmgGlyphs.BookmarkOutline28, "Cache track") {
+                ActionRow(rowBg, com.lmg.vk.ui.icons.LmgGlyphs.BookmarkOutline28, stringResource(R.string.action_cache_track)) {
                     onCache()
                     onDismiss()
                 }
@@ -188,7 +190,7 @@ fun TrackActionsSheet(
                 is TrackDownloadState.Failed -> {
                     // Причину показываем в самой строке: «не удалось» без причины
                     // заставляет тыкать наугад.
-                    ActionRow(rowBg, lmgVector(LmgDrawables.DownloadCrossBadgeOutline24), "Download failed · retry", subtitle = st.message) {
+                    ActionRow(rowBg, lmgVector(LmgDrawables.DownloadCrossBadgeOutline24), stringResource(R.string.action_download_failed_retry), subtitle = st.message) {
                         TrackDownloadManager.enqueue(context, track)
                     }
                     Spacer(Modifier.height(8.dp))
@@ -198,18 +200,18 @@ fun TrackActionsSheet(
                     // TrackDownloadState.Done: Done остаётся в states и после того,
                     // как файл удалили, и строка «Downloaded» висела бы враньём.
                     if (isDownloaded) {
-                        ActionRow(rowBg, com.lmg.vk.ui.icons.LmgGlyphs.DownloadCheckOutline28, "Downloaded · remove") {
+                        ActionRow(rowBg, com.lmg.vk.ui.icons.LmgGlyphs.DownloadCheckOutline28, stringResource(R.string.action_downloaded_remove)) {
                             scope.launch { DownloadsRegistryBridge.remove(context, track.id) }
                         }
                     } else {
-                        ActionRow(rowBg, com.lmg.vk.ui.icons.LmgGlyphs.DownloadOutline28, "Download") {
+                        ActionRow(rowBg, com.lmg.vk.ui.icons.LmgGlyphs.DownloadOutline28, stringResource(R.string.action_download)) {
                             TrackDownloadManager.enqueue(context, track)
                         }
                     }
                     Spacer(Modifier.height(8.dp))
                 }
             }
-            ActionRow(rowBg, com.lmg.vk.ui.icons.LmgGlyphs.ShareOutline28, "Share") {
+            ActionRow(rowBg, com.lmg.vk.ui.icons.LmgGlyphs.ShareOutline28, stringResource(R.string.action_share)) {
                 val vkUrl = com.lmg.vk.engine.VkAudioIdentity.shareUrl(track.id)
                 val text = buildString {
                     append("${track.title} — ${track.artist}")
@@ -308,16 +310,17 @@ private fun DownloadProgressRow(
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = buildString {
-                    append("Downloading · ")
-                    append(percent.coerceIn(0, 100))
-                    append('%')
+                    append(stringResource(R.string.download_progress_percent, percent.coerceIn(0, 100)))
                     // Байты показываем только если сервер отдал Content-Length:
                     // «0.0 MB of 0.0 MB» выглядит как поломка.
                     if (totalBytes > 0L) {
-                        append(" · ")
-                        append("%.1f".format(bytes / 1_048_576.0))
-                        append(" / ")
-                        append("%.1f MB".format(totalBytes / 1_048_576.0))
+                        append(
+                            stringResource(
+                                R.string.download_progress_bytes,
+                                "%.1f".format(bytes / 1_048_576.0),
+                                "%.1f".format(totalBytes / 1_048_576.0)
+                            )
+                        )
                     }
                 },
                 color = lc.textPrimary,
@@ -342,7 +345,7 @@ private fun DownloadProgressRow(
         ) {
             Icon(
                 imageVector = com.lmg.vk.ui.icons.LmgGlyphs.CancelOutline28,
-                contentDescription = "Cancel download",
+                contentDescription = stringResource(R.string.action_cancel_download),
                 tint = lc.textSecondary,
                 modifier = Modifier.size(20.dp)
             )

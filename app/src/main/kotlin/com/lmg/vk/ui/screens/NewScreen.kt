@@ -46,6 +46,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -53,6 +54,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.airbnb.lottie.LottieAnimationView
 import com.airbnb.lottie.LottieDrawable
+import com.lmg.vk.R
 import com.lmg.vk.debug.DebugLog
 import com.lmg.vk.engine.PlayerController
 import com.lmg.vk.engine.PlaybackContext
@@ -296,12 +298,12 @@ fun NewScreen(
                 item {
                     Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp)) {
                         Text(
-                            text = "В каталоге VK пока нет блоков",
+                            text = stringResource(R.string.catalog_empty),
                             color = lc.textSecondary,
                             fontSize = 14.sp,
                         )
                         Text(
-                            text = "Повторить загрузку",
+                            text = stringResource(R.string.retry_load),
                             color = lc.accent,
                             fontSize = 14.sp,
                             fontWeight = FontWeight.SemiBold,
@@ -431,7 +433,7 @@ private fun NewCatalogBlock(
 ) {
     val context = LocalContext.current
     val title = block.title.takeUnless {
-        it == "VK Музыка" && block.layoutName.isNotBlank()
+        it == stringResource(R.string.vk_music_brand) && block.layoutName.isNotBlank()
     }
     val openBlock: () -> Unit = {
         val sectionId = block.actions.openSectionId
@@ -525,7 +527,7 @@ private fun NewCatalogBlock(
                     NewTrackCard(
                         title = item.title,
                         subtitle = item.subtitle ?: item.artist
-                            ?: if (item.isRadio) "Радио VK" else item.displayArtist,
+                            ?: if (item.isRadio) stringResource(R.string.vk_radio) else item.displayArtist,
                         coverUrl = item.cover,
                         compact = compact,
                         enabled = item.isInteractive && item.isAvailable,
@@ -777,7 +779,7 @@ private fun NewCatalogBlock(
                             title = homeItem.title,
                             subtitle = homeItem.subtitle
                                 ?: homeItem.artist
-                                ?: if (homeItem.isCustom) "VK Музыка" else homeItem.displayArtist,
+                                ?: if (homeItem.isCustom) stringResource(R.string.vk_music_brand) else homeItem.displayArtist,
                             coverUrl = homeItem.cover,
                             compact = compact,
                             // `slider` — самый частый layout VK Музыки, им отдаётся
@@ -830,7 +832,7 @@ private fun NewSignalCard(
         Row(verticalAlignment = Alignment.CenterVertically) {
             AlbumArtImage(
                 uri = null,
-                contentDescription = signal.title.ifBlank { "Сигнал" },
+                contentDescription = signal.title.ifBlank { stringResource(R.string.signal_fallback) },
                 coverUrl = signal.cover,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
@@ -858,7 +860,7 @@ private fun NewSignalCard(
                     )
                 }
                 Text(
-                    text = signal.title.ifBlank { "Сигнал" },
+                    text = signal.title.ifBlank { stringResource(R.string.signal_fallback) },
                     color = lc.textPrimary,
                     fontSize = if (compact) 17.sp else 21.sp,
                     fontWeight = FontWeight.SemiBold,
@@ -901,7 +903,7 @@ private fun NewSignalCard(
                         } else {
                             com.lmg.vk.ui.icons.LmgGlyphs.Play28
                         },
-                        contentDescription = if (signal.shuffled) "Перемешать Сигнал" else "Слушать Сигнал",
+                        contentDescription = if (signal.shuffled) stringResource(R.string.shuffle_signal) else stringResource(R.string.listen_signal),
                         tint = if (signal.playBlockId.isNullOrBlank()) lc.textSecondary else lc.accent,
                         modifier = Modifier.size(if (compact) 21.dp else 24.dp),
                     )
@@ -983,7 +985,7 @@ private fun NewScreenHeader(
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "New",
+                    text = stringResource(R.string.tab_new),
                     color = lc.textPrimary,
                     fontSize = if (compact) 20.sp else 28.sp,
                     fontWeight = FontWeight.Bold,
@@ -992,7 +994,7 @@ private fun NewScreenHeader(
                 if (!sectionTitle.isNullOrBlank() || updatedAt != null) {
                     Text(
                         text = buildString {
-                            append(sectionTitle?.takeIf(String::isNotBlank) ?: "Каталог VK Музыки")
+                            append(sectionTitle?.takeIf(String::isNotBlank) ?: stringResource(R.string.vk_music_catalog))
                             formatNewUpdatedAt(updatedAt)?.let {
                                 append("  ·  ")
                                 append(it)
@@ -1024,7 +1026,7 @@ private fun NewScreenHeader(
                 } else {
                     Icon(
                         imageVector = com.lmg.vk.ui.icons.LmgGlyphs.RefreshOutline28,
-                        contentDescription = "Обновить каталог VK",
+                        contentDescription = stringResource(R.string.refresh_vk_catalog),
                         tint = lc.textPrimary,
                         modifier = Modifier.size(if (compact) 20.dp else 22.dp),
                     )
@@ -1059,7 +1061,7 @@ private fun NewInlineError(
             modifier = Modifier.weight(1f),
         )
         Text(
-            text = "Повторить",
+            text = stringResource(R.string.action_retry),
             color = lc.accent,
             fontSize = if (compact) 11.sp else 12.sp,
             fontWeight = FontWeight.SemiBold,
@@ -1088,7 +1090,7 @@ private fun NewLoadError(
             .padding(horizontal = 18.dp, vertical = 18.dp),
     ) {
         Text(
-            text = "Не удалось загрузить New",
+            text = stringResource(R.string.new_load_failed),
             color = lc.textPrimary,
             fontSize = if (compact) 15.sp else 17.sp,
             fontWeight = FontWeight.SemiBold,
@@ -1116,7 +1118,7 @@ private fun NewLoadError(
                 modifier = Modifier.size(17.dp),
             )
             Text(
-                text = "Повторить загрузку",
+                text = stringResource(R.string.retry_load),
                 color = lc.accent,
                 fontSize = if (compact) 12.sp else 13.sp,
                 fontWeight = FontWeight.SemiBold,
@@ -1237,7 +1239,7 @@ private fun NewSectionHeader(
                         } else {
                             com.lmg.vk.ui.icons.LmgGlyphs.Play28
                         },
-                        contentDescription = if (playShuffled) "Перемешать раздел" else "Слушать раздел",
+                        contentDescription = if (playShuffled) stringResource(R.string.shuffle_section) else stringResource(R.string.listen_section),
                         tint = LiquidTheme.colors.accent,
                         modifier = Modifier.size(if (compact) 19.dp else 21.dp),
                     )
@@ -1260,7 +1262,7 @@ private fun NewSectionHeader(
                 ) {
                     Icon(
                         imageVector = com.lmg.vk.ui.icons.LmgGlyphs.ChevronRightOutline24,
-                        contentDescription = if (itemCount > 0) "Открыть раздел, $itemCount элементов" else "Открыть раздел",
+                        contentDescription = if (itemCount > 0) stringResource(R.string.open_section_count, itemCount) else stringResource(R.string.open_section),
                         tint = LiquidTheme.colors.textPrimary,
                         modifier = Modifier.size(if (compact) 20.dp else 23.dp),
                     )
@@ -1325,7 +1327,7 @@ private fun NewSectionSheet(
                 .padding(bottom = 20.dp),
         ) {
             Text(
-                text = block.title.ifBlank { "VK Музыка" },
+                text = block.title.ifBlank { stringResource(R.string.vk_music_brand) },
                 color = lc.textPrimary,
                 fontSize = if (compact) 19.sp else 23.sp,
                 fontWeight = FontWeight.SemiBold,
@@ -1379,7 +1381,7 @@ private fun NewSectionSheet(
                             } else {
                                 com.lmg.vk.ui.icons.LmgGlyphs.Play28
                             },
-                            contentDescription = if (block.actions.shuffled) "Перемешать" else "Слушать всё",
+                            contentDescription = if (block.actions.shuffled) stringResource(R.string.action_shuffle) else stringResource(R.string.listen_all),
                             tint = lc.accent,
                             modifier = Modifier.size(if (compact) 19.dp else 21.dp),
                         )
@@ -1429,7 +1431,7 @@ private fun NewSectionSheet(
                 if (exhausted && paging?.extraItems?.isNotEmpty() == true) {
                     item(key = "sheet_${block.id}_end") {
                         Text(
-                            text = "Это всё, что отдал VK",
+                            text = stringResource(R.string.thats_all_from_vk),
                             color = lc.textSecondary,
                             fontSize = if (compact) 11.sp else 12.sp,
                             fontFamily = AppFontFamily,
@@ -1460,8 +1462,8 @@ private fun NewCatalogSectionSheet(
         is com.lmg.vk.ui.viewmodel.CatalogSectionUiState.Loading -> state.title
         is com.lmg.vk.ui.viewmodel.CatalogSectionUiState.Ready -> state.title
         is com.lmg.vk.ui.viewmodel.CatalogSectionUiState.Failed -> state.title
-        com.lmg.vk.ui.viewmodel.CatalogSectionUiState.Idle -> "VK Музыка"
-    }.ifBlank { "VK Музыка" }
+        com.lmg.vk.ui.viewmodel.CatalogSectionUiState.Idle -> stringResource(R.string.vk_music_brand)
+    }.ifBlank { stringResource(R.string.vk_music_brand) }
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         containerColor = lc.settingsBackground,
@@ -1752,7 +1754,7 @@ private fun NewTrackRow(
             Text(
                 text = item.subtitle
                     ?: item.artist
-                    ?: if (item.isCustom) "VK Музыка" else item.displayArtist,
+                    ?: if (item.isCustom) stringResource(R.string.vk_music_brand) else item.displayArtist,
                 color = LiquidTheme.colors.textSecondary,
                 fontSize = if (compact) 11.sp else 12.sp,
                 fontFamily = AppFontFamily,
@@ -2221,7 +2223,7 @@ private fun NewCloseableBanner(
         ) {
             Icon(
                 imageVector = com.lmg.vk.ui.icons.LmgGlyphs.CancelOutline28,
-                contentDescription = "Скрыть",
+                contentDescription = stringResource(R.string.action_hide),
                 tint = Color.White,
                 modifier = Modifier.size(18.dp),
             )

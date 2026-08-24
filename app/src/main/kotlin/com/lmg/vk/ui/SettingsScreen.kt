@@ -20,10 +20,12 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.lmg.vk.R
 import com.lmg.vk.ui.icons.LmgDrawables
 import com.lmg.vk.ui.icons.lmgVector
 import com.lmg.vk.ui.glass.liquidClickable
@@ -234,14 +236,14 @@ internal fun LauncherIconSelector(
     val colors = LiquidTheme.colors
     Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 14.dp)) {
         Text(
-            text = "Иконка приложения",
+            text = stringResource(R.string.app_icon),
             color = colors.textPrimary,
             fontSize = 16.sp,
             fontWeight = FontWeight.Medium,
             modifier = Modifier.padding(horizontal = 4.dp),
         )
         Text(
-            text = "Сейчас: ${selected.title}",
+            text = stringResource(R.string.current_icon_line, stringResource(selected.titleRes)),
             color = colors.textSecondary,
             fontSize = 12.sp,
             modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
@@ -276,7 +278,7 @@ internal fun LauncherIconSelector(
                         ) {
                             Image(
                                 painter = painterResource(icon.drawableRes),
-                                contentDescription = icon.title,
+                                contentDescription = stringResource(icon.titleRes),
                                 modifier = Modifier.fillMaxSize(),
                             )
                             if (isSelected) {
@@ -298,7 +300,7 @@ internal fun LauncherIconSelector(
                             }
                         }
                         Text(
-                            text = icon.title,
+                            text = stringResource(icon.titleRes),
                             color = if (isSelected) colors.textPrimary else colors.textSecondary,
                             fontSize = 10.sp,
                             maxLines = 1,
@@ -329,7 +331,7 @@ internal fun CrossfadeSelector(
     ) {
         Icon(
             imageVector = com.lmg.vk.ui.icons.LmgGlyphs.SlidersOutline28,
-            contentDescription = "Crossfade",
+            contentDescription = stringResource(R.string.crossfade_section),
             tint = LiquidTheme.colors.iconDefault,
             modifier = Modifier.size(22.dp),
         )
@@ -358,7 +360,7 @@ internal fun CrossfadeSelector(
                     label = "crossfadeText"
                 )
                 Text(
-                    text = if (sec == 0) "Off" else "${sec}s",
+                    text = if (sec == 0) stringResource(R.string.off_label) else "${sec}s",
                     color = textColor,
                     fontSize = 13.sp,
                     fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal
@@ -382,7 +384,7 @@ internal fun SleepTimerSelector(
     ) {
         Icon(
             imageVector = com.lmg.vk.ui.icons.LmgGlyphs.ClockOutline28,
-            contentDescription = "Sleep timer",
+            contentDescription = stringResource(R.string.sleep_timer_section),
             tint = LiquidTheme.colors.iconDefault,
             modifier = Modifier.size(22.dp),
         )
@@ -414,7 +416,7 @@ internal fun SleepTimerSelector(
                     label = "sleepText"
                 )
                 Text(
-                    text = if (minutes == 0) "Off" else "${minutes}m",
+                    text = if (minutes == 0) stringResource(R.string.off_label) else "${minutes}m",
                     color = textColor,
                     fontSize = 13.sp,
                     fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal

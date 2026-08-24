@@ -27,6 +27,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -34,6 +35,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.lmg.vk.R
 import com.lmg.vk.ui.components.DetailTopBar
 import com.lmg.vk.ui.glass.liquidClickable
 import com.lmg.vk.ui.icons.LmgGlyphs
@@ -68,18 +70,18 @@ fun UserConnectionsScreen(
                 )
             }
             state.error != null && state.items.isEmpty() -> ConnectionsMessage(
-                title = "Couldn't load ${kind.title.lowercase()}",
+                title = stringResource(R.string.connections_load_failed, kind.title.lowercase()),
                 message = state.error!!,
-                action = "Retry",
+                action = stringResource(R.string.action_retry),
                 onAction = { viewModel.load(userId, kind, force = true) },
             )
             state.items.isEmpty() -> ConnectionsMessage(
-                title = "Nothing here yet",
+                title = stringResource(R.string.nothing_here_yet),
                 message = when (kind) {
-                    UserConnectionsKind.FRIENDS -> "VK did not return public friends."
-                    UserConnectionsKind.MUTUAL -> "You don't have mutual friends with this user."
-                    UserConnectionsKind.FOLLOWERS -> "VK did not return public followers."
-                    UserConnectionsKind.SUBSCRIPTIONS -> "VK did not return public subscriptions."
+                    UserConnectionsKind.FRIENDS -> stringResource(R.string.no_public_friends)
+                    UserConnectionsKind.MUTUAL -> stringResource(R.string.no_mutual_friends)
+                    UserConnectionsKind.FOLLOWERS -> stringResource(R.string.no_public_followers)
+                    UserConnectionsKind.SUBSCRIPTIONS -> stringResource(R.string.no_public_subscriptions)
                 },
             )
             else -> LazyColumn(
@@ -104,7 +106,7 @@ fun UserConnectionsScreen(
                             title = item.value.displayName,
                             subtitle = when {
                                 !item.value.isActive -> item.value.deactivated.orEmpty()
-                                item.value.isOnline -> "Online"
+                                item.value.isOnline -> stringResource(R.string.online_status)
                                 item.value.domain.isNotBlank() -> "vk.com/${item.value.domain}"
                                 else -> "id${item.value.id}"
                             },
@@ -114,7 +116,7 @@ fun UserConnectionsScreen(
                         )
                         is UserConnectionEntry.Group -> ConnectionRow(
                             title = item.value.name.ifBlank { "club${item.value.id}" },
-                            subtitle = item.value.membersCount?.let { "$it members" }
+                            subtitle = item.value.membersCount?.let { stringResource(R.string.members_count, it) }
                                 ?: item.value.typeLabel,
                             imageUrl = item.value.avatarUrl,
                             isGroup = true,

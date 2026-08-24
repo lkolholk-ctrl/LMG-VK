@@ -45,6 +45,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -53,6 +54,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.lmg.vk.R
 import com.lmg.vk.ui.icons.LmgDrawables
 import com.lmg.vk.ui.icons.lmgVector
 import com.lmg.vk.engine.PlayerController
@@ -146,15 +148,15 @@ fun GroupScreen(
 
             state.notFound -> GroupMessage(
                 icon = com.lmg.vk.ui.icons.LmgGlyphs.InfoCircleOutline28,
-                title = "Сообщество не найдено",
-                message = "VK не знает сообщества с id ${-state.ownerId}. Возможно, его удалили.",
+                title = stringResource(R.string.group_not_found),
+                message = stringResource(R.string.group_not_found_message, -state.ownerId),
             )
 
             state.error != null && state.group == null -> GroupMessage(
                 icon = com.lmg.vk.ui.icons.LmgGlyphs.Users3Outline28,
-                title = "Не удалось открыть сообщество",
+                title = stringResource(R.string.group_open_failed),
                 message = state.error!!,
-                actionLabel = "Повторить",
+                actionLabel = stringResource(R.string.action_retry),
                 onAction = { viewModel.load(ownerId, force = true) },
             )
 
@@ -199,8 +201,8 @@ fun GroupScreen(
                         item {
                             GroupSectionLabel(
                                 state.membersCount
-                                    ?.let { "УЧАСТНИКИ • $it" }
-                                    ?: "УЧАСТНИКИ",
+                                    ?.let { stringResource(R.string.participants_count, it) }
+                                    ?: stringResource(R.string.participants_label),
                             )
                         }
                         item {
@@ -213,7 +215,7 @@ fun GroupScreen(
 
                     // ── Плейлисты сообщества ──
                     if (state.playlists.isNotEmpty()) {
-                        item { GroupSectionLabel("ПЛЕЙЛИСТЫ • ${state.playlists.size}") }
+                        item { GroupSectionLabel(stringResource(R.string.playlists_count_label, state.playlists.size)) }
                         item {
                             GroupPlaylistsRow(
                                 playlists = state.playlists,
@@ -231,8 +233,8 @@ fun GroupScreen(
                         GroupSectionLabel(
                             state.tracksTotal
                                 ?.takeIf { it > 0 }
-                                ?.let { "АУДИОЗАПИСИ • $it" }
-                                ?: "АУДИОЗАПИСИ",
+                                ?.let { stringResource(R.string.audios_count_label, it) }
+                                ?: stringResource(R.string.audios_label),
                         )
                     }
 
@@ -240,17 +242,17 @@ fun GroupScreen(
                         state.audioClosed -> item {
                             GroupInlineMessage(
                                 icon = com.lmg.vk.ui.icons.LmgGlyphs.LockOutline28,
-                                title = "Музыка закрыта",
-                                message = "Сообщество не открывает свои аудиозаписи.",
+                                title = stringResource(R.string.music_closed_title),
+                                message = stringResource(R.string.music_closed_message),
                             )
                         }
 
                         state.audioError != null && state.tracks.isEmpty() -> item {
                             GroupInlineMessage(
                                 icon = com.lmg.vk.ui.icons.LmgGlyphs.MusicNote24,
-                                title = "Не удалось загрузить музыку",
+                                title = stringResource(R.string.music_load_failed),
                                 message = state.audioError!!,
-                                actionLabel = "Повторить",
+                                actionLabel = stringResource(R.string.action_retry),
                                 onAction = { viewModel.load(ownerId, force = true) },
                             )
                         }
@@ -259,8 +261,8 @@ fun GroupScreen(
                         state.audioIsEmpty -> item {
                             GroupInlineMessage(
                                 icon = com.lmg.vk.ui.icons.LmgGlyphs.MusicNote24,
-                                title = "Нет аудиозаписей",
-                                message = "Сообщество не добавило ни одного трека.",
+                                title = stringResource(R.string.no_audio_title),
+                                message = stringResource(R.string.no_audio_message),
                             )
                         }
 
@@ -416,7 +418,7 @@ private fun GroupHeader(
                         Spacer(Modifier.width(8.dp))
                         Icon(
                             lmgVector(LmgDrawables.CheckShieldOutline28),
-                            contentDescription = "Verified",
+                            contentDescription = stringResource(R.string.verified_badge),
                             tint = Color(0xFF2787F5),
                             modifier = Modifier.size(20.dp),
                         )
@@ -429,7 +431,7 @@ private fun GroupHeader(
                 val facts = buildList {
                     group?.let { add(it.typeLabel) }
                     state.membersCount?.let { add("$it участников") }
-                    if (group?.isPrivate == true) add("Закрытое")
+                    if (group?.isPrivate == true) add(stringResource(R.string.private_community))
                     state.tracksTotal?.takeIf { it > 0 }?.let { add("$it треков") }
                     if (totalDurationMs > 0) add(formatTotalDuration(totalDurationMs))
                     state.playlists.size.takeIf { it > 0 }?.let { add("$it плейлистов") }
@@ -462,7 +464,7 @@ private fun GroupHeader(
 
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     GroupActionButton(
-                        label = "Слушать",
+                        label = stringResource(R.string.action_listen),
                         icon = com.lmg.vk.ui.icons.LmgGlyphs.Play28,
                         enabled = canPlay,
                         filled = true,
@@ -470,7 +472,7 @@ private fun GroupHeader(
                         onClick = onPlay,
                     )
                     GroupActionButton(
-                        label = "Вперемешку",
+                        label = stringResource(R.string.action_shuffle),
                         icon = com.lmg.vk.ui.icons.LmgGlyphs.ShuffleOutline28,
                         enabled = canPlay,
                         filled = false,
@@ -566,7 +568,7 @@ private fun GroupMembershipButton(
         }
         Spacer(Modifier.width(8.dp))
         Text(
-            text = if (isMember) "Вы подписаны" else "Подписаться",
+            text = if (isMember) stringResource(R.string.subscribed_to_community) else stringResource(R.string.follow),
             fontFamily = AppFontFamily,
             color = contentColor,
             fontSize = LiquidMetrics.ActionLabel,
@@ -672,7 +674,7 @@ private fun GroupAboutBlock(about: String?, activity: String?) {
             )
             Spacer(Modifier.height(4.dp))
             Text(
-                text = if (expanded) "Свернуть" else "Показать полностью",
+                text = if (expanded) stringResource(R.string.collapse) else stringResource(R.string.show_more),
                 fontFamily = AppFontFamily,
                 color = colors.textTertiary,
                 fontSize = 12.sp,

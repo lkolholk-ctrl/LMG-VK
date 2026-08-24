@@ -46,12 +46,14 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.lmg.vk.R
 import com.lmg.vk.ui.glass.GlassKit
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
@@ -192,14 +194,14 @@ fun SearchScreen(
                 ) {
                     Icon(
                         com.lmg.vk.ui.icons.LmgGlyphs.ArrowLeftOutline28,
-                        contentDescription = "Back",
+                        contentDescription = stringResource(R.string.action_back),
                         tint = LiquidTheme.colors.textPrimary,
                         modifier = Modifier.size(if (compact) 18.dp else 22.dp)
                     )
                 }
                 Spacer(Modifier.width(12.dp))
                 Text(
-                    text = "Search",
+                    text = stringResource(R.string.tab_search),
                     fontWeight = FontWeight.Bold,
                     fontFamily = VkSansDisplay,
                     fontSize = if (compact) 22.sp else 32.sp,
@@ -269,7 +271,7 @@ fun SearchScreen(
                         Box {
                             if (query.isEmpty()) {
                                 Text(
-                                    text = "Songs, artists, albums",
+                                    text = stringResource(R.string.search_placeholder),
                                     color = LiquidTheme.colors.textTertiary,
                                     fontSize = 16.sp
                                 )
@@ -303,7 +305,7 @@ fun SearchScreen(
             // Cancel — появляется при фокусе/вводе, сбрасывает поиск.
             AnimatedVisibility(visible = searchFocused || query.isNotEmpty()) {
                 Text(
-                    text = "Cancel",
+                    text = stringResource(R.string.action_cancel),
                     color = accentColor,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Medium,
@@ -344,7 +346,7 @@ fun SearchScreen(
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Text(
-                                        text = "Recent Searches",
+                                        text = stringResource(R.string.recent_searches),
                                         color = LiquidTheme.colors.sectionLabel,
                                         fontSize = 13.sp,
                                         fontWeight = FontWeight.SemiBold
@@ -418,14 +420,14 @@ fun SearchScreen(
                                         horizontalAlignment = Alignment.CenterHorizontally
                                     ) {
                                         Text(
-                                            text = "Something went wrong",
+                                            text = stringResource(R.string.something_went_wrong),
                                             color = LiquidTheme.colors.textPrimary,
                                             fontSize = 16.sp,
                                             fontWeight = FontWeight.SemiBold
                                         )
                                         Spacer(modifier = Modifier.height(6.dp))
                                         Text(
-                                            text = error ?: "Unknown error",
+                                            text = error ?: stringResource(R.string.unknown_error),
                                             color = LiquidTheme.colors.textTertiary,
                                             fontSize = 13.sp,
                                             textAlign = androidx.compose.ui.text.style.TextAlign.Center
@@ -454,7 +456,7 @@ fun SearchScreen(
                                     // Artists section
                                     if (artists.isNotEmpty()) {
                                         item(key = "artists_label") {
-                                            SearchSectionLabel("Artists", artists.size, compact)
+                                            SearchSectionLabel(stringResource(R.string.section_artists), artists.size, compact)
                                         }
                                         item(key = "artists_row") {
                                             LazyRow(
@@ -482,7 +484,7 @@ fun SearchScreen(
                                     // Albums section
                                     if (albums.isNotEmpty()) {
                                         item(key = "albums_label") {
-                                            SearchSectionLabel("Albums", albums.size, compact)
+                                            SearchSectionLabel(stringResource(R.string.section_albums), albums.size, compact)
                                         }
                                         item(key = "albums_row") {
                                             LazyRow(
@@ -510,7 +512,7 @@ fun SearchScreen(
                                     // Tracks section
                                     if (tracks.isNotEmpty()) {
                                         item(key = "tracks_label") {
-                                            SearchSectionLabel("Songs", tracks.size, compact)
+                                            SearchSectionLabel(stringResource(R.string.section_songs), tracks.size, compact)
                                         }
                                         val playableTracks = tracks.filter { it.isAvailable }.map { it.toTrack() }
                                         itemsIndexed(
@@ -520,7 +522,7 @@ fun SearchScreen(
                                             SearchResultRow(
                                                 title = item.title,
                                                 subtitle = if (item.isAvailable) item.displayArtist
-                                                    else "Недоступно · ${item.displayArtist}",
+                                                    else stringResource(R.string.unavailable_artist_prefix, item.displayArtist),
                                                 icon = com.lmg.vk.ui.icons.LmgGlyphs.MusicNote24,
                                                 coverUrl = item.cover,
                                                 isExplicit = item.isExplicit,
@@ -570,7 +572,7 @@ fun SearchScreen(
                                                         strokeWidth = 2.dp,
                                                     )
                                                     loadMoreError != null -> Text(
-                                                        text = "Retry loading more",
+                                                        text = stringResource(R.string.retry_load_more),
                                                         color = SearchAccent,
                                                         fontSize = 13.sp,
                                                         fontWeight = FontWeight.SemiBold,
@@ -604,14 +606,14 @@ fun SearchScreen(
                                                 horizontalAlignment = Alignment.CenterHorizontally
                                             ) {
                                                 Text(
-                                                    text = "Nothing found",
+                                                    text = stringResource(R.string.nothing_found),
                                                     color = LiquidTheme.colors.textPrimary,
                                                     fontSize = 16.sp,
                                                     fontWeight = FontWeight.SemiBold
                                                 )
                                                 Spacer(modifier = Modifier.height(6.dp))
                                                 Text(
-                                                    text = "No results for \"$query\"",
+                                                    text = stringResource(R.string.search_no_results, query),
                                                     color = LiquidTheme.colors.textTertiary,
                                                     fontSize = 13.sp
                                                 )
@@ -640,7 +642,8 @@ fun SearchScreen(
                     val added = PlaylistManager.addTrack(playlist.id, track)
                     Toast.makeText(
                         context,
-                        if (added) "Added to ${playlist.name}" else "Already in ${playlist.name}",
+                        if (added) context.getString(R.string.added_to_playlist, playlist.name)
+                        else context.getString(R.string.already_in_playlist, playlist.name),
                         Toast.LENGTH_SHORT,
                     ).show()
                     playlistPickerTrack = null
@@ -809,7 +812,7 @@ private fun SearchWelcomeState(compact: Boolean) {
         }
         Spacer(Modifier.height(if (compact) 14.dp else 18.dp))
         Text(
-            text = "Search VK Music",
+            text = stringResource(R.string.search_vk_music),
             color = LiquidTheme.colors.textPrimary,
             fontSize = if (compact) 17.sp else 20.sp,
             fontWeight = FontWeight.SemiBold,
@@ -817,7 +820,7 @@ private fun SearchWelcomeState(compact: Boolean) {
         )
         Spacer(Modifier.height(6.dp))
         Text(
-            text = "Find songs, artists and albums",
+            text = stringResource(R.string.search_find_hint),
             color = LiquidTheme.colors.textTertiary,
             fontSize = if (compact) 12.sp else 14.sp,
             textAlign = androidx.compose.ui.text.style.TextAlign.Center,

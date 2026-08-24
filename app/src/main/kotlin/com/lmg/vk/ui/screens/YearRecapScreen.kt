@@ -34,10 +34,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.lmg.vk.R
 import com.lmg.vk.ui.icons.LmgDrawables
 import com.lmg.vk.ui.icons.lmgVector
 import com.lmg.vk.ui.glass.AlbumArtImage
@@ -102,7 +104,7 @@ fun YearRecapScreen(
                 )
                 Spacer(modifier = Modifier.width(if (compact) 8.dp else 10.dp))
                 Text(
-                    text = "Итоги года",
+                    text = stringResource(R.string.year_recap_title),
                     color = lc.textPrimary,
                     fontSize = if (compact) 20.sp else 24.sp,
                     fontWeight = FontWeight.Bold,
@@ -399,8 +401,8 @@ private fun CreatePlaylistCard(
     ) {
         Text(
             text = when (creation) {
-                is PlaylistCreationState.Created -> "Плейлист готов"
-                else -> "Плейлист по итогам года"
+                is PlaylistCreationState.Created -> stringResource(R.string.playlist_ready)
+                else -> stringResource(R.string.recap_playlist_name)
             },
             color = lc.textPrimary,
             fontSize = if (compact) 15.sp else 17.sp,
@@ -431,7 +433,7 @@ private fun CreatePlaylistCard(
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = "Сохранён в вашей музыке ВКонтакте",
+                    text = stringResource(R.string.saved_to_vk_music),
                     color = lc.textSecondary,
                     fontSize = if (compact) 12.sp else 13.sp,
                     fontFamily = AppFontFamily,
@@ -449,7 +451,7 @@ private fun CreatePlaylistCard(
                 )
                 Spacer(modifier = Modifier.width(10.dp))
                 Text(
-                    text = "ВКонтакте собирает плейлист…",
+                    text = stringResource(R.string.vk_building_playlist),
                     color = lc.textSecondary,
                     fontSize = if (compact) 12.sp else 13.sp,
                     fontFamily = AppFontFamily,
@@ -483,7 +485,7 @@ private fun CreatePlaylistCard(
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "Попробовать снова",
+                        text = stringResource(R.string.try_again),
                         color = lc.accent,
                         fontSize = if (compact) 12.sp else 13.sp,
                         fontWeight = FontWeight.SemiBold,
@@ -509,7 +511,7 @@ private fun CreatePlaylistCard(
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = "Собрать плейлист",
+                    text = stringResource(R.string.build_playlist),
                     color = lc.accent,
                     fontSize = if (compact) 12.sp else 13.sp,
                     fontWeight = FontWeight.SemiBold,
@@ -564,9 +566,9 @@ private fun RecapEmpty(artistMode: Boolean, compact: Boolean, onRetry: () -> Uni
     ) {
         Text(
             text = if (artistMode) {
-                "ВКонтакте не показывает итоги года для этого артиста"
+                stringResource(R.string.no_recap_for_artist)
             } else {
-                "ВКонтакте пока не собрал ваши итоги года"
+                stringResource(R.string.no_recap_yet)
             },
             color = lc.textPrimary,
             fontSize = if (compact) 15.sp else 17.sp,
@@ -574,7 +576,7 @@ private fun RecapEmpty(artistMode: Boolean, compact: Boolean, onRetry: () -> Uni
             fontFamily = AppFontFamily,
         )
         Text(
-            text = "Итоги появляются, когда их публикует сам ВКонтакте — обычно в конце года.",
+            text = stringResource(R.string.recap_hint),
             color = lc.textSecondary,
             fontSize = if (compact) 12.sp else 13.sp,
             fontFamily = AppFontFamily,
@@ -597,7 +599,7 @@ private fun RecapEmpty(artistMode: Boolean, compact: Boolean, onRetry: () -> Uni
             )
             Spacer(modifier = Modifier.width(8.dp))
             Text(
-                text = "Проверить снова",
+                text = stringResource(R.string.check_again),
                 color = lc.accent,
                 fontSize = if (compact) 12.sp else 13.sp,
                 fontWeight = FontWeight.SemiBold,
@@ -619,7 +621,7 @@ private fun RecapLoadError(message: String, compact: Boolean, onRetry: () -> Uni
             .padding(horizontal = 18.dp, vertical = 18.dp),
     ) {
         Text(
-            text = "Не удалось загрузить итоги года",
+            text = stringResource(R.string.recap_load_failed),
             color = lc.textPrimary,
             fontSize = if (compact) 15.sp else 17.sp,
             fontWeight = FontWeight.Bold,
@@ -649,7 +651,7 @@ private fun RecapLoadError(message: String, compact: Boolean, onRetry: () -> Uni
             )
             Spacer(modifier = Modifier.width(8.dp))
             Text(
-                text = "Повторить загрузку",
+                text = stringResource(R.string.retry_load),
                 color = lc.accent,
                 fontSize = if (compact) 12.sp else 13.sp,
                 fontWeight = FontWeight.SemiBold,
@@ -680,7 +682,7 @@ private fun RecapInlineError(message: String, compact: Boolean, onRetry: () -> U
             modifier = Modifier.weight(1f),
         )
         Text(
-            text = "Повторить",
+            text = stringResource(R.string.action_retry),
             color = lc.accent,
             fontSize = if (compact) 11.sp else 12.sp,
             fontWeight = FontWeight.SemiBold,

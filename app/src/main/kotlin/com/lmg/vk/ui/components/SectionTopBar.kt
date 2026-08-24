@@ -27,8 +27,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.lmg.vk.R
 import com.lmg.vk.ui.glass.liquidClickable
 import com.lmg.vk.ui.rememberWindowInfo
 import com.lmg.vk.ui.theme.AppFontFamily
@@ -82,7 +84,7 @@ fun SectionTopBar(
                 ) {
                     Icon(
                         imageVector = com.lmg.vk.ui.icons.LmgGlyphs.ArrowLeftOutline28,
-                        contentDescription = "Back",
+                        contentDescription = stringResource(R.string.action_back),
                         tint = colors.iconDefault,
                         modifier = Modifier.size(if (compact) 18.dp else 20.dp),
                     )

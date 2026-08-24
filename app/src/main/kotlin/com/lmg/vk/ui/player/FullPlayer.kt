@@ -56,6 +56,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.rememberModalBottomSheetState
+import com.lmg.vk.R
 import com.lmg.vk.ui.icons.LmgDrawables
 import com.lmg.vk.ui.icons.lmgVector
 import com.lmg.vk.engine.backend.MiniArtist
@@ -87,6 +88,7 @@ import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -453,7 +455,7 @@ fun FullPlayer(
                         // Значок разворота — левый верхний угол, без подложки
                         // (референс Apple); сам тап ловит жестовый слой (onTap).
                         Icon(
-                            lmgVector(LmgDrawables.ArrowUpDownCornersOutline24), "Fullscreen",
+                            lmgVector(LmgDrawables.ArrowUpDownCornersOutline24), stringResource(R.string.fullscreen_cd),
                             tint = Color.White.copy(alpha = 0.9f),
                             modifier = Modifier
                                 .align(Alignment.TopStart)
@@ -763,7 +765,7 @@ fun FullPlayer(
                                                     } else {
                                                         Toast.makeText(
                                                             context,
-                                                            "Artist page unavailable",
+                                                            stringResource(R.string.artist_page_unavailable),
                                                             Toast.LENGTH_SHORT
                                                         ).show()
                                                     }
@@ -1047,7 +1049,7 @@ fun FullPlayer(
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
-                                lmgVector(LmgDrawables.ArrowUpDownCornersOutline24), "Exit fullscreen",
+                                lmgVector(LmgDrawables.ArrowUpDownCornersOutline24), stringResource(R.string.exit_fullscreen_cd),
                                 tint = Color.White, modifier = Modifier.size(24.dp)
                             )
                         }
@@ -1062,7 +1064,7 @@ fun FullPlayer(
                         ) {
                             Icon(
                                 if (isPlaying) com.lmg.vk.ui.icons.LmgGlyphs.Pause36 else com.lmg.vk.ui.icons.LmgGlyphs.Play36,
-                                if (isPlaying) "Pause" else "Play",
+                                if (isPlaying) stringResource(R.string.action_pause) else stringResource(R.string.action_play),
                                 tint = Color.White, modifier = Modifier.size(38.dp)
                             )
                         }
@@ -1118,7 +1120,7 @@ fun FullPlayer(
                 ) {
                     // Sheet title
                     Text(
-                        text = "Artists",
+                        text = stringResource(R.string.section_artists),
                         color = Color.White,
                         fontWeight = FontWeight.Bold,
                         fontSize = 20.sp,
@@ -1235,7 +1237,7 @@ fun FullPlayer(
                         )
                         Spacer(modifier = Modifier.width(16.dp))
                         Text(
-                            text = "Credits",
+                            text = stringResource(R.string.credits_title),
                             color = Color.White,
                             fontSize = 17.sp,
                             modifier = Modifier.weight(1f)
@@ -1272,7 +1274,7 @@ fun FullPlayer(
                         )
                         Spacer(modifier = Modifier.width(16.dp))
                         Text(
-                            text = "Wave from this track",
+                            text = stringResource(R.string.wave_from_track),
                             color = Color.White,
                             fontSize = 17.sp,
                             modifier = Modifier.weight(1f)
@@ -1327,9 +1329,9 @@ fun FullPlayer(
                         Spacer(modifier = Modifier.width(16.dp))
                         Text(
                             text = when {
-                                isDownloading -> "Downloading… ${((progress ?: 0f) * 100).toInt()}%"
-                                isDownloaded -> "Delete download"
-                                else -> "Download"
+                                isDownloading -> stringResource(R.string.downloading_percent, ((progress ?: 0f) * 100).toInt())
+                                isDownloaded -> stringResource(R.string.delete_download_action)
+                                else -> stringResource(R.string.action_download)
                             },
                             color = Color.White,
                             fontSize = 17.sp,
@@ -1368,7 +1370,7 @@ fun FullPlayer(
                             )
                             Spacer(modifier = Modifier.width(16.dp))
                             Text(
-                                text = "Publish lyrics to LRCLIB",
+                                text = stringResource(R.string.publish_lyrics_lrclib),
                                 color = Color.White,
                                 fontSize = 17.sp,
                                 modifier = Modifier.weight(1f)
@@ -1402,7 +1404,7 @@ fun FullPlayer(
                             )
                             Spacer(modifier = Modifier.width(16.dp))
                             Text(
-                                text = "Edit tags",
+                                text = stringResource(R.string.edit_tags),
                                 color = Color.White,
                                 fontSize = 17.sp,
                                 modifier = Modifier.weight(1f)
@@ -1437,7 +1439,7 @@ fun FullPlayer(
                         )
                         Spacer(modifier = Modifier.width(16.dp))
                         Text(
-                            text = "Settings",
+                            text = stringResource(R.string.tab_settings),
                             color = Color.White,
                             fontSize = 17.sp,
                             modifier = Modifier.weight(1f)
@@ -1453,10 +1455,10 @@ fun FullPlayer(
             onDismiss = { showPromoDialog = false },
             icon = com.lmg.vk.ui.icons.LmgGlyphs.DownloadOutline28,
             iconTint = Color(0xFFFC3C44),
-            title = "VK Music subscription required",
-            message = "Offline caching will use VK-only subscription and audio data after the download flow is restored.",
+            title = stringResource(R.string.vk_subscription_required),
+            message = stringResource(R.string.vk_subscription_message),
             primaryButton = GlassDialogButton(
-                text = "OK",
+                text = stringResource(R.string.action_ok),
                 onClick = { showPromoDialog = false }
             ),
             secondaryButton = GlassDialogButton(
@@ -1473,10 +1475,10 @@ fun FullPlayer(
             onDismiss = { showDeleteConfirmDialog = false },
             icon = com.lmg.vk.ui.icons.LmgGlyphs.CancelOutline28,
             iconTint = Color(0xFFFF5252),
-            title = "Delete Download?",
-            message = "Are you sure you want to delete this track from your device? You will need an internet connection to stream it again.",
+            title = stringResource(R.string.delete_download_question),
+            message = stringResource(R.string.delete_download_body),
             primaryButton = GlassDialogButton(
-                text = "Delete",
+                text = stringResource(R.string.action_delete),
                 onClick = {
                     showDeleteConfirmDialog = false
                     AudioDownloadManager.deleteDownloadedTrack(context, trackId)
@@ -1599,7 +1601,7 @@ private fun DebugPanel(onDismiss: () -> Unit) {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "Debug Log",
+                    text = stringResource(R.string.debug_log_title),
                     color = Color.White,
                     fontWeight = FontWeight.Bold,
                     fontSize = 18.sp
@@ -1616,7 +1618,7 @@ private fun DebugPanel(onDismiss: () -> Unit) {
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = "Clear",
+                            text = stringResource(R.string.action_clear),
                             color = Color(0xFFFC3C44),
                             fontSize = 14.sp,
                             fontWeight = FontWeight.SemiBold

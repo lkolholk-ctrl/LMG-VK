@@ -32,8 +32,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.lmg.vk.R
 import com.lmg.vk.engine.PlaylistManager
 import com.lmg.vk.ui.glass.GlassCustomDialog
 import com.lmg.vk.ui.glass.GlassDialogButton
@@ -58,6 +60,9 @@ fun PlaylistNameDialog(
     val isDark = colors.isDark
     var name by remember(initialName) { mutableStateOf(initialName) }
     val normalized = name.trim()
+    val subtitleText = stringResource(R.string.playlist_name_hint)
+    val cancelText = stringResource(R.string.action_cancel)
+    val nameLabel = stringResource(R.string.field_name)
 
     GlassCustomDialog(
         visible = true,
@@ -65,7 +70,7 @@ fun PlaylistNameDialog(
         icon = lmgVector(LmgDrawables.PlaylistOutline28),
         iconTint = colors.accent,
         title = title,
-        subtitle = "Enter playlist title",
+        subtitle = subtitleText,
         primaryButton = GlassDialogButton(
             text = confirmLabel,
             backgroundColor = colors.accent,
@@ -73,7 +78,7 @@ fun PlaylistNameDialog(
             onClick = { onConfirm(normalized) },
         ),
         secondaryButton = GlassDialogButton(
-            text = "Cancel",
+            text = cancelText,
             onClick = onDismiss,
         ),
     ) {
@@ -84,7 +89,7 @@ fun PlaylistNameDialog(
             OutlinedTextField(
                 value = name,
                 onValueChange = { if (it.length <= 80) name = it },
-                label = { Text("Name", fontFamily = VkSansText) },
+                label = { Text(nameLabel, fontFamily = VkSansText) },
                 singleLine = true,
                 shape = RoundedCornerShape(16.dp),
                 colors = OutlinedTextFieldDefaults.colors(
@@ -120,13 +125,15 @@ fun PlaylistPickerSheet(
     onDismiss: () -> Unit,
 ) {
     val colors = LiquidTheme.colors
+    val addToPlaylistText = stringResource(R.string.add_to_playlist)
+    val createFirstText = stringResource(R.string.create_playlist_first)
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         containerColor = LiquidSurfaces.sheet(colors.isDark),
     ) {
         Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
             Text(
-                "Add to playlist",
+                addToPlaylistText,
                 color = LiquidSurfaces.textPrimary(colors.isDark),
                 fontSize = 20.sp,
                 fontWeight = FontWeight.SemiBold,
@@ -135,7 +142,7 @@ fun PlaylistPickerSheet(
             )
             if (playlists.isEmpty()) {
                 Text(
-                    "Create a playlist first",
+                    createFirstText,
                     color = LiquidSurfaces.textSecondary(colors.isDark),
                     fontSize = 14.sp,
                     modifier = Modifier.padding(horizontal = 4.dp, vertical = 28.dp),
@@ -175,7 +182,11 @@ fun PlaylistPickerSheet(
                                     overflow = TextOverflow.Ellipsis,
                                 )
                                 Text(
-                                    "${playlist.tracks.size} tracks · ${if (playlist.remoteId != null) "Synced" else "Local"}",
+                                    stringResource(
+                                        R.string.playlist_track_status,
+                                        stringResource(R.plurals.track_count, playlist.tracks.size),
+                                        stringResource(if (playlist.remoteId != null) R.string.playlist_synced else R.string.playlist_local),
+                                    ),
                                     color = LiquidSurfaces.textSecondary(colors.isDark),
                                     fontSize = 12.sp,
                                 )

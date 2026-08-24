@@ -55,7 +55,10 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -65,6 +68,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.lmg.vk.R
 import com.lmg.vk.engine.backend.MusicAuth
 import com.lmg.vk.engine.backend.VkLoginResult
 import com.lmg.vk.ui.glass.liquidClickable
@@ -95,6 +99,7 @@ fun AuthScreen(
     val isDark = lc.isDark
     val scope = rememberCoroutineScope()
     val keyboardController = LocalSoftwareKeyboardController.current
+    val context = LocalContext.current
 
     DisposableEffect(Unit) {
         MusicAuth.beginAuthorization()
@@ -152,22 +157,22 @@ fun AuthScreen(
         if (isLoading) return
         val currentLogin = login.trim()
         if (currentLogin.isBlank()) {
-            error = "Введите номер телефона или логин"
+            error = context.getString(R.string.auth_error_enter_login)
             return
         }
 
         if (step == AuthStep.TwoFactor && verificationCode.isBlank()) {
-            error = "Введите код из сообщения"
+            error = context.getString(R.string.auth_error_enter_code)
             return
         }
 
         if (step == AuthStep.Password && password.isBlank()) {
-            error = "Введите пароль"
+            error = context.getString(R.string.auth_error_enter_password)
             return
         }
 
         if (step == AuthStep.Captcha && captchaKey.isBlank()) {
-            error = "Введите символы с картинки"
+            error = context.getString(R.string.captcha_subtitle)
             return
         }
 
@@ -265,7 +270,7 @@ fun AuthScreen(
                 ) {
                     Icon(
                         imageVector = lmgVector(LmgDrawables.ArrowLeftOutline28),
-                        contentDescription = "Back",
+                        contentDescription = stringResource(R.string.action_back),
                         tint = lc.iconDefault,
                         modifier = Modifier.size(22.dp),
                     )
@@ -280,10 +285,10 @@ fun AuthScreen(
                 ) {
                     Text(
                         text = when (step) {
-                            AuthStep.Phone -> if (isAddingAccount) "Добавить аккаунт" else "Вход в VK"
-                            AuthStep.TwoFactor -> "Код подтверждения"
-                            AuthStep.Password -> "Пароль"
-                            AuthStep.Captcha -> "Проверка"
+                            AuthStep.Phone -> if (isAddingAccount) stringResource(R.string.auth_add_account) else stringResource(R.string.auth_sign_in_vk)
+                            AuthStep.TwoFactor -> stringResource(R.string.auth_confirmation_code)
+                            AuthStep.Password -> stringResource(R.string.field_password)
+                            AuthStep.Captcha -> stringResource(R.string.auth_check)
                         },
                         fontFamily = VkSansText,
                         fontSize = 13.sp,
@@ -332,10 +337,10 @@ fun AuthScreen(
 
             Text(
                 text = when (step) {
-                    AuthStep.Phone -> if (isAddingAccount) "Добавить аккаунт" else "Войти в VK"
-                    AuthStep.TwoFactor -> "Код подтверждения"
-                    AuthStep.Password -> "Введите пароль"
-                    AuthStep.Captcha -> "Проверка безопасности"
+                    AuthStep.Phone -> if (isAddingAccount) stringResource(R.string.auth_add_account) else stringResource(R.string.auth_sign_in_vk)
+                    AuthStep.TwoFactor -> stringResource(R.string.auth_confirmation_code)
+                    AuthStep.Password -> stringResource(R.string.auth_enter_password)
+                    AuthStep.Captcha -> stringResource(R.string.captcha_title)
                 },
                 color = lc.textPrimary,
                 fontSize = 24.sp,
@@ -348,14 +353,15 @@ fun AuthScreen(
 
             Text(
                 text = when (step) {
-                    AuthStep.Phone -> "используя ваш аккаунт VK"
+                    AuthStep.Phone -> stringResource(R.string.auth_with_vk_account)
                     AuthStep.TwoFactor -> buildString {
-                        append("Введите код подтверждения, отправленный на ")
-                        append(destination.ifBlank { "ваш аккаунт VK" })
-                        if (expectedCodeLength > 0) append(" ($expectedCodeLength цифр)")
+                        append(stringResource(R.string.auth_two_factor_subtitle, destination.ifBlank { stringResource(R.string.auth_your_vk_account) }))
+                        if (expectedCodeLength > 0) append(" (")
+                        append(pluralStringResource(R.plurals.auth_code_digits, expectedCodeLength, expectedCodeLength))
+                        if (expectedCodeLength > 0) append(")")
                     }
-                    AuthStep.Password -> "Введите пароль от вашей страницы ВКонтакте"
-                    AuthStep.Captcha -> "Введите символы с картинки"
+                    AuthStep.Password -> stringResource(R.string.auth_password_subtitle)
+                    AuthStep.Captcha -> stringResource(R.string.captcha_subtitle)
                 },
                 color = lc.textSecondary,
                 fontSize = 14.sp,
@@ -400,7 +406,7 @@ fun AuthScreen(
                                 GlassAuthField(
                                     value = login,
                                     onValueChange = { login = it.trim(); error = null },
-                                    label = "Телефон или логин",
+                                    label = stringResource(R.string.auth_phone_or_login),
                                     leadingIcon = lmgVector(LmgDrawables.UserOutline28),
                                     keyboardType = KeyboardType.Phone,
                                     autoCorrect = false,
@@ -428,7 +434,7 @@ fun AuthScreen(
                                             submit()
                                         }
                                     },
-                                    label = "Код подтверждения",
+                                    label = stringResource(R.string.auth_confirmation_code),
                                     leadingIcon = lmgVector(LmgDrawables.KeyOutline28),
                                     keyboardType = KeyboardType.NumberPassword,
                                     autoCorrect = false,
@@ -450,7 +456,7 @@ fun AuthScreen(
                                         password = input.filter { it.code in 32..126 }
                                         error = null
                                     },
-                                    label = "Пароль",
+                                    label = stringResource(R.string.field_password),
                                     leadingIcon = lmgVector(LmgDrawables.LockOutline28),
                                     trailingIcon = lmgVector(
                                         if (passwordVisible) LmgDrawables.HideOutline28 else LmgDrawables.ViewOutline28
@@ -487,7 +493,7 @@ fun AuthScreen(
                                     ) {
                                         AsyncImage(
                                             model = captchaUrl,
-                                            contentDescription = "VK Captcha",
+                                            contentDescription = stringResource(R.string.captcha_image),
                                             contentScale = ContentScale.Fit,
                                             modifier = Modifier
                                                 .fillMaxSize()
@@ -502,7 +508,7 @@ fun AuthScreen(
                                         captchaKey = input.filter { it.code in 33..126 }
                                         error = null
                                     },
-                                    label = "Символы с картинки",
+                                    label = stringResource(R.string.captcha_code_label),
                                     leadingIcon = lmgVector(LmgDrawables.KeySquareOutline28),
                                     keyboardType = KeyboardType.Ascii,
                                     autoCorrect = false,
@@ -575,10 +581,10 @@ fun AuthScreen(
                     } else {
                         Text(
                             text = when (step) {
-                                AuthStep.Phone -> "Войти"
-                                AuthStep.TwoFactor -> "Подтвердить"
-                                AuthStep.Password -> "Войти"
-                                AuthStep.Captcha -> "Отправить"
+                                AuthStep.Phone -> stringResource(R.string.auth_sign_in_action)
+                                AuthStep.TwoFactor -> stringResource(R.string.action_confirm)
+                                AuthStep.Password -> stringResource(R.string.auth_sign_in_action)
+                                AuthStep.Captcha -> stringResource(R.string.action_submit)
                             },
                             color = Color.White,
                             fontFamily = VkSansText,
@@ -602,7 +608,7 @@ fun AuthScreen(
                             .padding(horizontal = 14.dp, vertical = 6.dp),
                     ) {
                         Text(
-                            text = "Назад к вводу телефона",
+                            text = stringResource(R.string.auth_back_to_phone),
                             color = lc.textSecondary,
                             fontFamily = VkSansText,
                             fontSize = 14.sp,
@@ -641,14 +647,14 @@ fun AuthScreen(
                         verticalArrangement = Arrangement.spacedBy(4.dp),
                     ) {
                         Text(
-                            text = "Ваш аккаунт в безопасности",
+                            text = stringResource(R.string.auth_security_title),
                             fontFamily = VkSansText,
                             fontWeight = FontWeight.SemiBold,
                             fontSize = 14.sp,
                             color = lc.textPrimary,
                         )
                         Text(
-                            text = "LMG только отправляет ваши данные на сервера VK и сохраняет их в зашифрованной форме в Android Keystore.",
+                            text = stringResource(R.string.auth_security_body),
                             fontFamily = VkSansText,
                             fontSize = 12.sp,
                             lineHeight = 17.sp,

@@ -8,23 +8,23 @@ import com.lmg.vk.R
 /** Варианты ярлыка приложения, доступные через activity-alias в manifest. */
 enum class LauncherIcon(
     val id: String,
-    val title: String,
+    val titleRes: Int,
     val drawableRes: Int,
     val aliasClassName: String,
 ) {
-    SUNSET("sunset", "Закат", R.drawable.launcher_icon_sunset, "LauncherIconSunset"),
-    EMERALD("emerald", "Изумруд", R.drawable.launcher_icon_emerald, "LauncherIconEmerald"),
-    LAGOON("lagoon", "Лагуна", R.drawable.launcher_icon_lagoon, "LauncherIconLagoon"),
-    AMETHYST("amethyst", "Аметист", R.drawable.launcher_icon_amethyst, "LauncherIconAmethyst"),
-    PRISM("prism", "Призма", R.drawable.launcher_icon_prism, "LauncherIconPrism"),
-    NEON("neon", "Неон", R.drawable.launcher_icon_neon, "LauncherIconNeon"),
-    FUCHSIA("fuchsia", "Фуксия", R.drawable.launcher_icon_fuchsia, "LauncherIconFuchsia"),
-    AMBER("amber", "Янтарь", R.drawable.launcher_icon_amber, "LauncherIconAmber"),
-    RUBY("ruby", "Рубин", R.drawable.launcher_icon_ruby, "LauncherIconRuby"),
-    GRAPHITE("graphite", "Графит", R.drawable.launcher_icon_graphite, "LauncherIconGraphite"),
-    ROSE("rose", "Роза", R.drawable.launcher_icon_rose, "LauncherIconRose"),
-    COBALT("cobalt", "Кобальт", R.drawable.launcher_icon_cobalt, "LauncherIconCobalt"),
-    PEARL("pearl", "Жемчуг", R.drawable.launcher_icon_pearl, "LauncherIconPearl"),
+    SUNSET("sunset", R.string.launcher_icon_sunset, R.drawable.launcher_icon_sunset, "LauncherIconSunset"),
+    EMERALD("emerald", R.string.launcher_icon_emerald, R.drawable.launcher_icon_emerald, "LauncherIconEmerald"),
+    LAGOON("lagoon", R.string.launcher_icon_lagoon, R.drawable.launcher_icon_lagoon, "LauncherIconLagoon"),
+    AMETHYST("amethyst", R.string.launcher_icon_amethyst, R.drawable.launcher_icon_amethyst, "LauncherIconAmethyst"),
+    PRISM("prism", R.string.launcher_icon_prism, R.drawable.launcher_icon_prism, "LauncherIconPrism"),
+    NEON("neon", R.string.launcher_icon_neon, R.drawable.launcher_icon_neon, "LauncherIconNeon"),
+    FUCHSIA("fuchsia", R.string.launcher_icon_fuchsia, R.drawable.launcher_icon_fuchsia, "LauncherIconFuchsia"),
+    AMBER("amber", R.string.launcher_icon_amber, R.drawable.launcher_icon_amber, "LauncherIconAmber"),
+    RUBY("ruby", R.string.launcher_icon_ruby, R.drawable.launcher_icon_ruby, "LauncherIconRuby"),
+    GRAPHITE("graphite", R.string.launcher_icon_graphite, R.drawable.launcher_icon_graphite, "LauncherIconGraphite"),
+    ROSE("rose", R.string.launcher_icon_rose, R.drawable.launcher_icon_rose, "LauncherIconRose"),
+    COBALT("cobalt", R.string.launcher_icon_cobalt, R.drawable.launcher_icon_cobalt, "LauncherIconCobalt"),
+    PEARL("pearl", R.string.launcher_icon_pearl, R.drawable.launcher_icon_pearl, "LauncherIconPearl"),
 }
 
 /**

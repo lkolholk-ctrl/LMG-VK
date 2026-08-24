@@ -47,6 +47,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -54,6 +55,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.lmg.vk.R
 import com.lmg.vk.ui.icons.LmgDrawables
 import com.lmg.vk.ui.icons.lmgVector
 import com.kyant.backdrop.backdrops.LayerBackdrop
@@ -311,9 +313,9 @@ fun LibraryScreen(
                         }
                         when {
                             bytes <= 0L -> null
-                            bytes < (1L shl 20) -> "%.0f KB".format(bytes / 1024.0)
-                            bytes < (1L shl 30) -> "%.0f MB".format(bytes / 1048576.0)
-                            else -> "%.1f GB".format(bytes / 1073741824.0)
+                            bytes < (1L shl 20) -> "%.0f КБ".format(bytes / 1024.0)
+                            bytes < (1L shl 30) -> "%.0f МБ".format(bytes / 1048576.0)
+                            else -> "%.1f ГБ".format(bytes / 1073741824.0)
                         }
                     }
                 }
@@ -334,8 +336,12 @@ fun LibraryScreen(
                 ) {
                     item(key = "library_header") {
                         SectionTopBar(
-                            title = "Library",
-                            subtitle = "${favorites.size} tracks · ${allPlaylistCells.size} playlists · ${downloadedTracks.size} offline",
+                            title = stringResource(R.string.tab_library),
+                            subtitle = listOf(
+                                stringResource(R.plurals.track_count, favorites.size),
+                                stringResource(R.plurals.playlist_count, allPlaylistCells.size),
+                                stringResource(R.string.offline_tracks_suffix, downloadedTracks.size),
+                            ).joinToString(" · "),
                             isDark = lc.isDark,
                         )
                     }
@@ -371,7 +377,7 @@ fun LibraryScreen(
 
                     item(key = "library_quick_sections") {
                         Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 14.dp)) {
-                            LibrarySectionTitle(title = "Your library")
+                            LibrarySectionTitle(title = stringResource(R.string.your_library))
                             Spacer(Modifier.height(10.dp))
                             LibraryQuickSections(
                                 playlistCount = allPlaylistCells.size,
@@ -388,9 +394,9 @@ fun LibraryScreen(
                     item(key = "library_recent_header") {
                         Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)) {
                             LibrarySectionTitle(
-                                title = "Recently played",
+                                title = stringResource(R.string.recently_played),
                                 count = recentTracks.size.takeIf { it > 0 },
-                                action = "История VK",
+                                action = stringResource(R.string.vk_history),
                                 onAction = onOpenVkHistory,
                             )
                         }
@@ -399,7 +405,7 @@ fun LibraryScreen(
                     if (recentPreview.isEmpty()) {
                         item(key = "library_recent_empty") {
                             CompactLibraryEmptyHint(
-                                text = "Tracks you play will appear here",
+                                text = stringResource(R.string.recent_tracks_hint),
                                 icon = lmgVector(LmgDrawables.HistoryBackwardOutline28),
                                 modifier = Modifier.padding(horizontal = 20.dp),
                             )
@@ -420,12 +426,12 @@ fun LibraryScreen(
                     item(key = "library_favorites_header") {
                         Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp)) {
                             LibrarySectionTitle(
-                                title = if (libraryQuery.isBlank()) "My tracks" else "Search results",
+                                title = if (libraryQuery.isBlank()) stringResource(R.string.my_tracks) else stringResource(R.string.search_results),
                                 count = if (libraryQuery.isBlank()) favorites.size else matchingFavorites.size,
-                                action = if (libraryQuery.isBlank()) "See all" else "Show all",
+                                action = stringResource(R.string.see_all),
                                 onAction = { currentView = LibraryView.FAVORITES },
                                 quickActionIcon = lmgVector(LmgDrawables.ShuffleOutline24),
-                                quickActionDescription = "Shuffle my tracks",
+                                quickActionDescription = stringResource(R.string.shuffle_my_tracks),
                                 quickActionEnabled = favorites.isNotEmpty(),
                                 onQuickAction = { viewModel.shuffleAndPlay(context) },
                             )
@@ -435,7 +441,7 @@ fun LibraryScreen(
                     if (favoritePreview.isEmpty()) {
                         item(key = "library_favorites_empty") {
                             CompactLibraryEmptyHint(
-                                text = if (libraryQuery.isBlank()) "Your favorite tracks will appear here" else "No tracks match your search",
+                                text = if (libraryQuery.isBlank()) stringResource(R.string.favorites_hint) else stringResource(R.string.no_tracks_match),
                                 icon = lmgVector(LmgDrawables.FavoriteOutline28),
                                 modifier = Modifier.padding(horizontal = 20.dp),
                             )
@@ -482,14 +488,14 @@ fun LibraryScreen(
                 }
                 var playlistToDelete by remember { mutableStateOf<PlaylistCellData?>(null) }
                 val syncMessage = when {
-                    isAnySyncing -> "Synchronizing VK account content…"
+                    isAnySyncing -> stringResource(R.string.sync_in_progress)
                     playlistSyncState.error != null -> playlistSyncState.error
                     playlistSyncState.lastReport != null -> playlistSyncState.lastReport?.let {
                         buildString {
-                            append("Synced · ${it.pushed} uploaded · ${it.pulled} downloaded")
-                            if (it.failed > 0) append(" · ${it.failed} failed")
-                            if (it.deleted > 0) append(" · ${it.deleted} deleted")
-                            if (it.unsupportedTracks > 0) append(" · ${it.unsupportedTracks} local-only tracks")
+                            append(stringResource(R.string.sync_report, it.pushed, it.pulled))
+                            if (it.failed > 0) append(stringResource(R.string.sync_failed_suffix, it.failed))
+                            if (it.deleted > 0) append(stringResource(R.string.sync_deleted_suffix, it.deleted))
+                            if (it.unsupportedTracks > 0) append(stringResource(R.string.sync_local_only_suffix, it.unsupportedTracks))
                         }
                     }
                     else -> null
@@ -506,15 +512,15 @@ fun LibraryScreen(
                 ) {
                     item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) {
                         SectionTopBar(
-                            title = "Playlists",
-                            subtitle = "${allPlaylistCells.size} collections",
+                            title = stringResource(R.string.playlists_title),
+                            subtitle = stringResource(R.string.collections_count, allPlaylistCells.size),
                             isDark = lc.isDark,
                             modifier = Modifier.requiredWidth(screenWidth),
                             onBack = ::returnToMain,
                             actions = {
                                 if (isLoggedIn) {
                                     CompactLibraryAction(
-                                        label = if (isAnySyncing) "Syncing…" else "Sync",
+                                        label = if (isAnySyncing) stringResource(R.string.syncing_short) else stringResource(R.string.sync_action),
                                         icon = lmgVector(LmgDrawables.RefreshOutline28),
                                         enabled = !isAnySyncing,
                                         onClick = { loadImportedPlaylists(syncPlaylists = true) },
@@ -522,7 +528,7 @@ fun LibraryScreen(
                                     )
                                 }
                                 CompactLibraryAction(
-                                    label = "New playlist",
+                                    label = stringResource(R.string.new_playlist),
                                     icon = lmgVector(LmgDrawables.ListPlusOutline20),
                                     emphasized = true,
                                     onClick = { showCreatePlaylistDialog = true },
@@ -571,7 +577,7 @@ fun LibraryScreen(
                     if (visiblePlaylists.isEmpty()) {
                         item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) {
                             Box(modifier = Modifier.fillMaxWidth().height(240.dp)) {
-                                EmptyState("No playlists found", com.lmg.vk.ui.icons.LmgGlyphs.PlaylistOutline28)
+                                EmptyState(stringResource(R.string.no_playlists_found), com.lmg.vk.ui.icons.LmgGlyphs.PlaylistOutline28)
                             }
                         }
                     } else {
@@ -587,15 +593,19 @@ fun LibraryScreen(
                 }
 
                 playlistToDelete?.let { cell ->
+                    val dialogTitle = stringResource(R.string.delete_playlist_title)
+                    val dialogMessage = stringResource(R.string.delete_playlist_message, cell.name)
+                    val deleteText = stringResource(R.string.action_delete)
+                    val cancelText = stringResource(R.string.action_cancel)
                     GlassDialog(
                         visible = true,
                         onDismiss = { playlistToDelete = null },
-                        title = "Delete Playlist",
-                        message = "Are you sure you want to delete '${cell.name}'?",
+                        title = dialogTitle,
+                        message = dialogMessage,
                         icon = com.lmg.vk.ui.icons.LmgGlyphs.CancelOutline28,
                         iconTint = Color(0xFFFF5252),
                         primaryButton = GlassDialogButton(
-                            text = "Delete",
+                            text = deleteText,
                             onClick = {
                                 if (cell.isImported) {
                                     scope.launch {
@@ -614,7 +624,7 @@ fun LibraryScreen(
                             textColor = Color.White,
                         ),
                         secondaryButton = GlassDialogButton(
-                            text = "Cancel",
+                            text = cancelText,
                             onClick = { playlistToDelete = null },
                             backgroundColor = lc.textPrimary.copy(alpha = 0.08f),
                             textColor = lc.textSecondary,
@@ -637,8 +647,9 @@ fun LibraryScreen(
                 ) {
                     item(key = "recent_header") {
                         SectionTopBar(
-                            title = "Recent",
-                            subtitle = if (recentTracks.isEmpty()) "Your listening history" else "${recentTracks.size} recent tracks",
+                            title = stringResource(R.string.recent_title),
+                            subtitle = if (recentTracks.isEmpty()) stringResource(R.string.listening_history)
+                                else stringResource(R.plurals.recent_tracks_count, recentTracks.size, recentTracks.size),
                             isDark = lc.isDark,
                             onBack = ::returnToMain,
                         )
@@ -646,7 +657,7 @@ fun LibraryScreen(
                     if (recentTracks.isEmpty()) {
                         item(key = "recent_empty") {
                             Box(modifier = Modifier.fillMaxWidth().height(240.dp)) {
-                                EmptyState("No listening history yet", com.lmg.vk.ui.icons.LmgGlyphs.HistoryBackwardOutline28)
+                                EmptyState(stringResource(R.string.no_listening_history), com.lmg.vk.ui.icons.LmgGlyphs.HistoryBackwardOutline28)
                             }
                         }
                     } else {
@@ -685,11 +696,11 @@ fun LibraryScreen(
                 ) {
                     item(key = "favorites_header") {
                         SectionTopBar(
-                            title = "My tracks",
+                            title = stringResource(R.string.my_tracks),
                             subtitle = if (libraryQuery.isBlank()) {
-                                "${favorites.size} favorite tracks"
+                                stringResource(R.plurals.favorite_tracks_count, favorites.size, favorites.size)
                             } else {
-                                "${matchingFavorites.size} search results"
+                                stringResource(R.plurals.search_results_count, matchingFavorites.size, matchingFavorites.size)
                             },
                             isDark = lc.isDark,
                             onBack = ::returnToMain,
@@ -728,7 +739,7 @@ fun LibraryScreen(
                         item(key = "favorites_empty") {
                             Box(modifier = Modifier.fillMaxWidth().height(240.dp)) {
                                 EmptyState(
-                                    if (libraryQuery.isBlank()) "No favorites yet" else "No tracks match your search",
+                                    if (libraryQuery.isBlank()) stringResource(R.string.no_favorites_yet) else stringResource(R.string.no_tracks_match),
                                     com.lmg.vk.ui.icons.LmgGlyphs.Favorite28,
                                 )
                             }
@@ -800,8 +811,8 @@ fun LibraryScreen(
                             val added = com.lmg.vk.engine.PlaylistManager.addTrack(playlist.id, t)
                             android.widget.Toast.makeText(
                                 context,
-                                if (added) "Добавлено в ${playlist.name}"
-                                else "Уже в ${playlist.name}",
+                                if (added) context.getString(R.string.added_to_playlist, playlist.name)
+                                else context.getString(R.string.already_in_playlist, playlist.name),
                                 android.widget.Toast.LENGTH_SHORT,
                             ).show()
                             playlistPickerTrack = null
@@ -826,15 +837,15 @@ fun LibraryScreen(
                 ) {
                     item(key = "library_downloads_header") {
                         SectionTopBar(
-                            title = "Downloads",
-                            subtitle = "${downloadedTracks.size} offline tracks",
+                            title = stringResource(R.string.downloads_title),
+                            subtitle = stringResource(R.string.offline_tracks_count, downloadedTracks.size),
                             isDark = lc.isDark,
                             onBack = ::returnToMain,
                             actions = {
                                 if (downloadedTracks.isNotEmpty()) {
                                     Spacer(Modifier.weight(1f))
                                     CompactLibraryAction(
-                                        label = "Clear all",
+                                        label = stringResource(R.string.clear_all),
                                         icon = lmgVector(LmgDrawables.DeleteSavedOutline28),
                                         emphasized = true,
                                         tint = lc.accentRed,
@@ -861,7 +872,7 @@ fun LibraryScreen(
                         item(key = "library_downloads_migration") {
                             Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 6.dp)) {
                                 Text(
-                                    text = "Moving downloads to Downloads… $done/$total",
+                                    text = stringResource(R.string.moving_downloads, done, total),
                                     color = LiquidTheme.colors.textSecondary,
                                     fontSize = 12.sp
                                 )
@@ -876,7 +887,7 @@ fun LibraryScreen(
                     if (downloadedTracks.isEmpty()) {
                         item(key = "library_downloads_empty") {
                             Box(modifier = Modifier.fillMaxWidth().height(240.dp)) {
-                                EmptyState("No downloaded tracks yet", com.lmg.vk.ui.icons.LmgGlyphs.DownloadOutline28)
+                                EmptyState(stringResource(R.string.no_downloaded_tracks), com.lmg.vk.ui.icons.LmgGlyphs.DownloadOutline28)
                             }
                         }
                     } else {
@@ -926,15 +937,19 @@ fun LibraryScreen(
 
                 // ── Dialogs OUTSIDE the blurred content ──
                 if (showClearAllDialog) {
+                    val clearTitle = stringResource(R.string.clear_all_downloads)
+                    val clearMessage = stringResource(R.string.clear_all_downloads_message, downloadedTracks.size)
+                    val clearAllText = stringResource(R.string.clear_all)
+                    val cancelText = stringResource(R.string.action_cancel)
                     GlassDialog(
                         visible = showClearAllDialog,
                         onDismiss = { showClearAllDialog = false },
-                        title = "Clear All Downloads",
-                        message = "This will permanently delete all ${downloadedTracks.size} downloaded tracks from your device and the database. This action cannot be undone.",
+                        title = clearTitle,
+                        message = clearMessage,
                         icon = com.lmg.vk.ui.icons.LmgGlyphs.DownloadOutline28,
                         iconTint = AppleRed,
                         primaryButton = GlassDialogButton(
-                            text = "Clear All",
+                            text = clearAllText,
                             onClick = {
                                 showClearAllDialog = false
                                 scope.launch {
@@ -945,7 +960,7 @@ fun LibraryScreen(
                             textColor = Color.White
                         ),
                         secondaryButton = GlassDialogButton(
-                            text = "Cancel",
+                            text = cancelText,
                             onClick = { showClearAllDialog = false },
                             backgroundColor = lc.textPrimary.copy(alpha = 0.08f),
                             textColor = lc.textSecondary
@@ -954,15 +969,19 @@ fun LibraryScreen(
                 }
 
                 trackToDelete?.let { track ->
+                    val deleteTrackTitle = stringResource(R.string.delete_offline_track)
+                    val deleteTrackMessage = stringResource(R.string.delete_offline_track_message, track.title)
+                    val removeText = stringResource(R.string.action_remove)
+                    val cancelText = stringResource(R.string.action_cancel)
                     GlassDialog(
                         visible = true,
                         onDismiss = { trackToDelete = null },
-                        title = "Delete Offline Track",
-                        message = "Remove '${track.title}' from your device storage?",
+                        title = deleteTrackTitle,
+                        message = deleteTrackMessage,
                         icon = com.lmg.vk.ui.icons.LmgGlyphs.CancelOutline28,
                         iconTint = Color(0xFFFF5252),
                         primaryButton = GlassDialogButton(
-                            text = "Remove",
+                            text = removeText,
                             onClick = {
                                 AudioDownloadManager.deleteDownloadedTrack(context, track.trackId)
                                 trackToDelete = null
@@ -971,7 +990,7 @@ fun LibraryScreen(
                             textColor = Color.White
                         ),
                         secondaryButton = GlassDialogButton(
-                            text = "Cancel",
+                            text = cancelText,
                             onClick = { trackToDelete = null },
                             backgroundColor = lc.textPrimary.copy(alpha = 0.08f),
                             textColor = lc.textSecondary
@@ -990,14 +1009,14 @@ fun LibraryScreen(
                         .fillMaxSize()
                         .then(if (isDialogActive) Modifier.blur(16.dp) else Modifier)
                 ) {
-                    SubHeader("My Playlists", onBack = ::returnToMain) {
+                    SubHeader(stringResource(R.string.my_playlists), onBack = ::returnToMain) {
                         IconButton(onClick = { showCreatePlaylistDialog = true }) {
                             Icon(lmgVector(LmgDrawables.ListPlusOutline20), null, tint = Color(0xFF30D158), modifier = Modifier.size(24.dp))
                         }
                     }
 
                     if (localPlaylists.isEmpty()) {
-                        EmptyState("No playlists yet.\nCreate one to get started!", com.lmg.vk.ui.icons.LmgGlyphs.PlaylistOutline28)
+                        EmptyState(stringResource(R.string.no_playlists_yet_create), com.lmg.vk.ui.icons.LmgGlyphs.PlaylistOutline28)
                     } else {
                         LazyColumn(
                             modifier = Modifier.weight(1f),
@@ -1021,15 +1040,19 @@ fun LibraryScreen(
 
                 // ── Screen-level modal dialog for local playlist deletion ──
                 playlistToDelete?.let { playlist ->
+                    val dialogTitle = stringResource(R.string.delete_playlist_title)
+                    val dialogMessage = stringResource(R.string.delete_playlist_message, playlist.name)
+                    val deleteText = stringResource(R.string.action_delete)
+                    val cancelText = stringResource(R.string.action_cancel)
                     GlassDialog(
                         visible = true,
                         onDismiss = { playlistToDelete = null },
-                        title = "Delete Playlist",
-                        message = "Are you sure you want to delete '${playlist.name}'?",
+                        title = dialogTitle,
+                        message = dialogMessage,
                         icon = com.lmg.vk.ui.icons.LmgGlyphs.CancelOutline28,
                         iconTint = Color(0xFFFF5252),
                         primaryButton = GlassDialogButton(
-                            text = "Delete",
+                            text = deleteText,
                             onClick = {
                                 scope.launch {
                                     PlaylistSyncManager.deleteEverywhere(playlist.id)
@@ -1041,7 +1064,7 @@ fun LibraryScreen(
                             textColor = Color.White
                         ),
                         secondaryButton = GlassDialogButton(
-                            text = "Cancel",
+                            text = cancelText,
                             onClick = { playlistToDelete = null },
                             backgroundColor = lc.textPrimary.copy(alpha = 0.08f),
                             textColor = lc.textSecondary
@@ -1059,7 +1082,7 @@ fun LibraryScreen(
                         .fillMaxSize()
                         .then(if (isDialogActive) Modifier.blur(16.dp) else Modifier)
                 ) {
-                    SubHeader("Imported Playlists", onBack = ::returnToMain) {
+                    SubHeader(stringResource(R.string.imported_playlists), onBack = ::returnToMain) {
                         if (isLoggedIn) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 IconButton(onClick = { loadImportedPlaylists(syncPlaylists = true) }) {
@@ -1079,10 +1102,10 @@ fun LibraryScreen(
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                 Icon(com.lmg.vk.ui.icons.LmgGlyphs.PlaylistOutline28, null, tint = lc.iconMuted, modifier = Modifier.size(64.dp))
                                 Spacer(Modifier.height(16.dp))
-                                Text("Sync Playlists", color = lc.textPrimary, fontSize = 20.sp, fontWeight = FontWeight.SemiBold, fontFamily = VkSansDisplay)
+                                Text(stringResource(R.string.sync_playlists_title), color = lc.textPrimary, fontSize = 20.sp, fontWeight = FontWeight.SemiBold, fontFamily = VkSansDisplay)
                                 Spacer(Modifier.height(8.dp))
                                 Text(
-                                    "Sign in to your account in the Profile tab to view and sync your VK playlists.",
+                                    stringResource(R.string.sync_playlists_sign_in),
                                     color = lc.textSecondary,
                                     fontSize = 14.sp,
                                     textAlign = androidx.compose.ui.text.style.TextAlign.Center,
@@ -1096,7 +1119,7 @@ fun LibraryScreen(
                         }
                     } else {
                         if (importedPlaylists.isEmpty()) {
-                            EmptyState("No playlists yet.", com.lmg.vk.ui.icons.LmgGlyphs.PlaylistOutline28)
+                            EmptyState(stringResource(R.string.no_playlists_yet), com.lmg.vk.ui.icons.LmgGlyphs.PlaylistOutline28)
                         } else {
                             LazyColumn(
                                 modifier = Modifier.weight(1f),
@@ -1121,15 +1144,19 @@ fun LibraryScreen(
 
                 // ── Screen-level modal dialog for imported playlist deletion ──
                 importedPlaylistToDelete?.let { playlist ->
+                    val dialogTitle = stringResource(R.string.delete_playlist_title)
+                    val dialogMessage = stringResource(R.string.delete_imported_playlist_message, playlist.name)
+                    val deleteText = stringResource(R.string.action_delete)
+                    val cancelText = stringResource(R.string.action_cancel)
                     GlassDialog(
                         visible = true,
                         onDismiss = { importedPlaylistToDelete = null },
-                        title = "Delete Playlist",
-                        message = "Are you sure you want to delete '${playlist.name}' from your backend library?",
+                        title = dialogTitle,
+                        message = dialogMessage,
                         icon = com.lmg.vk.ui.icons.LmgGlyphs.CancelOutline28,
                         iconTint = Color(0xFFFF5252),
                         primaryButton = GlassDialogButton(
-                            text = "Delete",
+                            text = deleteText,
                             onClick = {
                                 scope.launch {
                                     PlaylistSyncManager.deleteRemote(playlist.id ?: "")
@@ -1141,7 +1168,7 @@ fun LibraryScreen(
                             textColor = Color.White
                         ),
                         secondaryButton = GlassDialogButton(
-                            text = "Cancel",
+                            text = cancelText,
                             onClick = { importedPlaylistToDelete = null },
                             backgroundColor = lc.textPrimary.copy(alpha = 0.08f),
                             textColor = lc.textSecondary
@@ -1153,8 +1180,8 @@ fun LibraryScreen(
 
         if (showCreatePlaylistDialog) {
             PlaylistNameDialog(
-                title = "New playlist",
-                confirmLabel = "Create",
+                title = stringResource(R.string.new_playlist),
+                confirmLabel = stringResource(R.string.action_create),
                 onConfirm = { name ->
                     com.lmg.vk.engine.PlaylistManager.create(name)
                     showCreatePlaylistDialog = false
@@ -1197,7 +1224,9 @@ private fun LibraryTabs(
 ) {
     val lc = LiquidTheme.colors
     Row(modifier = modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
-        listOf("Library" to false, "Downloaded" to true).forEach { (title, tab) ->
+        val libraryTab = stringResource(R.string.tab_library)
+        val downloadedTab = stringResource(R.string.downloaded_tab)
+        listOf(libraryTab to false, downloadedTab to true).forEach { (title, tab) ->
             val selected = downloaded == tab
             Text(
                 text = title,
@@ -1260,7 +1289,7 @@ private fun LibrarySearchSyncRow(
             ) {
                 Icon(
                     imageVector = lmgVector(LmgDrawables.RefreshOutline28),
-                    contentDescription = if (isSyncing) "Syncing tracks" else "Sync tracks",
+                    contentDescription = if (isSyncing) stringResource(R.string.syncing_tracks) else stringResource(R.string.sync_tracks),
                     tint = LiquidTheme.colors.accent,
                     modifier = Modifier.size(19.dp),
                 )
@@ -1356,27 +1385,27 @@ private fun LibraryQuickSections(
 ) {
     val items = listOf(
         LibraryQuickItem(
-            title = "Playlists",
-            subtitle = "$playlistCount saved",
+            title = stringResource(R.string.playlists_title),
+            subtitle = stringResource(R.plurals.playlist_count_saved, playlistCount, playlistCount),
             icon = lmgVector(LmgDrawables.PlaylistOutline28),
             onClick = onPlaylists,
         ),
         LibraryQuickItem(
-            title = "Albums",
-            subtitle = "Saved and local",
+            title = stringResource(R.string.section_albums),
+            subtitle = stringResource(R.string.saved_and_local),
             icon = lmgVector(LmgDrawables.AlbumFilled12),
             iconSize = 16.dp,
             onClick = onAlbums,
         ),
         LibraryQuickItem(
-            title = "Artists",
-            subtitle = "& curators",
+            title = stringResource(R.string.section_artists),
+            subtitle = stringResource(R.string.and_curators),
             icon = lmgVector(LmgDrawables.Users3Outline28),
             onClick = onArtists,
         ),
         LibraryQuickItem(
-            title = "Downloads",
-            subtitle = downloadsSize ?: "$downloadCount offline",
+            title = stringResource(R.string.downloads_title),
+            subtitle = downloadsSize ?: stringResource(R.string.offline_tracks_suffix, downloadCount),
             icon = lmgVector(LmgDrawables.DownloadOutline28),
             onClick = onDownloads,
         ),
@@ -1477,7 +1506,7 @@ private fun MyTracksControlBar(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         CompactLibraryAction(
-            label = "Play all",
+            label = stringResource(R.string.play_all),
             icon = lmgVector(LmgDrawables.Play28),
             emphasized = true,
             enabled = enabled,
@@ -1485,7 +1514,7 @@ private fun MyTracksControlBar(
             modifier = Modifier.weight(1f),
         )
         CompactLibraryAction(
-            label = "Shuffle",
+            label = stringResource(R.string.action_shuffle),
             icon = lmgVector(LmgDrawables.ShuffleOutline24),
             enabled = enabled,
             onClick = onShuffle,
@@ -1493,9 +1522,9 @@ private fun MyTracksControlBar(
         )
         CompactLibraryAction(
             label = when (sort) {
-                FavoriteSort.DEFAULT -> "Default"
-                FavoriteSort.TITLE -> "Title"
-                FavoriteSort.ARTIST -> "Artist"
+                FavoriteSort.DEFAULT -> stringResource(R.string.sort_default)
+                FavoriteSort.TITLE -> stringResource(R.string.sort_title)
+                FavoriteSort.ARTIST -> stringResource(R.string.sort_artist)
             },
             icon = lmgVector(LmgDrawables.SortHorizontalOutline24),
             onClick = onSort,
@@ -1580,7 +1609,7 @@ private fun LibrarySearchField(
                 Icon(com.lmg.vk.ui.icons.LmgGlyphs.SearchOutline28, null, tint = lc.iconMuted, modifier = Modifier.size(21.dp))
                 Spacer(Modifier.width(10.dp))
                 Box(modifier = Modifier.weight(1f)) {
-                    if (value.isBlank()) Text("Search library", color = lc.textTertiary, fontSize = 15.sp)
+                    if (value.isBlank()) Text(stringResource(R.string.search_library), color = lc.textTertiary, fontSize = 15.sp)
                     inner()
                 }
             }
@@ -1606,7 +1635,7 @@ private fun ProfileLibrarySearchResults(
             .padding(vertical = 8.dp),
     ) {
         Text(
-            text = "VK library",
+            text = stringResource(R.string.vk_library),
             color = lc.textPrimary,
             fontSize = 17.sp,
             fontWeight = FontWeight.Bold,
@@ -1623,18 +1652,18 @@ private fun ProfileLibrarySearchResults(
                     strokeWidth = 2.dp,
                 )
                 Spacer(Modifier.width(10.dp))
-                Text("Searching your VK library…", color = lc.textSecondary, fontSize = 14.sp)
+                Text(stringResource(R.string.searching_vk_library), color = lc.textSecondary, fontSize = 14.sp)
             }
 
             error != null -> Text(
-                text = "Couldn't search VK library: $error",
+                text = stringResource(R.string.search_vk_library_failed, error),
                 color = AppleRed,
                 fontSize = 13.sp,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
             )
 
             result != null && result.tracks.isEmpty() && result.playlists.isEmpty() -> Text(
-                text = "Nothing found in your VK library",
+                text = stringResource(R.string.nothing_in_vk_library),
                 color = lc.textSecondary,
                 fontSize = 14.sp,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
@@ -1668,14 +1697,14 @@ private fun ProfileLibrarySearchResults(
                                 overflow = TextOverflow.Ellipsis,
                             )
                             Text(
-                                "Playlist · ${playlist.trackCount} tracks",
+                                stringResource(R.string.playlist_tracks_prefix, stringResource(R.plurals.track_count, playlist.trackCount)),
                                 color = lc.textSecondary,
                                 fontSize = 13.sp,
                             )
                         }
                         Icon(
                             com.lmg.vk.ui.icons.LmgGlyphs.ChevronRightOutline24,
-                            contentDescription = "Open playlist",
+                            contentDescription = stringResource(R.string.open_playlist),
                             tint = lc.iconMuted,
                         )
                     }
@@ -1711,9 +1740,9 @@ private fun PlaylistControls(
             val selected = source == option
             Text(
                 text = when (option) {
-                    PlaylistSource.ALL -> "All"
-                    PlaylistSource.LOCAL -> "Local"
-                    PlaylistSource.CLOUD -> "Cloud"
+                    PlaylistSource.ALL -> stringResource(R.string.source_all)
+                    PlaylistSource.LOCAL -> stringResource(R.string.source_local)
+                    PlaylistSource.CLOUD -> stringResource(R.string.source_cloud)
                 },
                 color = if (selected) lc.accent else lc.textSecondary,
                 fontSize = 12.sp,
@@ -1745,9 +1774,9 @@ private fun PlaylistControls(
             Spacer(Modifier.width(5.dp))
             Text(
                 text = when (sort) {
-                    PlaylistSort.DEFAULT -> "Default"
-                    PlaylistSort.NAME -> "A–Z"
-                    PlaylistSort.TRACK_COUNT -> "By tracks"
+                    PlaylistSort.DEFAULT -> stringResource(R.string.sort_default)
+                    PlaylistSort.NAME -> stringResource(R.string.sort_name)
+                    PlaylistSort.TRACK_COUNT -> stringResource(R.string.sort_by_tracks)
                 },
                 color = lc.accent,
                 fontSize = 12.sp,
@@ -1842,7 +1871,7 @@ private fun PlaylistCell(
             overflow = TextOverflow.Ellipsis
         )
         Text(
-            "${data.trackCount} tracks",
+            stringResource(R.plurals.track_count, data.trackCount),
             color = lc.textSecondary,
             fontSize = 12.sp
         )
@@ -1929,7 +1958,7 @@ private fun LocalAudioView(
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        SubHeader("Local Audio", onBack = onBack) {
+        SubHeader(stringResource(R.string.local_audio), onBack = onBack) {
             if (tracks.isNotEmpty()) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = {
@@ -1952,17 +1981,17 @@ private fun LocalAudioView(
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Icon(com.lmg.vk.ui.icons.LmgGlyphs.MusicNote24, null, tint = lc.iconMuted, modifier = Modifier.size(64.dp))
                         Spacer(Modifier.height(16.dp))
-                        Text("Allow access to your music", color = lc.textPrimary, fontSize = 18.sp, fontWeight = FontWeight.SemiBold, fontFamily = VkSansDisplay)
+                        Text(stringResource(R.string.allow_music_access), color = lc.textPrimary, fontSize = 18.sp, fontWeight = FontWeight.SemiBold, fontFamily = VkSansDisplay)
                         Spacer(Modifier.height(8.dp))
                         Text(
-                            "Grant permission to scan and play audio stored on this device.",
+                            stringResource(R.string.music_permission_hint),
                             color = lc.textSecondary,
                             fontSize = 14.sp,
                             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                             lineHeight = 20.sp
                         )
                         Spacer(Modifier.height(16.dp))
-                        ActionButton("Grant Permission", com.lmg.vk.ui.icons.LmgGlyphs.ScanViewfinderOutline28, onClick = { permissionLauncher.launch(permission) })
+                        ActionButton(stringResource(R.string.grant_permission), com.lmg.vk.ui.icons.LmgGlyphs.ScanViewfinderOutline28, onClick = { permissionLauncher.launch(permission) })
                     }
                 }
             }
@@ -1972,7 +2001,7 @@ private fun LocalAudioView(
                 }
             }
             tracks.isEmpty() -> {
-                EmptyState("No local audio found", com.lmg.vk.ui.icons.LmgGlyphs.MusicNote24)
+                EmptyState(stringResource(R.string.no_local_audio), com.lmg.vk.ui.icons.LmgGlyphs.MusicNote24)
             }
             else -> {
                 LazyColumn(
@@ -2355,7 +2384,7 @@ private fun LibraryTrackPreview(
             )
             Text(
                 if (track.isAvailable) track.artistName.orEmpty()
-                else "Unavailable · ${track.artistName.orEmpty()}",
+                else stringResource(R.string.unavailable_artist_prefix, track.artistName.orEmpty()),
                 color = lc.textSecondary,
                 fontSize = 12.sp,
                 maxLines = 1,
@@ -2403,7 +2432,7 @@ private fun RecentTrackItem(
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                if (track.isAvailable) track.artist else "Unavailable · ${track.artist}",
+                if (track.isAvailable) track.artist else stringResource(R.string.unavailable_artist_prefix, track.artist),
                 color = lc.textSecondary,
                 fontSize = if (compact) 12.sp else 13.sp,
                 maxLines = 1,
@@ -2467,7 +2496,7 @@ private fun FavoriteTrackItem(
                 ) {
                     Icon(
                         imageVector = lmgVector(LmgDrawables.DownloadCheckOutline28),
-                        contentDescription = "Downloaded",
+                        contentDescription = stringResource(R.string.downloaded_badge),
                         tint = lc.accent,
                         modifier = Modifier.size(12.dp),
                     )
@@ -2497,8 +2526,8 @@ private fun FavoriteTrackItem(
                 text = track.artistName?.takeIf { it.isNotBlank() }.let { name ->
                     when {
                         enabled -> name.orEmpty()
-                        name != null -> "Недоступно · $name"
-                        else -> "Недоступно"
+                        name != null -> stringResource(R.string.unavailable_artist_prefix, name)
+                        else -> stringResource(R.string.unavailable)
                     }
                 },
                 color = lc.textSecondary,
@@ -2521,7 +2550,7 @@ private fun FavoriteTrackItem(
         ) {
             Icon(
                 imageVector = com.lmg.vk.ui.icons.LmgGlyphs.MoreHorizontal28,
-                contentDescription = "Опции",
+                contentDescription = stringResource(R.string.options),
                 tint = lc.textTertiary,
                 modifier = Modifier.size(if (compact) 19.dp else 22.dp)
             )

@@ -37,12 +37,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.lmg.vk.R
 import com.lmg.vk.engine.PlayerController
 import com.lmg.vk.network.dto.music.SnippetPageUi
 import com.lmg.vk.network.dto.music.SnippetTrackUi
@@ -118,7 +120,7 @@ fun SnippetsScreen(
             ) {
                 Icon(
                     imageVector = com.lmg.vk.ui.icons.LmgGlyphs.ArrowLeftOutline28,
-                    contentDescription = "Назад",
+                    contentDescription = stringResource(R.string.action_back),
                     tint = Color.White,
                     modifier = Modifier.size(20.dp),
                 )
@@ -297,7 +299,7 @@ private fun SnippetCard(
                     } else {
                         Icon(
                             imageVector = if (isActivePlaying) com.lmg.vk.ui.icons.LmgGlyphs.Pause28 else com.lmg.vk.ui.icons.LmgGlyphs.Play28,
-                            contentDescription = if (isActivePlaying) "Пауза" else "Слушать фрагмент",
+                            contentDescription = if (isActivePlaying) stringResource(R.string.action_pause) else stringResource(R.string.listen_snippet),
                             tint = Color.White,
                             modifier = Modifier.size(if (compact) 22.dp else 26.dp),
                         )
@@ -371,7 +373,7 @@ private fun SnippetCard(
                     // Подпись честная: «фрагмент» пишем ТОЛЬКО когда VK реально
                     // урезал поток, иначе это был бы обман.
                     text = if (track.isClipped) {
-                        "Фрагмент · ${formatSnippetTime(track.effectiveDurationMs)}"
+                        stringResource(R.string.snippet_duration, formatSnippetTime(track.effectiveDurationMs))
                     } else {
                         formatSnippetTime(track.effectiveDurationMs)
                     },
@@ -409,7 +411,7 @@ private fun SnippetsError(message: String, compact: Boolean, onRetry: () -> Unit
         verticalArrangement = Arrangement.Center,
     ) {
         Text(
-            text = "Не удалось загрузить сниппеты",
+            text = stringResource(R.string.snippets_load_failed),
             color = Color.White,
             fontSize = if (compact) 16.sp else 18.sp,
             fontWeight = FontWeight.Bold,
@@ -433,14 +435,14 @@ private fun SnippetsEmpty(compact: Boolean, onRetry: () -> Unit) {
         verticalArrangement = Arrangement.Center,
     ) {
         Text(
-            text = "VK пока не прислал сниппеты",
+            text = stringResource(R.string.snippets_empty),
             color = Color.White,
             fontSize = if (compact) 16.sp else 18.sp,
             fontWeight = FontWeight.Bold,
             fontFamily = AppFontFamily,
         )
         Text(
-            text = "Метод audio.getSnippets ответил пустым списком",
+            text = stringResource(R.string.snippets_empty_detail),
             color = Color.White.copy(alpha = 0.6f),
             fontSize = if (compact) 12.sp else 13.sp,
             fontFamily = AppFontFamily,
@@ -453,7 +455,7 @@ private fun SnippetsEmpty(compact: Boolean, onRetry: () -> Unit) {
 @Composable
 private fun SnippetsRetryButton(onRetry: () -> Unit) {
     Text(
-        text = "Повторить",
+        text = stringResource(R.string.action_retry),
         color = LiquidTheme.colors.accent,
         fontSize = 14.sp,
         fontWeight = FontWeight.SemiBold,

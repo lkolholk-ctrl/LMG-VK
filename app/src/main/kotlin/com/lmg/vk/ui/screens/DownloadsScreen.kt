@@ -38,10 +38,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.lmg.vk.R
 import com.lmg.vk.audio.TrackDownloadManager
 import com.lmg.vk.audio.TrackDownloadState
 import com.lmg.vk.data.local.PublicDownloads
@@ -179,9 +182,9 @@ fun DownloadsScreen(onBack: () -> Unit = {}) {
         ) {
             item(key = "downloads_header") {
                 SectionTopBar(
-                    title = "Downloads",
+                    title = stringResource(R.string.downloads_title),
                     subtitle = if (downloads.isEmpty()) {
-                        "Music available offline"
+                        stringResource(R.string.music_available_offline)
                     } else {
                         buildString {
                             append(downloadsCountLabel(downloads.size))
@@ -219,7 +222,7 @@ fun DownloadsScreen(onBack: () -> Unit = {}) {
                             .padding(horizontal = 16.dp, vertical = 12.dp)
                     ) {
                         Text(
-                            text = "Moving downloads to Downloads… $done/$total",
+                            text = stringResource(R.string.moving_downloads, done, total),
                             color = lc.textSecondary,
                             fontFamily = AppFontFamily,
                             fontSize = 12.sp
@@ -249,7 +252,7 @@ fun DownloadsScreen(onBack: () -> Unit = {}) {
                             .padding(horizontal = 16.dp, vertical = 12.dp)
                     ) {
                         Text(
-                            text = "Downloading ${running.size} · $avg%",
+                            text = stringResource(R.string.downloading_count, running.size, avg),
                             color = lc.textPrimary,
                             fontFamily = AppFontFamily,
                             fontSize = if (compact) 13.sp else 14.sp,
@@ -280,14 +283,14 @@ fun DownloadsScreen(onBack: () -> Unit = {}) {
                             )
                             Spacer(Modifier.height(12.dp))
                             Text(
-                                text = "Nothing downloaded yet",
+                                text = stringResource(R.string.nothing_downloaded_yet),
                                 color = lc.textSecondary,
                                 fontFamily = AppFontFamily,
                                 fontSize = 15.sp
                             )
                             Spacer(Modifier.height(4.dp))
                             Text(
-                                text = "Download a track from its menu",
+                                text = stringResource(R.string.download_from_menu_hint),
                                 color = lc.textTertiary,
                                 fontFamily = AppFontFamily,
                                 fontSize = 13.sp
@@ -318,12 +321,12 @@ fun DownloadsScreen(onBack: () -> Unit = {}) {
             GlassDialog(
                 visible = true,
                 onDismiss = { itemToDelete = null },
-                title = "Remove download?",
-                message = "\"${target.title}\" will be deleted from this device together with its file.",
+                title = stringResource(R.string.remove_download_title),
+                message = stringResource(R.string.remove_download_message, target.title),
                 icon = com.lmg.vk.ui.icons.LmgGlyphs.DeleteSavedOutline28,
                 iconTint = lc.accentRed,
                 primaryButton = GlassDialogButton(
-                    text = "Delete",
+                    text = stringResource(R.string.action_delete),
                     onClick = {
                         itemToDelete = null
                         scope.launch { DownloadsRegistryBridge.remove(context, target.trackId) }
@@ -344,16 +347,17 @@ fun DownloadsScreen(onBack: () -> Unit = {}) {
             GlassDialog(
                 visible = true,
                 onDismiss = { confirmClearAll = false },
-                title = "Clear all downloads?",
+                title = stringResource(R.string.clear_all_downloads_question),
                 message = buildString {
                     append(downloadsCountLabel(downloads.size))
                     formatDownloadSize(totalBytes)?.let { append(" (").append(it).append(')') }
-                    append(" will be deleted from this device. This cannot be undone.")
+                    append(" ")
+                    append(stringResource(R.string.will_be_deleted_irreversibly))
                 },
                 icon = com.lmg.vk.ui.icons.LmgGlyphs.DeleteSavedOutline28,
                 iconTint = lc.accentRed,
                 primaryButton = GlassDialogButton(
-                    text = "Clear all",
+                    text = stringResource(R.string.clear_all),
                     onClick = {
                         confirmClearAll = false
                         scope.launch { DownloadsRegistryBridge.removeAll(context) }
@@ -395,14 +399,14 @@ private fun RowScope.DownloadsHeaderAction(
         ) {
             Icon(
                 imageVector = com.lmg.vk.ui.icons.LmgGlyphs.DeleteSavedOutline28,
-                contentDescription = "Clear all downloads",
+                contentDescription = stringResource(R.string.clear_all_downloads_cd),
                 tint = lc.accentRed,
                 modifier = Modifier.size(18.dp),
             )
         }
         Spacer(Modifier.width(7.dp))
         Text(
-            text = "Clear all",
+            text = stringResource(R.string.clear_all),
             color = lc.accentRed,
             fontFamily = AppFontFamily,
             fontSize = 12.sp,
@@ -504,7 +508,7 @@ private fun DownloadedRow(
         ) {
             Icon(
                 imageVector = com.lmg.vk.ui.icons.LmgGlyphs.DeleteSavedOutline28,
-                contentDescription = "Delete download",
+                contentDescription = stringResource(R.string.delete_download_cd),
                 tint = lc.textTertiary,
                 modifier = Modifier.size(if (compact) 18.dp else 20.dp)
             )
@@ -519,10 +523,11 @@ private fun DownloadedRow(
  */
 private fun formatDownloadSize(bytes: Long): String? = when {
     bytes <= 0L -> null
-    bytes < 1_073_741_824L -> "%.1f MB".format(bytes / 1_048_576.0)
-    else -> "%.1f GB".format(bytes / 1_073_741_824.0)
+    bytes < 1_073_741_824L -> "%.1f МБ".format(bytes / 1_048_576.0)
+    else -> "%.1f ГБ".format(bytes / 1_073_741_824.0)
 }
 
 /** Единственное/множественное число — иначе в шапке висело бы «1 tracks». */
+@Composable
 private fun downloadsCountLabel(count: Int): String =
-    if (count == 1) "1 track" else "$count tracks"
+    pluralStringResource(R.plurals.tracks_downloaded, count, count)

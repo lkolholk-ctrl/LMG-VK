@@ -1,5 +1,6 @@
 package com.lmg.vk.ui.screens
 
+import android.content.Context
 import android.os.Build
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.animateColorAsState
@@ -40,12 +41,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kyant.backdrop.backdrops.LayerBackdrop
+import com.lmg.vk.R
 import com.lmg.vk.engine.AppSettings
 import com.lmg.vk.engine.PlayerController
 import com.lmg.vk.engine.PlayerSettings
@@ -66,16 +69,16 @@ import com.lmg.vk.ui.theme.LiquidTheme
 import kotlinx.coroutines.launch
 
 private enum class SettingsPage(
-    val title: String,
-    val subtitle: String,
+    val titleRes: Int,
+    val subtitleRes: Int,
 ) {
-    ROOT("Settings", "Account, playback and application"),
-    VK("VK and profile", "Account, status and recommendations"),
-    PLAYBACK("Playback", "Background work, timer and transitions"),
-    NETWORK("Network", "Connection and proxy settings"),
-    APPEARANCE("Themes and interface", "Theme, contrast and application icon"),
-    DIAGNOSTICS("Diagnostics", "Playback log and troubleshooting"),
-    DUPLICATES("Сканирование дублей", "Поиск одинаковых треков в библиотеке VK"),
+    ROOT(R.string.settings_page_root, R.string.settings_page_root_subtitle),
+    VK(R.string.settings_page_vk, R.string.settings_page_vk_subtitle),
+    PLAYBACK(R.string.settings_page_playback, R.string.settings_page_playback_subtitle),
+    NETWORK(R.string.settings_page_network, R.string.settings_page_network_subtitle),
+    APPEARANCE(R.string.settings_page_appearance, R.string.settings_page_appearance_subtitle),
+    DIAGNOSTICS(R.string.settings_page_diagnostics, R.string.settings_page_diagnostics_subtitle),
+    DUPLICATES(R.string.settings_page_duplicates, R.string.settings_page_duplicates_subtitle),
 }
 
 @Suppress("UNUSED_PARAMETER")
@@ -158,7 +161,7 @@ fun SettingsScreen(
         proxyScope.launch {
             LibraryRepository.getInstance(context).scanCloudDuplicates()
                 .onSuccess { duplicateScan = it }
-                .onFailure { duplicateError = it.message ?: "Не удалось просканировать библиотеку" }
+                .onFailure { duplicateError = it.message ?: context.getString(R.string.duplicates_scan_failed) }
             duplicateLoading = false
         }
     }
@@ -173,12 +176,12 @@ fun SettingsScreen(
                 .onSuccess { result ->
                     duplicateScan = result.scan
                     duplicateStatus = when {
-                        result.removed == 0 && result.failed > 0 -> "VK не разрешил удалить дубли"
-                        result.failed > 0 -> "Удалено: ${result.removed} · Не удалено: ${result.failed}"
-                        else -> "Удалено дублей: ${result.removed}"
+                        result.removed == 0 && result.failed > 0 -> stringResource(R.string.duplicates_delete_forbidden)
+                        result.failed > 0 -> stringResource(R.string.duplicates_partial_result, result.removed, result.failed)
+                        else -> stringResource(R.string.duplicates_removed_count, result.removed)
                     }
                 }
-                .onFailure { duplicateError = it.message ?: "Не удалось удалить дубли" }
+                .onFailure { duplicateError = it.message ?: context.getString(R.string.duplicates_remove_failed) }
             duplicateLoading = false
         }
     }
@@ -199,8 +202,8 @@ fun SettingsScreen(
                 .verticalScroll(scroll),
         ) {
             SectionTopBar(
-                title = page.title,
-                subtitle = page.subtitle,
+                title = stringResource(page.titleRes),
+                subtitle = stringResource(page.subtitleRes),
                 isDark = colors.isDark,
                 onBack = headerBack,
                 onTitleClick = if (page == SettingsPage.ROOT) {
@@ -214,7 +217,7 @@ fun SettingsScreen(
                             AppSettings.setDebugUiEnabled(enabled)
                             android.widget.Toast.makeText(
                                 context,
-                                if (enabled) "Debug tools: ON" else "Debug tools: OFF",
+                                if (enabled) stringResource(R.string.debug_tools_on) else stringResource(R.string.debug_tools_off),
                                 android.widget.Toast.LENGTH_SHORT,
                             ).show()
                         }
@@ -234,27 +237,28 @@ fun SettingsScreen(
                         Spacer(Modifier.height(sectionGap))
                         PlainCard {
                             SettingsCategoryItem(
-                                title = "VK and profile",
+                                title = stringResource(R.string.settings_page_vk),
                                 subtitle = if (vkLoggedIn) {
-                                    if (accounts.size > 1) "${accounts.size} saved accounts · Status & settings"
-                                    else "Status, recommendations and account"
+                                    if (accounts.size > 1) stringResource(R.string.saved_accounts_status, accounts.size)
+                                    else stringResource(R.string.settings_vk_subtitle_alt)
                                 } else {
-                                    "Sign in and configure VK Music"
+                                    stringResource(R.string.sign_in_configure_vk_music)
                                 },
                                 icon = com.lmg.vk.ui.icons.LmgGlyphs.UserCircleOutline28,
                                 onClick = { page = SettingsPage.VK },
                             )
                             SettingsCategoryDivider()
                             SettingsCategoryItem(
-                                title = "Playback",
-                                subtitle = playbackSummary(crossfadeMs, sleepTimerMinutes),
+                                title = stringResource(R.string.settings_page_playback),
+                                subtitle = playbackSummary(context, crossfadeMs, sleepTimerMinutes),
                                 icon = lmgVector(LmgDrawables.SoundWaveOutline28),
                                 onClick = { page = SettingsPage.PLAYBACK },
                             )
                             SettingsCategoryDivider()
                             SettingsCategoryItem(
-                                title = "Network",
+                                title = stringResource(R.string.settings_page_network),
                                 subtitle = networkSummary(
+                                    context,
                                     vpnBypassEnabled,
                                     isVpnActive,
                                     isVpnBypassApplied,
@@ -265,15 +269,15 @@ fun SettingsScreen(
                             )
                             SettingsCategoryDivider()
                             SettingsCategoryItem(
-                                title = "Themes and interface",
-                                subtitle = "${themeModeSummary(themeMode)} · ${launcherIcon.title} icon",
+                                title = stringResource(R.string.settings_page_appearance),
+                                subtitle = stringResource(R.string.theme_icon_summary, themeModeSummary(context, themeMode), stringResource(launcherIcon.titleRes)),
                                 icon = lmgVector(LmgDrawables.PaletteOutline28),
                                 onClick = { page = SettingsPage.APPEARANCE },
                             )
                             SettingsCategoryDivider()
                             SettingsCategoryItem(
-                                title = "Diagnostics",
-                                subtitle = "Playback log and troubleshooting",
+                                title = stringResource(R.string.settings_page_diagnostics),
+                                subtitle = stringResource(R.string.playback_log_troubleshooting),
                                 icon = lmgVector(LmgDrawables.BugOutline28),
                                 onClick = { page = SettingsPage.DIAGNOSTICS },
                             )
@@ -281,22 +285,22 @@ fun SettingsScreen(
                     }
 
                     SettingsPage.VK -> {
-                        SectionLabel("Account")
+                        SectionLabel(stringResource(R.string.section_account))
                         PlainCard {
                             SettingsActionItem(
-                                title = "VK profile",
-                                subtitle = if (vkLoggedIn) "Profile and account data" else "Sign in to VK",
+                                title = stringResource(R.string.vk_profile_title),
+                                subtitle = if (vkLoggedIn) stringResource(R.string.profile_and_account_data) else stringResource(R.string.sign_in_to_vk),
                                 icon = lmgVector(LmgDrawables.UserOutline28),
                                 onClick = onOpenProfile,
                             )
                             if (vkLoggedIn || accounts.isNotEmpty()) {
                                 PlainDivider()
                                 SettingsActionItem(
-                                    title = "VK accounts",
+                                    title = stringResource(R.string.vk_accounts_title),
                                     subtitle = when (accounts.size) {
-                                        0 -> "Add VK account"
-                                        1 -> "1 saved account · Switch profile"
-                                        else -> "${accounts.size} saved accounts · Switch profile"
+                                        0 -> stringResource(R.string.vk_accounts_add)
+                                        1 -> stringResource(R.string.saved_account_switch, 1)
+                                        else -> stringResource(R.string.saved_accounts_switch, accounts.size)
                                     },
                                     icon = lmgVector(LmgDrawables.Users3Outline28),
                                     onClick = onOpenAccounts,
@@ -305,14 +309,14 @@ fun SettingsScreen(
                         }
 
                         Spacer(Modifier.height(sectionGap))
-                        SectionLabel("Music profile")
+                        SectionLabel(stringResource(R.string.section_music_profile))
                         PlainCard {
                             SettingsToggleItem(
-                                title = "Транслировать в статус",
+                                title = stringResource(R.string.broadcast_status),
                                 subtitle = if (!vkLoggedIn) {
-                                    "Войдите в аккаунт ВКонтакте, чтобы включить трансляцию"
+                                    stringResource(R.string.broadcast_sign_in_hint)
                                 } else {
-                                    "Играющий трек будет виден друзьям в вашем профиле"
+                                    stringResource(R.string.broadcast_visible_hint)
                                 },
                                 icon = com.lmg.vk.ui.icons.LmgGlyphs.MusicNoteWaveOutline28,
                                 selected = broadcastToStatus,
@@ -320,11 +324,11 @@ fun SettingsScreen(
                             )
                             PlainDivider()
                             SettingsActionItem(
-                                title = "Настроить рекомендации",
+                                title = stringResource(R.string.tune_recommendations),
                                 subtitle = if (!vkLoggedIn) {
-                                    "Сначала войдите в аккаунт ВКонтакте"
+                                    stringResource(R.string.sign_in_first_hint)
                                 } else {
-                                    "Выберите исполнителей для музыкальной выдачи"
+                                    stringResource(R.string.choose_artists_hint)
                                 },
                                 icon = com.lmg.vk.ui.icons.LmgGlyphs.SlidersOutline28,
                                 onClick = {
@@ -335,14 +339,14 @@ fun SettingsScreen(
                         }
 
                         Spacer(Modifier.height(sectionGap))
-                        SectionLabel("Библиотека VK")
+                        SectionLabel(stringResource(R.string.section_vk_library))
                         PlainCard {
                             SettingsActionItem(
-                                title = "Сканирование дублей",
+                                title = stringResource(R.string.duplicates_scan_title),
                                 subtitle = if (vkLoggedIn) {
-                                    "Найти одинаковые треки без фоновой синхронизации"
+                                    stringResource(R.string.duplicates_scan_subtitle)
                                 } else {
-                                    "Сначала войдите в аккаунт VK"
+                                    stringResource(R.string.sign_in_vk_first_hint)
                                 },
                                 icon = lmgVector(LmgDrawables.ScanViewfinderOutline28),
                                 onClick = {
@@ -354,18 +358,18 @@ fun SettingsScreen(
                     }
 
                     SettingsPage.PLAYBACK -> {
-                        SectionLabel("Background playback")
+                        SectionLabel(stringResource(R.string.section_background_playback))
                         PlainCard {
                             SettingsActionItem(
-                                title = "Ignore Battery Optimization",
-                                subtitle = "Prevents background stutter when Android enters Doze",
+                                title = stringResource(R.string.ignore_battery_optimization),
+                                subtitle = stringResource(R.string.battery_optimization_subtitle),
                                 icon = com.lmg.vk.ui.icons.LmgGlyphs.WarningTriangleOutline28,
                                 onClick = { requestIgnoreBatteryOptimizations(context) },
                             )
                         }
 
                         Spacer(Modifier.height(sectionGap))
-                        SectionLabel("Sleep timer")
+                        SectionLabel(stringResource(R.string.sleep_timer_section)),
                         PlainCard {
                             SleepTimerSelector(
                                 options = listOf(0, 15, 30, 45, 60, 90),
@@ -375,7 +379,7 @@ fun SettingsScreen(
                         }
 
                         Spacer(Modifier.height(sectionGap))
-                        SectionLabel("Crossfade")
+                        SectionLabel(stringResource(R.string.crossfade_section)),
                         PlainCard {
                             CrossfadeSelector(
                                 options = listOf(0, 4, 9, 12, 15, 18),
@@ -383,7 +387,7 @@ fun SettingsScreen(
                                 onSelect = { PlayerSettings.setCrossfadeMs(it * 1000) },
                             )
                             Text(
-                                text = "Fade between tracks. Off plays them back to back.",
+                                text = stringResource(R.string.crossfade_description),
                                 color = colors.textSecondary,
                                 fontSize = 12.sp,
                                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
@@ -392,18 +396,18 @@ fun SettingsScreen(
                     }
 
                     SettingsPage.NETWORK -> {
-                        SectionLabel("VPN & Connection")
+                        SectionLabel(stringResource(R.string.section_vpn_connection))
                         PlainCard {
                             SettingsToggleItem(
-                                title = "Обход системного VPN",
+                                title = stringResource(R.string.vpn_bypass_title),
                                 subtitle = if (vpnBypassEnabled) {
                                     when {
-                                        isVpnBypassApplied -> "VPN активен · VK работает через Wi-Fi / SIM"
-                                        isVpnActive -> "VPN активен · физическое соединение недоступно"
-                                        else -> "Включён · сработает при подключении VPN"
+                                        isVpnBypassApplied -> stringResource(R.string.vpn_active_vk_ok)
+                                        isVpnActive -> stringResource(R.string.vpn_active_unreachable)
+                                        else -> stringResource(R.string.vpn_enabled_standby)
                                     }
                                 } else {
-                                    "Выключен · весь трафик идёт через системный VPN"
+                                    stringResource(R.string.vpn_disabled_all_traffic)
                                 },
                                 icon = lmgVector(LmgDrawables.CheckShieldOutline28),
                                 selected = vpnBypassEnabled,
@@ -412,19 +416,19 @@ fun SettingsScreen(
                         }
 
                         Spacer(Modifier.height(sectionGap))
-                        SectionLabel("Соединение VK")
+                        SectionLabel(stringResource(R.string.section_vk_connection))
                         PlainCard {
                             SettingsToggleItem(
-                                title = "Проксированное соединение",
-                                subtitle = "Вход в аккаунт невозможен при включённом тумблере",
+                                title = stringResource(R.string.proxied_connection_title),
+                                subtitle = stringResource(R.string.proxied_connection_subtitle),
                                 icon = lmgVector(LmgDrawables.LockOutline28),
                                 selected = proxyEnabled,
                                 onSelect = { com.lmg.vk.network.proxy.VkProxyRepository.setEnabled(it) },
                             )
                             PlainDivider()
                             SettingsActionItem(
-                                title = "Обновить проксированное соединение",
-                                subtitle = "Загрузить актуальные настройки",
+                                title = stringResource(R.string.update_proxied_connection),
+                                subtitle = stringResource(R.string.load_actual_settings),
                                 icon = lmgVector(LmgDrawables.RefreshOutline28),
                                 onClick = {
                                     proxyScope.launch {
@@ -436,7 +440,7 @@ fun SettingsScreen(
                     }
 
                     SettingsPage.APPEARANCE -> {
-                        SectionLabel("Theme")
+                        SectionLabel(stringResource(R.string.section_theme))
                         PlainCard {
                             ThemeModeSelector(
                                 selected = themeMode,
@@ -445,11 +449,11 @@ fun SettingsScreen(
                         }
 
                         Spacer(Modifier.height(sectionGap))
-                        SectionLabel("Accessibility")
+                        SectionLabel(stringResource(R.string.section_accessibility))
                         PlainCard {
                             SettingsToggleItem(
-                                title = "Increase Contrast",
-                                subtitle = "Stronger text and less glass transparency",
+                                title = stringResource(R.string.increase_contrast),
+                                subtitle = stringResource(R.string.increase_contrast_subtitle),
                                 icon = com.lmg.vk.ui.icons.LmgGlyphs.SlidersOutline28,
                                 selected = increaseContrast,
                                 onSelect = PlayerSettings::setIncreaseContrast,
@@ -457,7 +461,7 @@ fun SettingsScreen(
                         }
 
                         Spacer(Modifier.height(sectionGap))
-                        SectionLabel("App icon")
+                        SectionLabel(stringResource(R.string.section_app_icon))
                         PlainCard {
                             LauncherIconSelector(
                                 selected = launcherIcon,
@@ -466,7 +470,7 @@ fun SettingsScreen(
                                         launcherIcon = icon
                                         android.widget.Toast.makeText(
                                             context,
-                                            "Иконка «${icon.title}» выбрана",
+                                            context.getString(R.string.icon_selected_toast, stringResource(icon.titleRes)),
                                             android.widget.Toast.LENGTH_SHORT,
                                         ).show()
                                     }
@@ -476,11 +480,11 @@ fun SettingsScreen(
                     }
 
                     SettingsPage.DIAGNOSTICS -> {
-                        SectionLabel("Playback")
+                        SectionLabel(stringResource(R.string.settings_page_playback))
                         PlainCard {
                             SettingsActionItem(
-                                title = "Отладочный лог",
-                                subtitle = "Очистите лог, воспроизведите трек и отправьте результат",
+                                title = stringResource(R.string.debug_log_title),
+                                subtitle = stringResource(R.string.debug_log_subtitle),
                                 icon = com.lmg.vk.ui.icons.LmgGlyphs.DocumentTextOutline28,
                                 onClick = onOpenDebugLog,
                             )
@@ -488,11 +492,11 @@ fun SettingsScreen(
                     }
 
                     SettingsPage.DUPLICATES -> {
-                        SectionLabel("Облачная библиотека")
+                        SectionLabel(stringResource(R.string.section_cloud_library))
                         PlainCard {
                             SettingsActionItem(
-                                title = if (duplicateLoading) "Сканирование…" else "Сканировать библиотеку",
-                                subtitle = "Только чтение · ничего не удаляется автоматически",
+                                title = if (duplicateLoading) stringResource(R.string.scanning_ellipsis) else stringResource(R.string.scan_library),
+                                subtitle = stringResource(R.string.readonly_scan_hint),
                                 icon = lmgVector(LmgDrawables.ScanViewfinderOutline28),
                                 onClick = {
                                     if (!duplicateLoading) scanDuplicates()
@@ -514,7 +518,7 @@ fun SettingsScreen(
                                 )
                                 Spacer(Modifier.width(10.dp))
                                 Text(
-                                    text = "Подождите, библиотека проверяется",
+                                    text = stringResource(R.string.wait_library_checking),
                                     color = colors.textSecondary,
                                     fontSize = 13.sp,
                                 )
@@ -533,7 +537,7 @@ fun SettingsScreen(
 
                         duplicateScan?.let { scan ->
                             Spacer(Modifier.height(sectionGap))
-                            SectionLabel("Результат")
+                            SectionLabel(stringResource(R.string.section_result))
                             PlainCard {
                                 DuplicateScanSummary(scan)
                                 if (scan.groups.isNotEmpty()) {
@@ -546,11 +550,11 @@ fun SettingsScreen(
 
                             if (scan.duplicateCount > 0) {
                                 Spacer(Modifier.height(sectionGap))
-                                SectionLabel("Очистка")
+                                SectionLabel(stringResource(R.string.section_cleanup))
                                 PlainCard {
                                     SettingsActionItem(
-                                        title = "Удалить точные дубли",
-                                        subtitle = "Не более 5 за один запуск · останутся самые старые копии",
+                                        title = stringResource(R.string.delete_exact_duplicates),
+                                        subtitle = stringResource(R.string.delete_duplicates_subtitle),
                                         icon = lmgVector(LmgDrawables.DeleteOutline28),
                                         onClick = {
                                             if (!duplicateLoading) showDuplicateRemovalDialog = true
@@ -565,17 +569,17 @@ fun SettingsScreen(
                             onDismiss = { showDuplicateRemovalDialog = false },
                             icon = lmgVector(LmgDrawables.DeleteOutline28),
                             iconTint = Color(0xFFFC3C44),
-                            title = "Удалить точные дубли?",
-                            message = "Будут удалены до 5 новых копий. Самая старая запись каждого трека останется в VK.",
+                            title = stringResource(R.string.delete_exact_duplicates_question),
+                            message = stringResource(R.string.delete_duplicates_message),
                             primaryButton = GlassDialogButton(
-                                text = "Удалить",
+                                text = stringResource(R.string.action_delete),
                                 onClick = {
                                     showDuplicateRemovalDialog = false
                                     removeDuplicates()
                                 },
                             ),
                             secondaryButton = GlassDialogButton(
-                                text = "Отмена",
+                                text = stringResource(R.string.action_cancel),
                                 onClick = { showDuplicateRemovalDialog = false },
                                 backgroundColor = colors.glassTint,
                                 textColor = colors.textPrimary,
@@ -606,13 +610,13 @@ private fun DuplicateScanSummary(scan: LibraryDuplicateScan) {
         Spacer(Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = if (scan.duplicateCount == 0) "Дубли не найдены" else "Найдено дублей: ${scan.duplicateCount}",
+                text = if (scan.duplicateCount == 0) stringResource(R.string.no_duplicates_found) else stringResource(R.string.duplicates_found_count, scan.duplicateCount),
                 color = colors.textPrimary,
                 fontSize = 16.sp,
                 fontWeight = FontWeight.SemiBold,
             )
             Text(
-                text = "Проверено треков: ${scan.totalTracks} · Групп: ${scan.groups.size}",
+                text = stringResource(R.string.checked_tracks_groups, scan.totalTracks, scan.groups.size),
                 color = colors.textSecondary,
                 fontSize = 12.sp,
             )
@@ -694,7 +698,7 @@ private fun SettingsProfileCard(
         !profileName.isNullOrBlank() -> profileName.orEmpty()
         !userEmail.isNullOrBlank() -> userEmail.orEmpty().substringBefore("@")
             .replaceFirstChar { it.uppercase() }
-        else -> "Guest"
+        else -> stringResource(R.string.guest)
     }
 
     Row(
@@ -743,9 +747,9 @@ private fun SettingsProfileCard(
                 overflow = TextOverflow.Ellipsis,
             )
             val subText = when {
-                accounts.size > 1 -> "${accounts.size} saved accounts · Long tap to switch"
-                profileName != null -> "Profile and VK account"
-                else -> "Sign in to VK Music"
+                accounts.size > 1 -> stringResource(R.string.saved_accounts_longtap, accounts.size)
+                profileName != null -> stringResource(R.string.profile_and_vk_account)
+                else -> stringResource(R.string.sign_in_vk_music)
             }
             Text(
                 text = subText,
@@ -769,7 +773,7 @@ private fun SettingsProfileCard(
             ) {
                 Icon(
                     imageVector = lmgVector(LmgDrawables.Users3Outline28),
-                    contentDescription = "Switch account",
+                    contentDescription = stringResource(R.string.switch_account),
                     tint = colors.accent,
                     modifier = Modifier.size(18.dp),
                 )
@@ -858,7 +862,10 @@ private fun ThemeModeSelector(
     onSelect: (Int) -> Unit,
 ) {
     val colors = LiquidTheme.colors
-    val options = listOf(2 to "Light", 1 to "Dark", 0 to "Auto")
+    val lightLabel = stringResource(R.string.light_theme_short)
+                val darkLabel = stringResource(R.string.dark_theme_short)
+                val autoLabel = stringResource(R.string.auto_theme_short)
+                val options = listOf(2 to lightLabel, 1 to darkLabel, 0 to autoLabel)
 
     Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 12.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -870,7 +877,7 @@ private fun ThemeModeSelector(
             )
             Spacer(Modifier.width(12.dp))
             Text(
-                text = "Color scheme",
+                text = stringResource(R.string.color_scheme),
                 color = colors.textPrimary,
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Medium,
@@ -915,9 +922,9 @@ private fun ThemeModeSelector(
             Spacer(Modifier.height(10.dp))
             Text(
                 text = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                    "Dynamic Color · adapts to wallpaper and system theme"
+                    stringResource(R.string.dynamic_color_hint)
                 } else {
-                    "Follows system theme · Dynamic Color requires Android 12+"
+                    stringResource(R.string.follows_system_hint)
                 },
                 color = colors.textSecondary,
                 fontSize = 12.sp,
@@ -927,23 +934,26 @@ private fun ThemeModeSelector(
     }
 }
 
-private fun themeModeSummary(mode: Int): String = when (mode) {
-    1 -> "Dark theme"
-    2 -> "Light theme"
+private fun themeModeSummary(context: Context, mode: Int): String = when (mode) {
+    1 -> context.getString(R.string.dark_theme)
+    2 -> context.getString(R.string.light_theme)
     else -> if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-        "Auto · Dynamic Color"
+        context.getString(R.string.auto_dynamic_color)
     } else {
-        "Auto theme"
+        context.getString(R.string.auto_theme)
     }
 }
 
-private fun playbackSummary(crossfadeMs: Int, sleepTimerMinutes: Int): String {
-    val crossfade = if (crossfadeMs <= 0) "Crossfade off" else "${crossfadeMs / 1000}s crossfade"
-    val timer = if (sleepTimerMinutes <= 0) "timer off" else "${sleepTimerMinutes}m timer"
+private fun playbackSummary(context: Context, crossfadeMs: Int, sleepTimerMinutes: Int): String {
+    val crossfade = if (crossfadeMs <= 0) context.getString(R.string.crossfade_off)
+    else context.getString(R.string.crossfade_seconds, crossfadeMs / 1000)
+    val timer = if (sleepTimerMinutes <= 0) context.getString(R.string.timer_off)
+    else context.getString(R.string.timer_minutes, sleepTimerMinutes)
     return "$crossfade · $timer"
 }
 
 private fun networkSummary(
+    context: Context,
     vpnBypass: Boolean,
     isVpnActive: Boolean,
     isVpnBypassApplied: Boolean,
@@ -952,15 +962,15 @@ private fun networkSummary(
     if (vpnBypass) {
         append(
             when {
-                isVpnBypassApplied -> "VK вне VPN"
-                isVpnActive -> "Обход VPN недоступен"
-                else -> "Обход VPN включён"
+                isVpnBypassApplied -> context.getString(R.string.vpn_outside_active)
+                isVpnActive -> context.getString(R.string.vpn_bypass_unavailable)
+                else -> context.getString(R.string.vpn_bypass_enabled)
             },
         )
     } else {
-        append(if (isVpnActive) "Через системный VPN" else "Прямое соединение")
+        append(if (isVpnActive) context.getString(R.string.through_system_vpn) else context.getString(R.string.direct_connection))
     }
     if (proxyEnabled) {
-        append(" · Проксированное соединение")
+        append(" · ${context.getString(R.string.proxied_connection)}")
     }
 }

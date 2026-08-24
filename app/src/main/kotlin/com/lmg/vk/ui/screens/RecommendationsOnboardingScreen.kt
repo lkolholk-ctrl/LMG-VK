@@ -35,6 +35,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -45,6 +46,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.lmg.vk.R
 import com.lmg.vk.ui.icons.LmgDrawables
 import com.lmg.vk.ui.icons.lmgVector
 import com.lmg.vk.ui.glass.AlbumArtImage
@@ -125,7 +127,7 @@ fun RecommendationsOnboardingScreen(
                 }
                 Spacer(modifier = Modifier.width(if (compact) 12.dp else 16.dp))
                 Text(
-                    text = "Настроить рекомендации",
+                    text = stringResource(R.string.tune_recommendations),
                     color = lc.textPrimary,
                     fontSize = if (compact) 20.sp else 24.sp,
                     fontWeight = FontWeight.Bold,
@@ -137,8 +139,7 @@ fun RecommendationsOnboardingScreen(
             Spacer(modifier = Modifier.height(4.dp))
 
             Text(
-                text = "Отметьте исполнителей, которых слушаете — ВКонтакте " +
-                    "подстроит под них рекомендации",
+                text = stringResource(R.string.onboarding_mark_artists_hint),
                 color = lc.textSecondary,
                 fontSize = if (compact) 12.sp else 13.sp,
                 fontFamily = AppFontFamily,
@@ -275,10 +276,9 @@ private fun OnboardingProgress(
         Spacer(modifier = Modifier.height(8.dp))
         Text(
             text = if (state.remaining == 0) {
-                "Выбрано: ${state.selectedIds.size}"
+                stringResource(R.string.selected_count, state.selectedIds.size)
             } else {
-                "Выбрано: ${state.selectedIds.size} — ещё ${state.remaining} " +
-                    "до отправки"
+                stringResource(R.string.selected_need_more, state.selectedIds.size, state.remaining)
             },
             color = lc.textSecondary,
             fontSize = if (compact) 11.sp else 12.sp,
@@ -329,7 +329,7 @@ private fun OnboardingSearchField(
             )
             if (query.isEmpty()) {
                 Text(
-                    text = "Найти исполнителя",
+                    text = stringResource(R.string.find_artist),
                     color = lc.textTertiary,
                     fontSize = if (compact) 14.sp else 15.sp,
                     fontFamily = AppFontFamily,
@@ -462,9 +462,9 @@ private fun FinishButton(
         } else {
             Text(
                 text = if (enabled) {
-                    "Готово"
+                    stringResource(R.string.action_done)
                 } else {
-                    "Выберите ещё ${state.remaining}"
+                    stringResource(R.string.choose_more, state.remaining)
                 },
                 color = if (enabled) Color.White else lc.textSecondary,
                 fontSize = if (compact) 14.sp else 16.sp,
@@ -526,9 +526,9 @@ private fun OnboardingEmpty(
     ) {
         Text(
             text = if (searching) {
-                "По запросу «$query» исполнителей не нашлось"
+                stringResource(R.string.no_artists_for_query, query)
             } else {
-                "ВКонтакте не предложил исполнителей"
+                stringResource(R.string.vk_no_artist_suggestions)
             },
             color = lc.textPrimary,
             fontSize = if (compact) 15.sp else 17.sp,
@@ -538,10 +538,9 @@ private fun OnboardingEmpty(
         )
         Text(
             text = if (searching) {
-                "Попробуйте изменить запрос."
+                stringResource(R.string.try_change_query)
             } else {
-                "Найдите исполнителей через поиск выше — выбор всё равно " +
-                    "уйдёт в рекомендации."
+                stringResource(R.string.search_artists_above_hint)
             },
             color = lc.textSecondary,
             fontSize = if (compact) 12.sp else 13.sp,
@@ -575,9 +574,9 @@ private fun OnboardingLoadError(
     ) {
         Text(
             text = if (searching) {
-                "Поиск исполнителей не удался"
+                stringResource(R.string.artist_search_failed)
             } else {
-                "Не удалось загрузить исполнителей"
+                stringResource(R.string.artists_load_failed)
             },
             color = lc.textPrimary,
             fontSize = if (compact) 15.sp else 17.sp,
@@ -652,7 +651,7 @@ private fun RetryChip(compact: Boolean, onRetry: () -> Unit) {
         )
         Spacer(modifier = Modifier.width(7.dp))
         Text(
-            text = "Повторить",
+            text = stringResource(R.string.action_retry),
             color = lc.accent,
             fontSize = if (compact) 12.sp else 13.sp,
             fontWeight = FontWeight.SemiBold,

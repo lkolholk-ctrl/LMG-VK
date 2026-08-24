@@ -13,6 +13,7 @@ import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import com.google.common.util.concurrent.MoreExecutors
 import androidx.glance.appwidget.updateAll
+import com.lmg.vk.R
 import com.lmg.vk.debug.DebugLog
 import com.lmg.vk.engine.backend.BackendException
 import com.lmg.vk.engine.backend.MusicBackend
@@ -2802,7 +2803,7 @@ object PlayerController {
                 withContext(Dispatchers.Main) {
                     android.widget.Toast.makeText(
                         context,
-                        "Couldn't start artist wave",
+                        R.string.artist_wave_failed,
                         android.widget.Toast.LENGTH_SHORT
                     ).show()
                 }

@@ -37,10 +37,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.lmg.vk.R
 import com.lmg.vk.network.ValidationPrompt
 import org.json.JSONException
 import org.json.JSONObject
@@ -120,6 +122,7 @@ fun VkWebValidationDialog(
             key(prompt.redirectUri) {
                 AndroidView(
                     factory = { context ->
+                        val appContext = context.applicationContext
                         WebView(context).apply {
                             captchaWebView[0] = this
                             layoutParams = ViewGroup.LayoutParams(
@@ -183,10 +186,10 @@ fun VkWebValidationDialog(
                                     super.onReceivedError(view, request, error)
                                     if (request?.isForMainFrame == true) {
                                         isLoading = false
-                                        loadError = error?.description?.toString()
-                                            ?.takeIf(String::isNotBlank)
-                                            ?: "Не удалось загрузить проверку VK"
-                                    }
+                                    loadError = error?.description?.toString()
+                                        ?.takeIf(String::isNotBlank)
+                                        ?: appContext.getString(R.string.validation_load_failed)
+                            }
                                 }
 
                                 override fun onReceivedSslError(
@@ -197,7 +200,7 @@ fun VkWebValidationDialog(
                                     handler?.cancel()
                                     if (view?.url == error?.url) {
                                         isLoading = false
-                                        loadError = "Ошибка защищённого соединения с VK"
+                                        loadError = appContext.getString(R.string.validation_ssl_error)
                                     }
                                 }
 
@@ -258,7 +261,7 @@ fun VkWebValidationDialog(
                             )
                         },
                     ) {
-                        Text("Повторить", color = Color(0xFF0077FF))
+                        Text(stringResource(R.string.action_retry), color = Color(0xFF0077FF))
                     }
                     Spacer(modifier = Modifier.weight(1f))
                 }

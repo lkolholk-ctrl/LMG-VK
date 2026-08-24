@@ -20,7 +20,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.lmg.vk.R
 import com.lmg.vk.ui.glass.liquidClickable
 import com.lmg.vk.ui.icons.LmgDrawables
 import com.lmg.vk.ui.icons.lmgVector
@@ -48,12 +50,16 @@ fun BottomBar(
     modifier: Modifier = Modifier
 ) {
     val newTabIcon = lmgVector(LmgDrawables.NewsfeedMusicNoteOutline28)
-    val items = remember(newTabIcon) {
+    val waveLabel = stringResource(R.string.tab_wave)
+    val newLabel = stringResource(R.string.tab_new)
+    val libraryLabel = stringResource(R.string.tab_library)
+    val settingsLabel = stringResource(R.string.tab_settings)
+    val items = remember(newTabIcon, waveLabel, newLabel, libraryLabel, settingsLabel) {
         listOf(
-            BottomNavItem(com.lmg.vk.ui.icons.LmgGlyphs.MusicNoteWaveOutline28, "Wave", 0),
-            BottomNavItem(newTabIcon, "New", 4),
-            BottomNavItem(com.lmg.vk.ui.icons.LmgGlyphs.FolderSimpleOutline28, "Library", 2),
-            BottomNavItem(com.lmg.vk.ui.icons.LmgGlyphs.GearOutline24, "Settings", 3)
+            BottomNavItem(com.lmg.vk.ui.icons.LmgGlyphs.MusicNoteWaveOutline28, waveLabel, 0),
+            BottomNavItem(newTabIcon, newLabel, 4),
+            BottomNavItem(com.lmg.vk.ui.icons.LmgGlyphs.FolderSimpleOutline28, libraryLabel, 2),
+            BottomNavItem(com.lmg.vk.ui.icons.LmgGlyphs.GearOutline24, settingsLabel, 3)
         )
     }
 

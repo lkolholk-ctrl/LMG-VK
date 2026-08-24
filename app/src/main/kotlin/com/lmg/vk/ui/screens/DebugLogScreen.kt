@@ -43,6 +43,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
@@ -50,6 +51,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
+import com.lmg.vk.R
 import com.lmg.vk.debug.DebugLog
 import com.lmg.vk.ui.glass.liquidClickable
 import com.lmg.vk.ui.rememberWindowInfo
@@ -128,7 +130,7 @@ fun DebugLogScreen(onBack: () -> Unit = {}) {
                 ) {
                     Icon(
                         imageVector = com.lmg.vk.ui.icons.LmgGlyphs.ArrowLeftOutline28,
-                        contentDescription = "Назад",
+                        contentDescription = stringResource(R.string.action_back),
                         tint = lc.iconDefault,
                         modifier = Modifier.size(if (compact) 18.dp else 22.dp)
                     )
@@ -136,7 +138,7 @@ fun DebugLogScreen(onBack: () -> Unit = {}) {
                 Spacer(Modifier.width(if (compact) 12.dp else 16.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "Отладочный лог",
+                        text = stringResource(R.string.debug_log_title),
                         color = lc.textPrimary,
                         fontFamily = VkSansDisplay,
                         fontSize = if (compact) 20.sp else 24.sp,
@@ -169,7 +171,7 @@ fun DebugLogScreen(onBack: () -> Unit = {}) {
                 ) {
                     Icon(
                         imageVector = if (filterVisible) com.lmg.vk.ui.icons.LmgGlyphs.CancelOutline28 else com.lmg.vk.ui.icons.LmgGlyphs.Filter24,
-                        contentDescription = "Фильтр",
+                        contentDescription = stringResource(R.string.debug_filter_cd),
                         tint = if (filterVisible) lc.accent else lc.textTertiary,
                         modifier = Modifier.size(if (compact) 18.dp else 20.dp)
                     )
@@ -211,7 +213,7 @@ fun DebugLogScreen(onBack: () -> Unit = {}) {
                             Box {
                                 if (filter.isEmpty()) {
                                     Text(
-                                        text = "Подстрока, например url или error",
+                                        text = stringResource(R.string.debug_filter_hint),
                                         color = lc.textTertiary,
                                         fontSize = 14.sp,
                                         fontFamily = AppFontFamily
@@ -234,19 +236,19 @@ fun DebugLogScreen(onBack: () -> Unit = {}) {
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 LogActionButton(
-                    text = "Скопировать всё",
+                    text = stringResource(R.string.debug_copy_all),
                     icon = com.lmg.vk.ui.icons.LmgGlyphs.CopyOutline28,
                     modifier = Modifier.weight(1f),
                     onClick = { copyLogToClipboard(context, buildLogText(lines)) }
                 )
                 LogActionButton(
-                    text = "Поделиться",
+                    text = stringResource(R.string.debug_share),
                     icon = com.lmg.vk.ui.icons.LmgGlyphs.ShareOutline28,
                     modifier = Modifier.weight(1f),
                     onClick = { shareLogText(context, buildLogText(lines)) }
                 )
                 LogActionButton(
-                    text = "Очистить",
+                    text = stringResource(R.string.debug_clear),
                     icon = com.lmg.vk.ui.icons.LmgGlyphs.DeleteOutline28,
                     tint = lc.accentRed,
                     showLabel = false,
@@ -268,7 +270,7 @@ fun DebugLogScreen(onBack: () -> Unit = {}) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(
-                            text = if (lines.isEmpty()) "Лог пуст" else "Ничего не найдено",
+                            text = if (lines.isEmpty()) stringResource(R.string.debug_log_empty) else stringResource(R.string.debug_nothing_found),
                             color = lc.textSecondary,
                             fontFamily = AppFontFamily,
                             fontSize = 15.sp
@@ -276,10 +278,9 @@ fun DebugLogScreen(onBack: () -> Unit = {}) {
                         Spacer(Modifier.height(4.dp))
                         Text(
                             text = if (lines.isEmpty()) {
-                                "Нажмите «Очистить», затем воспроизведите трек — " +
-                                    "здесь появятся шаги запуска"
+                                stringResource(R.string.debug_empty_hint)
                             } else {
-                                "Измените подстроку фильтра"
+                                stringResource(R.string.debug_filter_hint2)
                             },
                             color = lc.textTertiary,
                             fontFamily = AppFontFamily,
@@ -394,7 +395,7 @@ private fun buildLogText(lines: List<String>): String = buildString {
     append("LMG VK ").append(com.lmg.vk.BuildConfig.VERSION_NAME).append('\n')
     append(android.os.Build.MANUFACTURER).append(' ').append(android.os.Build.MODEL)
         .append(" · Android ").append(android.os.Build.VERSION.RELEASE).append('\n')
-    append("Строк: ").append(lines.size).append('\n')
+    append(context.getString(R.string.debug_lines_count, lines.size)).append('\n')
     append("----\n")
     if (lines.isEmpty()) {
         // Пустой лог тоже информация: значит, до логирующего кода не дошли.
@@ -413,9 +414,9 @@ private fun copyLogToClipboard(context: Context, text: String) {
     try {
         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
         clipboard.setPrimaryClip(ClipData.newPlainText("lmg_vk_debug_log", text))
-        Toast.makeText(context, "Лог скопирован", Toast.LENGTH_SHORT).show()
+        Toast.makeText(context, R.string.debug_copied, Toast.LENGTH_SHORT).show()
     } catch (t: Throwable) {
-        Toast.makeText(context, "Не удалось скопировать: ${t.message}", Toast.LENGTH_LONG).show()
+        Toast.makeText(context, context.getString(R.string.debug_copy_failed, t.message), Toast.LENGTH_LONG).show()
     }
 }
 
@@ -449,8 +450,8 @@ private fun shareLogText(context: Context, text: String) {
         }
     }
     try {
-        context.startActivity(Intent.createChooser(intent, "Отправить лог через..."))
+        context.startActivity(Intent.createChooser(intent, context.getString(R.string.debug_send_via)))
     } catch (t: Throwable) {
-        Toast.makeText(context, "Нет приложения для отправки: ${t.message}", Toast.LENGTH_LONG).show()
+        Toast.makeText(context, context.getString(R.string.debug_no_send_app, t.message), Toast.LENGTH_LONG).show()
     }
 }

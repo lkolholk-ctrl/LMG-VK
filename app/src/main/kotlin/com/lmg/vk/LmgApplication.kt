@@ -128,6 +128,7 @@ class LmgApplication : Application(), ImageLoaderFactory {
         super.onCreate()
 
         VkUserAgents.init(this)
+        MusicBackend.appContext = this
         connectivityManager = getSystemService(ConnectivityManager::class.java)
 
         // Java-крэши: синхронно и ПЕРВЫМ — Fishnet ниже подшивается к уже

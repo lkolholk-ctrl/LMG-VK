@@ -6,6 +6,7 @@ import android.app.NotificationManager
 import android.app.Service
 import android.content.Intent
 import android.os.IBinder
+import com.lmg.vk.R
 import com.lmg.vk.network.dto.music.AudioPlaylist
 import com.lmg.vk.network.dto.music.AudioTrack
 import com.lmg.vk.downloader.cache.CachedTrack
@@ -102,11 +103,11 @@ class DownloaderService : Service() {
 
     private fun buildProgressNotification(downloaded: Long, total: Long): Notification {
         val channel = NotificationChannel(
-            CHANNEL_ID, "Загрузки", NotificationManager.IMPORTANCE_LOW,
+            CHANNEL_ID, getString(R.string.downloads_title), NotificationManager.IMPORTANCE_LOW,
         )
         getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
         return Notification.Builder(this, CHANNEL_ID)
-            .setContentTitle("LMG VK: загрузка треков")
+            .setContentTitle(getString(R.string.lmg_downloading_tracks))
             .setSmallIcon(android.R.drawable.stat_sys_download)
             .setOngoing(true)
             .build()

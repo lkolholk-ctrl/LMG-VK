@@ -19,9 +19,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.lmg.vk.R
 import com.lmg.vk.engine.Track
 import com.lmg.vk.engine.backend.MusicBackend
 import com.lmg.vk.engine.backend.MusicAuth
@@ -92,7 +94,7 @@ fun CreditsContent(track: Track, durationMs: Long) {
                     )
                     Spacer(modifier = Modifier.width(12.dp))
                     Text(
-                        text = "Загружаем авторов…",
+                        text = stringResource(R.string.loading_credits),
                         color = Color.White.copy(alpha = 0.6f),
                         fontSize = 14.sp,
                     )
@@ -124,7 +126,7 @@ fun CreditsContent(track: Track, durationMs: Long) {
 
             else -> {
                 Text(
-                    text = "VK не указал авторов для этой записи.",
+                    text = stringResource(R.string.no_credits),
                     color = Color.White.copy(alpha = 0.6f),
                     fontSize = 14.sp,
                 )
@@ -132,8 +134,7 @@ fun CreditsContent(track: Track, durationMs: Long) {
                     // Объясняем ПРИЧИНУ, а не просто «нет данных»: кредиты
                     // приходят вместе с текстом песни, поэтому у треков без
                     // текста их не бывает вовсе — это не сбой приложения.
-                    text = "Авторы приходят вместе с текстом песни, поэтому у записей " +
-                        "без текста их обычно нет.",
+                    stringResource(R.string.credits_hint),
                     color = Color.White.copy(alpha = 0.4f),
                     fontSize = 12.sp,
                     modifier = Modifier.padding(top = 6.dp),

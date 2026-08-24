@@ -1,5 +1,6 @@
 package com.lmg.vk.engine.backend
 
+import com.lmg.vk.R
 import com.lmg.vk.engine.Track
 import com.lmg.vk.engine.AccountSyncManager
 import com.lmg.vk.engine.LyricsParser
@@ -96,23 +97,23 @@ class BackendException(
 
 /** Человекочитаемое описание ошибки по коду. */
 fun backendUserMessage(kind: Int, code: Int): String = when (code) {
-    0 -> "Нет подключения к интернету или сеть недоступна"
+    0 -> str(R.string.err_no_network)
     // -1 ставит VkApiClient на НЕсетевое исключение (разбор ответа и подобное).
     // Раньше такие ошибки тоже получали 0 и показывались как «нет интернета» —
     // пользователь искал проблему в сети, которой нет.
-    -1 -> "Сбой обработки ответа VK"
-    401, 1117 -> "Сессия VK истекла. Пожалуйста, выполните повторный вход"
-    15, 403 -> "Доступ к аудио ограничен или запрещён VK"
-    404 -> "Не найдено"
-    429 -> "Слишком много запросов"
-    451 -> "Недоступно в вашем регионе"
-    else -> "Ошибка бэкенда ($code)"
+    -1 -> str(R.string.err_response_processing_failed)
+    401, 1117 -> str(R.string.err_vk_session_expired)
+    15, 403 -> str(R.string.err_audio_access_restricted)
+    404 -> str(R.string.err_not_found)
+    429 -> str(R.string.err_too_many_requests)
+    451 -> str(R.string.err_region_unavailable)
+    else -> str(R.string.err_backend_generic_code)
 }
 
 /** Человекочитаемое описание ошибки для UI (из исключения). */
 fun backendUserMessage(exception: Throwable?): String = when (exception) {
     is BackendException -> backendUserMessage(0, exception.code)
-    else -> exception?.message ?: "Что-то пошло не так"
+    else -> exception?.message ?: str(R.string.something_went_wrong)
 }
 
 /**
@@ -141,6 +142,10 @@ data class VkAutoflowSource(
 )
 
 object MusicBackend {
+
+    internal lateinit var appContext: android.content.Context
+
+    private fun str(resId: Int): String = appContext.getString(resId)
 
     private data class VkMixPromptEvent(
         val sequence: Long,
@@ -325,17 +330,17 @@ object MusicBackend {
             }
         }
         val track = resolveTrack(trackId, forceNetwork = true)
-        if (!track.isAvailable) throw backendFailure(451, "Аудиозапись недоступна")
+        if (!track.isAvailable) throw backendFailure(451, str(R.string.err_track_unavailable))
         // 451, а не 404: трек НАЙДЕН, просто VK не дал ссылку (чаще всего нет
         // access_key либо запись ограничена). Код 404 превращался в «Трек не
         // найден у VK» — сообщение врало, и пользователь искал причину не там.
         if (track.url.isBlank()) {
-            throw backendFailure(451, "VK не дал ссылку на трек (нет access_key или доступ закрыт)")
+            throw backendFailure(451, str(R.string.err_no_link_access_key))
         }
         // Плейсхолдер отличается от пустого url: VK ответил успехом и отдал строку,
         // поэтому без явной проверки ошибка выглядела бы как успешный резолв.
         if (!track.url.isPlayableStreamUrl()) {
-            throw backendFailure(451, "VK отдал audio_api_unavailable вместо ссылки")
+            throw backendFailure(451, str(R.string.err_audio_api_unavailable))
         }
         return track.toStreamInfo(quality).also {
             streamCache[track.fullId] = CachedStream(it, System.currentTimeMillis())
@@ -379,15 +384,15 @@ object MusicBackend {
                     "resolveSync $id: available=${track.isAvailable} " +
                         "url=${if (track.url.isBlank()) "ПУСТО" else track.url.take(60)}"
                 )
-                if (!track.isAvailable) throw backendFailure(451, "Аудиозапись недоступна")
+                if (!track.isAvailable) throw backendFailure(451, str(R.string.err_track_unavailable))
                 // 451, а не 404: трек НАЙДЕН, просто VK не дал ссылку (чаще всего нет
         // access_key либо запись ограничена). Код 404 превращался в «Трек не
         // найден у VK» — сообщение врало, и пользователь искал причину не там.
         if (track.url.isBlank()) {
-            throw backendFailure(451, "VK не дал ссылку на трек (нет access_key или доступ закрыт)")
+            throw backendFailure(451, str(R.string.err_no_link_access_key))
         }
                 if (!track.url.isPlayableStreamUrl()) {
-                    throw backendFailure(451, "VK отдал audio_api_unavailable вместо ссылки")
+                    throw backendFailure(451, str(R.string.err_audio_api_unavailable))
                 }
                 track.toStreamInfo(quality).also { info ->
                     streamCache[id] = CachedStream(info, System.currentTimeMillis())
@@ -606,7 +611,7 @@ object MusicBackend {
         val sections = buildList {
             catalog.catalog?.sections.orEmpty().forEach { section ->
                 if (section.id.isNotBlank()) {
-                    add(HomeCatalogSection(section.id, section.title.ifBlank { "VK Музыка" }))
+                    add(HomeCatalogSection(section.id, section.title.ifBlank { str(R.string.vk_music_brand) }))
                 }
             }
             // Some accounts receive root navigation as header actions rather
@@ -621,7 +626,7 @@ object MusicBackend {
                         val title = (button.action?.title ?: button.title)
                             ?.takeIf(String::isNotBlank)
                             ?: header.layout?.title?.takeIf(String::isNotBlank)
-                            ?: "VK Музыка"
+                            ?: str(R.string.vk_music_brand)
                         add(HomeCatalogSection(id, title))
                     }
                 }
@@ -689,7 +694,7 @@ object MusicBackend {
     suspend fun loadCatalogTab(replacementId: String): List<HomeBlock> {
         requireInitialized()
         val request = parseCatalogTabRequest(replacementId)
-            ?: throw backendFailure(404, "VK не дал идентификатор раздела")
+            ?: throw backendFailure(404, str(R.string.err_no_section_id))
         val response = when (request) {
             is CatalogTabRequest.Section -> catalogApi.getSection(request.sectionId)
             is CatalogTabRequest.Replacement ->
@@ -799,7 +804,7 @@ object MusicBackend {
             recommendations.await().takeIf { it.isNotEmpty() }?.let { tracks ->
                 HomeBlock(
                     id = "vk_recommendations",
-                    title = "Рекомендации VK",
+                    title = str(R.string.vk_recommendations),
                     type = "recommendations",
                     items = tracks.map { it.toHomeItem() },
                 )
@@ -807,7 +812,7 @@ object MusicBackend {
             popular.await().takeIf { it.isNotEmpty() }?.let { tracks ->
                 HomeBlock(
                     id = "vk_popular",
-                    title = "Популярное в VK",
+                    title = str(R.string.vk_popular),
                     type = "popular",
                     items = tracks.map { it.toHomeItem() },
                 )
@@ -822,7 +827,7 @@ object MusicBackend {
         return listOf(
             Chart(
                 id = "vk_popular",
-                name = "VK Музыка",
+                name = str(R.string.vk_music_brand),
                 query = "popular",
                 cover = tracks.firstNotNullOfOrNull { it.coverUrl() },
                 tracks = tracks.map { it.toSearchItem() },
@@ -1011,7 +1016,7 @@ object MusicBackend {
                     id = it.id,
                     name = it.displayName,
                     cover = it.photo_base,
-                    subtitle = "Official profile",
+                    subtitle = str(R.string.official_profile),
                     isFollowed = it.is_followed == true,
                     isCommunity = false,
                 )
@@ -1025,7 +1030,7 @@ object MusicBackend {
                     id = it.id,
                     name = it.displayName,
                     cover = it.photo_base,
-                    subtitle = "Community",
+                    subtitle = str(R.string.community_label),
                     isFollowed = it.is_followed == true,
                     isCommunity = true,
                 )
@@ -1191,7 +1196,7 @@ object MusicBackend {
         return VkMixSession(
             mixId = PERSONAL_VK_MIX_ID,
             isTunable = true,
-            title = "VK Mix",
+            title = str(R.string.vkmix_brand),
             settings = null,
         )
     }
@@ -1643,7 +1648,7 @@ object MusicBackend {
         playedTrackIds: List<String> = emptyList()
     ): Result<WaveBatchResponse> {
         if (waveSessionId != null && sessionId != waveSessionId) {
-            return Result.failure(backendFailure(404, "Сессия VK Mix устарела"))
+            return Result.failure(backendFailure(404, str(R.string.err_vkmix_session_stale)))
         }
         return nextBatch(limit, diversity, excludeTrackIds, excludeArtistIds, playedTrackIds)
     }
@@ -1715,7 +1720,7 @@ object MusicBackend {
         val normalized = normalizeTrackId(seedTrackId)
         val parts = normalized.split('_', limit = 3)
         val entityId = com.lmg.vk.engine.VkAudioIdentity.bareFullId(normalized)
-            ?: throw backendFailure(400, "Некорректный VK audio id для волны")
+            ?: throw backendFailure(400, str(R.string.err_bad_wave_audio_id))
         val ownerId = parts.getOrNull(0).orEmpty()
         val audioId = parts.getOrNull(1).orEmpty()
         val accessKey = parts.getOrNull(2)?.takeIf(String::isNotBlank)
@@ -2296,7 +2301,7 @@ object MusicBackend {
         id = "catalog_banner_$id",
         title = title?.takeIf(String::isNotBlank)
             ?: text?.takeIf(String::isNotBlank)
-            ?: "VK Музыка",
+            ?: str(R.string.vk_music_brand),
         artist = subtext?.takeIf(String::isNotBlank),
         cover = coverUrl(),
         source = "vk",
@@ -2307,8 +2312,8 @@ object MusicBackend {
 
     private fun VkCatalogVideo.toHomeItem() = HomeItem(
         id = "catalog_video_$fullId",
-        title = title.ifBlank { "Клип VK" },
-        artist = "VK Клипы",
+        title = title.ifBlank { str(R.string.vk_clip_fallback) },
+        artist = str(R.string.vk_clips_artist),
         cover = coverUrl(),
         source = "vk",
         isCustom = true,
@@ -2317,7 +2322,7 @@ object MusicBackend {
 
     private fun VkCatalogProfile.toHomeItem() = HomeItem(
         id = "curator_$id",
-        title = displayName.ifBlank { "VK Музыка" },
+        title = displayName.ifBlank { str(R.string.vk_music_brand) },
         cover = photo_base?.takeIf(String::isNotBlank),
         source = "vk",
         isCustom = true,
@@ -2331,12 +2336,12 @@ object MusicBackend {
     private fun AudioRecommendedPlaylistDto.toHomeItem(): HomeItem? {
         val fullId = fullId ?: return null
         val match = percentage_title?.takeIf(String::isNotBlank)
-            ?: percentage?.takeIf { it > 0f }?.let { "Совпадение ${it.toInt()}%" }
-            ?: "Рекомендация VK"
+            ?: percentage?.takeIf { it > 0f }?.let { str(R.string.match_percent).format(it.toInt()) }
+            ?: str(R.string.vk_recommendation)
         return HomeItem(
             id = "recommended_playlist_$fullId",
             title = match,
-            artist = "Рекомендованный плейлист",
+            artist = str(R.string.recommended_playlist_artist),
             cover = cover?.takeIf(String::isNotBlank) ?: photo?.bestUrl,
             collectionId = fullId,
             source = "vk",
@@ -2346,7 +2351,7 @@ object MusicBackend {
 
     private fun VkCatalogLink.toHomeItem() = HomeItem(
         id = "catalog_link_$id",
-        title = title.ifBlank { "VK Музыка" },
+        title = title.ifBlank { str(R.string.vk_music_brand) },
         artist = subtitle.takeIf(String::isNotBlank),
         cover = coverUrl(),
         source = "vk",
@@ -2372,7 +2377,7 @@ object MusicBackend {
         title = editor_annotation?.takeIf(String::isNotBlank)
             ?: editor_tag?.takeIf(String::isNotBlank)
             ?: entity_type.takeIf(String::isNotBlank)
-            ?: "VK Музыка",
+            ?: str(R.string.vk_music_brand),
         cover = coverUrl(),
         source = "vk",
         isCustom = true,
@@ -2391,7 +2396,7 @@ object MusicBackend {
 
     private fun VkCatalogLongread.toHomeItem() = HomeItem(
         id = "longread_$id",
-        title = title?.takeIf(String::isNotBlank) ?: "История VK Музыки",
+        title = title?.takeIf(String::isNotBlank) ?: str(R.string.vk_music_history_title),
         artist = ownerName,
         subtitle = subtitle,
         cover = photo?.sizes.orEmpty()
@@ -2405,7 +2410,7 @@ object MusicBackend {
 
     private fun VkCatalogAudioBook.toHomeItem() = HomeItem(
         id = "audiobook_$id",
-        title = title?.takeIf(String::isNotBlank) ?: "Аудиокнига VK",
+        title = title?.takeIf(String::isNotBlank) ?: str(R.string.vk_audiobook_title),
         artist = bestCatalogText(authors).orEmpty().takeIf(String::isNotBlank),
         subtitle = publisher?.title,
         cover = bestCatalogImageUrl(cover),
@@ -2416,7 +2421,7 @@ object MusicBackend {
 
     private fun VkCatalogAudioBookPerson.toHomeItem() = HomeItem(
         id = "audiobook_person_$id",
-        title = name?.takeIf(String::isNotBlank) ?: "Автор аудиокниг",
+        title = name?.takeIf(String::isNotBlank) ?: str(R.string.audiobook_authors_title),
         subtitle = description,
         cover = bestCatalogImageUrl(photo),
         source = "vk",
@@ -2425,7 +2430,7 @@ object MusicBackend {
 
     private fun VkCatalogFollowingsUpdateInfo.toHomeItem() = HomeItem(
         id = "following_update_$id",
-        title = title?.takeIf(String::isNotBlank) ?: "Новые обновления",
+        title = title?.takeIf(String::isNotBlank) ?: str(R.string.new_updates_title),
         cover = bestCatalogImageUrl(covers),
         source = "vk",
         isCustom = true,
@@ -2495,7 +2500,7 @@ object MusicBackend {
             ?.url
         return HomeItem(
             id = "play_mix_${catalogId ?: playbackMixId}",
-            title = title?.takeIf(String::isNotBlank) ?: "VK Mix",
+            title = title?.takeIf(String::isNotBlank) ?: str(R.string.vkmix_brand),
             artist = description?.takeIf(String::isNotBlank),
             cover = cover,
             source = "vk",
@@ -3093,7 +3098,7 @@ object MusicBackend {
             val title = pendingHeaderTitle
                 ?: block.layout?.title?.takeIf(String::isNotBlank)
                 ?: block.data_type.takeIf(String::isNotBlank)
-                ?: "VK Музыка"
+                ?: str(R.string.vk_music_brand)
             val contentType = block.data_type.takeIf(String::isNotBlank) ?: when {
                 block.curators_ids.orEmpty().isNotEmpty() -> "curators"
                 block.catalog_banner_ids.orEmpty().isNotEmpty() -> "catalog_banners"
@@ -3176,7 +3181,7 @@ object MusicBackend {
         val fallbackPrefix = first.section?.id?.takeIf(String::isNotBlank)
             ?: first.catalog?.default_section?.takeIf(String::isNotBlank)
             ?: "root"
-        val fallbackTitle = first.section?.title?.takeIf(String::isNotBlank) ?: "VK Музыка"
+        val fallbackTitle = first.section?.title?.takeIf(String::isNotBlank) ?: str(R.string.vk_music_brand)
         return buildList {
             catalog_banners.orEmpty().map { it.toHomeItem() }.takeIf { it.isNotEmpty() }?.let {
                 add(HomeBlock("${fallbackPrefix}_banners", fallbackTitle, "catalog_banners", it))
@@ -3191,34 +3196,34 @@ object MusicBackend {
                 add(HomeBlock("${fallbackPrefix}_artists", fallbackTitle, "artists", it))
             }
             (artist_videos + videos).map { it.toHomeItem() }.takeIf { it.isNotEmpty() }?.let {
-                add(HomeBlock("${fallbackPrefix}_videos", "Клипы VK", "videos", it))
+                add(HomeBlock("${fallbackPrefix}_videos", str(R.string.vk_clips_section), "videos", it))
             }
             curators.orEmpty().map { it.toHomeItem() }.takeIf { it.isNotEmpty() }?.let {
-                add(HomeBlock("${fallbackPrefix}_curators", "Собрано редакцией", "curators", it))
+                add(HomeBlock("${fallbackPrefix}_curators", str(R.string.curated_by_editors), "curators", it))
             }
             groups.orEmpty().map { it.toHomeItem() }.takeIf { it.isNotEmpty() }?.let {
                 add(HomeBlock("${fallbackPrefix}_groups", fallbackTitle, "groups", it))
             }
             links.orEmpty().map { it.toHomeItem() }.takeIf { it.isNotEmpty() }?.let {
-                add(HomeBlock("${fallbackPrefix}_links", "Разделы VK Музыки", "links", it))
+                add(HomeBlock("${fallbackPrefix}_links", str(R.string.vk_music_sections), "links", it))
             }
             audio_content_cards.orEmpty().map { it.toHomeItem() }.takeIf { it.isNotEmpty() }?.let {
-                add(HomeBlock("${fallbackPrefix}_content_cards", "Выбор редакции", "content_cards", it))
+                add(HomeBlock("${fallbackPrefix}_content_cards", str(R.string.editors_choice), "content_cards", it))
             }
             radio_stations.orEmpty().map { it.toHomeItem() }.takeIf { it.isNotEmpty() }?.let {
-                add(HomeBlock("${fallbackPrefix}_radio", "Радиостанции", "radio", it))
+                add(HomeBlock("${fallbackPrefix}_radio", str(R.string.radio_stations), "radio", it))
             }
             audio_stream_mixes.orEmpty().map { it.toHomeItem() }.takeIf { it.isNotEmpty() }?.let {
-                add(HomeBlock("${fallbackPrefix}_mixes", "Миксы VK", "stream_mixes", it))
+                add(HomeBlock("${fallbackPrefix}_mixes", str(R.string.vk_mixes_section), "stream_mixes", it))
             }
             longreads.orEmpty().map { it.toHomeItem() }.takeIf { it.isNotEmpty() }?.let {
-                add(HomeBlock("${fallbackPrefix}_longreads", "Истории VK Музыки", "longreads", it))
+                add(HomeBlock("${fallbackPrefix}_longreads", str(R.string.vk_music_longreads), "longreads", it))
             }
             podcasts.orEmpty().map { it.toHomeItem() }.takeIf { it.isNotEmpty() }?.let {
-                add(HomeBlock("${fallbackPrefix}_podcasts", "Подкасты", "podcasts", it))
+                add(HomeBlock("${fallbackPrefix}_podcasts", str(R.string.podcasts_section), "podcasts", it))
             }
             audio_books.orEmpty().map { it.toHomeItem() }.takeIf { it.isNotEmpty() }?.let {
-                add(HomeBlock("${fallbackPrefix}_audiobooks", "Аудиокниги", "audiobooks", it))
+                add(HomeBlock("${fallbackPrefix}_audiobooks", str(R.string.audiobooks_section), "audiobooks", it))
             }
         }
     }
@@ -3376,10 +3381,10 @@ object MusicAuth {
         captchaKey: String? = null,
     ): VkLoginResult {
         if (username.isBlank()) {
-            return VkLoginResult.Failure("Введите номер телефона или логин")
+            return VkLoginResult.Failure(str(R.string.auth_error_enter_login))
         }
 
-        val registry = methods ?: return VkLoginResult.Failure("VK API is not initialized")
+        val registry = methods ?: return VkLoginResult.Failure(str(R.string.err_vk_api_not_initialized))
         activeSignInCalls.incrementAndGet()
         return try {
             signInMutex.withLock {
@@ -3399,13 +3404,13 @@ object MusicAuth {
                 }
 
                 val attempt = activeAuthAttempt
-                    ?: return@withLock VkLoginResult.Failure("VK authorization session expired. Start again.")
+                    ?: return@withLock VkLoginResult.Failure(str(R.string.err_vk_session_expired_restart))
                 if (attempt.username != normalizedUsername) {
                     activeAuthAttempt = null
-                    return@withLock VkLoginResult.Failure("The login changed. Start authorization again.")
+                    return@withLock VkLoginResult.Failure(str(R.string.err_login_changed))
                 }
                 if ((isOtpContinuation || isPasswordContinuation) && validationSid != attempt.sid) {
-                    return@withLock VkLoginResult.Failure("VK verification session changed. Start again.")
+                    return@withLock VkLoginResult.Failure(str(R.string.err_verification_changed))
                 }
 
                 if (isOtpContinuation) {
@@ -3414,7 +3419,7 @@ object MusicAuth {
                     } else {
                         when (val token = getAnonymousToken(registry)) {
                             is VkResult.Error -> return@withLock token.asLoginFailure(
-                                "VK anonymous authorization session expired",
+                                str(R.string.err_anonymous_session_expired),
                             )
                             is VkResult.Success -> attempt.anonymousToken = token.data
                         }
@@ -3424,11 +3429,11 @@ object MusicAuth {
                             verificationMethod = attempt.verificationMethod.wireName,
                             anonymousToken = attempt.anonymousToken,
                         )) {
-                            is VkResult.Error -> return@withLock checked.asLoginFailure("VK rejected the verification code")
+                            is VkResult.Error -> return@withLock checked.asLoginFailure(str(R.string.err_vk_rejected_code))
                             is VkResult.Success -> {
                                 val checkedSid = checked.data.sid
                                 if (checkedSid.isBlank()) {
-                                    return@withLock VkLoginResult.Failure("VK returned an empty verified session")
+                                    return@withLock VkLoginResult.Failure(str(R.string.err_empty_verified_session))
                                 }
                                 attempt.sid = checkedSid
                                 attempt.canSkipPassword = checked.data.canSkipPassword == true
@@ -3448,7 +3453,7 @@ object MusicAuth {
 
                 val captchaParams = if (isCaptchaContinuation) {
                     if (captchaSid != attempt.captchaSid) {
-                        return@withLock VkLoginResult.Failure("VK captcha session changed. Start again.")
+                        return@withLock VkLoginResult.Failure(str(R.string.err_captcha_session_changed))
                     }
                     buildMap {
                         put("captcha_sid", requireNotNull(captchaSid))
@@ -3475,7 +3480,7 @@ object MusicAuth {
         val currentAnonymousToken = when (val result = getAnonymousToken(registry)) {
             is VkResult.Success -> result.data
             is VkResult.Error -> return result.asLoginFailure(
-                "VK did not issue an anonymous authorization token",
+                str(R.string.err_no_anonymous_token),
             )
         }
         val validation = when (val result = registry.validateAccount(
@@ -3483,14 +3488,14 @@ object MusicAuth {
             anonymousToken = currentAnonymousToken,
         )) {
             is VkResult.Success -> result.data
-            is VkResult.Error -> return result.asLoginFailure("VK could not validate this account")
+            is VkResult.Error -> return result.asLoginFailure(str(R.string.err_could_not_validate))
         }
         val sid = validation.sid.orEmpty()
         if (sid.isBlank()) {
             val message = if (validation.flowName == AuthFlowName.NEED_REGISTRATION) {
-                "This VK account does not exist"
+                str(R.string.err_account_not_exist)
             } else {
-                "VK returned an empty authorization session"
+                str(R.string.err_empty_auth_session)
             }
             return VkLoginResult.Failure(message)
         }
@@ -3530,7 +3535,7 @@ object MusicAuth {
         if (otpKind != null) {
             when (val token = getAnonymousToken(registry)) {
                 is VkResult.Error -> return token.asLoginFailure(
-                    "VK anonymous authorization session expired",
+                    str(R.string.err_anonymous_session_expired),
                 )
                 is VkResult.Success -> attempt.anonymousToken = token.data
             }
@@ -3540,7 +3545,7 @@ object MusicAuth {
                     codeLength = sent.data.codeLength.coerceAtLeast(0)
                 }
                 is VkResult.Error -> {
-                    return sent.asLoginFailure("VK did not send the verification code")
+                    return sent.asLoginFailure(str(R.string.err_no_code_sent))
                 }
             }
         }
@@ -3559,7 +3564,7 @@ object MusicAuth {
     ): VkLoginResult {
         when (val token = getAnonymousToken(registry)) {
             is VkResult.Error -> return token.asLoginFailure(
-                "VK anonymous authorization session expired",
+                str(R.string.err_anonymous_session_expired),
             )
             is VkResult.Success -> attempt.anonymousToken = token.data
         }
@@ -3572,7 +3577,7 @@ object MusicAuth {
             code = attempt.oauthCode,
             extraParams = captchaParams,
         )) {
-            is VkResult.Error -> result.asLoginFailure("VK authorization failed")
+            is VkResult.Error -> result.asLoginFailure(str(R.string.err_vk_auth_failed))
             is VkResult.Success -> when (val response = result.data) {
                 is RequestTokenResponse.Success -> finishSignIn(registry, response)
                 is RequestTokenResponse.CaptchaRequired -> {
@@ -3590,12 +3595,12 @@ object MusicAuth {
                         attempt.captchaAttempt = response.captchaAttempt
                         VkLoginResult.Captcha(response.captchaSid, response.captchaImg)
                     } else {
-                        VkLoginResult.Failure("VK returned an incomplete captcha challenge")
+                        VkLoginResult.Failure(str(R.string.err_incomplete_captcha))
                     }
                 }
                 is RequestTokenResponse.TwoFactorRequired -> {
                     if (response.validationSid.isBlank()) {
-                        VkLoginResult.Failure("VK returned an empty verification session")
+                        VkLoginResult.Failure(str(R.string.err_empty_verification_session))
                     } else {
                         attempt.sid = response.validationSid
                         attempt.legacyTokenValidation = true
@@ -3614,7 +3619,7 @@ object MusicAuth {
                     )
                     VkLoginResult.Failure(
                         response.errorDescription.ifBlank {
-                            response.error.ifBlank { "VK authorization failed" }
+                            response.error.ifBlank { str(R.string.err_vk_auth_failed) }
                         },
                     )
                 }
@@ -3639,13 +3644,13 @@ object MusicAuth {
                             VkLoginResult.Captcha(error.captchaSid, error.captchaImg)
                         }
                         else -> VkLoginResult.Failure(
-                            error.error_msg.ifBlank { "VK error ${error.error_code}" },
+                            error.error_msg.ifBlank { str(R.string.err_vk_generic_code).format(error.error_code) },
                         )
                     }
                 }
                 is RequestTokenResponse.UnknownError -> VkLoginResult.Failure(
                     response.errorDescription.ifBlank {
-                        response.error.ifBlank { "Unknown VK authorization response" }
+                        response.error.ifBlank { str(R.string.err_unknown_auth_response) }
                     },
                 )
             }
@@ -3660,7 +3665,7 @@ object MusicAuth {
         redirectUri: String,
     ): VkLoginResult {
         val proof = GlobalCaptchaManager.requestValidation(redirectUri)
-            ?: return VkLoginResult.Failure("Проверка безопасности VK отменена")
+            ?: return VkLoginResult.Failure(str(R.string.err_security_check_cancelled))
         return requestOAuthToken(
             registry = registry,
             attempt = attempt,
@@ -3680,7 +3685,7 @@ object MusicAuth {
                 is VkResult.Success -> {
                     val token = result.data.token
                     if (token.isBlank()) {
-                        VkResult.Error(0, "VK returned an empty anonymous authorization token")
+                        VkResult.Error(0, str(R.string.err_empty_anonymous_token))
                     } else {
                         anonymousToken = token
                         anonymousTokenExpiresAt = result.data.expiredAt.toLong()
@@ -3695,7 +3700,7 @@ object MusicAuth {
         response: RequestTokenResponse.Success,
     ): VkLoginResult {
         if (response.accessToken.isBlank()) {
-            return VkLoginResult.Failure("VK returned an empty access token")
+            return VkLoginResult.Failure(str(R.string.err_empty_access_token))
         }
         val nowSeconds = System.currentTimeMillis() / 1000
         val completedSession = VkAuthSession(

@@ -23,12 +23,14 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.lmg.vk.R
 import coil.request.ImageRequest
 import com.lmg.vk.engine.backend.MusicAuth
 import com.lmg.vk.engine.backend.HomeBlock
@@ -90,54 +92,65 @@ private fun HomeItem.toTrack(): Track {
 // Mood categories with gradient colors (like Apple Music screenshot)
 private data class MoodCategory(
     val id: String,
-    val title: String,
     val gradientColors: List<Color>,
     val icon: String,
     val apiMood: String? = null
 )
 
+private fun moodTitleRes(id: String): Int = when (id) {
+    "my_wave" -> R.string.mood_my_wave
+    "melancholy" -> R.string.mood_melancholy
+    "good_mood" -> R.string.mood_good_mood
+    "broken_heart" -> R.string.mood_broken_heart
+    "focus" -> R.string.mood_focus
+    "energy" -> R.string.mood_energy
+    "night" -> R.string.mood_night
+    "workout" -> R.string.mood_workout
+    else -> R.string.mood_chill
+}
+
 private val moodCategories = listOf(
     MoodCategory(
-        "my_wave", "My Wave",
+        "my_wave",
         listOf(Color(0xFFFC3C44), Color(0xFFFF6B6B)), ""
     ),
     MoodCategory(
-        "melancholy", "Melancholy",
+        "melancholy",
         listOf(Color(0xFF1E3A5F), Color(0xFF2D5A87)), "",
         apiMood = "sad"
     ),
     MoodCategory(
-        "good_mood", "Good Mood",
+        "good_mood",
         listOf(Color(0xFFD4730E), Color(0xFFF5A623)), "",
         apiMood = "happy"
     ),
     MoodCategory(
-        "broken_heart", "Broken Heart",
+        "broken_heart",
         listOf(Color(0xFF8B1538), Color(0xFFC41E3A)), "",
         apiMood = "sad"
     ),
     MoodCategory(
-        "focus", "Focus",
+        "focus",
         listOf(Color(0xFF2D5016), Color(0xFF4A7C23)), "",
         apiMood = "focus"
     ),
     MoodCategory(
-        "energy", "Energy",
+        "energy",
         listOf(Color(0xFF8B4513), Color(0xFFD2691E)), "",
         apiMood = "energetic"
     ),
     MoodCategory(
-        "night", "Night Wave",
+        "night",
         listOf(Color(0xFF1A1A2E), Color(0xFF16213E)), "",
         apiMood = "relax"
     ),
     MoodCategory(
-        "workout", "Workout",
+        "workout",
         listOf(Color(0xFF4A0000), Color(0xFF8B0000)), "",
         apiMood = "workout"
     ),
     MoodCategory(
-        "chill", "Chill",
+        "chill",
         listOf(Color(0xFF483D8B), Color(0xFF6A5ACD)), "",
         apiMood = "chill"
     ),
@@ -217,7 +230,7 @@ fun HomeScreen(
             val newTracks = repo.buildWaveModeQueue(
                 mode = WaveMode.Mood(
                     mood = moodApiTerm(mood),
-                    displayName = mood.title,
+                    displayName = context.getString(moodTitleRes(mood.id)),
                     source = "apple",
                     diversity = 0.5
                 ),
@@ -235,7 +248,7 @@ fun HomeScreen(
         PlayerController.setAutoRefillContext(
             type = if (moodId == "my_wave") "wave" else "mood",
             id = if (moodId == "my_wave") moodId else moodApiTerm(mood),
-            name = mood.title
+            name = context.getString(moodTitleRes(mood.id))
         )
         val existing = moodTracks[moodId]
         if (!existing.isNullOrEmpty()) {
@@ -283,14 +296,14 @@ fun HomeScreen(
                 PlayerController.setAutoRefillContext(
                     type = "mood",
                     id = moodApiTerm(mood),
-                    name = mood.title
+                    name = context.getString(moodTitleRes(mood.id))
                 )
 
                 val repo = WaveRepository.getInstance(context)
                 val waveTracks = repo.buildWaveModeQueue(
                     mode = WaveMode.Mood(
                         mood = moodApiTerm(mood),
-                        displayName = mood.title,
+                        displayName = context.getString(moodTitleRes(mood.id)),
                         source = "apple",
                         diversity = 0.5
                     ),
@@ -344,7 +357,7 @@ fun HomeScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "Listen Now",
+                    text = stringResource(R.string.listen_now),
                     fontWeight = FontWeight.Bold,
                     fontFamily = VkSansDisplay,
                     fontSize = 32.sp,
@@ -353,7 +366,7 @@ fun HomeScreen(
                 IconButton(onClick = { viewModel.refresh() }) {
                     Icon(
                         imageVector = com.lmg.vk.ui.icons.LmgGlyphs.RefreshOutline28,
-                        contentDescription = "Refresh",
+                        contentDescription = stringResource(R.string.action_refresh),
                         tint = LiquidTheme.colors.textSecondary
                     )
                 }
@@ -394,7 +407,7 @@ fun HomeScreen(
             }
 
             // ─── My Wave - Mood Categories (Moods to the Top) ───
-            SectionHeader(title = "Moods")
+            SectionHeader(title = stringResource(R.string.moods_title))
             Spacer(modifier = Modifier.height(12.dp))
 
             LazyRow(
@@ -424,7 +437,7 @@ fun HomeScreen(
             // Playing indicator
             if (isPlayingMood && activeMoodId != null) {
                 Spacer(modifier = Modifier.height(12.dp))
-                val moodTitle = moodCategories.find { it.id == activeMoodId }?.title ?: ""
+                val moodTitle = activeMoodId?.let { stringResource(moodTitleRes(it)) } ?: ""
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -441,7 +454,7 @@ fun HomeScreen(
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "Playing: $moodTitle",
+                            text = stringResource(R.string.playing_mood, moodTitle),
                             color = Color.White,
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Medium
@@ -532,7 +545,7 @@ fun HomeScreen(
 
             // ─── Charts (Top Charts from Apple Music) ───
             if (charts.isNotEmpty()) {
-                SectionHeader(title = "Charts")
+                SectionHeader(title = stringResource(R.string.charts_title))
                 Spacer(modifier = Modifier.height(12.dp))
                 LazyRow(
                     contentPadding = PaddingValues(horizontal = 20.dp),
@@ -604,7 +617,7 @@ fun HomeScreen(
 
             // ─── Recently Played ───
             if (recentlyPlayed.isNotEmpty()) {
-                SectionHeader(title = "Recently Played")
+                SectionHeader(title = stringResource(R.string.recently_played))
                 Spacer(modifier = Modifier.height(12.dp))
                 Box(modifier = Modifier.height(190.dp)) {
                     LazyRow(
@@ -624,7 +637,7 @@ fun HomeScreen(
 
             // ─── Favorites ───
             if (favoriteTracks.isNotEmpty()) {
-                SectionHeader(title = "Favorites")
+                SectionHeader(title = stringResource(R.string.favorites_title))
                 Spacer(modifier = Modifier.height(12.dp))
                 Box(modifier = Modifier.height(190.dp)) {
                     LazyRow(
@@ -720,7 +733,7 @@ private fun BannerCard(
         ) {
             Icon(
                 imageVector = com.lmg.vk.ui.icons.LmgGlyphs.Play28,
-                contentDescription = "Play",
+                contentDescription = stringResource(R.string.action_play),
                 tint = Color.White,
                 modifier = Modifier.size(20.dp)
             )
@@ -1085,7 +1098,7 @@ private fun MoodCard(
             )
         }
         Text(
-            text = mood.title,
+            text = stringResource(moodTitleRes(mood.id)),
             color = Color.White,
             fontSize = 16.sp,
             fontWeight = FontWeight.SemiBold,

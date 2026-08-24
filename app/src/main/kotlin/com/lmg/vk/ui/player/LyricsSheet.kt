@@ -35,6 +35,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
@@ -42,6 +43,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.lmg.vk.R
 import com.lmg.vk.engine.LyricsParser
 import com.lmg.vk.ui.glass.AlbumColors
 import com.lmg.vk.ui.theme.LiquidTheme
@@ -186,7 +188,7 @@ fun LyricsSheet(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = "No lyrics available",
+                        text = stringResource(R.string.no_lyrics),
                         color = Color.White.copy(alpha = 0.5f),
                         fontSize = 20.sp,
                         fontWeight = FontWeight.Medium

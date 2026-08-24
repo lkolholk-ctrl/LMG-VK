@@ -40,6 +40,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -48,6 +49,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.lmg.vk.R
 import com.lmg.vk.engine.PlayerController
 import com.lmg.vk.engine.PlaybackContext
 import com.lmg.vk.engine.Track
@@ -175,20 +177,20 @@ fun OwnerAudioScreen(
 
             state.isClosed -> OwnerAudioMessage(
                 icon = com.lmg.vk.ui.icons.LmgGlyphs.LockOutline28,
-                title = "${state.title} closed their music",
-                message = "VK doesn't allow access to this profile's audio.",
+                title = stringResource(R.string.owner_music_closed, state.title),
+                message = stringResource(R.string.owner_music_closed_message),
             )
 
             state.error != null && state.tracks.isEmpty() -> OwnerAudioMessage(
                 icon = com.lmg.vk.ui.icons.LmgGlyphs.LockOutline28,
-                title = "Couldn't load audio",
+                title = stringResource(R.string.audio_load_failed),
                 message = state.error,
             )
 
             state.tracks.isEmpty() -> OwnerAudioMessage(
                 icon = com.lmg.vk.ui.icons.LmgGlyphs.UserOutline28,
-                title = "No audio",
-                message = "${state.title} has no tracks in VK.",
+                title = stringResource(R.string.no_audio_short),
+                message = stringResource(R.string.owner_no_tracks, state.title),
             )
 
             else -> LazyColumn(
@@ -405,8 +407,8 @@ private fun OwnerAudioHeader(
                 }
                 Spacer(Modifier.height(16.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    OwnerAudioButton("Play", com.lmg.vk.ui.icons.LmgGlyphs.Play28, canPlay, Modifier.weight(1f), onPlay)
-                    OwnerAudioButton("Shuffle", com.lmg.vk.ui.icons.LmgGlyphs.ShuffleOutline28, canPlay, Modifier.weight(1f), onShuffle)
+                    OwnerAudioButton(stringResource(R.string.action_play), com.lmg.vk.ui.icons.LmgGlyphs.Play28, canPlay, Modifier.weight(1f), isPrimary = true, onClick = onPlay)
+                    OwnerAudioButton(stringResource(R.string.action_shuffle), com.lmg.vk.ui.icons.LmgGlyphs.ShuffleOutline28, canPlay, Modifier.weight(1f), onClick = onShuffle)
                 }
             }
         }
@@ -444,9 +446,10 @@ private fun OwnerAudioButton(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     enabled: Boolean,
     modifier: Modifier,
+    isPrimary: Boolean = false,
     onClick: () -> Unit,
 ) {
-    val filled = label == "Play"
+    val filled = isPrimary
     val contentColor = when {
         !enabled -> Color.White.copy(alpha = 0.45f)
         filled -> Color.Black

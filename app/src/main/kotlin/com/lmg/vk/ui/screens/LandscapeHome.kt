@@ -33,12 +33,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.lmg.vk.R
 import com.lmg.vk.ui.glass.liquidClickable
 import com.lmg.vk.ui.theme.LiquidTheme
 import com.lmg.vk.ui.theme.VkSansDisplay
@@ -126,21 +128,21 @@ fun LandscapeHome(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
-                                Text("Home", color = lc.textSecondary, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                                Text(stringResource(R.string.tab_home), color = lc.textSecondary, fontSize = 12.sp, fontWeight = FontWeight.Medium)
                                 Text(
                                     profileName?.takeIf { it.isNotBlank() } ?: "LMG",
                                     color = lc.textPrimary, fontSize = 20.sp, fontWeight = FontWeight.SemiBold,
                                     fontFamily = VkSansDisplay,
                                 )
                             }
-                            HeaderIconButton(com.lmg.vk.ui.icons.LmgGlyphs.SearchOutline28, "Search", onOpenSearch)
+                            HeaderIconButton(com.lmg.vk.ui.icons.LmgGlyphs.SearchOutline28, stringResource(R.string.tab_search), onOpenSearch)
                         }
                         Spacer(Modifier.height(16.dp))
                     }
 
                     if (recent.isNotEmpty()) {
                         item {
-                            SectionLabel(com.lmg.vk.ui.icons.LmgGlyphs.HistoryBackwardOutline28, "Recently Played")
+                            SectionLabel(com.lmg.vk.ui.icons.LmgGlyphs.HistoryBackwardOutline28, stringResource(R.string.recently_played))
                             Spacer(Modifier.height(10.dp))
                             LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                                 items(recent, key = { it.trackId }) { h ->
@@ -157,7 +159,7 @@ fun LandscapeHome(
                     item {
                         SectionLabel(
                             com.lmg.vk.ui.icons.LmgGlyphs.Favorite28,
-                            "Favorites" + if (favorites.isNotEmpty()) "  (${favorites.size})" else ""
+                            stringResource(R.string.favorites_with_count, favorites.size)
                         )
                         Spacer(Modifier.height(6.dp))
                     }
@@ -177,7 +179,7 @@ fun LandscapeHome(
                     if (favorites.isEmpty()) {
                         item {
                             Text(
-                                "No liked tracks yet", color = lc.textTertiary, fontSize = 14.sp,
+                                stringResource(R.string.no_liked_tracks), color = lc.textTertiary, fontSize = 14.sp,
                                 modifier = Modifier.padding(vertical = 24.dp)
                             )
                         }
@@ -198,7 +200,7 @@ fun LandscapeHome(
                     contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = 14.dp, bottom = BottomBarInset)
                 ) {
                     item {
-                        SectionLabel(com.lmg.vk.ui.icons.LmgGlyphs.StatisticsOutline28, "Playing Now", accentLabel = true)
+                        SectionLabel(com.lmg.vk.ui.icons.LmgGlyphs.StatisticsOutline28, stringResource(R.string.playing_now), accentLabel = true)
                         Spacer(Modifier.height(8.dp))
                         val cur = currentTrack
                         if (cur != null) {
@@ -207,16 +209,16 @@ fun LandscapeHome(
                                 duration = fmtDuration(cur.durationMs), highlight = true, onClick = onOpenPlayer
                             )
                         } else {
-                            Text("Nothing playing", color = lc.textTertiary, fontSize = 12.sp)
+                            Text(stringResource(R.string.nothing_playing), color = lc.textTertiary, fontSize = 12.sp)
                         }
                         Spacer(Modifier.height(18.dp))
-                        SectionLabel(com.lmg.vk.ui.icons.LmgGlyphs.ListPlayOutline28, "Queue (Up Next)", accentLabel = true)
+                        SectionLabel(com.lmg.vk.ui.icons.LmgGlyphs.ListPlayOutline28, stringResource(R.string.queue_up_next), accentLabel = true)
                         Spacer(Modifier.height(8.dp))
                     }
                     if (queue.isEmpty()) {
                         item {
                             Text(
-                                "Queue is empty", color = lc.textTertiary, fontSize = 12.sp,
+                                stringResource(R.string.queue_empty), color = lc.textTertiary, fontSize = 12.sp,
                                 modifier = Modifier.padding(top = 10.dp)
                             )
                         }

@@ -36,6 +36,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import com.lmg.vk.R
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -122,7 +124,7 @@ fun LrcPublishScreen(
                 hasMine = true
                 wordTaggingMode = false
                 resultOk = true
-                resultMsg = "Word-by-word sync saved ✓ (your version is now shown)"
+                resultMsg = context.getString(R.string.lrc_wordsync_saved)
             },
             onCancel = { wordTaggingMode = false }
         )
@@ -139,21 +141,21 @@ fun LrcPublishScreen(
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                 CircleBack(lc, onBack)
                 Spacer(Modifier.width(16.dp))
-                Text("Publish lyrics", color = lc.textPrimary, fontSize = 24.sp, fontWeight = FontWeight.Bold, fontFamily = VkSansDisplay)
+                Text(stringResource(R.string.publish_lyrics_title), color = lc.textPrimary, fontSize = 24.sp, fontWeight = FontWeight.Bold, fontFamily = VkSansDisplay)
             }
-            Text("Contribution to the open LRCLIB database for this track.",
+            Text(stringResource(R.string.lrc_contribution_hint),
                 color = lc.textSecondary, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp))
             Spacer(Modifier.height(18.dp))
 
             // ── Метаданные ──
             Card(lc) {
-                LabeledField("Title", trackName, { trackName = it }, lc, placeholder = "Track name")
+                LabeledField(stringResource(R.string.field_title), trackName, { trackName = it }, lc, placeholder = stringResource(R.string.track_name_placeholder))
                 Spacer(Modifier.height(10.dp))
-                LabeledField("Artist", artistName, { artistName = it }, lc, placeholder = "Artist")
+                LabeledField(stringResource(R.string.sort_artist), artistName, { artistName = it }, lc, placeholder = stringResource(R.string.section_artists))
                 Spacer(Modifier.height(10.dp))
-                LabeledField("Album", albumName, { albumName = it }, lc, placeholder = "Album")
+                LabeledField(stringResource(R.string.section_albums), albumName, { albumName = it }, lc, placeholder = stringResource(R.string.section_albums))
                 Spacer(Modifier.height(10.dp))
-                Text("Duration: ${durationSec}s (from file)", color = lc.textSecondary, fontSize = 12.sp)
+                Text(stringResource(R.string.duration_from_file, durationSec), color = lc.textSecondary, fontSize = 12.sp)
             }
             Spacer(Modifier.height(14.dp))
 
@@ -165,23 +167,23 @@ fun LrcPublishScreen(
             ) {
                 CheckMark(instrumental, lc)
                 Spacer(Modifier.width(12.dp))
-                Text("Instrumental track (no lyrics)", color = lc.textPrimary, fontSize = 15.sp)
+                Text(stringResource(R.string.instrumental_track), color = lc.textPrimary, fontSize = 15.sp)
             }
             Spacer(Modifier.height(8.dp))
 
             if (!instrumental) {
                 Card(lc) {
-                    LabeledField("Plain lyrics", plainLyrics, { plainLyrics = it }, lc,
-                        singleLine = false, minHeight = 120.dp, placeholder = "Song lines…")
+                    LabeledField(stringResource(R.string.plain_lyrics), plainLyrics, { plainLyrics = it }, lc,
+                        singleLine = false, minHeight = 120.dp, placeholder = stringResource(R.string.song_lines_placeholder))
                 }
                 Spacer(Modifier.height(12.dp))
                 Card(lc) {
                     val canTag = plainLyrics.lines().any { it.isNotBlank() }
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                        Text("Synced (LRC)", color = lc.textSecondary, fontSize = 12.sp,
+                        Text(stringResource(R.string.synced_lrc), color = lc.textSecondary, fontSize = 12.sp,
                             modifier = Modifier.weight(1f))
                         Text(
-                            "By line ▶",
+                            stringResource(R.string.by_line),
                             color = if (canTag) lc.accent else lc.textSecondary,
                             fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
                             modifier = Modifier.clip(RoundedCornerShape(8.dp))
@@ -199,17 +201,17 @@ fun LrcPublishScreen(
                 Card(lc) {
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text("Word-by-word sync (karaoke)", color = lc.textPrimary, fontSize = 14.sp,
+                            Text(stringResource(R.string.wordsync_karaoke), color = lc.textPrimary, fontSize = 14.sp,
                                 fontWeight = FontWeight.SemiBold)
                             Text(
-                                if (hasMine) "Saved — your version is shown (overrides LRCLIB)."
-                                else "Tap each word. Stored locally, takes priority over LRCLIB.",
+                                if (hasMine) stringResource(R.string.wordsync_saved_hint)
+                                else stringResource(R.string.wordsync_local_hint),
                                 color = lc.textSecondary, fontSize = 12.sp
                             )
                         }
                         val canWord = plainLyrics.lines().any { it.isNotBlank() }
                         Text(
-                            "By word ▶",
+                            stringResource(R.string.by_word_arrow),
                             color = if (canWord) lc.accent else lc.textSecondary,
                             fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
                             modifier = Modifier.clip(RoundedCornerShape(8.dp))
@@ -220,13 +222,13 @@ fun LrcPublishScreen(
                     if (hasMine) {
                         Spacer(Modifier.height(8.dp))
                         Text(
-                            "Delete my sync",
+                            stringResource(R.string.delete_my_sync),
                             color = lc.accentRed, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
                             modifier = Modifier.clip(RoundedCornerShape(8.dp))
                                 .clickable {
                                     LyricsParser.deleteMyWordLyrics(context, track.artist, track.title, track.durationMs, track.id)
                                     hasMine = false
-                                    resultOk = true; resultMsg = "Word-by-word sync deleted"
+                                    resultOk = true; resultMsg = context.getString(R.string.wordsync_deleted)
                                 }
                                 .padding(horizontal = 8.dp, vertical = 4.dp)
                         )
@@ -241,7 +243,7 @@ fun LrcPublishScreen(
                 modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
                     .background(if (publishing) lc.cardSurface else lc.accent)
                     .clickable(enabled = !publishing) {
-                        publishing = true; resultMsg = null; status = "Requesting task…"
+                        publishing = true; resultMsg = null; status = context.getString(R.string.status_requesting_task)
                         scope.launch {
                             val meta = LrcLibPublisher.Meta(
                                 trackName.trim(), artistName.trim(), albumName.trim(), durationSec
@@ -253,7 +255,7 @@ fun LrcPublishScreen(
                             when (res) {
                                 is LrcLibPublisher.Result.Success -> {
                                     resultOk = true
-                                    resultMsg = "Lyrics published ✓"
+                                    resultMsg = context.getString(R.string.lyrics_published)
                                     val lrc = synced.ifBlank { plain }
                                     if (lrc.isNotBlank()) runCatching {
                                         LyricsParser.cachePublishedLyrics(
@@ -279,7 +281,7 @@ fun LrcPublishScreen(
                         Text(status, color = lc.textPrimary, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
                     }
                 } else {
-                    Text("Publish", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    Text(stringResource(R.string.publish_action), color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
                 }
             }
 
@@ -347,15 +349,15 @@ private fun SyncTaggingMode(
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                 CircleBack(lc, ::returnFromMode)
                 Spacer(Modifier.width(16.dp))
-                Text("Sync", color = lc.textPrimary, fontSize = 22.sp, fontWeight = FontWeight.Bold,
+                Text(stringResource(R.string.sync_title), color = lc.textPrimary, fontSize = 22.sp, fontWeight = FontWeight.Bold,
                     fontFamily = VkSansDisplay,
                     modifier = Modifier.weight(1f))
-                Text("Done", color = lc.accent, fontSize = 16.sp, fontWeight = FontWeight.SemiBold,
+                Text(stringResource(R.string.action_done), color = lc.accent, fontSize = 16.sp, fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.clip(RoundedCornerShape(8.dp))
                         .clickable { PlayerController.setPlaybackSpeed(1f); onDone(buildLrc(lines, times)) }
                         .padding(horizontal = 10.dp, vertical = 6.dp))
             }
-            Text("Tap the line as it plays. Long-press a line to test from there.",
+            Text(stringResource(R.string.sync_hint_lines),
                 color = lc.textSecondary, fontSize = 13.sp, modifier = Modifier.padding(vertical = 6.dp))
 
             // транспорт
@@ -366,13 +368,13 @@ private fun SyncTaggingMode(
                 Spacer(Modifier.width(12.dp))
                 RoundIcon(com.lmg.vk.ui.icons.LmgGlyphs.RefreshOutline28, lc) { PlayerController.seekTo(0) }
                 Spacer(Modifier.width(12.dp))
-                Text("TEST", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold,
+                Text(stringResource(R.string.test_label), color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold,
                     modifier = Modifier.clip(RoundedCornerShape(10.dp)).background(lc.accentGreen)
                         .clickable { previewFrom = (nextIndex - 1).coerceAtLeast(0) }
                         .padding(horizontal = 12.dp, vertical = 10.dp))
                 Spacer(Modifier.width(12.dp))
                 Text(
-                    "TAP (line ${(nextIndex + 1).coerceAtMost(lines.size)})",
+                    stringResource(R.string.tap_line_n, (nextIndex + 1).coerceAtMost(lines.size)),
                     color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold,
                     modifier = Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(lc.accent)
                         .clickable(enabled = nextIndex < lines.size) {
@@ -485,15 +487,15 @@ private fun SyncWordTaggingMode(
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                 CircleBack(lc, ::returnFromMode)
                 Spacer(Modifier.width(16.dp))
-                Text("By word", color = lc.textPrimary, fontSize = 22.sp, fontWeight = FontWeight.Bold,
+                Text(stringResource(R.string.by_word), color = lc.textPrimary, fontSize = 22.sp, fontWeight = FontWeight.Bold,
                     fontFamily = VkSansDisplay,
                     modifier = Modifier.weight(1f))
-                Text("Done", color = lc.accent, fontSize = 16.sp, fontWeight = FontWeight.SemiBold,
+                Text(stringResource(R.string.action_done), color = lc.accent, fontSize = 16.sp, fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.clip(RoundedCornerShape(8.dp))
                         .clickable { PlayerController.setPlaybackSpeed(1f); onDone(buildEnhancedLrc(wordRows, lineStart, times)) }
                         .padding(horizontal = 10.dp, vertical = 6.dp))
             }
-            Text("Tap each word as it plays. Long-press a word to test from its line.",
+            Text(stringResource(R.string.sync_hint_words),
                 color = lc.textSecondary, fontSize = 13.sp, modifier = Modifier.padding(vertical = 6.dp))
 
             // транспорт + большой TAP
@@ -504,13 +506,13 @@ private fun SyncWordTaggingMode(
                 Spacer(Modifier.width(12.dp))
                 RoundIcon(com.lmg.vk.ui.icons.LmgGlyphs.RefreshOutline28, lc) { PlayerController.seekTo(0) }
                 Spacer(Modifier.width(12.dp))
-                Text("TEST", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold,
+                Text(stringResource(R.string.test_label), color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold,
                     modifier = Modifier.clip(RoundedCornerShape(10.dp)).background(lc.accentGreen)
                         .clickable { previewFrom = lineOf((nextIndex - 1).coerceAtLeast(0)) }
                         .padding(horizontal = 12.dp, vertical = 10.dp))
                 Spacer(Modifier.width(12.dp))
                 Text(
-                    "TAP (word ${(nextIndex + 1).coerceAtMost(total)}/$total)",
+                    stringResource(R.string.tap_word_n, (nextIndex + 1).coerceAtMost(total), total),
                     color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold,
                     modifier = Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(lc.accent)
                         .clickable(enabled = nextIndex < total) {
@@ -615,7 +617,7 @@ private fun SpeedRow(lc: LiquidColors) {
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text("Speed:", color = lc.textSecondary, fontSize = 12.sp)
+        Text(stringResource(R.string.speed_label), color = lc.textSecondary, fontSize = 12.sp)
         for (i in 10 downTo 1) {
             val v = i / 10f
             val sel = kotlin.math.abs(speed - v) < 0.01f

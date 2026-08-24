@@ -27,11 +27,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.lmg.vk.R
 import com.lmg.vk.engine.PlayerController
 import com.lmg.vk.engine.Track
 import com.lmg.vk.engine.VkAudioIdentity
@@ -78,18 +80,18 @@ fun HistoryScreen(
         ) {
             item(key = "vk_history_header") {
                 SectionTopBar(
-                    title = "История VK",
+                    title = stringResource(R.string.vk_history),
                     subtitle = when {
-                        state.accountId == null -> "Войдите в аккаунт VK"
-                        state.tracks.isEmpty() -> "Недавние прослушивания"
-                        else -> "${state.tracks.size} треков"
+                        state.accountId == null -> stringResource(R.string.sign_in_vk_account)
+                        state.tracks.isEmpty() -> stringResource(R.string.recent_listenings)
+                        else -> stringResource(R.plurals.track_count, state.tracks.size)
                     },
                     isDark = colors.isDark,
                     onBack = onBack,
                     actions = if (state.accountId != null) {
                         {
                             SectionTopBarAction(
-                                label = "Обновить",
+                                label = stringResource(R.string.action_refresh),
                                 icon = LmgGlyphs.RefreshOutline28,
                                 filled = false,
                                 enabled = !state.isLoading,
@@ -117,7 +119,7 @@ fun HistoryScreen(
                 }
 
                 state.accountId == null -> item(key = "vk_history_auth") {
-                    HistoryMessage("История VK доступна после входа в аккаунт")
+                    HistoryMessage(stringResource(R.string.history_requires_login))
                 }
 
                 state.tracks.isEmpty() && state.error != null -> item(key = "vk_history_error") {
@@ -125,7 +127,7 @@ fun HistoryScreen(
                 }
 
                 state.tracks.isEmpty() -> item(key = "vk_history_empty") {
-                    HistoryMessage("В истории пока ничего нет")
+                    HistoryMessage(stringResource(R.string.history_empty))
                 }
 
                 else -> {
@@ -180,7 +182,7 @@ fun HistoryScreen(
                                 },
                                 modifier = Modifier.fillMaxWidth().padding(12.dp),
                             ) {
-                                Text("${state.error}. Повторить")
+                                Text(stringResource(R.string.error_retry_suffix, state.error))
                             }
                         }
                     }
@@ -192,7 +194,7 @@ fun HistoryScreen(
     pendingRemoval?.let { track ->
         AlertDialog(
             onDismissRequest = { pendingRemoval = null },
-            title = { Text("Убрать из истории?") },
+            title = { Text(stringResource(R.string.remove_from_history_title)) },
             text = { Text("${track.artist} — ${track.title}") },
             confirmButton = {
                 TextButton(
@@ -201,12 +203,12 @@ fun HistoryScreen(
                         viewModel.remove(track)
                     },
                 ) {
-                    Text("Убрать")
+                    Text(stringResource(R.string.action_remove))
                 }
             },
             dismissButton = {
                 TextButton(onClick = { pendingRemoval = null }) {
-                    Text("Отмена")
+                    Text(stringResource(R.string.action_cancel))
                 }
             },
         )

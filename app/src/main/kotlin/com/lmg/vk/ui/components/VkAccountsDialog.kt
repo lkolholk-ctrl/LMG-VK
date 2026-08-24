@@ -27,12 +27,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.lmg.vk.R
 import com.lmg.vk.engine.backend.VkAccountSummary
 import com.lmg.vk.ui.glass.GlassCustomDialog
 import com.lmg.vk.ui.glass.GlassDialogButton
@@ -69,13 +71,13 @@ fun VkAccountsDialog(
         onDismiss = onDismiss,
         icon = lmgVector(LmgDrawables.Users3Outline28),
         iconTint = colors.accent,
-        title = "VK accounts",
+        title = stringResource(R.string.vk_accounts_title),
         subtitle = when {
-            accounts.size <= 1 -> "Manage saved accounts or add another session"
-            else -> "${accounts.size} saved accounts on this device"
+            accounts.size <= 1 -> stringResource(R.string.vk_accounts_subtitle_single)
+            else -> stringResource(R.string.vk_accounts_subtitle_many, accounts.size)
         },
         primaryButton = GlassDialogButton(
-            text = "Close",
+            text = stringResource(R.string.action_close),
             backgroundColor = if (isDark) Color.White.copy(alpha = 0.08f) else Color(0xFFF2F2F7),
             textColor = colors.textPrimary,
             onClick = onDismiss,
@@ -144,7 +146,7 @@ fun VkAccountsDialog(
                 )
                 Spacer(Modifier.width(10.dp))
                 Text(
-                    text = "Add VK account",
+                    text = stringResource(R.string.vk_accounts_add),
                     color = colors.accent,
                     fontFamily = VkSansText,
                     fontWeight = FontWeight.SemiBold,
@@ -253,7 +255,7 @@ private fun AccountPickerItem(
                         contentAlignment = Alignment.Center,
                     ) {
                         Text(
-                            text = "Active",
+                            text = stringResource(R.string.vk_account_active),
                             fontFamily = VkSansText,
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold,
@@ -266,7 +268,7 @@ private fun AccountPickerItem(
             Spacer(Modifier.height(2.dp))
 
             val subtitleText = when {
-                account.isExpired -> "Sign-in expired"
+                account.isExpired -> stringResource(R.string.vk_account_session_expired)
                 account.username.isNotBlank() -> "vk.com/${account.username}"
                 else -> "VK ID ${account.userId}"
             }
@@ -298,7 +300,7 @@ private fun AccountPickerItem(
         ) {
             Icon(
                 imageVector = lmgVector(LmgDrawables.DeleteOutline28),
-                contentDescription = "Remove account",
+                contentDescription = stringResource(R.string.vk_account_remove),
                 tint = DestructiveColor,
                 modifier = Modifier.size(18.dp),
             )

@@ -33,12 +33,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
+import com.lmg.vk.R
 import com.lmg.vk.ui.glass.AlbumArtImage
 import com.lmg.vk.ui.glass.AlbumColors
 import com.lmg.vk.ui.glass.liquidClickable
@@ -187,10 +189,10 @@ fun LyricShareOverlay(
                 ) {
                     Icon(com.lmg.vk.ui.icons.LmgGlyphs.ShareOutline28, null, tint = Color.Black, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(8.dp))
-                    Text("Share", color = Color.Black, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                    Text(stringResource(R.string.action_share), color = Color.Black, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
                 }
                 Text(
-                    "Close", color = Color.White.copy(alpha = 0.7f), fontSize = 15.sp,
+                    stringResource(R.string.action_close), color = Color.White.copy(alpha = 0.7f), fontSize = 15.sp,
                     modifier = Modifier
                         .clip(RoundedCornerShape(50))
                         .background(Color.White.copy(alpha = 0.1f))
@@ -219,10 +221,10 @@ private suspend fun captureAndShare(
             putExtra(Intent.EXTRA_STREAM, uri)
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
-        context.startActivity(Intent.createChooser(intent, "Share lyrics"))
+        context.startActivity(Intent.createChooser(intent, context.getString(R.string.share_lyrics)))
         true
     } catch (e: Exception) {
-        android.widget.Toast.makeText(context, "Couldn't share", android.widget.Toast.LENGTH_SHORT).show()
+        android.widget.Toast.makeText(context, R.string.couldnt_share, android.widget.Toast.LENGTH_SHORT).show()
         false
     }
 }

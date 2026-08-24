@@ -37,9 +37,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.lmg.vk.R
 import com.lmg.vk.engine.AudioDownloadManager
 import com.lmg.vk.engine.PlaybackContext
 import com.lmg.vk.engine.Track
@@ -117,7 +120,7 @@ fun AlbumDetailScreen(
         try {
             album = MusicBackend.getAlbum(albumId)
             isFollowing = album?.album?.isFollowing == true
-            if (album == null) error = MusicBackend.lastError.value ?: "Album not found"
+            if (album == null) error = MusicBackend.lastError.value ?: context.getString(R.string.album_not_found)
         } catch (e: Exception) {
             error = e.message
         } finally {
@@ -195,9 +198,9 @@ fun AlbumDetailScreen(
         }
     }
     val cacheLabel = when {
-        playableTracks.isNotEmpty() && cachedCount == playableTracks.size -> "Cached"
+        playableTracks.isNotEmpty() && cachedCount == playableTracks.size -> stringResource(R.string.cached_label)
         activeDownloadProgress.isNotEmpty() -> "${(cacheProgress * 100).toInt()}%"
-        else -> "Cache"
+        else -> stringResource(R.string.action_cache)
     }
 
     var albumPlayCount by remember(albumId) { mutableStateOf(0) }
@@ -261,7 +264,7 @@ fun AlbumDetailScreen(
                         )
                         Spacer(Modifier.width(7.dp))
                         Text(
-                            "Retry",
+                            stringResource(R.string.action_retry),
                             color = LiquidSurfaces.textPrimary(isDark),
                             fontWeight = FontWeight.SemiBold,
                         )
@@ -341,9 +344,9 @@ fun AlbumDetailScreen(
                                         followBusy = true
                                         if (MusicBackend.followAlbum(albumId)) {
                                             isFollowing = true
-                                            Toast.makeText(context, "Album added", Toast.LENGTH_SHORT).show()
+                                            Toast.makeText(context, R.string.album_added, Toast.LENGTH_SHORT).show()
                                         } else {
-                                            Toast.makeText(context, "Couldn't add album", Toast.LENGTH_SHORT).show()
+                                            Toast.makeText(context, R.string.album_add_failed, Toast.LENGTH_SHORT).show()
                                         }
                                         followBusy = false
                                     }
@@ -353,7 +356,7 @@ fun AlbumDetailScreen(
                                 playableTracks.forEach { AudioDownloadManager.downloadTrack(context, it) }
                                 Toast.makeText(
                                     context,
-                                    "Caching ${playableTracks.size} tracks",
+                                    context.resources.getQuantityString(R.plurals.caching_tracks, playableTracks.size, playableTracks.size),
                                     Toast.LENGTH_SHORT,
                                 ).show()
                             },
@@ -361,7 +364,7 @@ fun AlbumDetailScreen(
                                 playableTracks.forEach(PlayerController::addToQueue)
                                 Toast.makeText(
                                     context,
-                                    "Added ${playableTracks.size} tracks to queue",
+                                    context.resources.getQuantityString(R.plurals.added_to_queue, playableTracks.size, playableTracks.size),
                                     Toast.LENGTH_SHORT,
                                 ).show()
                             },
@@ -419,7 +422,7 @@ fun AlbumDetailScreen(
                                 )
                                 Icon(
                                     com.lmg.vk.ui.icons.LmgGlyphs.ArrowRightOutline28,
-                                    contentDescription = "Open artist",
+                                    contentDescription = stringResource(R.string.open_artist),
                                     tint = LiquidSurfaces.textSecondary(isDark),
                                     modifier = Modifier.size(19.dp),
                                 )
@@ -440,7 +443,7 @@ fun AlbumDetailScreen(
                     itemsIndexed(trackRows, key = { _, row -> row.track.id }) { index, row ->
                         row.discHeader?.let { disc ->
                             Text(
-                                text = "Disc $disc",
+                                text = stringResource(R.string.disc_title, disc),
                                 color = LiquidSurfaces.textSecondary(isDark),
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.SemiBold,
@@ -485,11 +488,11 @@ fun AlbumDetailScreen(
 
                     item {
                         val metadata = buildList {
-                            info?.releaseDate?.takeIf { it.isNotBlank() }?.let { add("Released $it") }
-                            info?.plays?.takeIf { it > 0 }?.let { add("${formatCount(it)} plays") }
-                            info?.followers?.takeIf { it > 0 }?.let { add("${formatCount(it)} followers") }
-                            info?.createdAt?.takeIf { it > 0L }?.let { add("Created ${formatCatalogDate(it)}") }
-                            info?.updatedAt?.takeIf { it > 0L }?.let { add("Updated ${formatCatalogDate(it)}") }
+                            info?.releaseDate?.takeIf { it.isNotBlank() }?.let { add(stringResource(R.string.released_date, it)) }
+                            info?.plays?.takeIf { it > 0 }?.let { add(stringResource(R.string.plays_count, formatCount(it))) }
+                            info?.followers?.takeIf { it > 0 }?.let { add(stringResource(R.string.followers_count, formatCount(it))) }
+                            info?.createdAt?.takeIf { it > 0L }?.let { add(stringResource(R.string.created_at, formatCatalogDate(it))) }
+                            info?.updatedAt?.takeIf { it > 0L }?.let { add(stringResource(R.string.updated_at, formatCatalogDate(it))) }
                         }
                         if (metadata.isNotEmpty() || !info?.description.isNullOrBlank()) {
                             Column(
@@ -540,7 +543,7 @@ fun AlbumDetailScreen(
                     val added = PlaylistManager.addTrack(playlist.id, selected)
                     Toast.makeText(
                         context,
-                        if (added) "Added to ${playlist.name}" else "Already in ${playlist.name}",
+                        if (added) context.getString(R.string.added_to_playlist, playlist.name) else context.getString(R.string.already_in_playlist, playlist.name),
                         Toast.LENGTH_SHORT,
                     ).show()
                     playlistPickerTrack = null
@@ -596,9 +599,9 @@ private fun AlbumActionsRow(
     ) {
         AlbumActionButton(
             when {
-                isFollowing -> "Added"
-                isAdding -> "Adding…"
-                else -> "Add"
+                isFollowing -> stringResource(R.string.in_library)
+                isAdding -> stringResource(R.string.adding_short)
+                else -> stringResource(R.string.action_add)
             },
             if (isFollowing) com.lmg.vk.ui.icons.LmgGlyphs.BookmarkCheckOutline28
             else lmgVector(LmgDrawables.BookmarkAddOutline28),
@@ -607,8 +610,8 @@ private fun AlbumActionsRow(
             onAdd,
         )
         AlbumActionButton(cacheLabel, com.lmg.vk.ui.icons.LmgGlyphs.DownloadOutline28, canDownload, isDark, onDownload)
-        AlbumActionButton("Queue", com.lmg.vk.ui.icons.LmgGlyphs.ListPlayOutline28, canQueue, isDark, onQueue)
-        AlbumActionButton("Share", com.lmg.vk.ui.icons.LmgGlyphs.ShareOutline28, true, isDark, onShare)
+        AlbumActionButton(stringResource(R.string.action_queue), com.lmg.vk.ui.icons.LmgGlyphs.ListPlayOutline28, canQueue, isDark, onQueue)
+        AlbumActionButton(stringResource(R.string.action_share), com.lmg.vk.ui.icons.LmgGlyphs.ShareOutline28, true, isDark, onShare)
     }
 }
 
@@ -627,14 +630,14 @@ private fun AlbumPersonalStrip(
             .padding(horizontal = 16.dp, vertical = 13.dp),
     ) {
         Text(
-            "You played this album $playCount times",
+            pluralStringResource(R.plurals.album_played_times, playCount, playCount),
             color = LiquidSurfaces.textPrimary(isDark),
             fontSize = 14.sp,
             fontWeight = FontWeight.SemiBold,
         )
         favouriteTrack?.takeIf { it.isNotBlank() }?.let {
             Text(
-                "Most played: $it",
+                stringResource(R.string.most_played_track, it),
                 color = LiquidSurfaces.textSecondary(isDark),
                 fontSize = 12.sp,
                 modifier = Modifier.padding(top = 3.dp),
@@ -677,7 +680,7 @@ private fun formatCatalogDate(seconds: Long): String =
     SimpleDateFormat("d MMM yyyy", Locale.getDefault()).format(Date(seconds * 1000L))
 
 private fun formatCount(value: Int): String = when {
-    value >= 1_000_000 -> "%.1fM".format(Locale.US, value / 1_000_000f)
-    value >= 1_000 -> "%.1fK".format(Locale.US, value / 1_000f)
+    value >= 1_000_000 -> "%.1f млн".format(value / 1_000_000f)
+    value >= 1_000 -> "%.1f тыс.".format(value / 1_000f)
     else -> value.toString()
 }

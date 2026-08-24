@@ -40,11 +40,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import coil.compose.AsyncImage
+import com.lmg.vk.R
 import com.lmg.vk.network.CaptchaPrompt
 import com.lmg.vk.ui.glass.liquidClickable
 import com.lmg.vk.ui.icons.LmgDrawables
@@ -134,7 +136,7 @@ fun VkCaptchaDialog(
                     Spacer(Modifier.height(14.dp))
 
                     Text(
-                        text = "Security check",
+                        text = stringResource(R.string.captcha_title),
                         fontFamily = VkSansDisplay,
                         fontWeight = FontWeight.Bold,
                         fontSize = 20.sp,
@@ -145,7 +147,7 @@ fun VkCaptchaDialog(
                     Spacer(Modifier.height(6.dp))
 
                     Text(
-                        text = "Enter the characters from the image to continue",
+                        text = stringResource(R.string.captcha_subtitle),
                         fontFamily = VkSansText,
                         fontSize = 13.sp,
                         color = colors.textSecondary,
@@ -171,7 +173,7 @@ fun VkCaptchaDialog(
                     ) {
                         AsyncImage(
                             model = prompt.imageUrl,
-                            contentDescription = "VK Captcha Image",
+                            contentDescription = stringResource(R.string.captcha_image),
                             contentScale = ContentScale.Fit,
                             modifier = Modifier
                                 .fillMaxSize()
@@ -187,7 +189,7 @@ fun VkCaptchaDialog(
                         onValueChange = { input ->
                             code = input.filter { it.code in 33..126 }
                         },
-                        label = { Text("Captcha code", fontFamily = VkSansText) },
+                        label = { Text(stringResource(R.string.captcha_code_label), fontFamily = VkSansText) },
                         leadingIcon = {
                             Icon(
                                 imageVector = lmgVector(LmgDrawables.KeySquareOutline28),
@@ -245,7 +247,7 @@ fun VkCaptchaDialog(
                             contentAlignment = Alignment.Center,
                         ) {
                             Text(
-                                text = "Cancel",
+                                text = stringResource(R.string.action_cancel),
                                 color = colors.textPrimary,
                                 fontFamily = VkSansText,
                                 fontWeight = FontWeight.Medium,
@@ -271,7 +273,7 @@ fun VkCaptchaDialog(
                             contentAlignment = Alignment.Center,
                         ) {
                             Text(
-                                text = "Submit",
+                                text = stringResource(R.string.action_submit),
                                 color = Color.White,
                                 fontFamily = VkSansText,
                                 fontWeight = FontWeight.SemiBold,

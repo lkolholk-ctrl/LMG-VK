@@ -48,6 +48,7 @@ import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -62,6 +63,7 @@ import com.kyant.backdrop.effects.vibrancy
 import com.kyant.backdrop.highlight.Highlight
 import com.kyant.backdrop.shadow.InnerShadow
 import com.kyant.backdrop.shadow.Shadow
+import com.lmg.vk.R
 import com.lmg.vk.engine.AppSettings
 import com.lmg.vk.engine.AppUpdater
 import com.lmg.vk.engine.NotificationRouter
@@ -403,7 +405,7 @@ fun AppRoot() {
     val durationMs by PlayerController.durationMs.collectAsState()
     val volume by PlayerController.volume.collectAsState()
 
-    val trackTitle = currentTrack?.title ?: "No track"
+    val trackTitle = currentTrack?.title ?: context.getString(R.string.no_track)
     val artistName = currentTrack?.artist ?: "—"
 
     val expandProgress = remember { Animatable(0f) }
@@ -1052,7 +1054,7 @@ fun AppRoot() {
                     } else if (!account.isActive && com.lmg.vk.engine.backend.MusicAuth.switchAccount(account.userId)) {
                         accountsDialogOpen = false
                     } else if (!account.isActive) {
-                        accountActionError = "Wait for library synchronization to finish"
+                        accountActionError = context.getString(R.string.wait_for_sync)
                     }
                 },
                 onRemoveAccount = { account ->
@@ -1073,7 +1075,7 @@ fun AppRoot() {
 
         accountPendingRemoval?.let { account ->
             val removeMessage = buildString {
-                append("Only this encrypted session will be removed from the device.")
+                append(context.getString(R.string.remove_session_body))
                 if (!accountActionError.isNullOrBlank()) {
                     append("\n\n")
                     append(accountActionError)
@@ -1088,10 +1090,10 @@ fun AppRoot() {
                 },
                 icon = lmgVector(LmgDrawables.DeleteOutline28),
                 iconTint = Color(0xFFFC3C44),
-                title = "Remove ${account.displayName}?",
+                title = stringResource(R.string.remove_account_question, account.displayName),
                 message = removeMessage,
                 primaryButton = GlassDialogButton(
-                    text = "Remove",
+                    text = stringResource(R.string.action_remove),
                     backgroundColor = Color(0xFFFC3C44),
                     onClick = {
                         if (com.lmg.vk.engine.backend.MusicAuth.removeAccount(account.userId)) {
@@ -1102,12 +1104,12 @@ fun AppRoot() {
                                 closeRootOverlay(RootOverlay.PROFILE)
                             }
                         } else {
-                            accountActionError = "Wait for library synchronization to finish"
+                            accountActionError = context.getString(R.string.wait_for_sync)
                         }
                     },
                 ),
                 secondaryButton = GlassDialogButton(
-                    text = "Cancel",
+                    text = stringResource(R.string.action_cancel),
                     onClick = {
                         accountPendingRemoval = null
                         if (reopenAccountsAfterRemoval) accountsDialogOpen = true

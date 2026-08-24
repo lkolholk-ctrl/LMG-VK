@@ -56,6 +56,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.zIndex
@@ -63,6 +64,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.lmg.vk.R
 import com.lmg.vk.ui.icons.LmgDrawables
 import com.lmg.vk.ui.icons.lmgVector
 import com.lmg.vk.engine.PlaybackBackend
@@ -179,7 +181,7 @@ fun QueueSheet(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "Queue",
+                        text = stringResource(R.string.queue_title),
                         color = LiquidSurfaces.onHeaderPrimary,
                         fontSize = 22.sp,
                         fontWeight = FontWeight.SemiBold,
@@ -339,9 +341,9 @@ fun QueueSheet(
                 // У остатка подборки заголовка нет: он и так очевиден — это то,
                 // что играло бы дальше само по себе. Строки просто идут следом.
                 val sectionSpecs = listOf(
-                    QueueSectionSpec("Up Next", 0, manualCount, clearable = true),
+                    QueueSectionSpec(stringResource(R.string.up_next_section), 0, manualCount, clearable = true),
                     QueueSectionSpec(null, manualCount, contextCount),
-                    QueueSectionSpec("My Wave", manualCount + contextCount, waveCount)
+                    QueueSectionSpec(stringResource(R.string.mood_my_wave), manualCount + contextCount, waveCount)
                 ).filter { it.count > 0 }
 
                 LazyColumn(
@@ -400,11 +402,11 @@ fun QueueSheet(
                             // или на локальном треке — неправда, и выглядит поломкой.
                             val (icon, message) = when {
                                 repeatMode != 0 ->
-                                    com.lmg.vk.ui.icons.LmgGlyphs.RepeatOutline28 to "Repeat is on — playing in a loop"
+                                    com.lmg.vk.ui.icons.LmgGlyphs.RepeatOutline28 to stringResource(R.string.repeat_on_hint)
                                 !queueEditable ->
-                                    com.lmg.vk.ui.icons.LmgGlyphs.MusicNote24 to "Local track plays on its own"
+                                    com.lmg.vk.ui.icons.LmgGlyphs.MusicNote24 to stringResource(R.string.local_track_hint)
                                 else ->
-                                    com.lmg.vk.ui.icons.LmgGlyphs.MusicNoteWaveOutline28 to "Finding what plays next"
+                                    com.lmg.vk.ui.icons.LmgGlyphs.MusicNoteWaveOutline28 to stringResource(R.string.finding_next_hint)
                             }
                             Box(
                                 modifier = Modifier.fillMaxSize(),
@@ -449,7 +451,7 @@ fun QueueSheet(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "Removed",
+                        text = stringResource(R.string.removed_label),
                         color = LiquidSurfaces.onHeaderPrimary.copy(alpha = 0.75f),
                         fontSize = 13.sp,
                         maxLines = 1,
@@ -457,7 +459,7 @@ fun QueueSheet(
                     )
                     Spacer(Modifier.width(14.dp))
                     Text(
-                        text = "Undo",
+                        text = stringResource(R.string.feedback_undo),
                         color = colors.accentRed,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Bold,
@@ -518,7 +520,7 @@ private fun QueueSectionHeader(
                     .padding(horizontal = 10.dp, vertical = 3.dp)
             ) {
                 Text(
-                    text = "Clear",
+                    text = stringResource(R.string.action_clear),
                     color = LiquidSurfaces.onHeaderPrimary.copy(alpha = 0.60f),
                     fontSize = 12.sp
                 )
@@ -551,6 +553,9 @@ private fun DraggableQueueRow(
 ) {
     val scope = rememberCoroutineScope()
     val density = LocalDensity.current
+    val moveUpAction = stringResource(R.string.action_move_up)
+    val moveDownAction = stringResource(R.string.action_move_down)
+    val removeAction = stringResource(R.string.remove_from_queue)
     val rowHeightPx = remember(density) { with(density) { LiquidMetrics.QueueRowHeight.toPx() } }
     val removeThresholdPx = remember(density) { with(density) { LiquidMetrics.QueueSwipeThreshold.toPx() } }
     val indexState = rememberUpdatedState(index)
@@ -573,9 +578,9 @@ private fun DraggableQueueRow(
                 contentDescription = "${track.title}, ${track.artist}"
                 if (editable) {
                     customActions = listOf(
-                        CustomAccessibilityAction("Move up") { moveBy(-1); true },
-                        CustomAccessibilityAction("Move down") { moveBy(1); true },
-                        CustomAccessibilityAction("Remove from queue") {
+                        CustomAccessibilityAction(moveUpAction) { moveBy(-1); true },
+                        CustomAccessibilityAction(moveDownAction) { moveBy(1); true },
+                        CustomAccessibilityAction(removeAction) {
                             PlayerController.removeQueueItem(absoluteIndex(indexState.value)); true
                         }
                     )

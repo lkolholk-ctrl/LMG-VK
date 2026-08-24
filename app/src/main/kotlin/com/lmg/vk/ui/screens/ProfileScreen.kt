@@ -1,5 +1,6 @@
 package com.lmg.vk.ui.screens
 
+import android.content.Context
 import androidx.activity.compose.BackHandler
 import android.content.Intent
 import android.net.Uri
@@ -34,7 +35,9 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import com.lmg.vk.R
 import com.lmg.vk.ui.glass.GlassDialog
+import com.lmg.vk.R
 import com.lmg.vk.ui.glass.GlassDialogButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -58,6 +61,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -146,7 +150,7 @@ fun ProfileScreen(
     val profile = vk.profile
     val displayName = profile?.displayName?.takeIf(String::isNotBlank)
         ?: fallbackName?.takeIf(String::isNotBlank)
-        ?: if (isLoggedIn) "VK account" else "Guest"
+        ?: if (isLoggedIn) stringResource(R.string.vk_account_label) else stringResource(R.string.guest)
     val slug = profile?.addressSlug?.takeIf(String::isNotBlank)
         ?: fallbackDomain?.takeIf(String::isNotBlank)
     // Для шапки во всю ширину нужен ОРИГИНАЛ (crop_photo), а не превью:
@@ -155,9 +159,9 @@ fun ProfileScreen(
     val avatarUrl = profile?.largePhotoUrl?.takeIf(String::isNotBlank) ?: fallbackAvatar
     val accountSubtitle = when {
         !slug.isNullOrBlank() -> "vk.com/$slug"
-        profileId != null -> "VK ID $profileId"
-        isLoggedIn -> "VK account"
-        else -> "Sign in to restore your VK library"
+        profileId != null -> stringResource(R.string.vk_id_value, profileId)
+        isLoggedIn -> stringResource(R.string.vk_account_label)
+        else -> stringResource(R.string.sign_in_restore_library)
     }
     val playlistPreview = remember(vk.playlists) { vk.playlists.take(12) }
     val onlineFriends = remember(vk.friends) {
@@ -178,6 +182,7 @@ fun ProfileScreen(
     }
     val lastSeenLabel = remember(profile?.isOnline, profile?.onlineInfo, profile?.lastSeen) {
         formatPresenceLabel(
+            context = context,
             isOnline = profile?.isOnline == true,
             onlineLastSeen = profile?.onlineInfo?.takeIf { it.visible }?.lastSeen,
             lastSeenTime = profile?.lastSeen?.time?.takeIf {
@@ -235,9 +240,9 @@ fun ProfileScreen(
     if (showSignOutConfirmation) {
         val signOutMessage = buildString {
             if (accounts.size > 1) {
-                append("This account will be removed from the device and another saved account will become active.")
+                append(stringResource(R.string.remove_account_body_1))
             } else {
-                append("Your encrypted local VK session will be removed from this device.")
+                append(stringResource(R.string.remove_account_body_2))
             }
             if (!accountActionError.isNullOrBlank()) {
                 append("\n\n")
@@ -249,10 +254,10 @@ fun ProfileScreen(
             onDismiss = { showSignOutConfirmation = false },
             icon = lmgVector(LmgDrawables.DoorArrowLeftOutline28),
             iconTint = DestructiveRed,
-            title = "Sign out of VK?",
+            title = stringResource(R.string.sign_out_question),
             message = signOutMessage,
             primaryButton = GlassDialogButton(
-                text = "Sign out",
+                text = stringResource(R.string.sign_out_action),
                 backgroundColor = DestructiveRed,
                 onClick = {
                     if (MusicAuth.logout()) {
@@ -261,12 +266,12 @@ fun ProfileScreen(
                             onLogout()
                         }
                     } else {
-                        accountActionError = "Wait for library synchronization to finish"
+                        accountActionError = context.getString(R.string.wait_for_sync)
                     }
                 },
             ),
             secondaryButton = GlassDialogButton(
-                text = "Cancel",
+                text = stringResource(R.string.action_cancel),
                 onClick = { showSignOutConfirmation = false },
             ),
         )
@@ -321,16 +326,16 @@ fun ProfileScreen(
                 // внутренняя механика, пользователю знать про рефреш незачем.
                 item {
                     val facts = buildList {
-                        add(com.lmg.vk.ui.icons.LmgGlyphs.UserOutline28 to ("VK ID" to
+                        add(com.lmg.vk.ui.icons.LmgGlyphs.UserOutline28 to (stringResource(R.string.vk_id_label) to
                             ((profile?.id ?: profileId)?.toString() ?: "…")))
                         if (!slug.isNullOrBlank()) {
-                            add(com.lmg.vk.ui.icons.LmgGlyphs.LinkOutline28 to ("Address" to "vk.com/$slug"))
+                            add(com.lmg.vk.ui.icons.LmgGlyphs.LinkOutline28 to (stringResource(R.string.address_label) to "vk.com/$slug"))
                         }
                         profile?.locationLabel?.takeIf(String::isNotBlank)?.let {
-                            add(lmgVector(LmgDrawables.PlaceOutline28) to ("Location" to it))
+                            add(lmgVector(LmgDrawables.PlaceOutline28) to (stringResource(R.string.fact_location) to it))
                         }
                         profile?.bdate?.takeIf(String::isNotBlank)?.let {
-                            add(com.lmg.vk.ui.icons.LmgGlyphs.CakeOutline28 to ("Birthday" to formatBirthday(it)))
+                            add(com.lmg.vk.ui.icons.LmgGlyphs.CakeOutline28 to (stringResource(R.string.fact_birthday) to formatBirthday(it)))
                         }
                     }
                     ProfileFactGrid(facts = facts, compact = compact)
@@ -339,12 +344,12 @@ fun ProfileScreen(
 
                 item {
                     ProfileCard {
-                        ProfileSectionLabel("MY MUSIC")
+                        ProfileSectionLabel(stringResource(R.string.section_my_music))
                         ProfileMetricsRow(
                             firstValue = vk.audioTotal.orDash(),
-                            firstLabel = "Tracks in VK",
+                            firstLabel = stringResource(R.string.tracks_in_vk),
                             secondValue = (vk.playlistsTotal ?: vk.playlists.size.takeIf { it > 0 }).orDash(),
-                            secondLabel = "Playlists",
+                            secondLabel = stringResource(R.string.playlists_title),
                             compact = compact,
                             onFirstClick = {
                                 val p = profile
@@ -380,10 +385,10 @@ fun ProfileScreen(
                         ProfileDivider()
                         ProfileNavigationRow(
                             icon = com.lmg.vk.ui.icons.LmgGlyphs.ListPlayOutline28,
-                            label = "My tracks on VK",
+                            label = stringResource(R.string.my_tracks_on_vk),
                             value = when {
-                                vk.audioTotal != null -> "${formatCount(vk.audioTotal!!)} tracks · open list"
-                                else -> "Open your VK audio"
+                                vk.audioTotal != null -> stringResource(R.string.tracks_open_list, formatCount(vk.audioTotal!!))
+                                else -> stringResource(R.string.open_vk_audio)
                             },
                             compact = compact,
                             onClick = {
@@ -398,8 +403,8 @@ fun ProfileScreen(
                         ProfileDivider()
                         ProfileNavigationRow(
                             icon = com.lmg.vk.ui.icons.LmgGlyphs.ListOutline28,
-                            label = "My Library",
-                            value = "Favorites, playlists & downloads",
+                            label = stringResource(R.string.my_library),
+                            value = stringResource(R.string.library_summary_line),
                             compact = compact,
                             onClick = onOpenLibrary,
                         )
@@ -412,7 +417,7 @@ fun ProfileScreen(
                 // сейчас в сети (из уже загруженной первой страницы friends.get).
                 item {
                     ProfileCard {
-                        ProfileSectionLabel("SOCIAL")
+                        ProfileSectionLabel(stringResource(R.string.section_social))
                         if (onlineFriends.isNotEmpty()) {
                             ProfileOnlineFriendsStrip(
                                 friends = onlineFriends,
@@ -429,9 +434,9 @@ fun ProfileScreen(
                         }
                         ProfileMetricsRow(
                             firstValue = (vk.friendsTotal ?: vk.profile?.counters?.friends).orDash(),
-                            firstLabel = "Friends",
+                            firstLabel = stringResource(R.string.friends_title),
                             secondValue = (vk.groupsTotal ?: vk.profile?.counters?.groups).orDash(),
-                            secondLabel = "Communities",
+                            secondLabel = stringResource(R.string.communities_title),
                             compact = compact,
                             onFirstClick = {
                                 onlineFriendsOnly = false
@@ -445,9 +450,9 @@ fun ProfileScreen(
                         // делать плитку кликабельной «в никуда» нельзя.
                         ProfileMetricsRow(
                             firstValue = (profile?.followersCount ?: profile?.counters?.followers).orDash(),
-                            firstLabel = "Followers",
+                            firstLabel = stringResource(R.string.followers_title),
                             secondValue = (profile?.counters?.subscriptions).orDash(),
-                            secondLabel = "Subscriptions",
+                            secondLabel = stringResource(R.string.subscriptions_title),
                             compact = compact,
                         )
                     }
@@ -460,9 +465,9 @@ fun ProfileScreen(
                     if (isLoggedIn) {
                         ProfileNavigationRow(
                             icon = lmgVector(LmgDrawables.Users3Outline28),
-                            label = "VK accounts",
+                            label = stringResource(R.string.vk_accounts_title),
                             value = when (accounts.size) {
-                                0 -> "Add another account"
+                                0 -> stringResource(R.string.add_another_account)
                                 1 -> "1 saved account"
                                 else -> "${accounts.size} saved accounts"
                             },
@@ -475,11 +480,11 @@ fun ProfileScreen(
                         ProfileDivider()
                         ProfileNavigationRow(
                             icon = com.lmg.vk.ui.icons.LmgGlyphs.RefreshOutline28,
-                            label = "Refresh profile",
+                            label = stringResource(R.string.refresh_profile),
                             value = if (vk.isRefreshing || vk.isLoading) {
-                                "Updating…"
+                                stringResource(R.string.updating_ellipsis)
                             } else {
-                                "Reload profile, friends & music"
+                                stringResource(R.string.reload_profile_hint)
                             },
                             compact = compact,
                             enabled = !vk.isRefreshing && !vk.isLoading,
@@ -496,8 +501,8 @@ fun ProfileScreen(
                         if (editableProfileId != null && editableProfileId != 0L) {
                             ProfileNavigationRow(
                                 icon = lmgVector(LmgDrawables.UserPenOutline28),
-                                label = "Edit VK profile",
-                                value = "Status, about and full profile",
+                                label = stringResource(R.string.edit_vk_profile),
+                                value = stringResource(R.string.edit_profile_value),
                                 compact = compact,
                                 onClick = { onOpenUserProfile(editableProfileId) },
                             )
@@ -506,7 +511,7 @@ fun ProfileScreen(
                         if (profileLink != null) {
                             ProfileNavigationRow(
                                 icon = com.lmg.vk.ui.icons.LmgGlyphs.CopyOutline28,
-                                label = "Copy VK profile link",
+                                label = stringResource(R.string.copy_vk_link),
                                 value = profileLink.removePrefix("https://"),
                                 compact = compact,
                                 onClick = {
@@ -520,7 +525,7 @@ fun ProfileScreen(
                                     )
                                     android.widget.Toast.makeText(
                                         context,
-                                        "VK profile link copied",
+                                        context.getString(R.string.vk_link_copied),
                                         android.widget.Toast.LENGTH_SHORT,
                                     ).show()
                                 },
@@ -528,8 +533,8 @@ fun ProfileScreen(
                             ProfileDivider()
                             ProfileNavigationRow(
                                 icon = com.lmg.vk.ui.icons.LmgGlyphs.ShareOutline28,
-                                label = "Share profile",
-                                value = "Send link via apps",
+                                label = stringResource(R.string.share_profile),
+                                value = stringResource(R.string.share_profile_value),
                                 compact = compact,
                                 onClick = {
                                     val send = Intent(Intent.ACTION_SEND).apply {
@@ -538,7 +543,7 @@ fun ProfileScreen(
                                     }
                                     runCatching {
                                         context.startActivity(
-                                            Intent.createChooser(send, "Share VK profile"),
+                                            Intent.createChooser(send, context.getString(R.string.share_vk_profile)),
                                         )
                                     }
                                 },
@@ -546,8 +551,8 @@ fun ProfileScreen(
                             ProfileDivider()
                             ProfileNavigationRow(
                                 icon = com.lmg.vk.ui.icons.LmgGlyphs.ExternalLinkOutline24,
-                                label = "Open in VK",
-                                value = "Browser profile page",
+                                label = stringResource(R.string.open_in_vk),
+                                value = stringResource(R.string.browser_profile_page),
                                 compact = compact,
                                 onClick = {
                                     runCatching {
@@ -561,15 +566,15 @@ fun ProfileScreen(
                         }
                         ProfileNavigationRow(
                             icon = com.lmg.vk.ui.icons.LmgGlyphs.GearOutline24,
-                            label = "Settings",
-                            value = "Playback, appearance & data",
+                            label = stringResource(R.string.tab_settings),
+                            value = stringResource(R.string.settings_value),
                             compact = compact,
                             onClick = onOpenSettings,
                         )
                         ProfileDivider()
                         ProfileActionRow(
                             icon = lmgVector(LmgDrawables.DoorArrowLeftOutline28),
-                            label = "Sign Out",
+                            label = stringResource(R.string.sign_out_action),
                             compact = compact,
                             onClick = {
                                 accountActionError = null
@@ -579,16 +584,16 @@ fun ProfileScreen(
                     } else {
                         ProfileNavigationRow(
                             icon = com.lmg.vk.ui.icons.LmgGlyphs.UserOutline28,
-                            label = "Sign In",
-                            value = "Connect your VK account",
+                            label = stringResource(R.string.auth_sign_in_action),
+                            value = stringResource(R.string.connect_vk_account),
                             compact = compact,
                             onClick = onOpenAuth,
                         )
                         ProfileDivider()
                         ProfileNavigationRow(
                             icon = com.lmg.vk.ui.icons.LmgGlyphs.GearOutline24,
-                            label = "Settings",
-                            value = "Playback, appearance & data",
+                            label = stringResource(R.string.tab_settings),
+                            value = stringResource(R.string.settings_value),
                             compact = compact,
                             onClick = onOpenSettings,
                         )
@@ -599,7 +604,7 @@ fun ProfileScreen(
             item { Spacer(Modifier.height(if (compact) 20.dp else 32.dp)) }
             item {
                 Text(
-                    text = "LMG VK • ${com.lmg.vk.BuildConfig.VERSION_NAME}",
+                    text = stringResource(R.string.app_version_line, com.lmg.vk.BuildConfig.VERSION_NAME),
                     fontFamily = VkSansText,
                     color = colors.textTertiary,
                     fontSize = 10.sp,
@@ -616,7 +621,7 @@ fun ProfileScreen(
         // открывается изнутри списка и должно лежать выше.
         if (friendsExpanded) {
             ProfileOwnerListOverlay(
-                title = if (onlineFriendsOnly) "Online friends" else "Friends",
+                title = if (onlineFriendsOnly) stringResource(R.string.online_friends) else stringResource(R.string.friends_title),
                 total = when {
                     friendsQuery.isNotBlank() || onlineFriendsOnly -> friendsForOverlay.size
                     else -> vk.friendsTotal
@@ -626,9 +631,9 @@ fun ProfileScreen(
                     vk.friends.isEmpty() || friendsForOverlay.isEmpty()
                 },
                 emptyText = when {
-                    friendsQuery.isNotBlank() -> "No friends match “$friendsQuery”"
-                    onlineFriendsOnly -> "No online friends"
-                    else -> "No friends returned by VK"
+                    friendsQuery.isNotBlank() -> stringResource(R.string.no_friends_match, friendsQuery)
+                    onlineFriendsOnly -> stringResource(R.string.no_online_friends)
+                    else -> stringResource(R.string.no_friends_from_vk)
                 },
                 itemCount = friendsForOverlay.size,
                 loadedCount = vk.friends.size,
@@ -642,15 +647,15 @@ fun ProfileScreen(
                 onBack = ::returnFromInnerProfile,
                 compact = compact,
                 searchQuery = friendsQuery,
-                searchHint = "Search friends",
+                searchHint = stringResource(R.string.search_friends),
                 onSearchQueryChange = { friendsQuery = it },
                 headerTrailing = {
                     if (onlineFriends.isNotEmpty() || onlineFriendsOnly) {
                         ProfileFilterChip(
                             label = if (onlineFriendsOnly) {
-                                "All friends"
+                                stringResource(R.string.all_friends)
                             } else {
-                                "Online · ${onlineFriends.size}"
+                                stringResource(R.string.online_count, onlineFriends.size)
                             },
                             selected = onlineFriendsOnly,
                             onClick = { onlineFriendsOnly = !onlineFriendsOnly },
@@ -671,16 +676,16 @@ fun ProfileScreen(
 
         if (groupsExpanded) {
             ProfileOwnerListOverlay(
-                title = "Communities",
+                title = stringResource(R.string.communities_title),
                 total = if (groupsQuery.isNotBlank()) groupsForOverlay.size else vk.groupsTotal,
                 isLoading = vk.isLoading && vk.groups.isEmpty(),
                 error = vk.groupsError?.takeIf {
                     vk.groups.isEmpty() || groupsForOverlay.isEmpty()
                 },
                 emptyText = if (groupsQuery.isNotBlank()) {
-                    "No communities match “$groupsQuery”"
+                    stringResource(R.string.no_communities_match, groupsQuery)
                 } else {
-                    "No communities returned by VK"
+                    stringResource(R.string.no_communities_from_vk)
                 },
                 itemCount = groupsForOverlay.size,
                 loadedCount = vk.groups.size,
@@ -691,7 +696,7 @@ fun ProfileScreen(
                 onBack = ::returnFromInnerProfile,
                 compact = compact,
                 searchQuery = groupsQuery,
-                searchHint = "Search communities",
+                searchHint = stringResource(R.string.search_communities),
                 onSearchQueryChange = { groupsQuery = it },
             ) { index ->
                 val group = groupsForOverlay[index]
@@ -707,7 +712,7 @@ fun ProfileScreen(
 
         if (playlistsExpanded) {
             ProfileOwnerListOverlay(
-                title = "Playlists",
+                title = stringResource(R.string.playlists_title),
                 total = if (playlistsQuery.isNotBlank()) {
                     playlistsForOverlay.size
                 } else {
@@ -718,9 +723,9 @@ fun ProfileScreen(
                     vk.playlists.isEmpty() || playlistsForOverlay.isEmpty()
                 },
                 emptyText = if (playlistsQuery.isNotBlank()) {
-                    "No playlists match “$playlistsQuery”"
+                    stringResource(R.string.no_playlists_match, playlistsQuery)
                 } else {
-                    "No playlists returned by VK"
+                    stringResource(R.string.no_playlists_from_vk)
                 },
                 itemCount = playlistsForOverlay.size,
                 loadedCount = vk.playlists.size,
@@ -731,7 +736,7 @@ fun ProfileScreen(
                 onBack = ::returnFromInnerProfile,
                 compact = compact,
                 searchQuery = playlistsQuery,
-                searchHint = "Search playlists",
+                searchHint = stringResource(R.string.search_playlists),
                 onSearchQueryChange = { playlistsQuery = it },
             ) { index ->
                 val playlist = playlistsForOverlay[index]
@@ -785,7 +790,7 @@ private fun ProfileOwnerListOverlay(
     onBack: () -> Unit,
     compact: Boolean,
     searchQuery: String = "",
-    searchHint: String = "Search",
+    searchHint: String = "",
     onSearchQueryChange: ((String) -> Unit)? = null,
     headerTrailing: (@Composable () -> Unit)? = null,
     row: @Composable (Int) -> Unit,
@@ -913,7 +918,9 @@ private fun ProfileOverlayMessage(text: String) {
 @Composable
 private fun FriendRow(friend: VkFriend, compact: Boolean, onClick: () -> Unit) {
     val colors = LiquidTheme.colors
+    val context = LocalContext.current
     val presence = formatPresenceLabel(
+        context = context,
         isOnline = friend.isOnline,
         onlineLastSeen = friend.onlineInfo?.takeIf { it.visible }?.lastSeen,
         lastSeenTime = friend.lastSeen?.time?.takeIf {
@@ -921,13 +928,13 @@ private fun FriendRow(friend: VkFriend, compact: Boolean, onClick: () -> Unit) {
         },
     )
     val subtitle = when {
-        !friend.isActive -> if (friend.deactivated == "banned") "Banned" else "Deleted"
-        !friend.audioProbablyVisible -> "Music is closed"
-        friend.isOnline -> "Online"
+        !friend.isActive -> if (friend.deactivated == "banned") stringResource(R.string.banned_status) else stringResource(R.string.deleted_status)
+        !friend.audioProbablyVisible -> stringResource(R.string.music_closed_label)
+        friend.isOnline -> stringResource(R.string.presence_online_short)
         !presence.isNullOrBlank() -> presence
         friend.screenName.isNotBlank() -> "vk.com/${friend.screenName}"
         friend.domain.isNotBlank() -> "vk.com/${friend.domain}"
-        else -> "Open VK profile"
+        else -> stringResource(R.string.open_vk_profile)
     }
     OwnerRow(
         avatarUrl = friend.avatarUrl,
@@ -944,9 +951,9 @@ private fun FriendRow(friend: VkFriend, compact: Boolean, onClick: () -> Unit) {
 @Composable
 private fun GroupRow(group: VkGroup, compact: Boolean, onClick: () -> Unit) {
     val subtitle = when {
-        group.membersCount != null -> "${formatCount(group.membersCount!!)} members"
+        group.membersCount != null -> stringResource(R.string.members_count_short, formatCount(group.membersCount!!))
         group.screenName.isNotBlank() -> "vk.com/${group.screenName}"
-        else -> "Open community"
+        else -> stringResource(R.string.open_community)
     }
     OwnerRow(
         avatarUrl = group.avatarUrl,
@@ -992,7 +999,7 @@ private fun PlaylistRow(playlist: AudioPlaylist, compact: Boolean, onClick: () -
         }
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = playlist.title.ifBlank { "Playlist" },
+                text = playlist.title.ifBlank { stringResource(R.string.playlist_fallback) },
                 fontFamily = VkSansText,
                 color = colors.textPrimary,
                 fontSize = 15.sp,
@@ -1002,9 +1009,9 @@ private fun PlaylistRow(playlist: AudioPlaylist, compact: Boolean, onClick: () -
             )
             Text(
                 text = if (playlist.count > 0) {
-                    "${formatCount(playlist.count)} tracks"
+                    stringResource(R.plurals.track_count, playlist.count)
                 } else {
-                    "Open in library"
+                    stringResource(R.string.open_in_library)
                 },
                 fontFamily = VkSansText,
                 color = colors.textSecondary,
@@ -1282,7 +1289,7 @@ private fun ProfileHeader(
                     Spacer(Modifier.width(8.dp))
                     Icon(
                         imageVector = lmgVector(LmgDrawables.CheckShieldOutline28),
-                        contentDescription = "Verified",
+                        contentDescription = stringResource(R.string.verified_badge),
                         tint = Color(0xFF0077FF),
                         modifier = Modifier.size(22.dp),
                     )
@@ -1332,13 +1339,13 @@ private fun ProfileHeader(
 
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 ProfileHeaderButton(
-                    label = "My Music",
+                    label = stringResource(R.string.my_music_label),
                     icon = com.lmg.vk.ui.icons.LmgGlyphs.ListPlayOutline28,
                     filled = true,
                     onClick = onOpenLibrary,
                 )
                 ProfileHeaderButton(
-                    label = "Settings",
+                    label = stringResource(R.string.tab_settings),
                     icon = com.lmg.vk.ui.icons.LmgGlyphs.GearOutline24,
                     filled = false,
                     onClick = onOpenSettings,
@@ -1715,7 +1722,7 @@ private fun ProfilePlaylistPreviewRow(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                text = "Playlists",
+                text = stringResource(R.string.playlists_title),
                 fontFamily = VkSansText,
                 color = LiquidSurfaces.textSecondary(colors.isDark),
                 fontSize = 12.sp,
@@ -1723,7 +1730,7 @@ private fun ProfilePlaylistPreviewRow(
                 modifier = Modifier.weight(1f),
             )
             Text(
-                text = "See all",
+                text = stringResource(R.string.see_all),
                 fontFamily = VkSansText,
                 color = LiquidSurfaces.textTertiary(colors.isDark),
                 fontSize = 12.sp,
@@ -1777,7 +1784,7 @@ private fun ProfilePlaylistCover(
         }
         Spacer(Modifier.height(6.dp))
         Text(
-            text = playlist.title.ifBlank { "Playlist" },
+            text = playlist.title.ifBlank { stringResource(R.string.playlist_fallback) },
             fontFamily = VkSansText,
             color = LiquidSurfaces.textPrimary(colors.isDark),
             fontSize = 12.sp,
@@ -1787,7 +1794,7 @@ private fun ProfilePlaylistCover(
         )
         if (playlist.count > 0) {
             Text(
-                text = "${formatCount(playlist.count)} tracks",
+                text = stringResource(R.plurals.track_count, playlist.count),
                 fontFamily = VkSansText,
                 color = LiquidSurfaces.textTertiary(colors.isDark),
                 fontSize = 11.sp,
@@ -1827,7 +1834,7 @@ private fun ProfileOnlineFriendsStrip(
             )
             Spacer(Modifier.width(8.dp))
             Text(
-                text = "Online · ${friends.size}",
+                text = stringResource(R.string.online_count, friends.size),
                 fontFamily = VkSansText,
                 color = LiquidSurfaces.textSecondary(colors.isDark),
                 fontSize = 12.sp,
@@ -1835,7 +1842,7 @@ private fun ProfileOnlineFriendsStrip(
                 modifier = Modifier.weight(1f),
             )
             Text(
-                text = "See all",
+                text = stringResource(R.string.see_all),
                 fontFamily = VkSansText,
                 color = LiquidSurfaces.textTertiary(colors.isDark),
                 fontSize = 12.sp,
@@ -1990,7 +1997,7 @@ private fun ProfileSearchField(
         if (query.isNotEmpty()) {
             Icon(
                 imageVector = com.lmg.vk.ui.icons.LmgGlyphs.CancelOutline28,
-                contentDescription = "Clear",
+                contentDescription = stringResource(R.string.action_clear),
                 tint = LiquidSurfaces.textTertiary(colors.isDark),
                 modifier = Modifier
                     .size(18.dp)
@@ -2021,8 +2028,8 @@ private val WORD_SEPARATORS = charArrayOf(' ', '\u00A0')
 private fun Int?.orDash(): String = this?.let(::formatCount) ?: "—"
 
 private fun formatCount(value: Int): String = when {
-    value >= 1_000_000 -> "${value / 1_000_000},${(value % 1_000_000) / 100_000}M"
-    value >= 10_000 -> "${value / 1_000}K"
+    value >= 1_000_000 -> "${value / 1_000_000},${(value % 1_000_000) / 100_000} млн"
+    value >= 10_000 -> "${value / 1_000} тыс."
     else -> value.toString()
 }
 
@@ -2032,12 +2039,12 @@ private fun formatBirthday(bdate: String): String {
     if (parts.size < 2) return bdate
     val month = MONTHS.getOrNull(parts[1] - 1) ?: return bdate
     val day = parts[0]
-    return if (parts.size >= 3) "$month $day, ${parts[2]}" else "$month $day"
+    return if (parts.size >= 3) "$day $month ${parts[2]}" else "$day $month"
 }
 
 private val MONTHS = listOf(
-    "January", "February", "March", "April", "May", "June",
-    "July", "August", "September", "October", "November", "December",
+    "января", "февраля", "марта", "апреля", "мая", "июня",
+    "июля", "августа", "сентября", "октября", "ноября", "декабря",
 )
 
 /**
@@ -2046,11 +2053,12 @@ private val MONTHS = listOf(
  * Пустая строка, если данных нет (не рисуем «Unknown»).
  */
 private fun formatPresenceLabel(
+    context: Context,
     isOnline: Boolean,
     onlineLastSeen: Long?,
     lastSeenTime: Long?,
 ): String? {
-    if (isOnline) return "Online"
+    if (isOnline) return context.getString(R.string.presence_online)
     val epochSec = when {
         onlineLastSeen != null && onlineLastSeen > 0L -> onlineLastSeen
         lastSeenTime != null && lastSeenTime > 0L -> lastSeenTime
@@ -2059,22 +2067,17 @@ private fun formatPresenceLabel(
     val nowSec = System.currentTimeMillis() / 1000L
     val delta = (nowSec - epochSec).coerceAtLeast(0L)
     val text = when {
-        delta < 60L -> "just now"
-        delta < 3600L -> {
-            val m = TimeUnit.SECONDS.toMinutes(delta)
-            if (m == 1L) "1 min ago" else "$m min ago"
-        }
-        delta < 86_400L -> {
-            val h = TimeUnit.SECONDS.toHours(delta)
-            if (h == 1L) "1 hour ago" else "$h hours ago"
-        }
+        delta < 60L -> context.getString(R.string.presence_just_now)
+        delta < 3600L -> context.getString(R.string.presence_minutes_ago, TimeUnit.SECONDS.toMinutes(delta))
+        delta < 86_400L -> context.getString(R.string.presence_hours_ago, TimeUnit.SECONDS.toHours(delta))
         delta < 86_400L * 7L -> {
             val d = TimeUnit.SECONDS.toDays(delta)
-            if (d == 1L) "yesterday" else "$d days ago"
+            if (d == 1L) context.getString(R.string.presence_yesterday)
+            else context.getString(R.string.presence_days_ago, d)
         }
         else -> return null
     }
-    return "Last seen $text"
+    return context.getString(R.string.presence_last_seen, text)
 }
 
 private fun matchesFriendQuery(friend: VkFriend, raw: String): Boolean {

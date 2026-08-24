@@ -40,6 +40,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
@@ -50,6 +51,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.lmg.vk.R
 import com.lmg.vk.engine.LyricsFxController
 import com.lmg.vk.engine.LyricsParser
 import com.lmg.vk.engine.LyricsSyncStore
@@ -383,7 +385,7 @@ fun LyricsScreen(
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = "No lyrics available",
+                            text = stringResource(R.string.no_lyrics),
                             color = lyricInk.copy(alpha = 0.5f),
                             fontSize = 20.sp,
                             fontWeight = FontWeight.Medium
@@ -628,8 +630,8 @@ fun LyricsScreen(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text(
-                            text = if (syncOffsetMs == 0L) "SYNC"
-                                   else "SYNC %+.1fs".format(syncOffsetMs / 1000f),
+                            text = if (syncOffsetMs == 0L) stringResource(R.string.sync_chip)
+                                   else stringResource(R.string.sync_chip_offset, syncOffsetMs / 1000f),
                             color = Color.White.copy(alpha = if (badgeActive) 0.95f else 0.45f),
                             fontSize = 11.sp,
                             fontWeight = FontWeight.SemiBold,
@@ -647,7 +649,7 @@ fun LyricsScreen(
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             SyncChip("−0.5s") { adjustSync(-500L) }
                             SyncChip("+0.5s") { adjustSync(+500L) }
-                            SyncChip("Reset") { adjustSync(-syncOffsetMs) }
+                            SyncChip(stringResource(R.string.action_reset)) { adjustSync(-syncOffsetMs) }
                         }
                     }
                 }

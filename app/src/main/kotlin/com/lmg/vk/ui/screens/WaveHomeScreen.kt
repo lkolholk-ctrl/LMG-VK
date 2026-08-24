@@ -65,6 +65,7 @@ import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.text.font.FontWeight
@@ -76,6 +77,7 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.airbnb.lottie.LottieAnimationView
 import com.airbnb.lottie.LottieComposition
+import com.lmg.vk.R
 import com.lmg.vk.debug.DebugLog
 import com.lmg.vk.ui.icons.LmgDrawables
 import com.lmg.vk.ui.icons.lmgVector
@@ -305,7 +307,7 @@ fun WaveHomeScreen(
                     ) {
                         // Приветствие по времени суток — экран «свой» ещё до музыки.
                         Text(
-                            text = remember { greetingForNow() },
+                            text = stringResource(greetingForNow()),
                             color = Color.White.copy(alpha = 0.7f),
                             fontSize = 16.sp,
                             fontWeight = FontWeight.SemiBold,
@@ -314,7 +316,7 @@ fun WaveHomeScreen(
                         )
                         Spacer(Modifier.height(10.dp))
                         Text(
-                            text = "My Wave",
+                            text = stringResource(R.string.mood_my_wave),
                             color = Color.White,
                             fontSize = 46.sp,
                             fontWeight = FontWeight.Bold,
@@ -459,7 +461,7 @@ fun WaveHomeScreen(
                             FlatCircleButton(onClick = { PlayerController.togglePlayPause(context) }) {
                                 Icon(
                                     imageVector = if (isPlaying) com.lmg.vk.ui.icons.LmgGlyphs.Pause28 else com.lmg.vk.ui.icons.LmgGlyphs.Play28,
-                                    contentDescription = if (isPlaying) "Pause" else "Play",
+                                    contentDescription = if (isPlaying) stringResource(R.string.action_pause) else stringResource(R.string.action_play),
                                     tint = Color.White,
                                     modifier = Modifier.size(26.dp)
                                 )
@@ -530,7 +532,7 @@ fun WaveHomeScreen(
                             FlatCircleButton(onClick = { PlayerController.toggleFavorite(track.id) }) {
                                 Icon(
                                     imageVector = com.lmg.vk.ui.icons.LmgGlyphs.FavoriteOutline28,
-                                    contentDescription = "Like",
+                                    contentDescription = stringResource(R.string.action_like),
                                     tint = if (isFavorite) Color(0xFFFF4D67) else Color.White,
                                     modifier = Modifier.size(24.dp)
                                 )
@@ -554,15 +556,15 @@ fun WaveHomeScreen(
                             WaveFeedbackChip(
                                 icon = if (undoAction) lmgVector(LmgDrawables.ArrowUturnLeftOutline28) else lmgVector(LmgDrawables.UnfavoriteOutline28),
                                 label = when (feedbackForTrack) {
-                                    is VkMixFeedbackState.Submitting -> "Sending…"
-                                    is VkMixFeedbackState.UndoAvailable -> "Undo"
-                                    is VkMixFeedbackState.Undoing -> "Undoing…"
+                                    is VkMixFeedbackState.Submitting -> stringResource(R.string.feedback_sending)
+                                    is VkMixFeedbackState.UndoAvailable -> stringResource(R.string.feedback_undo)
+                                    is VkMixFeedbackState.Undoing -> stringResource(R.string.feedback_undoing)
                                     is VkMixFeedbackState.Error -> if (feedbackForTrack.retryUndo) {
-                                        "Retry undo"
+                                        stringResource(R.string.feedback_retry_undo)
                                     } else {
-                                        "Try again"
+                                        stringResource(R.string.action_retry)
                                     }
-                                    VkMixFeedbackState.Idle -> "Less"
+                                    VkMixFeedbackState.Idle -> stringResource(R.string.feedback_less)
                                 },
                                 tint = Color.White.copy(alpha = 0.78f),
                                 enabled = feedbackForTrack !is VkMixFeedbackState.Submitting &&
@@ -680,7 +682,7 @@ private fun VkMixInlineStatus(
     onAuth: () -> Unit,
 ) {
     val message = when (state) {
-        is VkMixUiState.Empty -> "VK Mix не вернул треки"
+        is VkMixUiState.Empty -> stringResource(R.string.vkmix_empty_tracks)
         is VkMixUiState.Error -> state.message
         else -> null
     } ?: return
@@ -706,7 +708,7 @@ private fun VkMixInlineStatus(
             .padding(horizontal = 18.dp, vertical = 10.dp),
     ) {
         Text(
-            text = if (state is VkMixUiState.Error && state.sessionExpired) "Войти" else "Повторить",
+            text = if (state is VkMixUiState.Error && state.sessionExpired) stringResource(R.string.auth_sign_in_action) else stringResource(R.string.action_retry),
             color = Color.White,
             fontSize = 14.sp,
             fontWeight = FontWeight.SemiBold,
@@ -739,7 +741,7 @@ private fun VkMixSettingsSheet(
                 CircularProgressIndicator(color = accent, strokeWidth = 3.dp)
                 Spacer(Modifier.height(18.dp))
                 Text(
-                    text = "Загружаем настройки VK Mix…",
+                    text = stringResource(R.string.vkmix_loading_settings),
                     color = Color.White.copy(alpha = 0.72f),
                     fontFamily = AppFontFamily,
                 )
@@ -747,18 +749,18 @@ private fun VkMixSettingsSheet(
 
             is VkMixUiState.Empty -> {
                 VkMixSheetMessage(
-                    title = "VK Mix пока пуст",
-                    message = "VK не вернул треки с этими настройками.",
-                    action = "Повторить",
+                    title = stringResource(R.string.vkmix_empty_title),
+                    message = stringResource(R.string.vkmix_empty_message),
+                    action = stringResource(R.string.action_retry),
                     onAction = onRetry,
                 )
             }
 
             is VkMixUiState.Error -> {
                 VkMixSheetMessage(
-                    title = if (state.sessionExpired) "Сессия VK истекла" else "Не удалось загрузить VK Mix",
+                    title = if (state.sessionExpired) stringResource(R.string.vk_session_expired) else stringResource(R.string.vkmix_load_failed),
                     message = state.message,
-                    action = if (state.sessionExpired) "Войти" else "Повторить",
+                    action = if (state.sessionExpired) stringResource(R.string.auth_sign_in_action) else stringResource(R.string.action_retry),
                     onAction = if (state.sessionExpired) onAuth else onRetry,
                 )
             }
@@ -767,7 +769,7 @@ private fun VkMixSettingsSheet(
                 val settings = state.draft
                 Text(
                     text = settings?.title?.takeIf(String::isNotBlank) ?: state.session.title.ifBlank {
-                        "Настроить VK Mix"
+                        stringResource(R.string.vkmix_tune_title)
                     },
                     color = Color.White,
                     fontSize = 25.sp,
@@ -792,7 +794,7 @@ private fun VkMixSettingsSheet(
                     !state.session.isTunable -> {
                         Spacer(Modifier.height(24.dp))
                         Text(
-                            text = "Для этого микса VK не разрешил менять настройки.",
+                            text = stringResource(R.string.vkmix_not_tunable),
                             color = Color.White.copy(alpha = 0.68f),
                             fontFamily = AppFontFamily,
                             textAlign = TextAlign.Center,
@@ -802,7 +804,7 @@ private fun VkMixSettingsSheet(
                     settings == null -> {
                         Spacer(Modifier.height(24.dp))
                         Text(
-                            text = "VK не вернул настройки этого микса.",
+                            text = stringResource(R.string.vkmix_settings_missing),
                             color = Color.White.copy(alpha = 0.68f),
                             fontFamily = AppFontFamily,
                             textAlign = TextAlign.Center,
@@ -865,14 +867,14 @@ private fun VkMixSettingsSheet(
                             horizontalArrangement = Arrangement.spacedBy(12.dp),
                         ) {
                             VkMixSheetAction(
-                                label = "Сбросить",
+                                label = stringResource(R.string.action_reset),
                                 enabled = settings.hasVisibleSelection() && !state.applying,
                                 filled = false,
                                 onClick = onReset,
                                 modifier = Modifier.weight(1f),
                             )
                             VkMixSheetAction(
-                                label = if (state.applying) "Применение…" else "Применить",
+                                label = if (state.applying) stringResource(R.string.applying_short) else stringResource(R.string.action_apply),
                                 enabled = !state.applying,
                                 filled = true,
                                 onClick = onApply,
@@ -1435,7 +1437,7 @@ private fun WaveStationIndicator(name: String, onClear: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
-            text = "Wave by $name",
+            text = stringResource(R.string.wave_by, name),
             color = Color.White,
             fontSize = 13.sp,
             fontWeight = FontWeight.SemiBold,
@@ -1454,7 +1456,7 @@ private fun WaveStationIndicator(name: String, onClear: () -> Unit) {
         ) {
             Icon(
                 imageVector = com.lmg.vk.ui.icons.LmgGlyphs.CancelOutline28,
-                contentDescription = "Reset to My Wave",
+                contentDescription = stringResource(R.string.reset_to_my_wave),
                 tint = Color.White.copy(alpha = 0.85f),
                 modifier = Modifier.size(16.dp)
             )
@@ -1495,14 +1497,14 @@ private fun WaveTopBar(
             if (!avatarUrl.isNullOrBlank()) {
                 AsyncImage(
                     model = avatarUrl,
-                    contentDescription = "Profile",
+                    contentDescription = stringResource(R.string.profile_title),
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize()
                 )
             } else {
                 Icon(
                     imageVector = com.lmg.vk.ui.icons.LmgGlyphs.UserCircleOutline28,
-                    contentDescription = "Profile",
+                    contentDescription = stringResource(R.string.profile_title),
                     tint = Color.White,
                     modifier = Modifier.size(26.dp)
                 )
@@ -1510,7 +1512,7 @@ private fun WaveTopBar(
         }
 
         Text(
-            text = "My Wave",
+            text = stringResource(R.string.mood_my_wave),
             color = Color.White,
             fontSize = 18.sp,
             fontWeight = FontWeight.Bold,
@@ -1528,7 +1530,7 @@ private fun WaveTopBar(
             onTune?.let { tune ->
                 Icon(
                     imageVector = com.lmg.vk.ui.icons.LmgGlyphs.SlidersOutline28,
-                    contentDescription = "Tune VK Mix",
+                    contentDescription = stringResource(R.string.tune_vkmix),
                     tint = Color.White,
                     modifier = Modifier
                         .size(25.dp)
@@ -1537,7 +1539,7 @@ private fun WaveTopBar(
             }
             Icon(
                 imageVector = com.lmg.vk.ui.icons.LmgGlyphs.SearchOutline28,
-                contentDescription = "Search",
+                contentDescription = stringResource(R.string.tab_search),
                 tint = Color.White,
                 modifier = Modifier
                     .size(26.dp)
@@ -1565,7 +1567,7 @@ private fun BigPlayButton(loading: Boolean, accent: Color = WaveAccent, onClick:
             // Просто большой треугольник, без круга/подложки
             Icon(
                 imageVector = com.lmg.vk.ui.icons.LmgGlyphs.Play28,
-                contentDescription = "Listen",
+                contentDescription = stringResource(R.string.action_listen),
                 tint = accent,
                 modifier = Modifier.size(124.dp)
             )
@@ -1574,12 +1576,12 @@ private fun BigPlayButton(loading: Boolean, accent: Color = WaveAccent, onClick:
 }
 
 /** Приветствие по времени суток — для idle-состояния волны. */
-private fun greetingForNow(): String =
+private fun greetingForNow(): Int =
     when (Calendar.getInstance().get(Calendar.HOUR_OF_DAY)) {
-        in 5..11 -> "Good morning"
-        in 12..16 -> "Good afternoon"
-        in 17..22 -> "Good evening"
-        else -> "Late night waves"
+        in 5..11 -> R.string.greeting_morning
+        in 12..16 -> R.string.greeting_afternoon
+        in 17..22 -> R.string.greeting_evening
+        else -> R.string.greeting_late_night
     }
 
 /**
@@ -1724,7 +1726,7 @@ private fun UpNextRow(upNext: List<Pair<Int, Track>>, onPlay: (Int) -> Unit) {
         horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         Text(
-            text = "Next",
+            text = stringResource(R.string.up_next),
             color = Color.White.copy(alpha = 0.55f),
             fontSize = 12.sp,
             fontWeight = FontWeight.SemiBold,

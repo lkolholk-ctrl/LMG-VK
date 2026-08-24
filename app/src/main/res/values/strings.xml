@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">LMG VK</string>
-    <string name="notification_channel_name">Music Playback</string>
-    <string name="notification_channel_description">Shows current track and playback controls</string>
+    <string name="notification_channel_name">Прослушивание музыки</string>
+    <string name="notification_channel_description">Показывает текущий трек и кнопки управления воспроизведением</string>
 
     <!-- Виджет домашнего экрана: подборки VK (audio.getWidgetElements) -->
     <string name="vk_widget_description">Подборки и плейлисты из ВКонтакте</string>
@@ -15,4 +15,1022 @@
     <string name="vk_widget_empty">ВКонтакте пока не собрал для вас подборки</string>
     <string name="vk_widget_error">Не удалось обновить: %1$s</string>
     <string name="vk_widget_stale">Данные могли устареть</string>
+
+    <!-- Навигация -->
+    <string name="tab_wave">Волна</string>
+    <string name="tab_new">Новое</string>
+    <string name="tab_library">Библиотека</string>
+    <string name="tab_settings">Настройки</string>
+    <string name="tab_home">Главная</string>
+    <string name="tab_search">Поиск</string>
+    <string name="guest">Гость</string>
+
+    <!-- Общие действия -->
+    <string name="action_cancel">Отмена</string>
+    <string name="action_close">Закрыть</string>
+    <string name="action_back">Назад</string>
+    <string name="action_retry">Повторить</string>
+    <string name="action_submit">Отправить</string>
+    <string name="action_save">Сохранить</string>
+    <string name="action_delete">Удалить</string>
+    <string name="action_remove">Убрать</string>
+    <string name="action_clear">Очистить</string>
+    <string name="action_ok">ОК</string>
+    <string name="action_play">Слушать</string>
+    <string name="action_shuffle">Перемешать</string>
+    <string name="action_share">Поделиться</string>
+    <string name="action_download">Скачать</string>
+    <string name="action_cancel_download">Отменить загрузку</string>
+    <string name="action_download_failed_retry">Не удалось скачать · Повторить</string>
+    <string name="action_downloaded_remove">Скачано · Удалить файл</string>
+    <string name="action_play_next">Играть следующим</string>
+    <string name="action_add_to_queue">Добавить в очередь</string>
+    <string name="action_move_up">Переместить выше</string>
+    <string name="action_move_down">Переместить ниже</string>
+    <string name="action_remove_from_playlist">Убрать из плейлиста</string>
+    <string name="add_to_playlist">Добавить в плейлист</string>
+    <string name="create_playlist_first">Сначала создайте плейлист</string>
+    <string name="playlist_name_hint">Введите название плейлиста</string>
+    <string name="field_name">Название</string>
+    <string name="track_actions">Действия с треком</string>
+    <string name="action_cache_track">Кешировать трек</string>
+    <string name="download_progress_percent">Загрузка · %1$d%%</string>
+    <string name="download_progress_bytes">&#160;&#183; %1$s из %2$s МБ</string>
+    <string name="action_add_to_my_tracks">Добавить в Мои треки</string>
+    <string name="action_remove_from_my_tracks">Убрать из Моих треков</string>
+
+    <!-- Плейлисты -->
+    <string name="playlist_track_status">%1$s · %2$s</string>
+    <string name="playlist_synced">Синхронизируемый</string>
+    <string name="playlist_local">Локальный</string>
+    <string name="rename_playlist">Переименовать плейлист</string>
+    <string name="new_playlist">Новый плейлист</string>
+
+    <!-- Выбор исполнителя -->
+    <string name="choose_artist">Выберите исполнителя</string>
+    <string name="choose_artist_subtitle">Выберите исполнителя, чтобы открыть его профиль</string>
+
+    <!-- Аккаунты VK -->
+    <string name="vk_accounts_title">Аккаунты VK</string>
+    <string name="vk_accounts_subtitle_single">Управляйте сохранёнными аккаунтами или добавьте другую сессию</string>
+    <string name="vk_accounts_subtitle_many">Сохранённых аккаунтов на этом устройстве: %1$d</string>
+    <string name="vk_accounts_add">Добавить аккаунт VK</string>
+    <string name="vk_account_active">Активен</string>
+    <string name="vk_account_session_expired">Сессия истекла</string>
+    <string name="vk_account_remove">Удалить аккаунт</string>
+
+    <!-- Капча и проверка -->
+    <string name="captcha_title">Проверка безопасности</string>
+    <string name="captcha_subtitle">Введите символы с картинки, чтобы продолжить</string>
+    <string name="captcha_image">Капча VK</string>
+    <string name="captcha_code_label">Символы с картинки</string>
+    <string name="validation_load_failed">Не удалось загрузить проверку VK</string>
+    <string name="validation_ssl_error">Ошибка защищённого соединения с VK</string>
+
+    <!-- Главная -->
+    <string name="listen_now">Слушать сейчас</string>
+    <string name="action_refresh">Обновить</string>
+    <string name="moods_title">Настроения</string>
+    <string name="charts_title">Чарты</string>
+    <string name="favorites_title">Избранное</string>
+    <string name="playing_mood">Играет: %1$s</string>
+    <string name="mood_my_wave">Моя волна</string>
+    <string name="mood_melancholy">Меланхолия</string>
+    <string name="mood_good_mood">Хорошее настроение</string>
+    <string name="mood_broken_heart">Разбитое сердце</string>
+    <string name="mood_focus">Фокус</string>
+    <string name="mood_energy">Энергия</string>
+    <string name="mood_night">Ночная волна</string>
+    <string name="mood_workout">Тренировка</string>
+    <string name="mood_chill">Чилл</string>
+
+    <!-- Волна / VK Mix -->
+    <string name="action_pause">Пауза</string>
+    <string name="action_like">Нравится</string>
+    <string name="feedback_sending">Отправляем…</string>
+    <string name="feedback_undo">Отменить</string>
+    <string name="feedback_undoing">Отменяем…</string>
+    <string name="feedback_retry_undo">Повторить отмену</string>
+    <string name="feedback_less">Меньше такого</string>
+    <string name="vkmix_empty_tracks">VK Mix не вернул треки</string>
+    <string name="vkmix_loading_settings">Загружаем настройки VK Mix…</string>
+    <string name="vkmix_empty_title">VK Mix пока пуст</string>
+    <string name="vkmix_empty_message">VK не вернул треки с этими настройками.</string>
+    <string name="vk_session_expired">Сессия VK истекла</string>
+    <string name="vkmix_load_failed">Не удалось загрузить VK Mix</string>
+    <string name="vkmix_tune_title">Настроить VK Mix</string>
+    <string name="vkmix_not_tunable">Для этого микса VK не разрешил менять настройки.</string>
+    <string name="vkmix_settings_missing">VK не вернул настройки этого микса.</string>
+    <string name="action_reset">Сбросить</string>
+    <string name="applying_short">Применение…</string>
+    <string name="action_apply">Применить</string>
+    <string name="wave_by">Волна «%1$s»</string>
+    <string name="reset_to_my_wave">Вернуться к Моей волне</string>
+    <string name="profile_title">Профиль</string>
+    <string name="tune_vkmix">Настроить VK Mix</string>
+    <string name="action_listen">Слушать</string>
+    <string name="greeting_morning">Доброе утро</string>
+    <string name="greeting_afternoon">Добрый день</string>
+    <string name="greeting_evening">Добрый вечер</string>
+    <string name="greeting_late_night">Ночная волна</string>
+    <string name="up_next">Далее</string>
+
+    <!-- Новое -->
+    <string name="catalog_empty">В каталоге VK пока нет блоков</string>
+    <string name="retry_load">Повторить загрузку</string>
+    <string name="vk_radio">Радио VK</string>
+    <string name="signal_fallback">Сигнал</string>
+    <string name="shuffle_signal">Перемешать Сигнал</string>
+    <string name="listen_signal">Слушать Сигнал</string>
+    <string name="vk_music_catalog">Каталог VK Музыки</string>
+    <string name="refresh_vk_catalog">Обновить каталог VK</string>
+    <string name="new_load_failed">Не удалось загрузить New</string>
+    <string name="shuffle_section">Перемешать раздел</string>
+    <string name="listen_section">Слушать раздел</string>
+    <string name="open_section_count">Открыть раздел, %1$d элементов</string>
+    <string name="open_section">Открыть раздел</string>
+    <string name="listen_all">Слушать всё</string>
+    <string name="thats_all_from_vk">Это всё, что отдал VK</string>
+    <string name="action_hide">Скрыть</string>
+
+    <!-- Загрузки -->
+    <string name="music_available_offline">Музыка доступна офлайн</string>
+    <string name="downloading_count">Загружается %1$d · %2$d%%</string>
+    <string name="nothing_downloaded_yet">Пока ничего не скачано</string>
+    <string name="download_from_menu_hint">Скачайте трек через меню трека</string>
+    <string name="remove_download_title">Удалить загрузку?</string>
+    <string name="remove_download_message">«%1$s» будет удалён с этого устройства вместе с файлом.</string>
+    <string name="clear_all_downloads_question">Очистить все загрузки?</string>
+    <string name="will_be_deleted_irreversibly">будет удалено с этого устройства. Это действие нельзя отменить.</string>
+    <string name="clear_all_downloads_cd">Очистить все загрузки</string>
+    <string name="delete_download_cd">Удалить загрузку</string>
+
+    <!-- История -->
+    <string name="sign_in_vk_account">Войдите в аккаунт VK</string>
+    <string name="recent_listenings">Недавние прослушивания</string>
+    <string name="history_requires_login">История VK доступна после входа в аккаунт</string>
+    <string name="history_empty">В истории пока ничего нет</string>
+    <string name="error_retry_suffix">%1$s. Повторить</string>
+    <string name="remove_from_history_title">Убрать из истории?</string>
+
+    <!-- Сообщество -->
+    <string name="group_not_found">Сообщество не найдено</string>
+    <string name="group_not_found_message">VK не знает сообщества с id %1$d. Возможно, его удалили.</string>
+    <string name="group_open_failed">Не удалось открыть сообщество</string>
+    <string name="participants_label">УЧАСТНИКИ</string>
+    <string name="participants_count">УЧАСТНИКИ • %1$s</string>
+    <string name="playlists_count_label">ПЛЕЙЛИСТЫ • %1$d</string>
+    <string name="audios_label">АУДИОЗАПИСИ</string>
+    <string name="audios_count_label">АУДИОЗАПИСИ • %1$d</string>
+    <string name="music_closed_title">Музыка закрыта</string>
+    <string name="music_closed_message">Сообщество не открывает свои аудиозаписи.</string>
+    <string name="music_load_failed">Не удалось загрузить музыку</string>
+    <string name="no_audio_title">Нет аудиозаписей</string>
+    <string name="no_audio_message">Сообщество не добавило ни одного трека.</string>
+    <string name="verified_badge">Верифицировано</string>
+    <string name="private_community">Закрытое</string>
+    <string name="collapse">Свернуть</string>
+    <string name="show_more">Показать полностью</string>
+
+    <!-- Локальная библиотека -->
+    <string name="selected_count">Выбрано: %1$d</string>
+    <string name="selected_tracks_count">Выбрано треков: %1$d</string>
+    <string name="edit_tags">Изменить теги</string>
+    <string name="indexing_library">Индексация библиотеки… %1$s</string>
+    <string name="on_this_device">На этом устройстве</string>
+    <string name="local_library_subtitle">Исполнители, альбомы и треки, сохранённые локально</string>
+    <string name="select_tracks">Выбрать треки</string>
+    <string name="select_all_count">Выбрать все (%1$d)</string>
+    <string name="deselect">Снять выделение</string>
+    <string name="sort_added">По добавлению</string>
+    <string name="sort_duration">По длительности</string>
+    <string name="searching_short">Ищем…</string>
+    <string name="all_tracks">Все треки</string>
+    <string name="search_local_hint">Искать треки, исполнителей, альбомы</string>
+    <string name="albums_tracks_count">Альбомов: %1$d · Треков: %2$d</string>
+
+    <!-- Теги -->
+    <string name="tags_title">Теги</string>
+    <string name="bulk_tags_title">Массовые теги</string>
+    <string name="tag_format_unsupported">Этот формат файлов пока не поддерживается для редактирования тегов.</string>
+    <string name="tag_changes_hint">Изменения записываются прямо в файл. Библиотека и поиск обновятся сразу.</string>
+    <string name="bulk_tags_hint">Заполненные поля будут применены ко ВСЕМ выбранным трекам. Пустые поля останутся без изменений. Название и номер трека здесь не меняются.</string>
+    <string name="field_title">Название</string>
+    <string name="field_album_artist">Исполнитель альбома</string>
+    <string name="field_track_number">Номер трека</string>
+    <string name="field_year">Год</string>
+    <string name="field_genre">Жанр</string>
+    <string name="status_saving">Сохранение…</string>
+    <string name="status_saved">Сохранено ✓</string>
+    <string name="status_format_unsupported">Формат не поддерживается</string>
+    <string name="status_access_denied">Доступ к файлу запрещён</string>
+    <string name="status_requesting_permission">Запрашиваем разрешение…</string>
+    <string name="status_done_of">Готово: %1$d из %2$d</string>
+    <string name="status_skipped_suffix">&#160;&#183; пропущено %1$d</string>
+    <string name="status_fill_one_field">Заполните хотя бы одно поле</string>
+    <string name="status_preparing">Подготовка…</string>
+
+    <!-- Профиль -->
+    <string name="vk_account_label">Аккаунт VK</string>
+    <string name="vk_id_value">VK ID %1$s</string>
+    <string name="sign_in_restore_library">Войдите, чтобы восстановить вашу библиотеку VK</string>
+    <string name="remove_account_body_1">Этот аккаунт будет удалён с устройства, активным станет другой сохранённый аккаунт.</string>
+    <string name="remove_account_body_2">Зашифрованная локальная сессия VK будет удалена с этого устройства.</string>
+    <string name="sign_out_question">Выйти из VK?</string>
+    <string name="sign_out_action">Выйти</string>
+    <string name="wait_for_sync">Дождитесь завершения синхронизации библиотеки</string>
+    <string name="vk_id_label">VK ID</string>
+    <string name="address_label">Адрес</string>
+    <string name="section_my_music">МОЯ МУЗЫКА</string>
+    <string name="tracks_in_vk">Треки в VK</string>
+    <string name="my_tracks_on_vk">Мои треки в VK</string>
+    <string name="open_vk_audio">Откройте свои аудио в VK</string>
+    <string name="my_library">Моя библиотека</string>
+    <string name="library_summary_line">Избранное, плейлисты и загрузки</string>
+    <string name="communities_title">Сообщества</string>
+    <string name="add_another_account">Добавить ещё один аккаунт</string>
+    <string name="refresh_profile">Обновить профиль</string>
+    <string name="updating_ellipsis">Обновляем…</string>
+    <string name="reload_profile_hint">Перезагрузить профиль, друзей и музыку</string>
+    <string name="edit_profile_value">Статус, информация и весь профиль</string>
+    <string name="copy_vk_link">Скопировать ссылку на профиль VK</string>
+    <string name="vk_link_copied">Ссылка на профиль VK скопирована</string>
+    <string name="share_profile">Поделиться профилем</string>
+    <string name="share_profile_value">Отправить ссылку через приложения</string>
+    <string name="share_vk_profile">Поделиться профилем VK</string>
+    <string name="browser_profile_page">Страница профиля в браузере</string>
+    <string name="settings_value">Воспроизведение, оформление и данные</string>
+    <string name="connect_vk_account">Подключите ваш аккаунт VK</string>
+    <string name="app_version_line">LMG VK • %1$s</string>
+    <string name="online_friends">Друзья онлайн</string>
+    <string name="no_friends_match">Нет друзей по запросу «%1$s»</string>
+    <string name="no_online_friends">Нет друзей онлайн</string>
+    <string name="no_friends_from_vk">VK не вернул друзей</string>
+    <string name="search_friends">Поиск друзей</string>
+    <string name="all_friends">Все друзья</string>
+    <string name="online_count">Онлайн · %1$d</string>
+    <string name="no_communities_match">Нет сообществ по запросу «%1$s»</string>
+    <string name="no_communities_from_vk">VK не вернул сообщества</string>
+    <string name="search_communities">Поиск сообществ</string>
+    <string name="no_playlists_match">Нет плейлистов по запросу «%1$s»</string>
+    <string name="no_playlists_from_vk">VK не вернул плейлисты</string>
+    <string name="search_playlists">Поиск плейлистов</string>
+    <string name="banned_status">Заблокирован</string>
+    <string name="deleted_status">Удалён</string>
+    <string name="presence_online_short">Онлайн</string>
+    <string name="open_vk_profile">Открыть профиль в VK</string>
+    <string name="open_community">Открыть сообщество</string>
+    <string name="open_in_library">Открыть в библиотеке</string>
+    <string name="my_music_label">Моя музыка</string>
+    <string name="tracks_open_list">%1$s треков · открыть список</string>
+    <string name="members_count_short">%1$s участников</string>
+
+    <!-- Присутствие -->
+    <string name="presence_online">Онлайн</string>
+    <string name="presence_just_now">только что</string>
+    <string name="presence_minutes_ago">был(а) %1$d мин назад</string>
+    <string name="presence_hours_ago">был(а) %1$d ч назад</string>
+    <string name="presence_days_ago">был(а) %1$d дн назад</string>
+    <string name="presence_yesterday">был(а) вчера</string>
+    <string name="presence_recently">был(а) недавно</string>
+    <string name="presence_last_seen">был(а) %1$s</string>
+
+    <!-- Чужой профиль -->
+    <string name="profile_not_found">Профиль не найден</string>
+    <string name="profile_not_found_message">VK не вернул пользователя с id %1$d.</string>
+    <string name="profile_open_failed">Не удалось открыть профиль</string>
+    <string name="status_saving_short">Сохранение…</string>
+    <string name="edit_profile">Редактировать профиль</string>
+    <string name="working_ellipsis">Обрабатываем…</string>
+    <string name="friend_request_sent">Заявка отправлена</string>
+    <string name="accept_request">Принять заявку</string>
+    <string name="friends_title">Друзья</string>
+    <string name="add_friend">Добавить в друзья</string>
+    <string name="profile_blocked">Этот профиль VK заблокирован.</string>
+    <string name="profile_deleted">Этот профиль VK удалён.</string>
+    <string name="profile_private_notice">Профиль закрыт. Доступны только публичные поля.</string>
+    <string name="section_status_track">СТАТУС-ТРЕК</string>
+    <string name="section_music">МУЗЫКА</string>
+    <string name="all_music">Вся музыка</string>
+    <string name="remove_friend_question">Удалить из друзей?</string>
+    <string name="remove_friend_message">Пользователь останется доступен в подписчиках, если VK сохранит подписку.</string>
+    <string name="edit_profile_subtitle">Обновите статус и информацию на своей странице VK</string>
+    <string name="edit_vk_profile">Редактировать профиль VK</string>
+    <string name="field_status">Статус</string>
+    <string name="change_photo">Изменить фото</string>
+    <string name="change_cover">Изменить обложку</string>
+    <string name="uploading_image">Загружаем изображение…</string>
+    <string name="cover_format_hint">Обложки должны быть заранее подготовлены близко к форматам 2.5:1, которые использует VK.</string>
+    <string name="info_open_failed">Не удалось открыть информацию</string>
+    <string name="more_information">Подробнее</string>
+    <string name="open_in_vk">Открыть в VK</string>
+    <string name="website">Сайт</string>
+    <string name="section_actions">ДЕЙСТВИЯ</string>
+    <string name="section_social">СОЦИАЛЬНЫЕ СВЯЗИ</string>
+    <string name="online_status">Онлайн</string>
+    <string name="section_profile">ПРОФИЛЬ</string>
+    <string name="mutual_friends">Общие друзья</string>
+    <string name="followers_title">Подписчики</string>
+    <string name="view_list">Открыть список</string>
+    <string name="subscriptions_title">Подписки</string>
+    <string name="people_and_communities">Люди и сообщества</string>
+    <string name="music_closed_label">Музыка закрыта</string>
+    <string name="music_label">Музыка</string>
+    <string name="no_mutual_friends">Нет общих друзей</string>
+
+    <!-- Факты и детали профиля -->
+    <string name="fact_location">Местоположение</string>
+    <string name="fact_hometown">Родной город</string>
+    <string name="fact_birthday">День рождения</string>
+    <string name="fact_occupation">Деятельность</string>
+    <string name="fact_image_status">Статус</string>
+    <string name="detail_description">Описание</string>
+    <string name="detail_profile">Профиль</string>
+    <string name="detail_about">О себе</string>
+    <string name="detail_activities">Занятия</string>
+    <string name="detail_interests">Интересы</string>
+    <string name="detail_favorite_music">Любимая музыка</string>
+    <string name="detail_career">Карьера</string>
+    <string name="detail_university">Университет</string>
+    <string name="detail_school">Школа</string>
+    <string name="detail_relationship">Семейное положение</string>
+    <string name="detail_languages">Языки</string>
+    <string name="detail_worldview">Мировоззрение</string>
+    <string name="detail_life_main">Главное в жизни</string>
+    <string name="detail_people_main">Главное в людях</string>
+    <string name="detail_smoking">Отношение к курению</string>
+    <string name="detail_alcohol">Отношение к алкоголю</string>
+    <string name="detail_mobile_phone">Мобильный телефон</string>
+    <string name="detail_home_phone">Домашний телефон</string>
+    <string name="career_at_join">в</string>
+    <string name="career_years">%1$s–%2$s</string>
+    <string name="career_present">%1$s – н. в.</string>
+
+    <!-- Семейное положение -->
+    <string name="relation_single">Свободен(на)</string>
+    <string name="relation_relationship">Есть отношения</string>
+    <string name="relation_engaged">Помолвлен(а)</string>
+    <string name="relation_married">Женат / замужем</string>
+    <string name="relation_complicated">Всё сложно</string>
+    <string name="relation_searching">В активном поиске</string>
+    <string name="relation_in_love">Влюблён(а)</string>
+    <string name="relation_civil_union">В гражданском браке</string>
+
+    <!-- Приоритеты -->
+    <string name="life_family">Семья и дети</string>
+    <string name="life_career">Карьера и деньги</string>
+    <string name="life_leisure">Развлечения и отдых</string>
+    <string name="life_science">Наука и исследования</string>
+    <string name="life_world">Совершенствование мира</string>
+    <string name="life_development">Личное развитие</string>
+    <string name="life_art">Красота и искусство</string>
+    <string name="life_fame">Слава и влияние</string>
+    <string name="people_intellect">Ум и творчество</string>
+    <string name="people_kindness">Доброта и честность</string>
+    <string name="people_health">Здоровье и красота</string>
+    <string name="people_wealth">Богатство и власть</string>
+    <string name="people_courage">Смелость и упорство</string>
+    <string name="people_humor">Юмор и жизнелюбие</string>
+    <string name="habit_very_negative">Резко негативное</string>
+    <string name="habit_negative">Негативное</string>
+    <string name="habit_neutral">Нейтральное</string>
+    <string name="habit_compromise">Компромиссное</string>
+    <string name="habit_positive">Положительное</string>
+
+    <string name="tracks_playlists_summary">%1$s треков · %2$s плейлистов</string>
+    <string name="members_count">Участников: %1$d</string>
+
+    <!-- Итоги года -->
+    <string name="year_recap_title">Итоги года</string>
+    <string name="playlist_ready">Плейлист готов</string>
+    <string name="recap_playlist_name">Плейлист по итогам года</string>
+    <string name="saved_to_vk_music">Сохранён в вашей музыке ВКонтакте</string>
+    <string name="vk_building_playlist">ВКонтакте собирает плейлист…</string>
+    <string name="try_again">Попробовать снова</string>
+    <string name="build_playlist">Собрать плейлист</string>
+    <string name="no_recap_for_artist">ВКонтакте не показывает итоги года для этого артиста</string>
+    <string name="no_recap_yet">ВКонтакте пока не собрал ваши итоги года</string>
+    <string name="recap_hint">Итоги появляются, когда их публикует сам ВКонтакте — обычно в конце года.</string>
+    <string name="check_again">Проверить снова</string>
+    <string name="recap_load_failed">Не удалось загрузить итоги года</string>
+
+    <!-- Сниппеты -->
+    <string name="listen_snippet">Слушать фрагмент</string>
+    <string name="snippet_duration">Фрагмент · %1$s</string>
+    <string name="snippets_load_failed">Не удалось загрузить сниппеты</string>
+    <string name="snippets_empty">VK пока не прислал сниппеты</string>
+    <string name="snippets_empty_detail">Метод audio.getSnippets ответил пустым списком</string>
+
+    <!-- Аудио владельца -->
+    <string name="owner_music_closed">%1$s закрыл(а) свою музыку</string>
+    <string name="owner_music_closed_message">VK не разрешает доступ к аудио этой страницы.</string>
+    <string name="audio_load_failed">Не удалось загрузить аудио</string>
+    <string name="no_audio_short">Нет аудио</string>
+    <string name="owner_no_tracks">У %1$s нет треков в VK.</string>
+
+    <!-- Связи -->
+    <string name="connections_load_failed">Не удалось загрузить «%1$s»</string>
+    <string name="nothing_here_yet">Здесь пока ничего нет</string>
+    <string name="no_public_friends">VK не вернул публичных друзей.</string>
+    <string name="no_mutual_friends_detail">У вас нет общих друзей с этим пользователем.</string>
+    <string name="no_public_followers">VK не вернул публичных подписчиков.</string>
+    <string name="no_public_subscriptions">VK не вернул публичные подписки.</string>
+
+    <!-- Альбомная главная -->
+    <string name="favorites_with_count">Избранное&#160;&#160;(%1$d)</string>
+    <string name="no_liked_tracks">Пока нет любимых треков</string>
+    <string name="playing_now">Сейчас играет</string>
+    <string name="nothing_playing">Ничего не играет</string>
+    <string name="queue_up_next">Очередь (далее)</string>
+    <string name="queue_empty">Очередь пуста</string>
+
+    <!-- Онбординг рекомендаций -->
+    <string name="tune_recommendations">Настроить рекомендации</string>
+    <string name="onboarding_mark_artists_hint">Отметьте исполнителей, которых слушаете — ВКонтакте подстроит под них рекомендации</string>
+    <string name="selected_need_more">Выбрано: %1$d — ещё %2$d до отправки</string>
+    <string name="find_artist">Найти исполнителя</string>
+    <string name="action_done">Готово</string>
+    <string name="choose_more">Выберите ещё %1$d</string>
+    <string name="no_artists_for_query">По запросу «%1$s» исполнителей не нашлось</string>
+    <string name="vk_no_artist_suggestions">ВКонтакте не предложил исполнителей</string>
+    <string name="try_change_query">Попробуйте изменить запрос.</string>
+    <string name="search_artists_above_hint">Найдите исполнителей через поиск выше — выбор всё равно уйдёт в рекомендации.</string>
+    <string name="artist_search_failed">Поиск исполнителей не удался</string>
+    <string name="artists_load_failed">Не удалось загрузить исполнителей</string>
+
+    <!-- LRCLIB -->
+    <string name="publish_lyrics_title">Опубликовать текст песни</string>
+    <string name="lrc_contribution_hint">Вклад в открытую базу LRCLIB для этого трека.</string>
+    <string name="track_name_placeholder">Название трека</string>
+    <string name="lrc_wordsync_saved">Пословная синхронизация сохранена ✓ (теперь показывается ваша версия)</string>
+    <string name="duration_from_file">Длительность: %1$d с (из файла)</string>
+    <string name="instrumental_track">Инструментал (без текста)</string>
+    <string name="plain_lyrics">Обычный текст</string>
+    <string name="song_lines_placeholder">Строки песни…</string>
+    <string name="synced_lrc">Синхронизированный (LRC)</string>
+    <string name="by_line">По строкам ▶</string>
+    <string name="wordsync_karaoke">Пословная синхронизация (караоке)</string>
+    <string name="wordsync_saved_hint">Сохранено — показывается ваша версия (имеет приоритет над LRCLIB).</string>
+    <string name="wordsync_local_hint">Нажимайте на слова. Хранится локально, имеет приоритет над LRCLIB.</string>
+    <string name="by_word_arrow">По словам ▶</string>
+    <string name="delete_my_sync">Удалить мою синхронизацию</string>
+    <string name="wordsync_deleted">Пословная синхронизация удалена</string>
+    <string name="status_requesting_task">Запрашиваем задание…</string>
+    <string name="lyrics_published">Текст опубликован ✓</string>
+    <string name="publish_action">Опубликовать</string>
+    <string name="sync_title">Синхронизация</string>
+    <string name="sync_hint_lines">Нажимайте на строку, когда она звучит. Долгое нажатие проверяет с этого места.</string>
+    <string name="sync_hint_words">Нажимайте на каждое слово, когда оно звучит. Долгое нажатие проверяет со строки слова.</string>
+    <string name="test_label">ТЕСТ</string>
+    <string name="tap_line_n">ТАП (строка %1$d)</string>
+    <string name="tap_word_n">ТАП (слово %1$d/%2$d)</string>
+    <string name="by_word">По словам</string>
+    <string name="speed_label">Скорость:</string>
+
+    <!-- Отладочный лог -->
+    <string name="debug_log_title">Отладочный лог</string>
+    <string name="debug_filter_hint">Подстрока, например url или error</string>
+    <string name="debug_copy_all">Скопировать всё</string>
+    <string name="debug_share">Поделиться</string>
+    <string name="debug_clear">Очистить</string>
+    <string name="debug_log_empty">Лог пуст</string>
+    <string name="debug_nothing_found">Ничего не найдено</string>
+    <string name="debug_empty_hint">Нажмите «Очистить», затем воспроизведите трек — в лог попадут события плеера.</string>
+    <string name="debug_filter_hint2">Измените подстроку фильтра</string>
+    <string name="debug_lines_count">Строк: %1$d</string>
+    <string name="debug_copied">Лог скопирован</string>
+    <string name="debug_copy_failed">Не удалось скопировать: %1$s</string>
+    <string name="debug_send_via">Отправить лог через…</string>
+    <string name="debug_no_send_app">Нет приложения для отправки: %1$s</string>
+
+    <!-- Плеер -->
+    <string name="fullscreen_cd">Во весь экран</string>
+    <string name="exit_fullscreen_cd">Выйти из полноэкранного режима</string>
+    <string name="artist_page_unavailable">Страница исполнителя недоступна</string>
+    <string name="credits_title">Авторы</string>
+    <string name="wave_from_track">Волна от этого трека</string>
+    <string name="downloading_percent">Загрузка… %1$d%%</string>
+    <string name="delete_download_action">Удалить загрузку</string>
+    <string name="publish_lyrics_lrclib">Опубликовать текст в LRCLIB</string>
+    <string name="vk_subscription_required">Требуется подписка VK Музыки</string>
+    <string name="vk_subscription_message">Офлайн-кеширование будет использовать подписку и аудиоданные только VK после восстановления процесса загрузки.</string>
+    <string name="delete_download_question">Удалить загрузку?</string>
+    <string name="delete_download_body">Удалить этот трек с устройства? Для повторного прослушивания понадобится интернет.</string>
+
+    <!-- Очередь -->
+    <string name="queue_title">Очередь</string>
+    <string name="up_next_section">Далее</string>
+    <string name="repeat_on_hint">Повтор включён — играет по кругу</string>
+    <string name="local_track_hint">Локальный трек играет отдельно</string>
+    <string name="finding_next_hint">Ищем, что играет дальше</string>
+    <string name="removed_label">Удалено</string>
+    <string name="remove_from_queue">Убрать из очереди</string>
+
+    <!-- Тексты песен -->
+    <string name="no_lyrics">Текст недоступен</string>
+    <string name="sync_chip">СИНХР</string>
+    <string name="sync_chip_offset">СИНХР %+.1f с</string>
+    <string name="back_to_sync">К синхронизации</string>
+    <string name="preview_words_hint">Пословно — проверьте, что слова подсвечиваются вовремя</string>
+    <string name="preview_lines_hint">Построчно — проверьте тайминг строк</string>
+    <string name="fill_effect">Эффект заливки</string>
+    <string name="effect_fill">Заливка</string>
+    <string name="effect_fade">Затухание</string>
+    <string name="effect_running">Бегущая</string>
+    <string name="smoothness_percent">Плавность: %1$d%%</string>
+    <string name="share_lyrics">Поделиться текстом</string>
+    <string name="couldnt_share">Не удалось поделиться</string>
+    <string name="loading_credits">Загружаем авторов…</string>
+    <string name="no_credits">VK не указал авторов для этой записи.</string>
+    <string name="credits_hint">Авторы приходят вместе с текстом песни, поэтому у записей без текста их обычно нет.</string>
+
+    <!-- Настройки -->
+    <string name="app_icon">Иконка приложения</string>
+    <string name="current_icon_line">Сейчас: %1$s</string>
+    <string name="off_label">Выкл</string>
+    <string name="sleep_timer_section">Таймер сна</string>
+    <string name="crossfade_section">Кроссфейд</string>
+    <string name="settings_page_root">Настройки</string>
+    <string name="settings_page_root_subtitle">Аккаунт, воспроизведение и приложение</string>
+    <string name="settings_page_vk">VK и профиль</string>
+    <string name="settings_page_vk_subtitle">Аккаунт, статус и рекомендации</string>
+    <string name="settings_page_playback">Воспроизведение</string>
+    <string name="settings_page_playback_subtitle">Фоновая работа, таймер и переходы</string>
+    <string name="settings_page_network">Сеть</string>
+    <string name="settings_page_network_subtitle">Настройки соединения и прокси</string>
+    <string name="settings_page_appearance">Темы и интерфейс</string>
+    <string name="settings_page_appearance_subtitle">Тема, контраст и иконка приложения</string>
+    <string name="settings_page_diagnostics">Диагностика</string>
+    <string name="settings_page_diagnostics_subtitle">Лог воспроизведения и поиск неполадок</string>
+    <string name="settings_page_duplicates">Сканирование дублей</string>
+    <string name="settings_page_duplicates_subtitle">Поиск одинаковых треков в библиотеке VK</string>
+    <string name="duplicates_scan_failed">Не удалось просканировать библиотеку</string>
+    <string name="duplicates_delete_forbidden">VK не разрешил удалить дубли</string>
+    <string name="duplicates_partial_result">Удалено: %1$d · Не удалено: %2$d</string>
+    <string name="duplicates_removed_count">Удалено дублей: %1$d</string>
+    <string name="duplicates_remove_failed">Не удалось удалить дубли</string>
+    <string name="debug_tools_on">Отладочные инструменты: ВКЛ</string>
+    <string name="debug_tools_off">Отладочные инструменты: ВЫКЛ</string>
+    <string name="settings_vk_subtitle_alt">Статус, рекомендации и аккаунт</string>
+    <string name="sign_in_configure_vk_music">Войдите и настройте VK Музыку</string>
+    <string name="playback_log_troubleshooting">Лог воспроизведения и поиск неполадок</string>
+    <string name="section_account">Аккаунт</string>
+    <string name="vk_profile_title">Профиль VK</string>
+    <string name="profile_and_account_data">Профиль и данные аккаунта</string>
+    <string name="sign_in_to_vk">Войдите в VK</string>
+    <string name="section_music_profile">Музыкальный профиль</string>
+    <string name="broadcast_status">Транслировать в статус</string>
+    <string name="broadcast_sign_in_hint">Войдите в аккаунт ВКонтакте, чтобы включить трансляцию</string>
+    <string name="broadcast_visible_hint">Играющий трек будет виден друзьям в вашем профиле</string>
+    <string name="sign_in_first_hint">Сначала войдите в аккаунт ВКонтакте</string>
+    <string name="choose_artists_hint">Выберите исполнителей для музыкальной выдачи</string>
+    <string name="section_vk_library">Библиотека VK</string>
+    <string name="duplicates_scan_title">Сканирование дублей</string>
+    <string name="duplicates_scan_subtitle">Найти одинаковые треки без фоновой синхронизации</string>
+    <string name="sign_in_vk_first_hint">Сначала войдите в аккаунт VK</string>
+    <string name="section_background_playback">Фоновое воспроизведение</string>
+    <string name="ignore_battery_optimization">Игнорировать оптимизацию батареи</string>
+    <string name="battery_optimization_subtitle">Предотвращает заикание в фоне при переходе Android в Doze</string>
+    <string name="crossfade_description">Плавный переход между треками. Выключено — играют подряд.</string>
+    <string name="section_vpn_connection">VPN и соединение</string>
+    <string name="vpn_bypass_title">Обход системного VPN</string>
+    <string name="vpn_active_vk_ok">VPN активен · VK работает через Wi-Fi / SIM</string>
+    <string name="vpn_active_unreachable">VPN активен · физическое соединение недоступно</string>
+    <string name="vpn_enabled_standby">Включён · сработает при подключении VPN</string>
+    <string name="vpn_disabled_all_traffic">Выключен · весь трафик идёт через системный VPN</string>
+    <string name="section_vk_connection">Соединение VK</string>
+    <string name="proxied_connection_title">Проксированное соединение</string>
+    <string name="proxied_connection_subtitle">Вход в аккаунт невозможен при включённом тумблере</string>
+    <string name="update_proxied_connection">Обновить проксированное соединение</string>
+    <string name="load_actual_settings">Загрузить актуальные настройки</string>
+    <string name="section_theme">Тема</string>
+    <string name="section_accessibility">Специальные возможности</string>
+    <string name="increase_contrast">Повысить контраст</string>
+    <string name="increase_contrast_subtitle">Более плотный текст и меньше прозрачности стекла</string>
+    <string name="section_app_icon">Иконка приложения</string>
+    <string name="icon_selected_toast">Иконка «%1$s» выбрана</string>
+    <string name="debug_log_subtitle">Очистите лог, воспроизведите трек и отправьте результат</string>
+    <string name="debug_filter_cd">Фильтр</string>
+    <string name="section_cloud_library">Облачная библиотека</string>
+    <string name="scanning_ellipsis">Сканирование…</string>
+    <string name="scan_library">Сканировать библиотеку</string>
+    <string name="readonly_scan_hint">Только чтение · ничего не удаляется автоматически</string>
+    <string name="wait_library_checking">Подождите, библиотека проверяется</string>
+    <string name="section_result">Результат</string>
+    <string name="section_cleanup">Очистка</string>
+    <string name="delete_exact_duplicates">Удалить точные дубли</string>
+    <string name="delete_duplicates_subtitle">Не более 5 за один запуск · останутся самые старые копии</string>
+    <string name="delete_exact_duplicates_question">Удалить точные дубли?</string>
+    <string name="delete_duplicates_message">Будут удалены до 5 новых копий. Самая старая запись каждого трека останется в VK.</string>
+    <string name="no_duplicates_found">Дубли не найдены</string>
+    <string name="duplicates_found_count">Найдено дублей: %1$d</string>
+    <string name="checked_tracks_groups">Проверено треков: %1$d · Групп: %2$d</string>
+    <string name="profile_and_vk_account">Профиль и аккаунт VK</string>
+    <string name="sign_in_vk_music">Войдите в VK Музыку</string>
+    <string name="switch_account">Сменить аккаунт</string>
+    <string name="light_theme_short">Светлая</string>
+    <string name="dark_theme_short">Тёмная</string>
+    <string name="auto_theme_short">Авто</string>
+    <string name="color_scheme">Цветовая схема</string>
+    <string name="dynamic_color_hint">Dynamic Color · подстраивается под обои и системную тему</string>
+    <string name="follows_system_hint">Следует системной теме · Dynamic Color требует Android 12+</string>
+    <string name="dark_theme">Тёмная тема</string>
+    <string name="light_theme">Светлая тема</string>
+    <string name="auto_dynamic_color">Авто · Dynamic Color</string>
+    <string name="auto_theme">Автотема</string>
+    <string name="crossfade_off">Кроссфейд выкл</string>
+    <string name="crossfade_seconds">%1$d с кроссфейд</string>
+    <string name="timer_off">таймер выкл</string>
+    <string name="timer_minutes">%1$d мин таймер</string>
+    <string name="vpn_outside_active">VK вне VPN</string>
+    <string name="vpn_bypass_unavailable">Обход VPN недоступен</string>
+    <string name="vpn_bypass_enabled">Обход VPN включён</string>
+    <string name="through_system_vpn">Через системный VPN</string>
+    <string name="direct_connection">Прямое соединение</string>
+    <string name="proxied_connection">Проксированное соединение</string>
+    <string name="saved_accounts_status">%1$d сохранённых аккаунтов · Статус и настройки</string>
+    <string name="saved_account_switch">%1$d сохранённый аккаунт · Смена профиля</string>
+    <string name="saved_accounts_switch">%1$d сохранённых аккаунтов · Смена профиля</string>
+    <string name="saved_accounts_longtap">%1$d сохранённых аккаунтов · Долгий тап для смены</string>
+    <string name="theme_icon_summary">%1$s · иконка «%2$s»</string>
+
+    <!-- Иконки приложения -->
+    <string name="launcher_icon_sunset">Закат</string>
+    <string name="launcher_icon_emerald">Изумруд</string>
+    <string name="launcher_icon_lagoon">Лагуна</string>
+    <string name="launcher_icon_amethyst">Аметист</string>
+    <string name="launcher_icon_prism">Призма</string>
+    <string name="launcher_icon_neon">Неон</string>
+    <string name="launcher_icon_fuchsia">Фуксия</string>
+    <string name="launcher_icon_amber">Янтарь</string>
+    <string name="launcher_icon_ruby">Рубин</string>
+    <string name="launcher_icon_graphite">Графит</string>
+    <string name="launcher_icon_rose">Роза</string>
+    <string name="launcher_icon_cobalt">Кобальт</string>
+    <string name="launcher_icon_pearl">Жемчуг</string>
+
+    <!-- AppRoot -->
+    <string name="no_track">Нет трека</string>
+    <string name="remove_session_body">С устройства будет удалена только эта зашифрованная сессия.</string>
+    <string name="remove_account_question">Удалить «%1$s»?</string>
+
+    <!-- Безопасность -->
+    <string name="reason_root_detected">Обнаружен Root</string>
+    <string name="reason_emulator_detected">Обнаружен эмулятор</string>
+    <string name="security_block_title">БЛОКИРОВКА ЦЕЛОСТНОСТИ</string>
+    <string name="security_block_body">Это приложение запрещено запускать в отлаживаемом, рутованном или небезопасном окружении.</string>
+    <string name="integrity_violations">Обнаружены нарушения целостности:</string>
+
+    <!-- Крэш-экран -->
+    <string name="log_not_found">Лог не найден.</string>
+    <string name="crash_log_copied">Лог крэша скопирован в буфер обмена</string>
+    <string name="copy_failed_toast">Не удалось скопировать: %1$s</string>
+    <string name="no_send_app_toast">Нет приложения для отправки лога: %1$s</string>
+    <string name="app_crashed_title">Произошёл сбой</string>
+    <string name="crash_copy_hint">Скопируйте или отправьте лог сбоя.</string>
+    <string name="action_copy">Скопировать</string>
+
+    <!-- Уведомления сервисов -->
+    <string name="playlist_download_channel_description">Показывает прогресс скачивания плейлистов для офлайн-прослушивания</string>
+    <string name="downloading_your_playlist">Скачиваем ваш плейлист</string>
+    <string name="downloading_progress_of">Загрузка: %1$d / %2$d треков</string>
+    <string name="downloads_finished">Загрузки завершены!</string>
+    <string name="downloads_finished_detail">Сохранено успешно: %1$d, с ошибками/пропущено: %2$d из %3$d треков.</string>
+    <string name="download_cancelled">Загрузка отменена</string>
+    <string name="download_stopped_at">Остановлено на %1$d / %2$d треков</string>
+    <string name="download_failed_title">Ошибка загрузки</string>
+    <string name="lmg_downloading_tracks">LMG VK: загрузка треков</string>
+
+    <!-- Ошибки backend -->
+    <string name="err_no_network">Нет подключения к интернету или сеть недоступна</string>
+    <string name="err_response_processing_failed">Сбой обработки ответа VK</string>
+    <string name="err_vk_session_expired">Сессия VK истекла. Пожалуйста, выполните повторный вход</string>
+    <string name="err_audio_access_restricted">Доступ к аудио ограничен или запрещён VK</string>
+    <string name="err_not_found">Не найдено</string>
+    <string name="err_too_many_requests">Слишком много запросов</string>
+    <string name="err_region_unavailable">Недоступно в вашем регионе</string>
+    <string name="err_backend_generic_code">Ошибка бэкенда (%1$d)</string>
+    <string name="err_track_unavailable">Аудиозапись недоступна</string>
+    <string name="err_no_link_access_key">VK не дал ссылку на трек (нет access_key или доступ закрыт)</string>
+    <string name="err_audio_api_unavailable">VK отдал audio_api_unavailable вместо ссылки</string>
+    <string name="err_no_section_id">VK не дал идентификатор раздела</string>
+    <string name="official_profile">Официальный профиль</string>
+    <string name="community_label">Сообщество</string>
+    <string name="vkmix_brand">VK Mix</string>
+    <string name="vk_recommendations">Рекомендации VK</string>
+    <string name="vk_popular">Популярное в VK</string>
+    <string name="err_vkmix_session_stale">Сессия VK Mix устарела</string>
+    <string name="err_bad_wave_audio_id">Некорректный VK audio id для волны</string>
+    <string name="vk_clip_fallback">Клип VK</string>
+    <string name="vk_clips_artist">VK Клипы</string>
+    <string name="match_percent">Совпадение %1$d%%</string>
+    <string name="vk_recommendation">Рекомендация VK</string>
+    <string name="recommended_playlist_artist">Рекомендованный плейлист</string>
+    <string name="vk_music_history_title">История VK Музыки</string>
+    <string name="vk_audiobook_title">Аудиокнига VK</string>
+    <string name="audiobook_authors_title">Автор аудиокниг</string>
+    <string name="new_updates_title">Новые обновления</string>
+    <string name="vk_clips_section">Клипы VK</string>
+    <string name="curated_by_editors">Собрано редакцией</string>
+    <string name="vk_music_sections">Разделы VK Музыки</string>
+    <string name="editors_choice">Выбор редакции</string>
+    <string name="radio_stations">Радиостанции</string>
+    <string name="vk_mixes_section">Миксы VK</string>
+    <string name="vk_music_longreads">Истории VK Музыки</string>
+    <string name="podcasts_section">Подкасты</string>
+    <string name="audiobooks_section">Аудиокниги</string>
+    <string name="artist_wave_failed">Не удалось запустить волну исполнителя</string>
+
+    <!-- Ошибки авторизации -->
+    <string name="err_vk_api_not_initialized">VK API не инициализирован</string>
+    <string name="err_vk_session_expired_restart">Сессия авторизации VK истекла. Начните заново.</string>
+    <string name="err_login_changed">Логин изменился. Начните авторизацию заново.</string>
+    <string name="err_verification_changed">Сессия проверки VK изменилась. Начните заново.</string>
+    <string name="err_anonymous_session_expired">Анонимная сессия авторизации VK истекла</string>
+    <string name="err_vk_rejected_code">VK отклонил код подтверждения</string>
+    <string name="err_empty_verified_session">VK вернул пустую проверенную сессию</string>
+    <string name="err_captcha_session_changed">Сессия капчи VK изменилась. Начните заново.</string>
+    <string name="err_no_anonymous_token">VK не выдал токен анонимной авторизации</string>
+    <string name="err_could_not_validate">VK не смог подтвердить этот аккаунт</string>
+    <string name="err_account_not_exist">Такого аккаунта VK не существует</string>
+    <string name="err_empty_auth_session">VK вернул пустую сессию авторизации</string>
+    <string name="err_no_code_sent">VK не отправил код подтверждения</string>
+    <string name="err_vk_auth_failed">Ошибка авторизации VK</string>
+    <string name="err_incomplete_captcha">VK вернул неполную капчу</string>
+    <string name="err_empty_verification_session">VK вернул пустую сессию проверки</string>
+    <string name="err_vk_generic_code">Ошибка VK (%1$d)</string>
+    <string name="err_unknown_auth_response">Неизвестный ответ авторизации VK</string>
+    <string name="err_security_check_cancelled">Проверка безопасности VK отменена</string>
+    <string name="err_empty_anonymous_token">VK вернул пустой токен анонимной авторизации</string>
+    <string name="err_empty_access_token">VK вернул пустой access token</string>
+
+    <!-- Исполнитель -->
+    <string name="artist_not_found">Исполнитель не найден</string>
+    <string name="artist_mix_unavailable">Микс исполнителя недоступен</string>
+    <string name="artist_followed">Исполнитель добавлен</string>
+    <string name="artist_unfollowed">Исполнитель удалён из подписок</string>
+    <string name="follow_update_failed">Не удалось обновить подписку</string>
+    <string name="latest_release">Последний релиз</string>
+    <string name="top_songs">Популярные треки</string>
+    <string name="singles_eps">Синглы и EP</string>
+    <string name="compilations">Сборники</string>
+    <string name="live_albums">Концертные альбомы</string>
+    <string name="similar_artists">Похожие исполнители</string>
+    <string name="participates_in_releases">Участвует в релизах</string>
+    <string name="about_artist">Об исполнителе %1$s</string>
+    <string name="links">Ссылки</string>
+    <string name="artist_label">Исполнитель</string>
+    <string name="concerts">Концерты</string>
+    <string name="merch">Мерч</string>
+    <string name="information">Информация</string>
+    <string name="official_profiles">Официальные профили</string>
+    <string name="official_community">Официальное сообщество</string>
+    <string name="similar_communities">Похожие сообщества</string>
+    <string name="music_videos">Музыкальные видео</string>
+    <string name="loading_short">Загрузка…</string>
+    <string name="artist_mix">Микс исполнителя</string>
+    <string name="follow">Подписаться</string>
+    <string name="following">Вы подписаны</string>
+    <string name="releases_title">Релизы</string>
+    <string name="videos_title">Видео</string>
+    <string name="subscribed_to_community">Вы подписаны</string>
+
+    <!-- Альбом -->
+    <string name="album_not_found">Альбом не найден</string>
+    <string name="cached_label">Скачано</string>
+    <string name="action_cache">Кешировать</string>
+    <string name="album_added">Альбом добавлен</string>
+    <string name="album_add_failed">Не удалось добавить альбом</string>
+    <string name="disc_title">Диск %1$d</string>
+    <string name="released_date">Дата релиза: %1$s</string>
+    <string name="plays_count">Прослушиваний: %1$s</string>
+    <string name="followers_count">Подписчиков: %1$s</string>
+    <string name="created_at">Создан: %1$s</string>
+    <string name="updated_at">Обновлён: %1$s</string>
+    <string name="in_library">В библиотеке</string>
+    <string name="adding_short">Добавляем…</string>
+    <string name="action_add">Добавить</string>
+    <string name="action_queue">В очередь</string>
+    <string name="most_played_track">Чаще всего: %1$s</string>
+
+    <!-- Плейлист (страница) -->
+    <string name="invalid_playlist">Некорректный плейлист</string>
+    <string name="playlist_not_found">Плейлист не найден</string>
+    <string name="playlist_load_failed">Не удалось загрузить плейлист</string>
+    <string name="tracks_partially_loaded">Некоторые треки не удалось загрузить</string>
+    <string name="playlist_fallback">Плейлист</string>
+    <string name="your_playlist">Ваш плейлист</string>
+    <string name="vk_music_brand">VK Музыка</string>
+    <string name="open_artist">Открыть исполнителя</string>
+    <string name="playlist_empty">Этот плейлист пуст</string>
+    <string name="yours">Ваш плейлист</string>
+    <string name="action_rename">Переименовать</string>
+    <string name="playlist_cached">Плейлист скачан</string>
+    <string name="caching_playlist">Скачивание плейлиста · %1$d/%2$d</string>
+    <string name="cached_tracks_progress">Скачано треков · %1$d/%2$d</string>
+    <string name="loading_tracks_total">Загрузка треков · %1$d/%2$d</string>
+    <string name="loading_tracks">Загрузка треков · %1$d</string>
+
+    <!-- Типы релизов -->
+    <string name="release_type_single">Сингл</string>
+    <string name="release_type_compilation">Сборник</string>
+    <string name="release_type_album">Альбом</string>
+
+    <!-- Авторизация -->
+    <string name="auth_sign_in_vk">Вход в VK</string>
+    <string name="auth_add_account">Добавить аккаунт</string>
+    <string name="auth_confirmation_code">Код подтверждения</string>
+    <string name="auth_check">Проверка</string>
+    <string name="auth_enter_password">Введите пароль</string>
+    <string name="auth_with_vk_account">используя ваш аккаунт VK</string>
+    <string name="auth_two_factor_subtitle">Введите код подтверждения, отправленный на %1$s</string>
+    <string name="auth_your_vk_account">ваш аккаунт VK</string>
+    <string name="auth_password_subtitle">Введите пароль от вашей страницы ВКонтакте</string>
+    <string name="auth_phone_or_login">Телефон или логин</string>
+    <string name="field_password">Пароль</string>
+    <string name="auth_back_to_phone">Назад к вводу телефона</string>
+    <string name="auth_sign_in_action">Войти</string>
+    <string name="action_confirm">Подтвердить</string>
+    <string name="auth_security_title">Ваш аккаунт в безопасности</string>
+    <string name="auth_security_body">LMG только отправляет ваши данные на сервера VK и сохраняет их в зашифрованной форме в Android Keystore.</string>
+    <string name="auth_error_enter_login">Введите номер телефона или логин</string>
+    <string name="auth_error_enter_code">Введите код из сообщения</string>
+    <string name="auth_error_enter_password">Введите пароль</string>
+
+    <!-- Поиск -->
+    <string name="search_placeholder">Песни, исполнители, альбомы</string>
+    <string name="recent_searches">Недавние запросы</string>
+    <string name="something_went_wrong">Что-то пошло не так</string>
+    <string name="unknown_error">Неизвестная ошибка</string>
+    <string name="section_artists">Исполнители</string>
+    <string name="section_albums">Альбомы</string>
+    <string name="section_songs">Песни</string>
+    <string name="unavailable_artist_prefix">Недоступно · %1$s</string>
+    <string name="unavailable">Недоступно</string>
+    <string name="retry_load_more">Повторить загрузку</string>
+    <string name="nothing_found">Ничего не найдено</string>
+    <string name="search_no_results">Нет результатов по запросу «%1$s»</string>
+    <string name="added_to_playlist">Добавлено в плейлист «%1$s»</string>
+    <string name="already_in_playlist">Трек уже есть в плейлисте «%1$s»</string>
+    <string name="search_vk_music">Поиск в VK Музыке</string>
+    <string name="search_find_hint">Находите песни, исполнителей и альбомы</string>
+
+    <!-- Библиотека -->
+    <string name="your_library">Ваша библиотека</string>
+    <string name="recently_played">Недавно прослушанные</string>
+    <string name="vk_history">История VK</string>
+    <string name="recent_tracks_hint">Здесь появятся треки, которые вы слушаете</string>
+    <string name="my_tracks">Мои треки</string>
+    <string name="search_results">Результаты поиска</string>
+    <string name="see_all">Открыть все</string>
+    <string name="shuffle_my_tracks">Перемешать мои треки</string>
+    <string name="favorites_hint">Здесь появятся ваши любимые треки</string>
+    <string name="no_tracks_match">Треки не найдены</string>
+    <string name="no_favorites_yet">Пока нет любимых треков</string>
+    <string name="sync_in_progress">Синхронизация содержимого аккаунта VK…</string>
+    <string name="sync_report">Синхронизировано · отправлено %1$d · загружено %2$d</string>
+    <string name="sync_failed_suffix">&#160;&#183; ошибок: %1$d</string>
+    <string name="sync_deleted_suffix">&#160;&#183; удалено: %1$d</string>
+    <string name="sync_local_only_suffix">&#160;&#183; только локальных: %1$d</string>
+    <string name="playlists_title">Плейлисты</string>
+    <string name="collections_count">Подборок: %1$d</string>
+    <string name="syncing_short">Синхронизация…</string>
+    <string name="sync_action">Синхронизировать</string>
+    <string name="action_create">Создать</string>
+    <string name="no_playlists_found">Плейлисты не найдены</string>
+    <string name="delete_playlist_title">Удалить плейлист</string>
+    <string name="delete_playlist_message">Удалить плейлист «%1$s»?</string>
+    <string name="delete_imported_playlist_message">Удалить плейлист «%1$s» из вашей библиотеки VK?</string>
+    <string name="recent_title">Недавнее</string>
+    <string name="listening_history">Ваша история прослушиваний</string>
+    <string name="no_listening_history">Пока нет истории прослушиваний</string>
+    <string name="my_playlists">Мои плейлисты</string>
+    <string name="no_playlists_yet_create">Пока нет плейлистов.\nСоздайте первый!</string>
+    <string name="imported_playlists">Импортированные плейлисты</string>
+    <string name="sync_playlists_title">Синхронизация плейлистов</string>
+    <string name="sync_playlists_sign_in">Войдите в аккаунт во вкладке «Профиль», чтобы видеть и синхронизировать плейлисты VK.</string>
+    <string name="no_playlists_yet">Плейлистов пока нет.</string>
+    <string name="downloaded_tab">Скачанное</string>
+    <string name="syncing_tracks">Синхронизация треков</string>
+    <string name="sync_tracks">Синхронизировать треки</string>
+    <string name="saved_and_local">Сохранённые и локальные</string>
+    <string name="and_curators">и кураторы</string>
+    <string name="downloads_title">Загрузки</string>
+    <string name="offline_tracks_suffix">%1$d офлайн</string>
+    <string name="offline_tracks_count">%1$d офлайн-треков</string>
+    <string name="clear_all">Очистить всё</string>
+    <string name="moving_downloads">Перенос загрузок в Загрузки… %1$d/%2$d</string>
+    <string name="no_downloaded_tracks">Пока ничего не скачано</string>
+    <string name="clear_all_downloads">Очистить все загрузки</string>
+    <string name="clear_all_downloads_message">Все скачанные треки (%1$d) будут безвозвратно удалены с устройства и из базы данных. Это действие нельзя отменить.</string>
+    <string name="delete_offline_track">Удалить офлайн-трек</string>
+    <string name="delete_offline_track_message">Удалить «%1$s» из памяти устройства?</string>
+    <string name="play_all">Играть всё</string>
+    <string name="sort_default">По умолчанию</string>
+    <string name="sort_title">По названию</string>
+    <string name="sort_artist">По исполнителю</string>
+    <string name="sort_name">А–Я</string>
+    <string name="sort_by_tracks">По трекам</string>
+    <string name="search_library">Поиск по библиотеке</string>
+    <string name="vk_library">Библиотека VK</string>
+    <string name="searching_vk_library">Ищем в вашей библиотеке VK…</string>
+    <string name="search_vk_library_failed">Не удалось найти в библиотеке VK: %1$s</string>
+    <string name="nothing_in_vk_library">Ничего не найдено в вашей библиотеке VK</string>
+    <string name="playlist_tracks_prefix">Плейлист · %1$s</string>
+    <string name="open_playlist">Открыть плейлист</string>
+    <string name="source_all">Все</string>
+    <string name="source_local">Локальные</string>
+    <string name="source_cloud">Облачные</string>
+    <string name="local_audio">Локальная музыка</string>
+    <string name="allow_music_access">Разрешите доступ к вашей музыке</string>
+    <string name="music_permission_hint">Выдайте разрешение, чтобы находить и слушать музыку, сохранённую на этом устройстве.</string>
+    <string name="grant_permission">Выдать разрешение</string>
+    <string name="no_local_audio">Локальная музыка не найдена</string>
+    <string name="downloaded_badge">Скачано</string>
+    <string name="options">Опции</string>
+
+    <!-- Треки -->
+    <string name="track_unavailable_suffix">%1$s · Недоступно</string>
+    <string name="duration_hours_minutes">%1$d ч %2$d мин</string>
+    <string name="duration_minutes">%1$d мин</string>
+
+    <!-- Множественные формы -->
+    <plurals name="track_count">
+        <item quantity="one">%1$d трек</item>
+        <item quantity="few">%1$d трека</item>
+        <item quantity="many">%1$d треков</item>
+        <item quantity="other">%1$d трека</item>
+    </plurals>
+    <plurals name="playlist_count">
+        <item quantity="one">%1$d плейлист</item>
+        <item quantity="few">%1$d плейлиста</item>
+        <item quantity="many">%1$d плейлистов</item>
+        <item quantity="other">%1$d плейлиста</item>
+    </plurals>
+    <plurals name="auth_code_digits">
+        <item quantity="one">%1$d цифра</item>
+        <item quantity="few">%1$d цифры</item>
+        <item quantity="many">%1$d цифр</item>
+        <item quantity="other">%1$d цифры</item>
+    </plurals>
+    <plurals name="recent_tracks_count">
+        <item quantity="one">%1$d недавний трек</item>
+        <item quantity="few">%1$d недавних трека</item>
+        <item quantity="many">%1$d недавних треков</item>
+        <item quantity="other">%1$d недавних трека</item>
+    </plurals>
+    <plurals name="favorite_tracks_count">
+        <item quantity="one">%1$d любимый трек</item>
+        <item quantity="few">%1$d любимых трека</item>
+        <item quantity="many">%1$d любимых треков</item>
+        <item quantity="other">%1$d любимого трека</item>
+    </plurals>
+    <plurals name="search_results_count">
+        <item quantity="one">%1$d результат поиска</item>
+        <item quantity="few">%1$d результата поиска</item>
+        <item quantity="many">%1$d результатов поиска</item>
+        <item quantity="other">%1$d результата поиска</item>
+    </plurals>
+    <plurals name="playlist_count_saved">
+        <item quantity="one">Сохранён %1$d</item>
+        <item quantity="few">Сохранено %1$d</item>
+        <item quantity="many">Сохранено %1$d</item>
+        <item quantity="other">Сохранено %1$d</item>
+    </plurals>
+    <plurals name="caching_tracks">
+        <item quantity="one">Кешируем %1$d трек</item>
+        <item quantity="few">Кешируем %1$d трека</item>
+        <item quantity="many">Кешируем %1$d треков</item>
+        <item quantity="other">Кешируем %1$d трека</item>
+    </plurals>
+    <plurals name="added_to_queue">
+        <item quantity="one">%1$d трек добавлен в очередь</item>
+        <item quantity="few">%1$d трека добавлено в очередь</item>
+        <item quantity="many">%1$d треков добавлено в очередь</item>
+        <item quantity="other">%1$d трека добавлено в очередь</item>
+    </plurals>
+    <plurals name="songs_count">
+        <item quantity="one">%1$d песня</item>
+        <item quantity="few">%1$d песни</item>
+        <item quantity="many">%1$d песен</item>
+        <item quantity="other">%1$d песни</item>
+    </plurals>
+    <plurals name="album_played_times">
+        <item quantity="one">Вы слушали этот альбом %1$d раз</item>
+        <item quantity="few">Вы слушали этот альбом %1$d раза</item>
+        <item quantity="many">Вы слушали этот альбом %1$d раз</item>
+        <item quantity="other">Вы слушали этот альбом %1$d раза</item>
+    </plurals>
+    <plurals name="artist_played_times">
+        <item quantity="one">Вы слушали этого исполнителя %1$d раз</item>
+        <item quantity="few">Вы слушали этого исполнителя %1$d раза</item>
+        <item quantity="many">Вы слушали этого исполнителя %1$d раз</item>
+        <item quantity="other">Вы слушали этого исполнителя %1$d раза</item>
+    </plurals>
+    <plurals name="tracks_downloaded">
+        <item quantity="one">%1$d трек</item>
+        <item quantity="few">%1$d трека</item>
+        <item quantity="many">%1$d треков</item>
+        <item quantity="other">%1$d трека</item>
+    </plurals>
 </resources>

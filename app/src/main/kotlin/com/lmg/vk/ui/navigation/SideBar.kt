@@ -30,10 +30,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.lmg.vk.R
 import com.lmg.vk.ui.glass.liquidClickable
 import com.lmg.vk.ui.icons.LmgDrawables
 import com.lmg.vk.ui.icons.lmgVector
@@ -64,13 +66,19 @@ fun SideBar(
 ) {
     val lc = LiquidTheme.colors
     val newTabIcon = lmgVector(LmgDrawables.NewsfeedMusicNoteOutline28)
-    val items = remember(newTabIcon) {
+    val homeLabel = stringResource(R.string.tab_home)
+    val searchLabel = stringResource(R.string.tab_search)
+    val newLabel = stringResource(R.string.tab_new)
+    val libraryLabel = stringResource(R.string.tab_library)
+    val settingsLabel = stringResource(R.string.tab_settings)
+    val guestLabel = stringResource(R.string.guest)
+    val items = remember(newTabIcon, homeLabel, searchLabel, newLabel, libraryLabel, settingsLabel) {
         listOf(
-            SideNavItem(com.lmg.vk.ui.icons.LmgGlyphs.HomeOutline28, "Home", 0),
-            SideNavItem(com.lmg.vk.ui.icons.LmgGlyphs.SearchOutline28, "Search", 1),
-            SideNavItem(newTabIcon, "New", 4),
-            SideNavItem(com.lmg.vk.ui.icons.LmgGlyphs.FolderSimpleOutline28, "Library", 2),
-            SideNavItem(com.lmg.vk.ui.icons.LmgGlyphs.GearOutline24, "Settings", 3),
+            SideNavItem(com.lmg.vk.ui.icons.LmgGlyphs.HomeOutline28, homeLabel, 0),
+            SideNavItem(com.lmg.vk.ui.icons.LmgGlyphs.SearchOutline28, searchLabel, 1),
+            SideNavItem(newTabIcon, newLabel, 4),
+            SideNavItem(com.lmg.vk.ui.icons.LmgGlyphs.FolderSimpleOutline28, libraryLabel, 2),
+            SideNavItem(com.lmg.vk.ui.icons.LmgGlyphs.GearOutline24, settingsLabel, 3),
         )
     }
 
@@ -144,7 +152,7 @@ fun SideBar(
             Spacer(Modifier.width(8.dp))
             Column {
                 Text(
-                    profileName?.takeIf { it.isNotBlank() } ?: "Guest",
+                    profileName?.takeIf { it.isNotBlank() } ?: guestLabel,
                     color = lc.textPrimary, fontSize = 12.sp,
                     fontWeight = FontWeight.SemiBold, maxLines = 1
                 )

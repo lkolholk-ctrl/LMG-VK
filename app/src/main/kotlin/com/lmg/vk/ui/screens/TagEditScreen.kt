@@ -24,10 +24,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.lmg.vk.R
 import com.lmg.vk.data.local.LocalLibraryStore
 import com.lmg.vk.engine.TagEditor
 import com.lmg.vk.engine.Track
@@ -79,7 +81,7 @@ fun TagEditScreen(track: Track, onBack: () -> Unit) {
     }
 
     suspend fun performWrite() {
-        saving = true; status = "Saving…"
+        saving = true; status = context.getString(R.string.status_saving)
         when (val r = TagEditor.write(context, track.uri, name, currentTags())) {
             is TagEditor.WriteResult.Ok -> {
                 runCatching {
@@ -88,9 +90,9 @@ fun TagEditScreen(track: Track, onBack: () -> Unit) {
                         trackNo.trim().toIntOrNull() ?: 0, year.trim().toIntOrNull() ?: 0
                     )
                 }
-                saving = false; status = "Saved ✓"
+                saving = false; status = context.getString(R.string.status_saved)
             }
-            is TagEditor.WriteResult.Unsupported -> { saving = false; status = "Format not supported" }
+            is TagEditor.WriteResult.Unsupported -> { saving = false; status = context.getString(R.string.status_format_unsupported) }
             is TagEditor.WriteResult.Error -> { saving = false; status = r.message }
             is TagEditor.WriteResult.NeedsPermission -> { /* API 29 — обработается лаунчером ниже */ }
         }
@@ -103,7 +105,7 @@ fun TagEditScreen(track: Track, onBack: () -> Unit) {
         if (result.resultCode == Activity.RESULT_OK) {
             scope.launch { performWrite() }
         } else {
-            saving = false; status = "File access denied"
+            saving = false; status = context.getString(R.string.status_access_denied)
         }
     }
 
@@ -112,14 +114,14 @@ fun TagEditScreen(track: Track, onBack: () -> Unit) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             val isender = TagEditor.createWriteRequest(context, listOf(track.uri))
             if (isender != null) {
-                saving = true; status = "Requesting permission…"
+                saving = true; status = context.getString(R.string.status_requesting_permission)
                 permLauncher.launch(IntentSenderRequest.Builder(isender).build())
                 return
             }
         }
         // API 29: пробуем записать; если нужно разрешение — запустим intentSender из результата.
         scope.launch {
-            saving = true; status = "Saving…"
+            saving = true; status = context.getString(R.string.status_saving)
             val r = TagEditor.write(context, track.uri, name, currentTags())
             if (r is TagEditor.WriteResult.NeedsPermission) {
                 permLauncher.launch(IntentSenderRequest.Builder(r.intentSender).build())
@@ -133,9 +135,9 @@ fun TagEditScreen(track: Track, onBack: () -> Unit) {
                                 trackNo.trim().toIntOrNull() ?: 0, year.trim().toIntOrNull() ?: 0
                             )
                         }
-                        saving = false; status = "Saved ✓"
+                        saving = false; status = context.getString(R.string.status_saved)
                     }
-                    is TagEditor.WriteResult.Unsupported -> { saving = false; status = "Format not supported" }
+                    is TagEditor.WriteResult.Unsupported -> { saving = false; status = context.getString(R.string.status_format_unsupported) }
                     is TagEditor.WriteResult.Error -> { saving = false; status = r.message }
                     else -> {}
                 }
@@ -150,25 +152,25 @@ fun TagEditScreen(track: Track, onBack: () -> Unit) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 CircleBack(lc, onBack)
                 Spacer(Modifier.width(14.dp))
-                Text("Tags", color = lc.textPrimary, fontSize = 24.sp, fontWeight = FontWeight.Bold, fontFamily = VkSansDisplay)
+                Text(stringResource(R.string.tags_title), color = lc.textPrimary, fontSize = 24.sp, fontWeight = FontWeight.Bold, fontFamily = VkSansDisplay)
             }
             Spacer(Modifier.height(16.dp))
 
             if (!supported) {
                 Text(
-                    "This file format isn't supported for tag editing yet.",
+                    stringResource(R.string.tag_format_unsupported),
                     color = lc.textSecondary, fontSize = 14.sp
                 )
             } else {
                 Box(Modifier.alpha(if (loading || saving) 0.5f else 1f)) {
                     Column {
-                        EditField("Title", title, lc) { title = it }
-                        EditField("Artist", artist, lc) { artist = it }
-                        EditField("Album", album, lc) { album = it }
-                        EditField("Album Artist", albumArtist, lc) { albumArtist = it }
-                        EditField("Track Number", trackNo, lc, number = true) { trackNo = it.filter { c -> c.isDigit() } }
-                        EditField("Year", year, lc, number = true) { year = it.filter { c -> c.isDigit() } }
-                        EditField("Genre", genre, lc) { genre = it }
+                        EditField(stringResource(R.string.field_title), title, lc) { title = it }
+                        EditField(stringResource(R.string.sort_artist), artist, lc) { artist = it }
+                        EditField(stringResource(R.string.section_albums), album, lc) { album = it }
+                        EditField(stringResource(R.string.field_album_artist), albumArtist, lc) { albumArtist = it }
+                        EditField(stringResource(R.string.field_track_number), trackNo, lc, number = true) { trackNo = it.filter { c -> c.isDigit() } }
+                        EditField(stringResource(R.string.field_year), year, lc, number = true) { year = it.filter { c -> c.isDigit() } }
+                        EditField(stringResource(R.string.field_genre), genre, lc) { genre = it }
                     }
                 }
                 Spacer(Modifier.height(20.dp))
@@ -190,7 +192,7 @@ fun TagEditScreen(track: Track, onBack: () -> Unit) {
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                 }
                 Text(
-                    "Changes are written directly to the file. Library and search update right away.",
+                    stringResource(R.string.tag_changes_hint),
                     color = lc.textTertiary, fontSize = 12.sp,
                     modifier = Modifier.padding(top = 12.dp)
                 )
@@ -247,11 +249,12 @@ fun BulkTagEditScreen(tracks: List<Track>, onBack: () -> Unit) {
         }
         if (out.needPermission != null) {
             remaining = out.remaining; pendingFields = f
-            status = "Requesting permission…"
+            status = context.getString(R.string.status_requesting_permission)
             pendingPermission = out.needPermission           // запустит лаунчер через LaunchedEffect
         } else {
             saving = false
-            status = "Done: $okTotal of $total" + if (failTotal > 0) " · skipped $failTotal" else ""
+            status = context.getString(R.string.status_done_of, okTotal, total) +
+                    if (failTotal > 0) context.getString(R.string.status_skipped_suffix, failTotal) else ""
         }
     }
 
@@ -262,7 +265,7 @@ fun BulkTagEditScreen(tracks: List<Track>, onBack: () -> Unit) {
         if (result.resultCode == Activity.RESULT_OK) {
             scope.launch { drain(remaining, pendingFields) }
         } else {
-            saving = false; status = "File access denied"
+            saving = false; status = context.getString(R.string.status_access_denied)
         }
     }
 
@@ -274,8 +277,8 @@ fun BulkTagEditScreen(tracks: List<Track>, onBack: () -> Unit) {
     fun onApply() {
         if (saving) return
         val f = fields()
-        if (f.isEmpty()) { status = "Fill in at least one field"; return }
-        saving = true; okTotal = 0; failTotal = 0; status = "Preparing…"
+        if (f.isEmpty()) { status = context.getString(R.string.status_fill_one_field); return }
+        saving = true; okTotal = 0; failTotal = 0; status = context.getString(R.string.status_preparing)
         pendingFields = f
         scope.launch {
             val items = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
@@ -284,7 +287,7 @@ fun BulkTagEditScreen(tracks: List<Track>, onBack: () -> Unit) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                 remaining = items
                 val isender = TagEditor.createWriteRequest(context, items.map { it.uri })
-                if (isender != null) { status = "Requesting permission…"; pendingPermission = isender; return@launch }
+                if (isender != null) { status = context.getString(R.string.status_requesting_permission); pendingPermission = isender; return@launch }
             }
             drain(items, f)   // API 29 — попросит разрешение по файлам по ходу
         }
@@ -298,25 +301,24 @@ fun BulkTagEditScreen(tracks: List<Track>, onBack: () -> Unit) {
                 CircleBack(lc, onBack)
                 Spacer(Modifier.width(14.dp))
                 Column {
-                    Text("Bulk Tags", color = lc.textPrimary, fontSize = 24.sp, fontWeight = FontWeight.Bold, fontFamily = VkSansDisplay)
-                    Text("Selected tracks: $total", color = lc.textSecondary, fontSize = 13.sp)
+                    Text(stringResource(R.string.bulk_tags_title), color = lc.textPrimary, fontSize = 24.sp, fontWeight = FontWeight.Bold, fontFamily = VkSansDisplay)
+                    Text(stringResource(R.string.selected_tracks_count, total), color = lc.textSecondary, fontSize = 13.sp)
                 }
             }
             Spacer(Modifier.height(8.dp))
             Text(
-                "Filled fields will be applied to ALL selected tracks. Empty fields are left untouched. " +
-                    "Title and track number aren't changed here.",
+                stringResource(R.string.bulk_tags_hint),
                 color = lc.textTertiary, fontSize = 12.sp, modifier = Modifier.padding(vertical = 4.dp)
             )
             Spacer(Modifier.height(8.dp))
 
             Box(Modifier.alpha(if (saving) 0.5f else 1f)) {
                 Column {
-                    EditField("Artist", artist, lc) { artist = it }
-                    EditField("Album", album, lc) { album = it }
-                    EditField("Album Artist", albumArtist, lc) { albumArtist = it }
-                    EditField("Year", year, lc, number = true) { year = it.filter { c -> c.isDigit() } }
-                    EditField("Genre", genre, lc) { genre = it }
+                    EditField(stringResource(R.string.sort_artist), artist, lc) { artist = it }
+                    EditField(stringResource(R.string.section_albums), album, lc) { album = it }
+                    EditField(stringResource(R.string.field_album_artist), albumArtist, lc) { albumArtist = it }
+                    EditField(stringResource(R.string.field_year), year, lc, number = true) { year = it.filter { c -> c.isDigit() } }
+                    EditField(stringResource(R.string.field_genre), genre, lc) { genre = it }
                 }
             }
             Spacer(Modifier.height(20.dp))

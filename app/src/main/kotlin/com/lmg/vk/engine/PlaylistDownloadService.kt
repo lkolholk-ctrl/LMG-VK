@@ -51,7 +51,7 @@ class PlaylistDownloadService : Service() {
 
     companion object {
         const val CHANNEL_ID = "playlist_download_channel"
-        const val CHANNEL_NAME = "Playlist Download Services"
+        const val CHANNEL_NAME = "Скачивание плейлистов"
         const val NOTIFICATION_ID = 2001
 
         const val EXTRA_TRACK_IDS = "extra_track_ids"
@@ -196,8 +196,8 @@ class PlaylistDownloadService : Service() {
             if (current - lastNotifiedProgress >= 5 || current == totalCount || current == 0) {
                 lastNotifiedProgress = current
                 updateNotification(
-                    title = "Downloading Your Playlist",
-                    content = "Downloading: $current / $totalCount tracks",
+                    title = getString(R.string.downloading_your_playlist),
+                    content = getString(R.string.downloading_progress_of, current, totalCount),
                     progress = current,
                     max = totalCount
                 )
@@ -205,8 +205,8 @@ class PlaylistDownloadService : Service() {
         }
 
         updateNotification(
-            title = "Downloading Your Playlist",
-            content = "Downloading: 0 / $totalCount tracks",
+            title = getString(R.string.downloading_your_playlist),
+            content = getString(R.string.downloading_progress_of, 0, totalCount),
             progress = 0,
             max = totalCount
         )
@@ -552,7 +552,7 @@ class PlaylistDownloadService : Service() {
                 CHANNEL_NAME,
                 NotificationManager.IMPORTANCE_LOW
             ).apply {
-                description = "Shows progress when downloading playlists for offline listening"
+                description = getString(R.string.playlist_download_channel_description)
                 setShowBadge(false)
             }
             notificationManager.createNotificationChannel(channel)
@@ -562,8 +562,8 @@ class PlaylistDownloadService : Service() {
     private fun buildInitialNotification(total: Int): Notification {
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_launcher)
-            .setContentTitle("Downloading Your Playlist")
-            .setContentText("Downloading: 0 / $total tracks")
+            .setContentTitle(getString(R.string.downloading_your_playlist))
+            .setContentText(getString(R.string.downloading_progress_of, 0, total))
             .setOngoing(true)
             .setProgress(total, 0, false)
             .setContentIntent(buildMainActivityPendingIntent())
@@ -596,9 +596,9 @@ class PlaylistDownloadService : Service() {
 
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_launcher)
-            .setContentTitle("Downloads finished!")
+            .setContentTitle(getString(R.string.downloads_finished))
             .setContentText(
-                "Successfully saved: $successCount, Failed/Skipped: ${failCount + skippedCount} out of $totalCount tracks."
+                getString(R.string.downloads_finished_detail, successCount, failCount + skippedCount, totalCount)
             )
             .setOngoing(false)
             .setAutoCancel(true)
@@ -614,8 +614,8 @@ class PlaylistDownloadService : Service() {
 
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_launcher)
-            .setContentTitle("Download cancelled")
-            .setContentText("Stopped at $processed / $total tracks")
+            .setContentTitle(getString(R.string.download_cancelled))
+            .setContentText(getString(R.string.download_stopped_at, processed, total))
             .setOngoing(false)
             .setAutoCancel(true)
             .setContentIntent(buildMainActivityPendingIntent())
@@ -630,7 +630,7 @@ class PlaylistDownloadService : Service() {
 
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_launcher)
-            .setContentTitle("Download failed")
+            .setContentTitle(getString(R.string.download_failed_title))
             .setContentText(message)
             .setOngoing(false)
             .setAutoCancel(true)
@@ -661,7 +661,7 @@ class PlaylistDownloadService : Service() {
         )
         return NotificationCompat.Action.Builder(
             R.drawable.ic_launcher,
-            "Cancel",
+            getString(R.string.action_cancel),
             pendingIntent
         ).build()
     }

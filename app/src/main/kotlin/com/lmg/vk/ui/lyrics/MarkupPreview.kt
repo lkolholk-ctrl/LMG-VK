@@ -19,12 +19,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.lmg.vk.R
 import com.lmg.vk.engine.LyricsFxController
 import com.lmg.vk.engine.LyricsParser
 import com.lmg.vk.engine.PlayerController
@@ -116,11 +118,11 @@ fun MarkupPreviewView(
                         Icon(com.lmg.vk.ui.icons.LmgGlyphs.ArrowLeftOutline28, null, tint = Color.White,
                             modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(6.dp))
-                        Text("Back to sync", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                        Text(stringResource(R.string.back_to_sync), color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                     }
                 }
                 Spacer(Modifier.weight(1f))
-                Text("TEST", color = Color.White.copy(alpha = 0.7f), fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.test_label), color = Color.White.copy(alpha = 0.7f), fontSize = 13.sp, fontWeight = FontWeight.Bold)
             }
 
             // ── Строки с подсветкой ──
@@ -168,8 +170,8 @@ fun MarkupPreviewView(
                     PlayerController.seekTo(t)
                 }
                 Text(
-                    if (isWordLevel) "Word-by-word — check that words light up on time"
-                    else "Line-by-line — check the line timing",
+                    if (isWordLevel) stringResource(R.string.preview_words_hint)
+                    else stringResource(R.string.preview_lines_hint),
                     color = Color.White.copy(alpha = 0.6f), fontSize = 12.sp
                 )
             }
@@ -181,7 +183,7 @@ fun MarkupPreviewView(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Speed:", color = Color.White.copy(alpha = 0.6f), fontSize = 12.sp)
+                Text(stringResource(R.string.speed_label), color = Color.White.copy(alpha = 0.6f), fontSize = 12.sp)
                 for (i in 10 downTo 1) {
                     val v = i / 10f
                     val sel = kotlin.math.abs(speed - v) < 0.01f
@@ -206,21 +208,21 @@ fun MarkupPreviewView(
                         .windowInsetsPadding(WindowInsets.navigationBars)
                         .padding(horizontal = 20.dp, vertical = 12.dp)
                 ) {
-                    Text("Fill effect", color = Color.White.copy(alpha = 0.7f), fontSize = 12.sp)
+                    Text(stringResource(R.string.fill_effect), color = Color.White.copy(alpha = 0.7f), fontSize = 12.sp)
                     Spacer(Modifier.height(6.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        EffectChip("Fill", effect == LyricsFxController.WordEffect.FILL, accent) {
+                        EffectChip(stringResource(R.string.effect_fill), effect == LyricsFxController.WordEffect.FILL, accent) {
                             LyricsFxController.setEffect(LyricsFxController.WordEffect.FILL)
                         }
-                        EffectChip("Fade", effect == LyricsFxController.WordEffect.FADE, accent) {
+                        EffectChip(stringResource(R.string.effect_fade), effect == LyricsFxController.WordEffect.FADE, accent) {
                             LyricsFxController.setEffect(LyricsFxController.WordEffect.FADE)
                         }
-                        EffectChip("Running", effect == LyricsFxController.WordEffect.RUNNING, accent) {
+                        EffectChip(stringResource(R.string.effect_running), effect == LyricsFxController.WordEffect.RUNNING, accent) {
                             LyricsFxController.setEffect(LyricsFxController.WordEffect.RUNNING)
                         }
                     }
                     Spacer(Modifier.height(8.dp))
-                    Text("Smoothness: ${(smooth * 100).toInt()}%", color = Color.White.copy(alpha = 0.7f), fontSize = 12.sp)
+                    Text(stringResource(R.string.smoothness_percent, (smooth * 100).toInt()), color = Color.White.copy(alpha = 0.7f), fontSize = 12.sp)
                     Slider(
                         value = smooth,
                         onValueChange = { LyricsFxController.setSmoothness(it) },

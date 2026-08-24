@@ -35,8 +35,10 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.lmg.vk.R
 import com.lmg.vk.ui.glass.AlbumArtImage
 import com.lmg.vk.ui.glass.liquidClickable
 import com.lmg.vk.ui.theme.LiquidMetrics
@@ -67,13 +69,14 @@ fun String?.toDetailThumb(): String? = this
  * «Album» по умолчанию тоже нельзя: у сборника и у участия это неверно, лучше
  * не показать строку вовсе.
  */
+@Composable
 fun releaseTypeLabel(type: String?): String? {
     val value = type?.trim()?.lowercase()?.takeIf { it.isNotEmpty() } ?: return null
     return when {
         value == "ep" || value.contains("extended_play") -> "EP"
-        value.contains("single") -> "Single"
-        value.contains("collection") || value.contains("compilation") -> "Compilation"
-        value.contains("album") -> "Album"
+        value.contains("single") -> stringResource(R.string.release_type_single)
+        value.contains("collection") || value.contains("compilation") -> stringResource(R.string.release_type_compilation)
+        value.contains("album") -> stringResource(R.string.release_type_album)
         else -> null
     }
 }
@@ -196,7 +199,7 @@ fun DetailHeader(
 
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     DetailActionButton(
-                        label = "Play",
+                        label = stringResource(R.string.action_play),
                         icon = com.lmg.vk.ui.icons.LmgGlyphs.Play28,
                         filled = true,
                         isDark = isDark,
@@ -205,7 +208,7 @@ fun DetailHeader(
                         onClick = onPlay
                     )
                     DetailActionButton(
-                        label = "Shuffle",
+                        label = stringResource(R.string.action_shuffle),
                         icon = com.lmg.vk.ui.icons.LmgGlyphs.ShuffleOutline28,
                         filled = false,
                         isDark = isDark,
@@ -362,7 +365,7 @@ fun DetailTrackRow(
 
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = if (enabled) title else "$title · Недоступно",
+                    text = if (enabled) title else stringResource(R.string.track_unavailable_suffix, title),
                     color = LiquidSurfaces.textPrimary(isDark),
                     fontSize = LiquidMetrics.RowTitle,
                     fontWeight = FontWeight.Medium,
@@ -397,7 +400,7 @@ fun DetailTrackRow(
                 ) {
                     Icon(
                         com.lmg.vk.ui.icons.LmgGlyphs.MoreHorizontal28,
-                        contentDescription = "Track actions",
+                        contentDescription = stringResource(R.string.track_actions),
                         tint = LiquidSurfaces.textTertiary(isDark),
                         modifier = Modifier.size(20.dp),
                     )
@@ -451,7 +454,7 @@ fun DetailTopBar(
         ) {
             Icon(
                 imageVector = com.lmg.vk.ui.icons.LmgGlyphs.ArrowLeftOutline28,
-                contentDescription = "Back",
+                contentDescription = stringResource(R.string.action_back),
                 tint = if (showTitle) LiquidSurfaces.textPrimary(isDark) else Color.White,
                 modifier = Modifier.size(20.dp)
             )
@@ -476,9 +479,11 @@ fun formatTrackDuration(ms: Long): String {
     return "$minutes:${seconds.toString().padStart(2, '0')}"
 }
 
+@Composable
 fun formatTotalDuration(ms: Long): String {
     val totalMinutes = ms / 60000
     val hours = totalMinutes / 60
     val minutes = totalMinutes % 60
-    return if (hours > 0) "$hours h $minutes min" else "$minutes min"
+    return if (hours > 0) stringResource(R.string.duration_hours_minutes, hours, minutes)
+    else stringResource(R.string.duration_minutes, minutes)
 }
