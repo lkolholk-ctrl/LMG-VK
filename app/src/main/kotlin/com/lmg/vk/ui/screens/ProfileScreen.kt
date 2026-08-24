@@ -2048,11 +2048,6 @@ private val MONTHS = listOf(
     "июля", "августа", "сентября", "октября", "ноября", "декабря",
 )
 
-/**
- * Подпись присутствия для шапки.
- * Online — коротко; offline — relative last_seen из `online_info` или `last_seen`.
- * Пустая строка, если данных нет (не рисуем «Unknown»).
- */
 private fun formatPresenceLabel(
     context: Context,
     isOnline: Boolean,
@@ -2067,8 +2062,11 @@ private fun formatPresenceLabel(
     }
     val nowSec = System.currentTimeMillis() / 1000L
     val delta = (nowSec - epochSec).coerceAtLeast(0L)
-    val text = when {
-        delta < 60L -> context.getString(R.string.presence_just_now)
+    return when {
+        delta < 60L -> context.getString(
+            R.string.presence_last_seen,
+            context.getString(R.string.presence_just_now),
+        )
         delta < 3600L -> context.getString(R.string.presence_minutes_ago, TimeUnit.SECONDS.toMinutes(delta))
         delta < 86_400L -> context.getString(R.string.presence_hours_ago, TimeUnit.SECONDS.toHours(delta))
         delta < 86_400L * 7L -> {
@@ -2078,7 +2076,6 @@ private fun formatPresenceLabel(
         }
         else -> return null
     }
-    return context.getString(R.string.presence_last_seen, text)
 }
 
 private fun matchesFriendQuery(friend: VkFriend, raw: String): Boolean {
