@@ -627,10 +627,12 @@ class FavoriteTrackDatabase private constructor(context: Context) : SQLiteOpenHe
         }
 
         fun activateAccount(userId: Long) {
-            ACTIVE_ACCOUNT_ID = userId.coerceAtLeast(0L)
+            val normalizedUserId = userId.coerceAtLeast(0L)
+            if (ACTIVE_ACCOUNT_ID == normalizedUserId) return
+            ACTIVE_ACCOUNT_ID = normalizedUserId
             INSTANCE?.let { database ->
                 database.clearActiveAccountSnapshot()
-                ACCOUNT_SCOPE.launch { database.activateAccountInternal(ACTIVE_ACCOUNT_ID) }
+                ACCOUNT_SCOPE.launch { database.activateAccountInternal(normalizedUserId) }
             }
         }
     }

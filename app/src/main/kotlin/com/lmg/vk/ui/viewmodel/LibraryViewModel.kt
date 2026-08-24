@@ -57,14 +57,12 @@ class LibraryViewModel(context: Context) : ViewModel() {
     private var profileSearchJob: Job? = null
 
     init {
-        // Collect favorites from Room reactively
         viewModelScope.launch {
             repository.favoritesFlow.collectLatest { list ->
                 _favorites.value = list
             }
         }
 
-        // Collect favorite IDs reactively
         viewModelScope.launch {
             repository.favoriteIdsFlow.collectLatest { ids ->
                 _favoriteIds.value = ids
@@ -74,8 +72,6 @@ class LibraryViewModel(context: Context) : ViewModel() {
         viewModelScope.launch {
             MusicAuth.profileId.collectLatest {
                 profileSearchJob?.cancel()
-                _favorites.value = emptyList()
-                _favoriteIds.value = emptySet()
                 _profileSearch.value = null
                 _profileSearchError.value = null
                 _isProfileSearchLoading.value = false
