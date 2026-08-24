@@ -92,11 +92,8 @@ internal fun requestIgnoreBatteryOptimizations(context: Context) {
 @Composable
 internal fun SectionLabel(text: String) {
     val isDark = LiquidTheme.colors.isDark
-    // Тот же заголовок, что на экранах артиста и альбома: раньше это была мелкая
-    // подпись капсом, из-за чего разделы читались как служебные пометки, а не как
-    // структура экрана.
     Text(
-        text = text.lowercase().replaceFirstChar { it.uppercase() },
+        text = text,
         color = com.lmg.vk.ui.theme.LiquidSurfaces.textPrimary(isDark),
         fontSize = com.lmg.vk.ui.theme.LiquidMetrics.SectionTitle,
         fontWeight = com.lmg.vk.ui.theme.LiquidMetrics.SectionTitleWeight,
@@ -111,7 +108,6 @@ internal fun PlainCard(content: @Composable ColumnScope.() -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            // Тень до заливки: после clip/background она обрезалась бы формой.
             .shadow(
                 elevation = com.lmg.vk.ui.theme.LiquidMetrics.CardElevation,
                 shape = com.lmg.vk.ui.theme.LiquidMetrics.CardShape,
@@ -149,7 +145,6 @@ internal fun SettingsToggleItem(
     onSelect: (Boolean) -> Unit
 ) {
     val screenBackdrop = com.kyant.backdrop.backdrops.rememberLayerBackdrop()
-    // Компактный заголовок строки в широком окне (телефон-альбом/планшет).
     val compact = com.lmg.vk.ui.rememberWindowInfo().useSideBySide
     Row(
         modifier = Modifier

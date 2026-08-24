@@ -403,7 +403,7 @@ fun SettingsScreen(
                                 subtitle = if (vpnBypassEnabled) {
                                     when {
                                         isVpnBypassApplied -> stringResource(R.string.vpn_active_vk_ok)
-                                        isVpnActive -> stringResource(R.string.vpn_active_unreachable)
+                                        isVpnActive -> stringResource(R.string.vpn_active_bypass_pending)
                                         else -> stringResource(R.string.vpn_enabled_standby)
                                     }
                                 } else {
@@ -963,7 +963,7 @@ private fun networkSummary(
         append(
             when {
                 isVpnBypassApplied -> context.getString(R.string.vpn_outside_active)
-                isVpnActive -> context.getString(R.string.vpn_bypass_unavailable)
+                isVpnActive -> context.getString(R.string.vpn_bypass_pending)
                 else -> context.getString(R.string.vpn_bypass_enabled)
             },
         )

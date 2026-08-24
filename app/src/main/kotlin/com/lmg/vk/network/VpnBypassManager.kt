@@ -19,14 +19,8 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import java.util.concurrent.ConcurrentHashMap
 
-/**
- * VpnBypassManager — направляет сетевой трафик приложения напрямую через физический
- * сетевой интерфейс (Wi-Fi или мобильную сеть оператора), минуя активный VPN-туннель.
- *
- * Мгновенно отслеживает появление/исчезновение VPN-соединения и переключает
- * привязку сокетов приложения без необходимости ручного переключения тумблера.
- */
 object VpnBypassManager {
 
     private const val TAG = "VpnBypassManager"
@@ -41,7 +35,9 @@ object VpnBypassManager {
     val isBypassApplied: StateFlow<Boolean> = _isBypassApplied
 
     private var networkCallback: ConnectivityManager.NetworkCallback? = null
+    private var physicalNetworkCallback: ConnectivityManager.NetworkCallback? = null
     private var defaultNetworkCallback: ConnectivityManager.NetworkCallback? = null
+    private val callbackPhysicalNetworks = ConcurrentHashMap.newKeySet<Network>()
     private val bindingMutex = Mutex()
     private var boundNetwork: Network? = null
 
@@ -51,8 +47,6 @@ object VpnBypassManager {
             ?: return
         connectivityManager = cm
 
-        // ВАЖНО: NetworkRequest по умолчанию содержит NET_CAPABILITY_NOT_VPN.
-        // Чтобы получать события появления/отключения VPN, явно снимаем это ограничение.
         val request = NetworkRequest.Builder()
             .removeCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN)
             .build()
@@ -74,6 +68,32 @@ object VpnBypassManager {
 
         runCatching {
             cm.registerNetworkCallback(request, callback)
+        }
+
+        val physicalRequest = NetworkRequest.Builder()
+            .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+            .addCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN)
+            .build()
+        val physicalCallback = object : ConnectivityManager.NetworkCallback() {
+            override fun onAvailable(network: Network) {
+                callbackPhysicalNetworks.add(network)
+                updateStateAndApply()
+            }
+
+            override fun onCapabilitiesChanged(network: Network, networkCapabilities: NetworkCapabilities) {
+                if (isPhysical(networkCapabilities)) callbackPhysicalNetworks.add(network)
+                else callbackPhysicalNetworks.remove(network)
+                updateStateAndApply()
+            }
+
+            override fun onLost(network: Network) {
+                callbackPhysicalNetworks.remove(network)
+                updateStateAndApply()
+            }
+        }
+        physicalNetworkCallback = physicalCallback
+        runCatching {
+            cm.registerNetworkCallback(physicalRequest, physicalCallback)
         }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
@@ -134,24 +154,16 @@ object VpnBypassManager {
                     Log.d(TAG, "VPN state changed: isVpnActive = $vpnFound")
                 }
 
-                val physicalNetwork = networks
+                val physicalNetworks = (networks.map { it.first } + callbackPhysicalNetworks)
+                    .distinct()
+                    .mapNotNull { network ->
+                        runCatching { cm.getNetworkCapabilities(network) }.getOrNull()
+                            ?.let { network to it }
+                    }
+                val physicalNetwork = physicalNetworks
                     .asSequence()
-                    .filter { (_, caps) ->
-                        caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
-                            !caps.hasTransport(NetworkCapabilities.TRANSPORT_VPN) &&
-                            (caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ||
-                                caps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) ||
-                                caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET))
-                    }
-                    .maxByOrNull { (_, caps) ->
-                        var score = 0
-                        if (caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)) score += 100
-                        if (caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_SUSPENDED)) score += 20
-                        if (caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) score += 30
-                        if (caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET)) score += 25
-                        if (caps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR)) score += 10
-                        score
-                    }
+                    .filter { (_, caps) -> isPhysical(caps) }
+                    .maxByOrNull { (_, caps) -> physicalScore(caps) }
                     ?.first
 
                 val target = physicalNetwork.takeIf {
@@ -160,6 +172,23 @@ object VpnBypassManager {
                 applyBinding(cm, target)
             }
         }
+    }
+
+    private fun isPhysical(capabilities: NetworkCapabilities): Boolean =
+        capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
+            !capabilities.hasTransport(NetworkCapabilities.TRANSPORT_VPN) &&
+            (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ||
+                capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) ||
+                capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET))
+
+    private fun physicalScore(capabilities: NetworkCapabilities): Int {
+        var score = 0
+        if (capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)) score += 100
+        if (capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_SUSPENDED)) score += 20
+        if (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) score += 30
+        if (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET)) score += 25
+        if (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR)) score += 10
+        return score
     }
 
     private fun applyBinding(cm: ConnectivityManager, target: Network?) {

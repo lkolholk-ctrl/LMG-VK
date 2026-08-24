@@ -562,7 +562,7 @@
     <string name="section_vpn_connection">VPN и соединение</string>
     <string name="vpn_bypass_title">Обход системного VPN</string>
     <string name="vpn_active_vk_ok">VPN активен · VK работает через Wi-Fi / SIM</string>
-    <string name="vpn_active_unreachable">VPN активен · физическое соединение недоступно</string>
+    <string name="vpn_active_bypass_pending">VPN активен · поиск прямого подключения</string>
     <string name="vpn_enabled_standby">Включён · сработает при подключении VPN</string>
     <string name="vpn_disabled_all_traffic">Выключен · весь трафик идёт через системный VPN</string>
     <string name="section_vk_connection">Соединение VK</string>
@@ -610,7 +610,7 @@
     <string name="timer_off">таймер выкл</string>
     <string name="timer_minutes">Таймер: %1$d мин</string>
     <string name="vpn_outside_active">VK вне VPN</string>
-    <string name="vpn_bypass_unavailable">Обход VPN недоступен</string>
+    <string name="vpn_bypass_pending">Обход VPN ожидает прямое подключение</string>
     <string name="vpn_bypass_enabled">Обход VPN включён</string>
     <string name="through_system_vpn">Через системный VPN</string>
     <string name="direct_connection">Прямое соединение</string>
