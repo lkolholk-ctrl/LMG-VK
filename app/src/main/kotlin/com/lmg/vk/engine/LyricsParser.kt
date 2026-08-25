@@ -77,13 +77,21 @@ object LyricsParser {
         val endMs: Long = 0L
     )
 
+    data class LyricInterval(
+        val startMs: Long,
+        val endMs: Long,
+    )
+
     data class Lyrics(
         val lines: List<LyricLine>,
         val isSynced: Boolean,
         val title: String?,
         val artist: String?,
         // источники: "embedded", "lrclib", "vk", "mine_word", "none"
-        val source: String = "none"
+        val source: String = "none",
+        val interludes: List<LyricInterval> = emptyList(),
+        val countdown: LyricInterval? = null,
+        val credits: String? = null,
     ) {
         /** Есть ли пословная разметка (караоке-подсветка вместо построчной). */
         val isWordLevel: Boolean get() = lines.any { it.words.isNotEmpty() }
@@ -122,9 +130,6 @@ object LyricsParser {
         title: String,
         artist: String
     ): Lyrics = withContext(Dispatchers.IO) {
-        // Return cached lyrics instantly if available
-        getCachedLyrics(trackId)?.let { return@withContext it }
-
         // VK-треки теперь обслуживаются восстановленным audio.getLyrics.
         // secondary_* по-прежнему не имеет подтверждённой ручки текстов.
         if (trackId.startsWith("secondary_")) {
@@ -141,18 +146,9 @@ object LyricsParser {
                 val result = response.copy(
                     title = title,
                     artist = artist,
-                    source = "backend"
                 )
-                cacheLyrics(trackId, result)
                 return@withContext result
             }
-            // Негатив запоминаем ТОЛЬКО когда сервер ответил и текста у трека нет.
-            // Без этого каждое открытие шторки на инструментале стоило до 12 секунд
-            // ожидания и запроса в общую rate-limit-группу. Отказ по правам (401/403)
-            // за «нет текста» не считаем: подписка может появиться в этом же сеансе.
-            val err = outcome.exceptionOrNull() as? com.lmg.vk.engine.backend.BackendException
-            val absent = response != null || err?.code == 404 || err?.errorCode == "lyrics_not_found"
-            if (absent) cacheLyrics(trackId, Lyrics.EMPTY)
             Lyrics.EMPTY
         } catch (_: kotlinx.coroutines.TimeoutCancellationException) {
             android.util.Log.w("LyricsParser", "Lyrics fetch timeout for $trackId")

@@ -175,6 +175,10 @@ class LyricsTimeProcessor(
 
     /** Предрасчитанная заливка по строкам. */
     private val lineFills: List<LineFill>
+    private val explicitWaitIntervals = buildList {
+        lyrics.countdown?.let(::add)
+        addAll(lyrics.interludes)
+    }
 
     init {
         val fills = ArrayList<LineFill>(lyrics.lines.size)
@@ -333,10 +337,13 @@ class LyricsTimeProcessor(
 
         if (currentLine < 0) {
             _currentLineProgress.value = 0f
-            _isInterlude.value = false
-            // Интро: точки перед первой строкой наливаются от старта трека.
-            _interludeProgress.value =
+            val interval = explicitWaitIntervals.firstOrNull { safePosition in it.startMs until it.endMs }
+            _isInterlude.value = interval != null || lyrics.source != "vk"
+            _interludeProgress.value = if (interval != null) {
+                interval.progressAt(safePosition)
+            } else if (lyrics.source != "vk") {
                 (safePosition.toFloat() / lineFills[0].startMs.coerceAtLeast(1L)).coerceIn(0f, 1f)
+            } else 0f
             return
         }
 
@@ -347,6 +354,15 @@ class LyricsTimeProcessor(
             segmentProgress(lf, (safePosition - lf.startMs).coerceAtLeast(0L))
         }
         _currentLineProgress.value = progress.coerceIn(0f, 1f)
+
+        val explicitInterval = explicitWaitIntervals.firstOrNull {
+            safePosition in it.startMs until it.endMs
+        }
+        if (lyrics.source == "vk") {
+            _isInterlude.value = explicitInterval != null
+            _interludeProgress.value = explicitInterval?.progressAt(safePosition) ?: 0f
+            return
+        }
 
         // Waiting: строка докрашена полностью И до следующей строки реальный разрыв.
         val fullyDrawnAt = lf.startMs + lf.estMs
@@ -360,6 +376,10 @@ class LyricsTimeProcessor(
                 (lf.nextStartMs - fullyDrawnAt).coerceAtLeast(1L)).coerceIn(0f, 1f)
         } else 0f
     }
+
+    private fun LyricsParser.LyricInterval.progressAt(positionMs: Long): Float =
+        ((positionMs - startMs).toFloat() / (endMs - startMs).coerceAtLeast(1L))
+            .coerceIn(0f, 1f)
 
     /** Доля закрашенных символов строки в момент [now] (мс от старта строки). */
     private fun segmentProgress(lf: LineFill, now: Long): Float {

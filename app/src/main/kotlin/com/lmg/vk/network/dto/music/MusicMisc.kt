@@ -9,15 +9,15 @@ data class AudioLyrics(
     val text: List<String>? = null,
     val language: String? = null,
 ) {
-    val isSynced: Boolean get() = !timestamps.isNullOrEmpty()
+    val isSynced: Boolean get() = timestamps != null
 }
 
 @JsonClass(generateAdapter = true)
 data class AudioLyricTimestamp(
-    val begin: Long,
-    val end: Long,
-    val line: String,
-    val interlude: Boolean = false,
+    val begin: Int = 0,
+    val end: Int = 0,
+    val line: String? = null,
+    val interlude: Boolean? = null,
     val countdown: Int? = null,
 )
 

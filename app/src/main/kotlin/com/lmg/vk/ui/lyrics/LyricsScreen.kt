@@ -403,7 +403,7 @@ fun LyricsScreen(
                         item { Spacer(Modifier.height(100.dp)) }
 
                         // Waiting dots before first line starts
-                        if (lyrics.isSynced && currentLineIndex < 0) {
+                        if (lyrics.isSynced && currentLineIndex < 0 && isInterlude) {
                             item {
                                 Box(
                                     modifier = Modifier

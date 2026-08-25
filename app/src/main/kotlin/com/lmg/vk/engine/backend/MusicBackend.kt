@@ -70,6 +70,7 @@ import com.lmg.vk.network.methods.VkAudioApi
 import com.lmg.vk.network.methods.VkCatalogApi
 import com.lmg.vk.network.methods.VkMethodsRegistry
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -1702,6 +1703,9 @@ object MusicBackend {
         return trackCode?.let { "${fullId}_$it" } ?: fullId
     }
 
+    private fun AudioTrack.lyricsRequestId(): String =
+        access_key?.takeIf(String::isNotBlank)?.let { "${fullId}_$it" } ?: fullId
+
     // ---------- тексты ----------
     /**
      * Кредиты трека — то, что VK отдаёт в `audio.getLyrics` рядом с текстом.
@@ -1717,41 +1721,68 @@ object MusicBackend {
     suspend fun getTrackCredits(trackId: String): String? = runCatching {
         requireInitialized()
         val track = resolveTrack(trackId)
-        // credits приходят В ОТВЕТЕ getLyrics, поэтому без lyrics_id спрашивать
-        // нечего — VK ответит ошибкой, а не пустым полем.
-        if (!track.has_lyrics && track.lyrics_id == null) return@runCatching null
-        audioApi.getLyrics(track.fullId).requireData().credits?.takeIf { it.isNotBlank() }
+        audioApi.getLyrics(track.lyricsRequestId()).requireData().credits?.takeIf { it.isNotBlank() }
     }.getOrNull()
 
-    suspend fun getLyricsResult(trackId: String): Result<LyricsParser.Lyrics?> = runCatching {
-        requireInitialized()
-        val track = resolveTrack(trackId)
-        if (!track.has_lyrics && track.lyrics_id == null) return@runCatching null
-        val container = audioApi.getLyrics(track.fullId).requireData()
-        val lyrics = container.lyrics
-        val timestamps = lyrics?.timestamps.orEmpty()
-        val lines = if (timestamps.isNotEmpty()) {
-            timestamps.map {
-                LyricsParser.LyricLine(
-                    timeMs = it.begin,
-                    text = it.line,
-                    endMs = it.end,
+    suspend fun getLyricsResult(trackId: String): Result<LyricsParser.Lyrics?> {
+        return try {
+            requireInitialized()
+            val track = resolveTrack(trackId)
+            val container = audioApi.getLyrics(track.lyricsRequestId()).requireData()
+            val lyrics = container.lyrics
+            val timestamps = lyrics?.timestamps
+            val lines = if (timestamps != null) {
+                timestamps.mapNotNull { timestamp ->
+                    val text = timestamp.line.cleanVkLyricLine().takeIf(String::isNotBlank)
+                        ?: return@mapNotNull null
+                    LyricsParser.LyricLine(
+                        timeMs = timestamp.begin.toLong(),
+                        text = text,
+                        endMs = timestamp.end.toLong(),
+                    )
+                }
+            } else {
+                lyrics?.text.orEmpty().mapNotNull { line ->
+                    line.cleanVkLyricLine().takeIf(String::isNotBlank)
+                        ?.let { LyricsParser.LyricLine(timeMs = -1L, text = it) }
+                }
+            }
+            val interludes = timestamps.orEmpty().mapNotNull { timestamp ->
+                if (!timestamp.line.cleanVkLyricLine().isNullOrBlank() || timestamp.interlude != true) {
+                    return@mapNotNull null
+                }
+                LyricsParser.LyricInterval(
+                    startMs = timestamp.begin.toLong(),
+                    endMs = timestamp.end.toLong(),
                 )
             }
-        } else {
-            val text = lyrics?.text.orEmpty().ifEmpty {
-                container.text.orEmpty().lineSequence().filter(String::isNotBlank).toList()
+            val firstLineStart = lines.firstOrNull()?.timeMs
+            val countdown = firstLineStart?.takeIf { it > 3_000L }?.let { start ->
+                LyricsParser.LyricInterval(startMs = start - 3_000L, endMs = start)
             }
-            text.map { LyricsParser.LyricLine(timeMs = -1L, text = it) }
+            Result.success(
+                LyricsParser.Lyrics(
+                    lines = lines,
+                    isSynced = timestamps != null,
+                    title = track.title,
+                    artist = track.artist,
+                    source = "vk",
+                    interludes = interludes,
+                    countdown = countdown,
+                    credits = container.credits,
+                ),
+            )
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: BackendException) {
+            if (error.code == 104) Result.success(null) else Result.failure(error)
+        } catch (error: Exception) {
+            Result.failure(error)
         }
-        LyricsParser.Lyrics(
-            lines = lines,
-            isSynced = timestamps.isNotEmpty(),
-            title = track.title,
-            artist = track.artist,
-            source = "vk",
-        )
     }
+
+    private fun String?.cleanVkLyricLine(): String =
+        orEmpty().replace("\u2028", "").replace("\u2029", "")
 
     // ---------- волна / радио ----------
     suspend fun startWave(seedTrackId: String? = null): Result<WaveResponse> = runCatching {
