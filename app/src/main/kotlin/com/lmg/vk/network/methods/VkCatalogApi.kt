@@ -1,6 +1,6 @@
 package com.lmg.vk.network.methods
 
-import com.lmg.vk.network.MoshiEnvelopeParser
+import com.lmg.vk.network.TolerantMoshiEnvelopeParser
 import com.lmg.vk.network.VkApiClient
 import com.lmg.vk.network.VkMethod
 import com.lmg.vk.network.VkResult
@@ -239,6 +239,6 @@ class VkCatalogApi(
 
     private fun method(name: String): VkMethod<VkCatalogResponse> = VkMethod(
         name,
-        MoshiEnvelopeParser<VkCatalogResponse>(VkCatalogResponse::class.java),
+        TolerantMoshiEnvelopeParser<VkCatalogResponse>(VkCatalogResponse::class.java),
     )
 }

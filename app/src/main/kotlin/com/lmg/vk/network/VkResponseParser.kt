@@ -4,9 +4,12 @@ import com.lmg.vk.network.dto.VKError
 import com.lmg.vk.network.dto.VKResponse
 import com.squareup.moshi.JsonAdapter
 import com.squareup.moshi.JsonClass
+import com.squareup.moshi.JsonDataException
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.Types
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
+import org.json.JSONArray
+import org.json.JSONObject
 import java.lang.reflect.Type
 
 /**
@@ -92,6 +95,79 @@ class MoshiEnvelopeParser<T>(
             "Empty VK response from ${raw.url}"
         }
         return VkParsedResponse(envelope.response, envelope.error, envelope.execute_errors.orEmpty())
+    }
+}
+
+class TolerantMoshiEnvelopeParser<T>(
+    responseType: Type,
+    moshi: Moshi = VkJson.moshi,
+) : VkResponseParser<T> {
+    private val adapter: JsonAdapter<VKResponse<T>> = moshi.adapter<VKResponse<T>>(
+        Types.newParameterizedType(VKResponse::class.java, responseType),
+    )
+
+    override suspend fun parse(raw: RawHttpResponse): VkParsedResponse<T> {
+        val root = JSONObject(raw.bodyText())
+        repeat(MAX_SKIPPED_FIELDS) {
+            try {
+                val envelope = requireNotNull(adapter.fromJson(root.toString())) {
+                    "Empty VK response from ${raw.url}"
+                }
+                return VkParsedResponse(
+                    envelope.response,
+                    envelope.error,
+                    envelope.execute_errors.orEmpty(),
+                )
+            } catch (error: JsonDataException) {
+                val path = error.message
+                    ?.substringAfterLast(" at path ", "")
+                    ?.takeIf { it.startsWith("$.response.") }
+                    ?: throw error
+                if (!root.removeValueAt(path)) throw error
+                com.lmg.vk.debug.DebugLog.add("VK catalog ignored incompatible field path=$path")
+            }
+        }
+        val envelope = requireNotNull(adapter.fromJson(root.toString())) {
+            "Empty VK response from ${raw.url}"
+        }
+        return VkParsedResponse(envelope.response, envelope.error, envelope.execute_errors.orEmpty())
+    }
+
+    private fun JSONObject.removeValueAt(path: String): Boolean {
+        val tokens = JSON_PATH_TOKEN.findAll(path).map { match ->
+            match.groups[1]?.value ?: match.groups[2]!!.value.toInt()
+        }.toList()
+        if (tokens.isEmpty()) return false
+
+        var parent: Any = this
+        tokens.dropLast(1).forEach { token ->
+            parent = when (token) {
+                is String -> (parent as? JSONObject)?.opt(token)
+                is Int -> (parent as? JSONArray)?.opt(token)
+                else -> null
+            } ?: return false
+        }
+
+        return when (val token = tokens.last()) {
+            is String -> (parent as? JSONObject)?.let { objectValue ->
+                if (!objectValue.has(token)) false else {
+                    objectValue.remove(token)
+                    true
+                }
+            } ?: false
+            is Int -> (parent as? JSONArray)?.let { arrayValue ->
+                if (token !in 0 until arrayValue.length()) false else {
+                    arrayValue.remove(token)
+                    true
+                }
+            } ?: false
+            else -> false
+        }
+    }
+
+    private companion object {
+        const val MAX_SKIPPED_FIELDS = 24
+        val JSON_PATH_TOKEN = Regex("""\.([A-Za-z0-9_]+)|\[(\d+)]""")
     }
 }
 
