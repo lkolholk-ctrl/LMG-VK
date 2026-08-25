@@ -37,6 +37,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.drawscope.clipRect
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
@@ -203,14 +204,14 @@ fun LyricsScreen(
 
     // ── Smooth 60/120 FPS position ticker ──
     val isPlaying by PlayerController.isPlaying.collectAsState()
-    var smoothPositionMs by remember { mutableLongStateOf(0L) }
+    val lyricClock = remember(resolvedTrackId) { mutableLongStateOf(currentPositionMs) }
 
     // Sync with coarse position only when paused — во время игры позицией
     // владеет покадровый тикер (getSmoothPositionMs), иначе грубые апдейты
     // дёргали бы плавный sweep.
     LaunchedEffect(currentPositionMs, syncOffsetMs) {
         if (!isPlaying) {
-            smoothPositionMs = currentPositionMs
+            lyricClock.longValue = currentPositionMs
             timeProcessor?.updatePosition(currentPositionMs + syncOffsetMs)
         }
     }
@@ -226,21 +227,19 @@ fun LyricsScreen(
     // процессор — иначе закрас не полз бы с первого открытия.
     val currentProcessor by rememberUpdatedState(timeProcessor)
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(resolvedTrackId) {
         while (isActive) {
             withFrameMillis { _ ->
                 if (PlayerController.isPlaying.value) {
-                    smoothPositionMs = PlayerController.getSmoothPositionMs()
+                    lyricClock.longValue = PlayerController.getSmoothPositionMs()
                     // syncOffsetMs — state: тикер всегда читает свежий сдвиг.
-                    currentProcessor?.updatePosition(smoothPositionMs + syncOffsetMs)
+                    currentProcessor?.updatePosition(lyricClock.longValue + syncOffsetMs)
                 }
             }
         }
     }
 
     val currentLineIndex by timeProcessor?.currentLineIndex?.collectAsState() ?: remember { mutableIntStateOf(-1) }
-    val currentLineProgress by timeProcessor?.currentLineProgress?.collectAsState()
-        ?: remember { mutableFloatStateOf(0f) }
     // Подсветка идёт по currentLineIndex, а наводка списка — по этому: он бежит
     // с упреждением, чтобы строка встала на место к началу пения.
     val scrollLineIndex by timeProcessor?.scrollLineIndex?.collectAsState() ?: remember { mutableIntStateOf(-1) }
@@ -459,7 +458,7 @@ fun LyricsScreen(
 
                             val fillProgress = when {
                                 isPast -> 1f
-                                isCurrent && line.words.isNotEmpty() -> currentLineProgress
+                                isCurrent && line.words.isNotEmpty() -> 0f
                                 isCurrent -> 1f
                                 else -> 0f
                             }
@@ -538,7 +537,10 @@ fun LyricsScreen(
                                     glowColor = duetColor ?: resolvedColors.vibrant,
                                     effect = lineEffect,
                                     edgeSoftPx = if (isCurrent) edgeSoftPx else 0f,
-                                    fontSizeSp = 32f * lineFontScale
+                                    fontSizeSp = 32f * lineFontScale,
+                                    timedLine = line.takeIf { it.words.isNotEmpty() },
+                                    positionState = lyricClock,
+                                    positionOffsetMs = syncOffsetMs,
                                 )
                                 // Точки ожидания во время инструментального проигрыша
                                 // (сегментная модель LyricsTimeProcessor, VAD не используется).
@@ -718,7 +720,7 @@ fun LyricsScreen(
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     LyricsProgress(
-                        positionMs = smoothPositionMs,
+                        positionMs = currentPositionMs,
                         durationMs = trackDurationMs,
                         color = lyricInk,
                     )
@@ -922,8 +924,10 @@ internal fun LyricLineSweep(
     glowColor: Color,
     effect: LyricsFxController.WordEffect = LyricsFxController.WordEffect.FILL,
     edgeSoftPx: Float = 0f,
-    // Размер строки: в узкой split-колонке (альбом/планшет) меньше 32.
-    fontSizeSp: Float = 32f
+    fontSizeSp: Float = 32f,
+    timedLine: LyricsParser.LyricLine? = null,
+    positionState: MutableLongState? = null,
+    positionOffsetMs: Long = 0L,
 ) {
     if (text.isEmpty()) return
 
@@ -951,7 +955,6 @@ internal fun LyricLineSweep(
         )
     }
 
-    val p = fillProgress.coerceIn(0f, 1f)
     val wDp = with(LocalDensity.current) { layout.size.width.toDp() }
     val hDp = with(LocalDensity.current) { layout.size.height.toDp() }
 
@@ -988,8 +991,22 @@ internal fun LyricLineSweep(
                 )
             )
         }
-        // 1) база — весь текст неактивным цветом
         drawText(layout, color = unsungColor)
+
+        if (timedLine != null && positionState != null) {
+            val position = positionState.longValue + positionOffsetMs
+            when {
+                position >= timedLine.wordEndMs() -> drawText(layout, color = sungColor)
+                position > timedLine.timeMs -> drawSweptText(
+                    layout = layout,
+                    revealedChars = timedLine.revealedChars(position, text),
+                    color = sungColor,
+                )
+            }
+            return@Canvas
+        }
+
+        val p = fillProgress.coerceIn(0f, 1f)
         if (p <= 0f) return@Canvas
 
         // 2) активный текст, обрезанный по «спетой» области в порядке чтения.
@@ -1070,6 +1087,86 @@ internal fun LyricLineSweep(
                 }
             }
             acc += w
+        }
+    }
+}
+
+private fun LyricsParser.LyricLine.wordEndMs(): Long {
+    val last = words.lastOrNull() ?: return endMs.coerceAtLeast(timeMs)
+    return last.endMs.takeIf { it > last.timeMs }
+        ?: endMs.takeIf { it > last.timeMs }
+        ?: (last.timeMs + (last.text.length * 72L).coerceIn(500L, 5_000L))
+}
+
+private fun LyricsParser.LyricLine.revealedChars(positionMs: Long, renderedText: String): Float {
+    if (words.isEmpty()) return if (positionMs >= timeMs) renderedText.length.toFloat() else 0f
+    var offset = 0
+    words.forEachIndexed { index, word ->
+        val start = renderedText.indexOf(word.text, offset).takeIf { it >= 0 } ?: offset
+        val end = (start + word.text.length).coerceAtMost(renderedText.length)
+        val next = words.getOrNull(index + 1)
+        val wordEnd = word.endMs.takeIf { it > word.timeMs }
+            ?: next?.timeMs?.takeIf { it > word.timeMs }
+            ?: endMs.takeIf { it > word.timeMs }
+            ?: (word.timeMs + (word.text.length * 72L).coerceIn(500L, 5_000L))
+        if (positionMs < word.timeMs) return start.toFloat()
+        if (positionMs < wordEnd) {
+            val span = (wordEnd - word.timeMs).coerceAtLeast(1L)
+            val through = (positionMs - word.timeMs).toFloat() / span
+            return start + through * word.text.length
+        }
+        if (next != null && positionMs < next.timeMs) {
+            val gapStart = renderedText.indexOf(next.text, end).takeIf { it >= 0 } ?: end
+            val pause = (next.timeMs - wordEnd).coerceAtLeast(1L)
+            val through = (positionMs - wordEnd).toFloat() / pause
+            return end + through * (gapStart - end)
+        }
+        offset = end
+    }
+    return renderedText.length.toFloat()
+}
+
+private fun horizontalAt(
+    layout: androidx.compose.ui.text.TextLayoutResult,
+    chars: Float,
+    lineStart: Int,
+    lineEnd: Int,
+): Float {
+    val index = chars.toInt().coerceIn(lineStart, lineEnd)
+    val here = layout.getHorizontalPosition(index, usePrimaryDirection = true)
+    val next = layout.getHorizontalPosition(
+        (index + 1).coerceAtMost(lineEnd),
+        usePrimaryDirection = true,
+    )
+    return here + (next - here) * (chars - index)
+}
+
+private fun DrawScope.drawSweptText(
+    layout: androidx.compose.ui.text.TextLayoutResult,
+    revealedChars: Float,
+    color: Color,
+) {
+    if (revealedChars <= 0f) return
+    if (revealedChars >= layout.layoutInput.text.length) {
+        drawText(layout, color = color)
+        return
+    }
+    for (visualLine in 0 until layout.lineCount) {
+        val start = layout.getLineStart(visualLine)
+        if (revealedChars <= start) return
+        val end = layout.getLineEnd(visualLine, visibleEnd = true)
+        val right = if (revealedChars >= end) {
+            layout.getLineRight(visualLine)
+        } else {
+            horizontalAt(layout, revealedChars, start, end)
+        }
+        clipRect(
+            left = layout.getLineLeft(visualLine),
+            top = layout.getLineTop(visualLine),
+            right = right,
+            bottom = layout.getLineBottom(visualLine),
+        ) {
+            drawText(layout, color = color)
         }
     }
 }

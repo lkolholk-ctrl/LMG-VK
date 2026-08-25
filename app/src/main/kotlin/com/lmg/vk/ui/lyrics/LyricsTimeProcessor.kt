@@ -418,9 +418,7 @@ class LyricsTimeProcessor(
                 posMs >= w.endMs -> filled = (w.charStart + w.charLen).toFloat()
                 posMs >= w.startMs -> {
                     val raw = (posMs - w.startMs).toFloat() / (w.endMs - w.startMs).coerceAtLeast(1L)
-                    // Заливка внутри слова идёт по апловской кривой (bloom), не линейно.
-                    val f = LYRIC_PROGRESS_INTERPOLATOR.getInterpolation(raw.coerceIn(0f, 1f))
-                    return ((w.charStart + w.charLen * f.coerceIn(0f, 1f)) / lf.totalChars).coerceIn(0f, 1f)
+                    return ((w.charStart + w.charLen * raw.coerceIn(0f, 1f)) / lf.totalChars).coerceIn(0f, 1f)
                 }
                 else -> return (w.charStart.toFloat() / lf.totalChars).coerceIn(0f, 1f)
             }
