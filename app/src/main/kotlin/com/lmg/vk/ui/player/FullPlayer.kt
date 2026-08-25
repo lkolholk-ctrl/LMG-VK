@@ -583,6 +583,13 @@ fun FullPlayer(
                 albumId = albumId,
                 trackId = currentTrackObj?.id,
                 albumColors = albumColors,
+                isFavorite = isFavorite,
+                onFavoriteClick = {
+                    currentTrackObj?.let { track ->
+                        scope.launch { libraryRepo.toggleFavorite(track, "lyrics") }
+                    }
+                },
+                onMoreClick = { showTrackMenu = true },
                 onRequestControls = { controlsVisible = true },
                 onClose = { showLyrics = false },
                 splitMode = isLandscape

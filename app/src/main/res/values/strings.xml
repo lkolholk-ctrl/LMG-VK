@@ -496,6 +496,9 @@
     <string name="remove_from_queue">Убрать из очереди</string>
 
     <string name="no_lyrics">Текст недоступен</string>
+    <string name="lyrics_by_source">Текст из %1$s</string>
+    <string name="lyrics_sources_title">Источники текста</string>
+    <string name="lyrics_sources_description">Выберите дополнительные источники. Официальный текст VK остается доступен всегда.</string>
     <string name="sync_chip">СИНХР</string>
     <string name="sync_chip_offset">СИНХР %+.1f с</string>
     <string name="back_to_sync">К синхронизации</string>

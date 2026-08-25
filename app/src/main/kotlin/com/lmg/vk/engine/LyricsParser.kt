@@ -62,7 +62,8 @@ object LyricsParser {
     /** Одно слово с таймкодом (word-level / Enhanced LRC). */
     data class LyricWord(
         val timeMs: Long,
-        val text: String
+        val text: String,
+        val endMs: Long = 0L,
     )
 
     data class LyricLine(
@@ -153,6 +154,8 @@ object LyricsParser {
         } catch (_: kotlinx.coroutines.TimeoutCancellationException) {
             android.util.Log.w("LyricsParser", "Lyrics fetch timeout for $trackId")
             Lyrics.EMPTY
+        } catch (error: kotlinx.coroutines.CancellationException) {
+            throw error
         } catch (_: Exception) {
             Lyrics.EMPTY
         }
@@ -171,17 +174,25 @@ object LyricsParser {
         durationMs: Long,
         trackId: String? = null
     ): Lyrics {
-        // Своя пословная разметка (Enhanced LRC) временно не используется: пока
-        // у backend нет пословных таймингов, подсветка идёт целыми строками, а
-        // ручная разметка на паре треков давала бы поведение, отличное от всей
-        // остальной библиотеки. Загрузчик и парсер оставлены — вернём, когда
-        // пословные тайминги появятся в API.
-
-        // ── ЛОКАЛЬНЫЙ трек: источник синхро-текстов — LRCLIB (только для локального) ──
+        val enabledSources = com.lmg.vk.engine.lyrics.LyricsSourceStore.enabled(context)
         if (isLocalTrack(uri, trackId)) {
-            val lrc = fetchLrcLib(context, uri, title, artist, durationMs, trackId)
-            if (lrc.lines.isNotEmpty()) return lrc
-            // запасной — embedded из тегов (если вдруг есть)
+            val wordTimed = kotlinx.coroutines.withTimeoutOrNull(4_500L) {
+                com.lmg.vk.engine.lyrics.ExternalLyricsRepository.findWordTimed(
+                    title = title,
+                    artist = artist,
+                    durationMs = durationMs,
+                    enabled = enabledSources,
+                )
+            }
+            if (wordTimed?.isWordLevel == true) {
+                val result = wordTimed.copy(title = title, artist = artist)
+                if (!trackId.isNullOrBlank()) cacheLyrics(trackId, result)
+                return result
+            }
+            if (com.lmg.vk.engine.lyrics.LyricsSource.LRCLIB in enabledSources) {
+                val lrc = fetchLrcLib(context, uri, title, artist, durationMs, trackId)
+                if (lrc.lines.isNotEmpty()) return lrc
+            }
             if (uri != null) {
                 val embedded = extractLyrics(context, uri)
                 if (embedded.lines.isNotEmpty()) return embedded
@@ -189,14 +200,42 @@ object LyricsParser {
             return Lyrics.EMPTY
         }
 
-        // ── СТРИМИНГ/backend: без изменений ──
-        // 1. Try backend API lyrics (primary source)
-        if (!trackId.isNullOrBlank()) {
-            val online = fetchOnlineLyrics(trackId, title, artist)
-            if (online.lines.isNotEmpty()) return online
+        val result = kotlinx.coroutines.coroutineScope {
+            val official = if (!trackId.isNullOrBlank()) {
+                kotlinx.coroutines.async { fetchOnlineLyrics(trackId, title, artist) }
+            } else {
+                null
+            }
+            val external = kotlinx.coroutines.async {
+                kotlinx.coroutines.withTimeoutOrNull(4_500L) {
+                    com.lmg.vk.engine.lyrics.ExternalLyricsRepository.findWordTimed(
+                        title = title,
+                        artist = artist,
+                        durationMs = durationMs,
+                        enabled = enabledSources,
+                    )
+                }
+            }
+            val richer = external.await()
+            if (richer?.isWordLevel == true) {
+                official?.cancel()
+                richer.copy(title = title, artist = artist)
+            } else {
+                val vk = official?.await()
+                when {
+                    vk != null && vk.lines.isNotEmpty() -> vk
+                    richer != null && richer.lines.isNotEmpty() -> richer.copy(title = title, artist = artist)
+                    com.lmg.vk.engine.lyrics.LyricsSource.LRCLIB in enabledSources ->
+                        fetchLrcLib(context, uri, title, artist, durationMs, trackId)
+                    else -> Lyrics.EMPTY
+                }
+            }
+        }
+        if (result.lines.isNotEmpty()) {
+            if (!trackId.isNullOrBlank()) cacheLyrics(trackId, result)
+            return result
         }
 
-        // 2. Try embedded
         if (uri != null) {
             val embedded = extractLyrics(context, uri)
             if (embedded.lines.isNotEmpty()) return embedded
@@ -590,7 +629,10 @@ object LyricsParser {
                     timeMs = (l.timeMs - offsetMs).coerceAtLeast(0L),
                     endMs = if (l.endMs > 0L) (l.endMs - offsetMs).coerceAtLeast(0L) else 0L,
                     words = l.words.map { w ->
-                        w.copy(timeMs = (w.timeMs - offsetMs).coerceAtLeast(0L))
+                        w.copy(
+                            timeMs = (w.timeMs - offsetMs).coerceAtLeast(0L),
+                            endMs = if (w.endMs > 0L) (w.endMs - offsetMs).coerceAtLeast(0L) else 0L,
+                        )
                     }
                 )
             }
@@ -633,7 +675,9 @@ object LyricsParser {
             val w = if (from <= to) content.substring(from, to).trim() else ""
             if (w.isNotEmpty()) words.add(LyricWord(ts, w))
         }
-        return words
+        return words.mapIndexed { index, word ->
+            word.copy(endMs = words.getOrNull(index + 1)?.timeMs ?: 0L)
+        }
     }
 
     /**

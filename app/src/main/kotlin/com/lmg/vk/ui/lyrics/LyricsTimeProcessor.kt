@@ -204,7 +204,8 @@ class LyricsTimeProcessor(
         for ((i, w) in words.withIndex()) {
             val start = w.timeMs
             // Последнее слово последней строки: длительность от темпа трека.
-            val end = if (i + 1 < words.size) words[i + 1].timeMs
+            val end = w.endMs.takeIf { it > start }
+                ?: if (i + 1 < words.size) words[i + 1].timeMs
                       else (nextStartMs
                           ?: (start + (w.text.length * trackMsPerChar).coerceIn(500L, LAST_LINE_MS)))
             // длина слова + пробел после (кроме последнего) — закрас «течёт» и через пробел
