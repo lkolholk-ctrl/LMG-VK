@@ -1,5 +1,6 @@
 package com.lmg.vk.network.methods
 
+import com.lmg.vk.network.MoshiEnvelopeParser
 import com.lmg.vk.network.TolerantMoshiEnvelopeParser
 import com.lmg.vk.network.VkApiClient
 import com.lmg.vk.network.VkMethod

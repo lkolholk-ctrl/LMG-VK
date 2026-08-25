@@ -4,6 +4,7 @@ import android.content.Context
 import android.media.MediaMetadataRetriever
 import android.net.Uri
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
@@ -202,11 +203,11 @@ object LyricsParser {
 
         val result = kotlinx.coroutines.coroutineScope {
             val official = if (!trackId.isNullOrBlank()) {
-                kotlinx.coroutines.async { fetchOnlineLyrics(trackId, title, artist) }
+                async { fetchOnlineLyrics(trackId, title, artist) }
             } else {
                 null
             }
-            val external = kotlinx.coroutines.async {
+            val external = async {
                 kotlinx.coroutines.withTimeoutOrNull(4_500L) {
                     com.lmg.vk.engine.lyrics.ExternalLyricsRepository.findWordTimed(
                         title = title,
