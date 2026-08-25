@@ -288,7 +288,7 @@ object MusicBackend {
     private lateinit var sessionStore: VkSessionStore
     private const val PERSONAL_VK_MIX_ID = "common"
     private val trackCache = ConcurrentHashMap<String, AudioTrack>()
-    private data class CachedStream(val info: StreamInfo, val cachedAtMs: Long)
+    private data class CachedStream(val info: StreamInfo)
     private val streamCache = ConcurrentHashMap<String, CachedStream>()
     private val waveMutex = Mutex()
     private val waveQueue = ArrayDeque<AudioTrack>()
@@ -317,33 +317,14 @@ object MusicBackend {
     // ---------- стрим ----------
     suspend fun getTrackInfo(trackId: String, quality: String = "lossless", region: String? = null): StreamInfo {
         requireInitialized()
-        streamCache[streamCacheKey(trackId)]?.let { cached ->
-            // Свежесть по TTL — не единственное условие. В кэш исторически попадал
-            // плейсхолдер `audio_api_unavailable.mp3` (см. cacheTracks), и тогда
-            // этот ранний return отдавал плееру заведомо неиграбельный URL, минуя
-            // проверку isAvailable ниже. Именно так «рабочая» ссылка доходила до
-            // ExoPlayer и трек молчал: URL есть, звука нет.
-            if (System.currentTimeMillis() - cached.cachedAtMs < STREAM_CACHE_TTL_MS &&
-                cached.info.url.isPlayableStreamUrl()
-            ) {
-                return cached.info
-            }
-        }
         val track = resolveTrack(trackId, forceNetwork = true)
         if (!track.isAvailable) throw backendFailure(451, str(R.string.err_track_unavailable))
-        // 451, а не 404: трек НАЙДЕН, просто VK не дал ссылку (чаще всего нет
-        // access_key либо запись ограничена). Код 404 превращался в «Трек не
-        // найден у VK» — сообщение врало, и пользователь искал причину не там.
-        if (track.url.isBlank()) {
+        val playbackUrl = track.playbackUrl
+        if (playbackUrl == null) {
             throw backendFailure(451, str(R.string.err_no_link_access_key))
         }
-        // Плейсхолдер отличается от пустого url: VK ответил успехом и отдал строку,
-        // поэтому без явной проверки ошибка выглядела бы как успешный резолв.
-        if (!track.url.isPlayableStreamUrl()) {
-            throw backendFailure(451, str(R.string.err_audio_api_unavailable))
-        }
-        return track.toStreamInfo(quality).also {
-            streamCache[track.fullId] = CachedStream(it, System.currentTimeMillis())
+        return track.toStreamInfo(quality, playbackUrl).also {
+            streamCache[track.fullId] = CachedStream(it)
         }
     }
 
@@ -368,7 +349,6 @@ object MusicBackend {
         requireInitialized()
         val id = streamCacheKey(trackId)
         streamCache[id]
-            ?.takeIf { System.currentTimeMillis() - it.cachedAtMs < STREAM_CACHE_TTL_MS }
             ?.info
             ?.takeIf { it.url.isPlayableStreamUrl() }
             ?.let { return it }
@@ -382,20 +362,13 @@ object MusicBackend {
                 // неотличимо от «ссылка не пришла», а adb у пользователя нет.
                 com.lmg.vk.debug.DebugLog.add(
                     "resolveSync $id: available=${track.isAvailable} " +
-                        "url=${if (track.url.isBlank()) "ПУСТО" else track.url.take(60)}"
+                        "url=${track.playbackUrl?.take(60) ?: "ПУСТО"}"
                 )
                 if (!track.isAvailable) throw backendFailure(451, str(R.string.err_track_unavailable))
-                // 451, а не 404: трек НАЙДЕН, просто VK не дал ссылку (чаще всего нет
-        // access_key либо запись ограничена). Код 404 превращался в «Трек не
-        // найден у VK» — сообщение врало, и пользователь искал причину не там.
-        if (track.url.isBlank()) {
-            throw backendFailure(451, str(R.string.err_no_link_access_key))
-        }
-                if (!track.url.isPlayableStreamUrl()) {
-                    throw backendFailure(451, str(R.string.err_audio_api_unavailable))
-                }
-                track.toStreamInfo(quality).also { info ->
-                    streamCache[id] = CachedStream(info, System.currentTimeMillis())
+                val playbackUrl = track.playbackUrl
+                    ?: throw backendFailure(451, str(R.string.err_no_link_access_key))
+                track.toStreamInfo(quality, playbackUrl).also { info ->
+                    streamCache[id] = CachedStream(info)
                 }
             }
         }
@@ -416,14 +389,18 @@ object MusicBackend {
             .distinct()
             .toList()
         if (requestIds.isEmpty()) return emptyMap()
+        requestIds
+            .map(VkAudioIdentity::stableFullId)
+            .forEach { streamCache.remove(it) }
         val refreshed = LinkedHashMap<String, StreamInfo>(requestIds.size)
         for (chunk in requestIds.chunked(100)) {
             when (val result = audioApi.getById(chunk, ref)) {
                 is VkResult.Success -> result.data.forEach { received ->
                     val track = cacheTrack(received)
-                    if (track.isAvailable && track.url.isPlayableStreamUrl()) {
-                        val info = track.toStreamInfo(quality)
-                        streamCache[track.fullId] = CachedStream(info, System.currentTimeMillis())
+                    val playbackUrl = track.playbackUrl
+                    if (track.isAvailable && playbackUrl != null) {
+                        val info = track.toStreamInfo(quality, playbackUrl)
+                        streamCache[track.fullId] = CachedStream(info)
                         refreshed[track.fullId] = info
                     }
                 }
@@ -2066,24 +2043,10 @@ object MusicBackend {
     }
 
     private fun cacheTrack(track: AudioTrack): AudioTrack {
-        // Не даём короткому ответу audio.getById/audio.get затереть цветную
-        // обложку, которую раньше прислал каталог или searchMain.
         val enriched = synchronized(trackCache) {
             track.withVkArtworkFallback(trackCache[track.fullId]).also { merged ->
                 trackCache[merged.fullId] = merged
             }
-        }
-        // ВАЖНО: в stream-кэш идёт только реально играбельный URL. Раньше
-        // условием было `isNotBlank()`, и плейсхолдер VK
-        // (`audio_api_unavailable.mp3`) из выдачи поиска/каталога оседал тут
-        // как готовая ссылка. Дальше getTrackInfo отдавал его из кэша, а
-        // getTrackInfoSync — тем более (он только читает кэш), так что
-        // плеер получал URL, который физически не воспроизводится.
-        if (enriched.isAvailable && enriched.url.isPlayableStreamUrl()) {
-            streamCache[enriched.fullId] = CachedStream(
-                enriched.toStreamInfo(streamQuality),
-                System.currentTimeMillis(),
-            )
         }
         return enriched
     }
@@ -2259,13 +2222,13 @@ object MusicBackend {
     private fun AudioTrack.resolvedArtist(): String =
         artist.ifBlank { main_artists.orEmpty().joinToString(", ") { it.name } }
 
-    private fun AudioTrack.toStreamInfo(quality: String) = StreamInfo(
+    private fun AudioTrack.toStreamInfo(quality: String, playbackUrl: String) = StreamInfo(
         trackId = fullId,
         fileId = fullId,
         source = "vk",
         quality = quality,
         artistId = main_artists?.firstOrNull()?.id,
-        url = url,
+        url = playbackUrl,
         expiresAt = 0L,
     )
 
@@ -3497,7 +3460,6 @@ object MusicBackend {
         return markers.any { marker -> marker.lowercase() in haystack }
     }
 
-    private const val STREAM_CACHE_TTL_MS = 8L * 60L * 1000L
 
     /**
      * Предел ожидания для синхронного резолва (`getTrackInfoSync`).

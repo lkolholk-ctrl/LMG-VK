@@ -74,9 +74,6 @@ class StreamingDataSource private constructor(
         val liquidTrackId =
             if (uri.scheme == SCHEME_LIQUID) uri.getQueryParameter(PARAM_TRACK_ID) else null
         val resolvedUri = resolveUri(uri)
-        // Ключ кэша = ID ТРЕКА, а не подписанный URL: подпись живёт 10 минут
-        // и меняется при каждом резолве — с ключом-URL кэш никогда не
-        // переиспользовался («мёртвый кэш», всё зависело от сети).
         val resolvedSpec = dataSpec.buildUpon()
             .setUri(resolvedUri)
             .apply { if (liquidTrackId != null) setKey("lmg_$liquidTrackId") }
@@ -150,21 +147,9 @@ class StreamingDataSource private constructor(
             val cachedUri = PlayerController.getValidCachedUri(trackId)
             if (cachedUri != null) return cachedUri
 
-            // resolveStreamUrlSync ходит ТОЛЬКО в память (MusicBackend.getTrackInfoSync
-            // бросает 404, если трека нет в streamCache) — на холодном кэше он всегда
-            // null. Поэтому раньше порядок «sync → embedded» означал: для любого трека,
-            // кроме стартового, резолв проваливался и открывался только вложенный URL,
-            // а если его не было — летел IOException. Теперь embedded идёт РАНЬШЕ
-            // сетевого добора: он уже валиден и не требует запроса.
             PlayerController.resolveStreamUrlSync(trackId)?.let { return it }
 
             if (embeddedUrl != null) return Uri.parse(embeddedUrl)
-
-            // Сеть лежит, свежий URL не получить. Если аудио уже в кэше
-            // (ключ = id трека), апстрим не понадобится — отдаём последний
-            // известный URL, даже протухший: чтение пойдёт из кэша.
-            val stale = PlayerController.getStaleCachedUri(trackId)
-            if (stale != null) return stale
         }
 
         if (embeddedUrl != null) return Uri.parse(embeddedUrl)

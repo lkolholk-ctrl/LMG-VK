@@ -1,12 +1,13 @@
 package com.lmg.vk.network.dto.music
 
+import com.squareup.moshi.Json
 import com.squareup.moshi.JsonClass
 
 @JsonClass(generateAdapter = true)
 data class AudioStreamDto(
     val type: String? = null,
     val url: String? = null,
-    val fallback_url: String? = null,
+    @Json(name = "fallbackUrl") val fallbackUrl: String? = null,
 )
 
 @JsonClass(generateAdapter = true)

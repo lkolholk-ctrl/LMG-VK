@@ -65,6 +65,19 @@ data class AudioTrack(
     /** Полный id VK: "ownerId_audioId" — используется в audio.getById/плеере. */
     val fullId: String get() = "${owner_id}_$id"
 
+    val playbackUrl: String?
+        get() = sequence {
+            yield(url)
+            val streams = audio_streams.orEmpty()
+                .sortedBy { stream ->
+                    AUDIO_STREAM_PRIORITY.indexOf(stream.type).takeIf { it >= 0 } ?: Int.MAX_VALUE
+                }
+            for (stream in streams) {
+                yield(stream.url.orEmpty())
+                yield(stream.fallbackUrl.orEmpty())
+            }
+        }.map(String::trim).firstOrNull(String::isPlayableAudioUrl)
+
     val isPodcast: Boolean get() = podcast_info != null
 
     /** Рантайм-состояние лайка (в оригинале — делегаты C11956e; liked/disliked). */
@@ -79,6 +92,12 @@ data class AudioTrack(
         get() = content_restricted == 0 &&
             !url.contains("audio_api_unavailable.mp3", ignoreCase = true)
 }
+
+private val AUDIO_STREAM_PRIORITY = listOf("mp3", "aac", "hls_range", "hls", "hls_ts", "dash")
+
+private fun String.isPlayableAudioUrl(): Boolean =
+    (startsWith("https://") || startsWith("http://")) &&
+        !contains("audio_api_unavailable", ignoreCase = true)
 
 private const val VK_LEGACY_AUDIO_PLACEHOLDER =
     "https://vk.com/images/audio_row_placeholder.png"

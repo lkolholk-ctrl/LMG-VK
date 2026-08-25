@@ -538,34 +538,14 @@ object PlayerController {
     // ── Stream URL cache ──
     private val streamUrlCache = java.util.concurrent.ConcurrentHashMap<String, CachedStreamUrl>()
     private var networkRouteJob: Job? = null
-    // Подпись URL у backend живёт 10 минут — кэшируем на 8: ссылка, выданная из
-    // кэша на 10-й минуте, протухала при старте воспроизведения (спасал только
-    // handleExpiredUrl с лишним round-trip и паузой).
-    private const val STREAM_CACHE_TTL_MS = 8 * 60 * 1000L
-    // Прямые ссылки живут заметно меньше подписанных backend-URL и TTL в них
-    // не приходит — кэшируем коротко, только чтобы схлопнуть повторные резолвы
-    // одного трека (префетч + загрузчик).
-
     // In-flight резолвы: один и тот же трек резолвится максимум ОДНОЙ корутиной,
     // остальные ждут тот же результат — без дублирующих POST /track (их раньше
     // могло уходить 2-3 на трек: префетч + загрузчик + handleExpiredUrl).
     private val inFlightResolves = java.util.concurrent.ConcurrentHashMap<String, kotlinx.coroutines.Deferred<StreamResult>>()
 
     fun getValidCachedUri(trackId: String): Uri? {
-        val now = System.currentTimeMillis()
-        val cached = streamUrlCache[trackId]
-        if (cached != null && now < (cached.expiresAtMs - 15_000L)) { // 15-секундный запас
-            return cached.uri
-        }
-        return null
+        return streamUrlCache[trackId]?.uri
     }
-
-    /**
-     * Последний известный стрим-URL БЕЗ проверки TTL. Оффлайн-фолбэк: когда
-     * аудио уже лежит в медиа-кэше (ключ = id трека), апстрим не открывается —
-     * протухшая подпись не мешает читать из кэша.
-     */
-    fun getStaleCachedUri(trackId: String): Uri? = streamUrlCache[trackId]?.uri
 
     // ── Playback logging state ──
     private var playbackStartTimeMs: Long = 0L
@@ -1199,6 +1179,10 @@ object PlayerController {
 
             val refreshedStreams = if (startTrack.isOnlineTrack) {
                 try {
+                    tracks.forEach { track ->
+                        streamUrlCache.remove(track.id)
+                        streamUrlCache.remove(VkAudioIdentity.stableFullId(track.id))
+                    }
                     MusicBackend.refreshPlaybackStreams(
                         trackIds = tracks.map(Track::id),
                         ref = newContext.playbackRef(),
@@ -2049,15 +2033,13 @@ object PlayerController {
 
     private data class CachedStreamUrl(
         val uri: Uri,
-        val expiresAtMs: Long,
         val fileId: String?
     )
 
     fun resolveStreamUrlSync(trackId: String): Uri? {
-        val now = System.currentTimeMillis()
         val cached = streamUrlCache[trackId]
 
-        if (cached != null && now < cached.expiresAtMs) {
+        if (cached != null) {
             UiLogger.log("[SYNC] Cache hit for $trackId")
             return cached.uri
         }
@@ -2073,15 +2055,9 @@ object PlayerController {
             // так, будто ветка работает, нельзя.
             val trackInfo = MusicBackend.getTrackInfoSync(trackId, quality = quality ?: "lossless")
             val uri = Uri.parse(trackInfo.url)
-            val ttl = if (trackInfo.expiresAt > 0) {
-                (trackInfo.expiresAt * 1000L - now - 60_000L).coerceAtLeast(60_000L)
-            } else {
-                STREAM_CACHE_TTL_MS
-            }
 
             streamUrlCache[trackId] = CachedStreamUrl(
                 uri = uri,
-                expiresAtMs = now + ttl,
                 fileId = trackInfo.fileId
             )
             uri
@@ -2095,9 +2071,8 @@ object PlayerController {
     }
 
     private suspend fun resolveStreamUrl(trackId: String): StreamResult {
-        val now = System.currentTimeMillis()
         val cached = streamUrlCache[trackId]
-        if (cached != null && now < cached.expiresAtMs) {
+        if (cached != null) {
             return StreamResult.Success(cached.uri)
         }
 
@@ -2228,17 +2203,9 @@ object PlayerController {
 
     private fun cacheAndReturn(trackId: String, trackInfo: StreamInfo): StreamResult {
         val uri = Uri.parse(trackInfo.url)
-        val now = System.currentTimeMillis()
-
-        val ttl = if (trackInfo.expiresAt > 0) {
-            (trackInfo.expiresAt * 1000L - now - 60_000L).coerceAtLeast(60_000L)
-        } else {
-            STREAM_CACHE_TTL_MS
-        }
 
         streamUrlCache[trackId] = CachedStreamUrl(
             uri = uri,
-            expiresAtMs = now + ttl,
             fileId = trackInfo.fileId
         )
         return StreamResult.Success(uri)
