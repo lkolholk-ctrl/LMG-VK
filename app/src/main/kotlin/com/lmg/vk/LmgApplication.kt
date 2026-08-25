@@ -99,6 +99,7 @@ class LmgApplication : Application(), ImageLoaderFactory {
                     currentNetwork = network
                     NetworkVitality.onDefaultNetworkChanged()
                     MusicAuth.onNetworkAvailable()
+                    WaveSignalQueue.onNetworkAvailable()
                 }
 
                 override fun onLost(network: android.net.Network) {
@@ -209,6 +210,7 @@ class LmgApplication : Application(), ImageLoaderFactory {
         VkApiLocator.init(vkApiClient)
         VkApiLocator.initMediaClient(vkNetworkClient)
         MusicBackend.init(vkApiClient, vkSessionStore)
+        WaveSignalQueue.init(this)
         VkTokenRefreshWorker.schedule(this)
 
         // ── Сетевая живучесть ─────────────────────────────────────────────
@@ -227,8 +229,9 @@ class LmgApplication : Application(), ImageLoaderFactory {
             }
         }
         appScope.launch {
-            MusicAuth.profileId.collectLatest {
+            MusicAuth.profileId.collectLatest { profileId ->
                 VkMusicWidget.refreshAll(this@LmgApplication)
+                profileId?.let { WaveSignalQueue.drain(it) }
             }
         }
         appScope.launch {

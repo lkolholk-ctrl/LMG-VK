@@ -698,6 +698,7 @@ object PlayerController {
         val hadAccount = activeAccountId != Long.MIN_VALUE
         val hasOnlinePlayback = _currentTrack.value?.isOnlineTrack == true ||
             _queueFlow.value.any { it.isOnlineTrack }
+        if (hadAccount && hasOnlinePlayback) finishPlaybackForNewStart()
         activeAccountId = resolvedUserId
         playbackStartJob?.cancel()
         playbackStartJob = null
@@ -771,6 +772,7 @@ object PlayerController {
 
         ioScope.launch {
             val track = currentQueue.getOrNull(queueIndex) ?: return@launch
+            val previousTrackId = finishPlaybackForNewStart()
 
             withContext(Dispatchers.Main) {
                 currentIndex = queueIndex
@@ -805,6 +807,7 @@ object PlayerController {
                         player.play()
                     }
                     resetPlaybackLogging(track.durationMs)
+                    recordPlaybackStart(track, previousTrackId)
                     prefetchAhead(context, queueIndex, depth = 3)
                     maybePreloadAutoflow()
                 } else {
@@ -1146,6 +1149,7 @@ object PlayerController {
                     it.clearMediaItems()
                 }
             }
+            val previousTrackId = finishPlaybackForNewStart()
 
             _playbackContext = newContext
             _playbackQueueConfig = newQueueConfig
@@ -1247,13 +1251,14 @@ object PlayerController {
                             player.setMediaItems(mediaItems, startIndex, 0L)
                             player.prepare()
                             player.play()
-                            resetPlaybackLogging(startTrack.durationMs)
                         } else {
                             // Редкий fallback до подключения MediaController.
                             // Одновременно оба пути вызывать нельзя: это дважды
                             // пересоздаёт весь timeline в AudioService.
                             audioServiceRef?.setQueue(mediaItems, startIndex, 0L)
                         }
+                        resetPlaybackLogging(startTrack.durationMs)
+                        recordPlaybackStart(startTrack, previousTrackId)
                         maybePreloadAutoflow()
                     }
                     addToRecent(startTrack)
@@ -1349,6 +1354,7 @@ object PlayerController {
         }
 
         ioScope.launch {
+            val previousTrackId = finishPlaybackForNewStart()
             // Статичная локальная очередь — без онлайн-рефилла.
             _playbackContext = playbackContext
             _playbackQueueConfig = PlaybackQueueConfig.MUSIC_CONFIG
@@ -1378,6 +1384,7 @@ object PlayerController {
                 DebugLog.add("PC.playLocalOnJuce -> svc ref=${if (audioServiceRef==null) "NULL" else "ok"} items=${mediaItems.size}")
                 audioServiceRef?.playLocalQueue(mediaItems, startIndex)
                 resetPlaybackLogging(startTrack.durationMs)
+                recordPlaybackStart(startTrack, previousTrackId)
             }
             addToRecent(startTrack)
         }
@@ -1657,6 +1664,7 @@ object PlayerController {
         if (_currentTrack.value?.id == mediaId && currentIndex == index) return
 
         val track = currentQueue[index]
+        val previousTrackId = finishPlaybackForNewStart()
         currentIndex = index
         // Проигранное перестаёт быть «добавленным вручную» — окно схлопывается
         // за играющим треком, иначе секция «Далее» будет тянуться назад.
@@ -1676,6 +1684,7 @@ object PlayerController {
         VkBroadcastManager.ensureStarted()
 
         resetPlaybackLogging(track.durationMs)
+        recordPlaybackStart(track, previousTrackId)
         appContext?.let {
             // URL-прогрев ближайшего — для мгновенного скипа.
             prefetchAhead(it, index, depth = 1)
@@ -2284,7 +2293,6 @@ object PlayerController {
 
     private fun logPreviousTrack(track: Track, playedMs: Long) {
         val playbackAccountId = queueAccountId
-        val durationSec = track.durationMs / 1000f
         val playedSec = playedMs / 1000f
 
         val isCompleted = playedMs >= 30_000L
@@ -2298,16 +2306,7 @@ object PlayerController {
             _consecutiveSkips = 0
         }
 
-        val sourceStr = when (_playbackContext) {
-            is PlaybackContext.Downloads -> "downloads"
-            is PlaybackContext.Catalog -> "catalog"
-            is PlaybackContext.Playlist -> "playlist"
-            is PlaybackContext.Album -> "album"
-            is PlaybackContext.Artist -> "artist"
-            is PlaybackContext.OwnerAudio -> "playlist"
-            is PlaybackContext.VkMix -> "vk_mix"
-            is PlaybackContext.Global -> "wave"
-        }
+        val sourceStr = playbackSourceName()
 
         android.util.Log.d("PlayerController", "[LOG_PREVIOUS] track=${track.title} | played=${playedMs}ms | isCompleted=$isCompleted | consecutiveSkips=$_consecutiveSkips | source=$sourceStr")
 
@@ -2317,9 +2316,9 @@ object PlayerController {
                     val repo = WaveRepository.getInstance(ctx)
                     if (isCompleted) {
                         repo.logListening(playbackAccountId, track, playedMs, sourceStr)
-                        repo.logTrackPlayed(playbackAccountId, track)
+                        repo.logTrackPlayed(playbackAccountId, track, playedMs, sourceStr)
                     } else {
-                        repo.logTrackSkipped(playbackAccountId, track)
+                        repo.logTrackSkipped(playbackAccountId, track, playedMs, sourceStr)
                     }
                 } catch (e: Exception) {
                     android.util.Log.e("PlayerController", "Room logging failed for ${track.title}", e)
@@ -2327,21 +2326,20 @@ object PlayerController {
             }
         }
 
-        // Also log to backend API wave playback — через оффлайн-очередь: обрыв
-        // сети больше не теряет сигнал (дошлётся при восстановлении).
-        // skipped=true — НЕГАТИВНЫЙ сигнал для волны. Шлём его ТОЛЬКО в контексте волны
-        // (Global): пролистывание трека в альбоме/плейлисте — это осознанная навигация,
-        // а не «меньше такого», и не должно портить персонализацию. Позитивный сигнал
-        // (completed) шлём в любом контексте — дослушанный трек = подтверждение вкуса.
         val isWaveContext = _playbackContext is PlaybackContext.Global
         ioScope.launch {
             try {
                 com.lmg.vk.engine.backend.WaveSignalQueue.sendPlayback(
+                    accountId = playbackAccountId,
                     trackId = track.id,
                     playedSeconds = playedSec.toDouble(),
-                    totalSeconds = durationSec.toDouble(),
                     completed = if (track.durationMs > 0L) playedMs >= 0.85f * track.durationMs else isCompleted,
-                    skipped = isSkippedForServer && isWaveContext
+                    skipped = isSkippedForServer && isWaveContext,
+                    source = sourceStr,
+                    shuffle = _shuffleEnabled.value,
+                    repeat = repeatStatName(),
+                    streamingType = streamingType(track),
+                    streamingUrlType = streamingUrlType(track),
                 )
             } catch (_: Exception) {}
         }
@@ -2355,6 +2353,58 @@ object PlayerController {
             logPreviousTrack(track, totalPlayedMs)
             resetPlaybackLogging(0L)
             _currentTrack.value = null
+        }
+    }
+
+    private fun finishPlaybackForNewStart(): String? {
+        val previous = _currentTrack.value ?: return null
+        if (totalPlayedMs > 0L) logPreviousTrack(previous, totalPlayedMs)
+        return previous.id
+    }
+
+    private fun recordPlaybackStart(track: Track, previousTrackId: String?) {
+        com.lmg.vk.engine.backend.WaveSignalQueue.sendStart(
+            accountId = queueAccountId,
+            trackId = track.id,
+            source = playbackSourceName(),
+            shuffle = _shuffleEnabled.value,
+            repeat = repeatStatName(),
+            streamingType = streamingType(track),
+            streamingUrlType = streamingUrlType(track),
+            previousTrackId = previousTrackId,
+        )
+    }
+
+    private fun playbackSourceName(): String = when (_playbackContext) {
+        is PlaybackContext.Downloads -> "downloads"
+        is PlaybackContext.Catalog -> "catalog"
+        is PlaybackContext.Playlist -> "playlist"
+        is PlaybackContext.Album -> "album"
+        is PlaybackContext.Artist -> "artist"
+        is PlaybackContext.OwnerAudio -> "playlist"
+        is PlaybackContext.VkMix -> "vk_mix"
+        is PlaybackContext.Global -> "wave"
+    }
+
+    private fun repeatStatName(): String = when (_repeatMode.value) {
+        1 -> "all"
+        2 -> "one"
+        else -> "none"
+    }
+
+    private fun streamingType(track: Track): String = when {
+        !VkAudioIdentity.isFullId(track.id) -> "none"
+        track.isOnlineTrack -> "online"
+        else -> "offline"
+    }
+
+    private fun streamingUrlType(track: Track): String {
+        val value = streamUrlCache[track.id]?.uri?.toString() ?: track.uri.toString()
+        return when {
+            com.lmg.vk.audio.HlsDownloader.isHlsUrl(value) -> "hls"
+            value.substringBefore('?').endsWith(".mp3", ignoreCase = true) -> "mp3"
+            value.substringBefore('?').endsWith(".aac", ignoreCase = true) -> "aac"
+            else -> "none"
         }
     }
 
@@ -2664,11 +2714,6 @@ object PlayerController {
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
             val transitionedMediaId = mediaItem?.mediaId
             transitionMixPromptPlayback(transitionedMediaId, reason)
-            // ── Unified room logging for previous track ──
-            val prevTrack = _currentTrack.value
-            if (prevTrack != null) {
-                logPreviousTrack(prevTrack, totalPlayedMs)
-            }
 
             if (mediaItem != null) {
                 mediaItem.mediaId?.let { mediaId ->

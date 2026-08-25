@@ -3460,6 +3460,11 @@ object MusicBackend {
         return markers.any { marker -> marker.lowercase() in haystack }
     }
 
+    internal suspend fun sendTrackEvents(eventsJson: String): Boolean {
+        requireInitialized()
+        return methodsRegistry.statsTrackEvents(eventsJson) is VkResult.Success
+    }
+
 
     /**
      * Предел ожидания для синхронного резолва (`getTrackInfoSync`).
@@ -4296,21 +4301,7 @@ object MusicAuth {
         }
         return true
     }
-}
 
-/** Оффлайн-очередь сигналов прослушивания (бывш. WaveSignalQueue). */
-object WaveSignalQueue {
-    fun init(context: android.content.Context) { /* TODO(vk): prefs-очередь */ }
-    fun sendPlayback(
-        trackId: String,
-        playedSeconds: Double = 0.0,
-        totalSeconds: Double = 0.0,
-        completed: Boolean = false,
-        skipped: Boolean = false,
-    ) { /* TODO(vk): stats.trackEvents */ }
-    fun sendFeedback(trackId: String, kind: String) { /* TODO(vk) */ }
-    /** Дослать недоставленные сигналы (вызывается при старте/смене сети). */
-    fun drain() { /* TODO(vk) */ }
 }
 
 /** Мета подписки (для MusicAuth.subscription). */

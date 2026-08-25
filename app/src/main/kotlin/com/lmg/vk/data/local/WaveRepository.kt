@@ -166,31 +166,41 @@ class WaveRepository(context: Context) {
 
     // ─── Track Stats & Playback History (for Wave de-duplication) ───
 
-    /**
-     * Log a completed play (track finished or played > 85%).
-     * Writes to both TrackStats and PlaybackHistory.
-     */
-    suspend fun logTrackPlayed(accountId: Long, track: Track) = withContext(Dispatchers.IO) {
-        playbackDao.incrementPlayCount(
+    suspend fun logTrackPlayed(
+        accountId: Long,
+        track: Track,
+        playedMs: Long = track.durationMs,
+        source: String = "unknown",
+    ) = withContext(Dispatchers.IO) {
+        playbackDao.logPlaybackEvent(
             accountId = accountId,
             trackId = track.id,
             title = track.title,
             artistId = track.primaryArtistStatKey(),
-            timestamp = System.currentTimeMillis()
+            playedMs = playedMs,
+            totalDurationMs = track.durationMs,
+            wasSkipped = false,
+            source = source,
         )
         markWaveStatePlayed(track)
         Log.d(TAG, "TrackStats: playCount++ for ${track.title}")
     }
 
-    /**
-     * Log a skipped track (user skipped early, < 30% played).
-     */
-    suspend fun logTrackSkipped(accountId: Long, track: Track) = withContext(Dispatchers.IO) {
-        playbackDao.incrementSkipCount(
+    suspend fun logTrackSkipped(
+        accountId: Long,
+        track: Track,
+        playedMs: Long = 0L,
+        source: String = "unknown",
+    ) = withContext(Dispatchers.IO) {
+        playbackDao.logPlaybackEvent(
             accountId = accountId,
             trackId = track.id,
             title = track.title,
-            artistId = track.primaryArtistStatKey()
+            artistId = track.primaryArtistStatKey(),
+            playedMs = playedMs,
+            totalDurationMs = track.durationMs,
+            wasSkipped = true,
+            source = source,
         )
         markWaveStateSkipped(track)
         Log.d(TAG, "TrackStats: skipCount++ for ${track.title}")
