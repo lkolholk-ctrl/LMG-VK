@@ -55,7 +55,7 @@ object ExternalLyricsRepository {
         durationMs: Long,
         enabled: Set<LyricsSource>,
     ): LyricsParser.Lyrics? = coroutineScope {
-        if (title.isBlank() || artist.isBlank()) return@coroutineScope null
+        if (title.isBlank()) return@coroutineScope null
         var lineSynced: LyricsParser.Lyrics? = null
         if (LyricsSource.APPLE_TTML in enabled) {
             val cachedTtml = withContext(Dispatchers.IO) {
@@ -96,6 +96,10 @@ object ExternalLyricsRepository {
             if (lineSynced == null && betterLyrics != null) lineSynced = betterLyrics
         }
         lineSynced
+    }
+
+    suspend fun warmUp() {
+        get("$APPLE_TTML_PROXY/ping", appleClient)
     }
 
     private suspend fun fetchLyricsPlus(

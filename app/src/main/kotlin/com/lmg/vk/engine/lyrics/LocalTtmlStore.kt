@@ -5,6 +5,28 @@ import java.io.File
 import java.security.MessageDigest
 
 object LocalTtmlStore {
+    private const val MAX_AGE_MS = 30L * 24 * 60 * 60 * 1000
+    private const val MAX_TOTAL_BYTES = 50L * 1024 * 1024
+
+    private fun cacheDir(context: Context): File = File(context.filesDir, "lyrics/ttml")
+
+    private fun prune(context: Context) {
+        val folder = cacheDir(context)
+        val files = folder.listFiles()?.filter(File::isFile) ?: return
+        val now = System.currentTimeMillis()
+        files.filter { now - it.lastModified() > MAX_AGE_MS }.forEach { runCatching { it.delete() } }
+        val live = files.filter { it.exists() }
+        var total = live.sumOf { it.length() }
+        if (total <= MAX_TOTAL_BYTES) return
+        val oldestFirst = live.sortedBy { it.lastModified() }
+        var index = 0
+        while (total > MAX_TOTAL_BYTES && index < oldestFirst.size) {
+            total -= oldestFirst[index].length()
+            runCatching { oldestFirst[index].delete() }
+            index += 1
+        }
+    }
+
     fun read(
         context: Context,
         title: String,
@@ -33,6 +55,7 @@ object LocalTtmlStore {
                 target.writeText(ttml)
                 temporary.delete()
             }
+            prune(context)
         }
     }
 
@@ -46,6 +69,6 @@ object LocalTtmlStore {
         val digest = MessageDigest.getInstance("SHA-256")
             .digest(identity.toByteArray())
             .joinToString("") { "%02x".format(it) }
-        return File(context.filesDir, "lyrics/ttml/$digest.ttml")
+        return File(cacheDir(context), "$digest.ttml")
     }
 }

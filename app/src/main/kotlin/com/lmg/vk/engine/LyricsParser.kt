@@ -212,6 +212,7 @@ object LyricsParser {
                 if (!trackId.isNullOrBlank()) cacheLyrics(trackId, result)
                 return result
             }
+            val externalLineSynced = wordTimed?.takeIf { it.lines.isNotEmpty() }
             if (com.lmg.vk.engine.lyrics.LyricsSource.LRCLIB in enabledSources) {
                 val lrc = fetchLrcLib(context, uri, title, artist, durationMs, trackId)
                 if (lrc.lines.isNotEmpty()) return lrc
@@ -219,6 +220,11 @@ object LyricsParser {
             if (uri != null) {
                 val embedded = extractLyrics(context, uri)
                 if (embedded.lines.isNotEmpty()) return embedded
+            }
+            externalLineSynced?.let { synced ->
+                val result = synced.copy(title = title, artist = artist)
+                if (!trackId.isNullOrBlank()) cacheLyrics(trackId, result)
+                return result
             }
             return Lyrics.EMPTY
         }

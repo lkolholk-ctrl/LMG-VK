@@ -4,15 +4,21 @@ import android.net.Uri
 import android.provider.Settings
 import android.view.animation.PathInterpolator
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
+import kotlin.math.cos
+import kotlin.math.exp
+import kotlin.math.sin
+import kotlin.math.sqrt
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.interaction.DragInteraction
@@ -102,6 +108,8 @@ private val HEADER_SCRIM_HEIGHT = 170.dp
  *  не дёргаем список обратно, возвращаемся к активной строке через этот таймаут. */
 private const val USER_SCROLL_PAUSE_MS = 4000L
 private val APPLE_EMPHASIS_INTERPOLATOR = PathInterpolator(0.25f, 0.1f, 0.25f, 1f)
+private val LYRICS_GLIDE_EASING = CubicBezierEasing(0.40f, 0.00f, 0.20f, 1.00f)
+private const val LYRICS_GLIDE_MS = 620
 
 /**
  * Полноэкранный караоке-экран лирики (Apple Music style).
@@ -314,16 +322,25 @@ fun LyricsScreen(
             val viewportPx = listState.layoutInfo.viewportSize.height
                 .takeIf { it > 0 }?.toFloat() ?: screenHeightPx
             val aboveCenterOffset = (viewportPx * ACTIVE_LINE_TOP_BIAS).toInt()
-            if (animationsEnabled) {
-                listState.animateScrollToItem(
-                    index = targetIndex,
-                    scrollOffset = -aboveCenterOffset,
-                )
-            } else {
+            if (!animationsEnabled) {
                 listState.scrollToItem(
                     index = targetIndex,
                     scrollOffset = -aboveCenterOffset,
                 )
+            } else {
+                val info = listState.layoutInfo.visibleItemsInfo
+                    .firstOrNull { it.index == targetIndex }
+                if (info != null) {
+                    listState.animateScrollBy(
+                        info.offset.toFloat() - aboveCenterOffset,
+                        tween(durationMillis = LYRICS_GLIDE_MS, easing = LYRICS_GLIDE_EASING),
+                    )
+                } else {
+                    listState.animateScrollToItem(
+                        index = targetIndex,
+                        scrollOffset = -aboveCenterOffset,
+                    )
+                }
             }
         }
     }
@@ -461,6 +478,24 @@ fun LyricsScreen(
                                 return@itemsIndexed
                             }
 
+                            val sectionTitle = line.songPart?.trim()
+                                ?.takeIf { part ->
+                                    part.isNotEmpty() &&
+                                        lyrics.lines.getOrNull(index - 1)?.songPart?.trim() != part
+                                }
+                            if (sectionTitle != null) {
+                                Spacer(Modifier.height(18.dp))
+                                Text(
+                                    text = sectionTitle.uppercase(Locale.ROOT),
+                                    color = lyricInk.copy(alpha = 0.55f),
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontFamily = AppFontFamily,
+                                    letterSpacing = 1.5.sp,
+                                    modifier = Modifier.padding(horizontal = lineHPadding),
+                                )
+                            }
+
                             val isCurrent = index == currentLineIndex
                             val isPast = index < currentLineIndex
                             val isAlternateAgent = isDuet && line.agentId != null &&
@@ -542,7 +577,7 @@ fun LyricsScreen(
                                 animationSpec = if (animationsEnabled) tween(sungTweenMs) else snap(),
                                 label = "sung"
                             )
-                            val unsungColor = base.copy(alpha = 0.30f * depth)
+                            val unsungColor = base.copy(alpha = 0.22f * depth)
 
                             // Где строка стоит на экране. Держим в массиве, а не в
                             // состоянии: значение нужно только внутри обработчика
@@ -1193,12 +1228,20 @@ internal fun LyricLineSweep(
         targetValue = if (isActive) 1f else 0.98f,
         animationSpec = if (animationsEnabled) {
             spring(
-                dampingRatio = Spring.DampingRatioNoBouncy,
-                stiffness = Spring.StiffnessLow,
+                dampingRatio = 0.86f,
+                stiffness = 380f,
             )
         } else snap(),
         label = "lineScale"
     )
+
+    val emphasisGroups = remember(timedLine, text, isBackground) {
+        if (isBackground || timedLine == null) {
+            emptyList()
+        } else {
+            timedLine.buildEmphasisGroups(timedLine.resolvedWords(text), text)
+        }
+    }
 
     Canvas(
         modifier = Modifier
@@ -1211,14 +1254,9 @@ internal fun LyricLineSweep(
     ) {
         if (timedLine != null && positionState != null) {
             val position = positionState.longValue + positionOffsetMs
-            val emphasis = timedLine.emphasisAt(
-                positionMs = position,
-                renderedText = text,
-                density = density,
-                animated = animationsEnabled,
-                background = isBackground,
-            )
-            if (emphasis != null) {
+            val motion = evaluateWordMotion(emphasisGroups, position, density, animationsEnabled)
+            val hasMotion = motion.stretch != null || motion.lifts.isNotEmpty()
+            if (hasMotion) {
                 drawContext.canvas.saveLayer(
                     Rect(0f, 0f, size.width, size.height),
                     Paint(),
@@ -1234,8 +1272,8 @@ internal fun LyricLineSweep(
                 featherPx = if (animationsEnabled) appleFeatherPx else 0f,
                 animationsEnabled = animationsEnabled,
             )
-            if (emphasis != null) {
-                drawAppleEmphasis(layout, emphasis) {
+            if (hasMotion) {
+                drawAppleWordMotion(layout, motion) {
                     drawText(layout, color = unsungColor)
                     drawTimedLyric(
                         layout = layout,
@@ -1383,6 +1421,26 @@ private data class LyricEmphasis(
     val liftPx: Float,
 )
 
+private data class LyricLift(
+    val start: Int,
+    val end: Int,
+    val liftPx: Float,
+)
+
+private data class WordMotion(
+    val stretch: LyricEmphasis?,
+    val lifts: List<LyricLift>,
+)
+
+private data class EmphasisGroup(
+    val start: Int,
+    val end: Int,
+    val startMs: Long,
+    val endMs: Long,
+    val stretchable: Boolean,
+    val wordSpans: List<Pair<Int, Int>>,
+)
+
 private data class ResolvedLyricWord(
     val start: Int,
     val end: Int,
@@ -1390,55 +1448,144 @@ private data class ResolvedLyricWord(
     val endMs: Long,
 )
 
-private fun LyricsParser.LyricLine.emphasisAt(
-    positionMs: Long,
+private const val EMPHASIS_GROUP_MAX_MS = 3_000L
+private const val LONG_NOTE_MS = 1_000L
+private const val EMPHASIS_TAIL_MS = 180L
+private const val STAGGER_MAX_MS = 400L
+private const val LIFT_SETTLE_MS = 2_200L
+
+private val LIFT_ZETA = 0.93f
+private val LIFT_OMEGA = sqrt(25f)
+private val LIFT_OMEGA_D = LIFT_OMEGA * sqrt(1f - LIFT_ZETA * LIFT_ZETA)
+
+private fun liftSpringStep(tMs: Float): Float {
+    val t = (tMs.coerceAtLeast(0f)) / 1000f
+    val decay = exp(-LIFT_ZETA * LIFT_OMEGA * t)
+    return 1f - decay * (cos(LIFT_OMEGA_D * t) +
+        (LIFT_ZETA * LIFT_OMEGA / LIFT_OMEGA_D) * sin(LIFT_OMEGA_D * t))
+}
+
+private fun liftSpringStepVelocity(tMs: Float): Float {
+    val t = (tMs.coerceAtLeast(0f)) / 1000f
+    return exp(-LIFT_ZETA * LIFT_OMEGA * t) * sin(LIFT_OMEGA_D * t) *
+        (LIFT_OMEGA_D + LIFT_ZETA * LIFT_ZETA * LIFT_OMEGA * LIFT_OMEGA / LIFT_OMEGA_D)
+}
+
+private fun liftSpringRelease(position: Float, velocityPerSec: Float, tMs: Float): Float {
+    val t = (tMs.coerceAtLeast(0f)) / 1000f
+    val zetaOmega = LIFT_ZETA * LIFT_OMEGA
+    val decay = exp(-zetaOmega * t)
+    return decay * (position * cos(LIFT_OMEGA_D * t) +
+        ((velocityPerSec + zetaOmega * position) / LIFT_OMEGA_D) * sin(LIFT_OMEGA_D * t))
+}
+
+private fun wordLiftFraction(nowMs: Long, onMs: Long, offMs: Long): Float = when {
+    nowMs < onMs -> 0f
+    nowMs <= offMs -> liftSpringStep((nowMs - onMs).toFloat())
+    else -> {
+        val held = (offMs - onMs).coerceAtLeast(0L).toFloat()
+        liftSpringRelease(liftSpringStep(held), liftSpringStepVelocity(held), (nowMs - offMs).toFloat())
+    }
+}
+
+private fun LyricsParser.LyricLine.buildEmphasisGroups(
+    resolved: List<ResolvedLyricWord>,
     renderedText: String,
+): List<EmphasisGroup> {
+    if (resolved.isEmpty()) return emptyList()
+    val groups = mutableListOf<EmphasisGroup>()
+    var index = 0
+    while (index < resolved.size) {
+        var last = index
+        val firstWord = resolved[index]
+        var startMs = firstWord.timeMs
+        var endMs = firstWord.endMs
+        if (endMs - startMs < LONG_NOTE_MS) {
+            while (last + 1 < resolved.size) {
+                val next = resolved[last + 1]
+                if (next.endMs - next.timeMs >= LONG_NOTE_MS) break
+                val mergedEnd = maxOf(endMs, next.endMs)
+                if (mergedEnd - startMs > EMPHASIS_GROUP_MAX_MS) break
+                last += 1
+                endMs = mergedEnd
+            }
+        }
+        val start = firstWord.start
+        val end = resolved[last].end
+        groups += if (start in 0 until end && end <= renderedText.length) {
+            val groupText = renderedText.substring(start, end)
+            val duration = endMs - startMs
+            EmphasisGroup(
+                start = start,
+                end = end,
+                startMs = startMs,
+                endMs = endMs,
+                stretchable = duration >= LONG_NOTE_MS &&
+                    groupText.codePointCount(0, groupText.length) <= 7 &&
+                    !groupText.hasNonStretchScript(),
+                wordSpans = (index..last).map { offset ->
+                    resolved[offset].start to resolved[offset].end
+                },
+            )
+        } else {
+            EmphasisGroup(start, end, startMs, endMs, stretchable = false, wordSpans = emptyList())
+        }
+        index = last + 1
+    }
+    return groups
+}
+
+private fun evaluateWordMotion(
+    groups: List<EmphasisGroup>,
+    positionMs: Long,
     density: androidx.compose.ui.unit.Density,
     animated: Boolean,
-    background: Boolean,
-): LyricEmphasis? {
-    if (background || words.isEmpty()) return null
-    if (positionMs < timeMs || positionMs > wordEndMs() + 180L) return null
-    val resolved = resolvedWords(renderedText)
-    val sounding = resolved.indexOfFirst { positionMs in it.timeMs until it.endMs }
-    val active = if (sounding >= 0) sounding
-    else resolved.indexOfFirst { positionMs in it.endMs until (it.endMs + 181L) }
-    if (active < 0) return null
-    var first = active
-    var last = active
-    while (first > 0 && resolved[first - 1].end == resolved[first].start) first--
-    while (last + 1 < resolved.size && resolved[last].end == resolved[last + 1].start) last++
-    val start = resolved[first].start
-    val end = resolved[last].end
-    if (start !in 0 until renderedText.length || end !in (start + 1)..renderedText.length) return null
-    val groupStart = resolved[first].timeMs
-    val groupEnd = resolved[last].endMs.coerceAtLeast(groupStart + 1L)
-    if (positionMs < groupStart || positionMs > groupEnd + 180L) return null
-    val duration = groupEnd - groupStart
-    val fraction = when {
-        !animated -> 1f
-        positionMs <= groupEnd -> {
-            val ramp = duration.coerceAtMost(3_000L).coerceAtLeast(1L)
-            appleEmphasisCurve(((positionMs - groupStart).toFloat() / ramp).coerceIn(0f, 1f))
+): WordMotion {
+    if (groups.isEmpty()) return WordMotion(null, emptyList())
+    val unitLiftPx = with(density) { (-2).dp.toPx() }
+    var stretch: LyricEmphasis? = null
+    val lifts = mutableListOf<LyricLift>()
+    for (group in groups) {
+        if (positionMs < group.startMs ||
+            positionMs > group.endMs + LIFT_SETTLE_MS ||
+            group.wordSpans.isEmpty()
+        ) continue
+        if (group.stretchable) {
+            val duration = (group.endMs - group.startMs).coerceAtLeast(1L)
+            val fraction = when {
+                !animated -> 1f
+                positionMs <= group.endMs -> appleEmphasisCurve(
+                    ((positionMs - group.startMs).toFloat() / duration).coerceIn(0f, 1f)
+                )
+                else -> 1f - appleEmphasisCurve(
+                    ((positionMs - group.endMs).toFloat() / EMPHASIS_TAIL_MS).coerceIn(0f, 1f)
+                )
+            }
+            if (fraction <= 0f) continue
+            val durationSeconds = (duration / 1_000f).coerceIn(1f, 2f)
+            val maxScale = 1f + 0.14f * (durationSeconds - 1f)
+            val hold = if (animated) wordLiftFraction(positionMs, group.startMs, group.endMs) else 1f
+            stretch = LyricEmphasis(
+                start = group.start,
+                end = group.end,
+                scale = 1f + (maxScale - 1f) * fraction,
+                liftPx = unitLiftPx * hold,
+            )
+        } else {
+            if (!animated) continue
+            val count = group.wordSpans.size
+            val stagger = (((group.endMs - group.startMs) * 0.4f) / count)
+                .coerceAtMost(STAGGER_MAX_MS.toFloat())
+            for ((wordIndex, span) in group.wordSpans.withIndex()) {
+                val on = group.startMs + (wordIndex * stagger).toLong()
+                val fraction = wordLiftFraction(positionMs, on, group.endMs)
+                if (abs(fraction) > 0.002f) {
+                    lifts += LyricLift(span.first, span.second, unitLiftPx * fraction)
+                }
+            }
         }
-        else -> 1f - appleEmphasisCurve(
-            ((positionMs - groupEnd).toFloat() / 180f).coerceIn(0f, 1f)
-        )
     }
-    if (fraction <= 0f) return null
-    val groupText = renderedText.substring(start, end)
-    val simple = duration >= 1_000L &&
-        groupText.codePointCount(0, groupText.length) <= 7 &&
-        groupText.none(Char::isWhitespace) &&
-        !groupText.hasNonStretchScript()
-    val durationSeconds = (duration / 1_000f).coerceIn(1f, 2f)
-    val maxScale = if (simple) 1f + 0.14f * (durationSeconds - 1f) else 1f
-    return LyricEmphasis(
-        start = start,
-        end = end,
-        scale = 1f + (maxScale - 1f) * fraction,
-        liftPx = with(density) { (-2).dp.toPx() } * fraction,
-    )
+    return WordMotion(stretch, lifts)
 }
 
 private fun LyricsParser.LyricLine.resolvedWords(renderedText: String): List<ResolvedLyricWord> {
@@ -1482,12 +1629,31 @@ private fun String.hasNonStretchScript(): Boolean {
     return false
 }
 
-private fun DrawScope.drawAppleEmphasis(
+private fun DrawScope.drawAppleWordMotion(
     layout: androidx.compose.ui.text.TextLayoutResult,
-    emphasis: LyricEmphasis,
+    motion: WordMotion,
     drawLayer: DrawScope.() -> Unit,
 ) {
     val textLength = layout.layoutInput.text.length
+
+    fun clearRange(start: Int, end: Int) {
+        val from = start.coerceIn(0, textLength)
+        val to = end.coerceIn(from, textLength)
+        if (to <= from) return
+        drawPath(layout.getPathForRange(from, to), Color.Transparent, blendMode = BlendMode.Clear)
+    }
+
+    for (lift in motion.lifts) {
+        val start = lift.start.coerceIn(0, textLength)
+        val end = lift.end.coerceIn(start, textLength)
+        if (end <= start) continue
+        clearRange(start, end)
+        withTransform({ translate(top = lift.liftPx) }) {
+            clipPath(layout.getPathForRange(start, end)) { drawLayer() }
+        }
+    }
+
+    val emphasis = motion.stretch ?: return
     val start = emphasis.start.coerceIn(0, textLength)
     val end = emphasis.end.coerceIn(start, textLength)
     if (end <= start) return

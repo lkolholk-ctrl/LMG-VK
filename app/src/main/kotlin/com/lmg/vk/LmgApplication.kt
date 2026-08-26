@@ -134,6 +134,8 @@ class LmgApplication : Application(), ImageLoaderFactory {
         MusicBackend.appContext = this
         connectivityManager = getSystemService(ConnectivityManager::class.java)
 
+        appScope.launch { runCatching { com.lmg.vk.engine.lyrics.ExternalLyricsRepository.warmUp() } }
+
         // Java-крэши: синхронно и ПЕРВЫМ — Fishnet ниже подшивается к уже
         // установленному дефолтному хендлеру.
         CrashHandler.install(this)
