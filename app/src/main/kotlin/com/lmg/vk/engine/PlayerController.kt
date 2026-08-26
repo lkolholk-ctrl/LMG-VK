@@ -370,6 +370,7 @@ object PlayerController {
 
     /** Preload only `{mix_id, entity_id}` when the current track is in the last three. */
     private fun maybePreloadAutoflow() {
+        if (!PlayerSettings.autoplay.value) return
         val tracksIncludingCurrent = (queue.size - currentIndex).coerceAtLeast(0)
         if (tracksIncludingCurrent > AUTOFLOW_PRELOAD_TRACKS_LEFT) return
         val seed = currentAutoflowSeed() ?: return
@@ -411,6 +412,7 @@ object PlayerController {
 
     /** Replace an exhausted finite queue with the official VK Mix source. */
     private suspend fun startAutoflowAtQueueEnd(context: Context): Boolean {
+        if (!PlayerSettings.autoplay.value) return false
         // VK may preload the future source while repeat is enabled, but its
         // final hand-off gate requires LoopMode.NONE.
         if (_repeatMode.value != 0) return false
@@ -451,7 +453,7 @@ object PlayerController {
             }
 
             withContext(Dispatchers.Main) {
-                if (currentAutoflowSeed() != seed || currentIndex + 1 < queue.size) {
+                if (!PlayerSettings.autoplay.value || currentAutoflowSeed() != seed || currentIndex + 1 < queue.size) {
                     false
                 } else {
                     DebugLog.add(
@@ -624,6 +626,13 @@ object PlayerController {
     private var autoStart = 0
     private val _queueSections = MutableStateFlow(QueueSections(0, 0))
     val queueSections: StateFlow<QueueSections> = _queueSections
+    val autoplayEnabled: StateFlow<Boolean> = PlayerSettings.autoplay
+
+    fun toggleAutoplay() {
+        val enabled = !PlayerSettings.autoplay.value
+        PlayerSettings.setAutoplay(enabled)
+        if (enabled) maybePreloadAutoflow() else invalidateAutoflow()
+    }
 
     /**
      * Приводит границы в согласованное состояние и публикует их.
@@ -1806,6 +1815,22 @@ object PlayerController {
             if (lo < player.mediaItemCount) {
                 player.removeMediaItems(lo, (lo + count).coerceAtMost(player.mediaItemCount))
             }
+        }
+    }
+
+    fun clearQueueAfterCurrent() {
+        val from = (currentIndex + 1).coerceIn(0, queue.size)
+        if (from >= queue.size) return
+        queue = queue.take(from)
+        manualEnd = from
+        autoStart = from
+        _queueFlow.value = queue
+        publishSections()
+        invalidateAutoflow()
+        maybePreloadAutoflow()
+        mainScope.launch {
+            val player = controller ?: appContext?.let { getPlayer(it) } ?: return@launch
+            if (from < player.mediaItemCount) player.removeMediaItems(from, player.mediaItemCount)
         }
     }
 

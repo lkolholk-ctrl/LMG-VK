@@ -489,6 +489,11 @@
 
     <string name="queue_title">Очередь</string>
     <string name="queue_autoplay">Автовоспроизведение</string>
+    <string name="queue_autoplay_queued">Похожая музыка продолжит очередь</string>
+    <string name="queue_autoplay_continues">Похожая музыка продолжит играть</string>
+    <string name="queue_shuffle_on">Перемешивание включено</string>
+    <string name="queue_shuffle_off">Перемешивание выключено</string>
+    <string name="queue_repeat">Режим повтора</string>
     <string name="queue_drag_reorder">Изменить порядок</string>
     <string name="queue_now_playing">Сейчас играет</string>
     <string name="up_next_section">Далее</string>

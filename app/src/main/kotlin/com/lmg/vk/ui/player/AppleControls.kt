@@ -9,13 +9,10 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -32,31 +29,35 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.lmg.vk.R
 import com.lmg.vk.ui.icons.LmgGlyphs
 import com.lmg.vk.ui.theme.VkSansDisplay
-
-enum class AppleControlsTab { LYRICS, QUEUE }
 
 private val AppleInk = Color.White
 private val AppleTrack = Color(0x2EFFFFFF)
 private val AppleFill = Color(0x54FFFFFF)
 private val AppleFillActive = Color(0xF0FFFFFF)
-private val AppleDim = Color(0x2EFFFFFF)
+private val AppleDim = Color.White.copy(alpha = 0.55f)
 
 @Composable
 fun AppleControlsBar(
     positionMs: Long,
     durationMs: Long,
     isPlaying: Boolean,
-    activeTab: AppleControlsTab,
+    shuffleEnabled: Boolean,
+    repeatMode: Int,
+    autoplayEnabled: Boolean,
     onSeek: (Long) -> Unit,
     onTogglePlay: () -> Unit,
     onSkipNext: () -> Unit,
     onSkipPrevious: () -> Unit,
-    onLyricsTab: () -> Unit,
+    onToggleShuffle: () -> Unit,
+    onCycleRepeat: () -> Unit,
+    onToggleAutoplay: () -> Unit,
     onQueueTab: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -103,55 +104,75 @@ fun AppleControlsBar(
                     imageVector = LmgGlyphs.SkipPrevious36,
                     contentDescription = null,
                     tint = AppleInk,
-                    modifier = Modifier.size(30.dp)
+                    modifier = Modifier.size(46.dp)
                 )
             }
-            Spacer(Modifier.width(40.dp))
             AppleControlButton(onClick = onTogglePlay) {
                 Icon(
                     imageVector = if (isPlaying) LmgGlyphs.Pause36 else LmgGlyphs.Play36,
                     contentDescription = null,
                     tint = AppleInk,
-                    modifier = Modifier.size(34.dp)
+                    modifier = Modifier.size(62.dp)
                 )
             }
-            Spacer(Modifier.width(40.dp))
             AppleControlButton(onClick = onSkipNext) {
                 Icon(
                     imageVector = LmgGlyphs.SkipNext36,
                     contentDescription = null,
                     tint = AppleInk,
-                    modifier = Modifier.size(30.dp)
+                    modifier = Modifier.size(46.dp)
                 )
             }
         }
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = 14.dp, bottom = 6.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
+                .padding(top = 18.dp, bottom = 6.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically
         ) {
             AppleTabIcon(
-                active = activeTab == AppleControlsTab.LYRICS,
-                onClick = onLyricsTab
+                active = shuffleEnabled,
+                onClick = onToggleShuffle
             ) {
                 Icon(
-                    imageVector = LmgGlyphs.CommentOutline28,
-                    contentDescription = null,
-                    tint = if (activeTab == AppleControlsTab.LYRICS) AppleFillActive else AppleInk.copy(alpha = 0.45f),
-                    modifier = Modifier.size(24.dp)
+                    imageVector = LmgGlyphs.ShuffleOutline28,
+                    contentDescription = stringResource(if (shuffleEnabled) R.string.queue_shuffle_on else R.string.queue_shuffle_off),
+                    tint = if (shuffleEnabled) AppleFillActive else AppleInk.copy(alpha = 0.75f),
+                    modifier = Modifier.size(26.dp)
                 )
             }
             AppleTabIcon(
-                active = activeTab == AppleControlsTab.QUEUE,
+                active = repeatMode != 0,
+                onClick = onCycleRepeat
+            ) {
+                Icon(
+                    imageVector = if (repeatMode == 2) LmgGlyphs.RepeatOneOutline28 else LmgGlyphs.RepeatOutline28,
+                    contentDescription = stringResource(R.string.queue_repeat),
+                    tint = if (repeatMode != 0) AppleFillActive else AppleInk.copy(alpha = 0.75f),
+                    modifier = Modifier.size(26.dp)
+                )
+            }
+            AppleTabIcon(
+                active = autoplayEnabled,
+                onClick = onToggleAutoplay
+            ) {
+                Icon(
+                    imageVector = QueueInfinityIcon,
+                    contentDescription = stringResource(R.string.queue_autoplay),
+                    tint = if (autoplayEnabled) AppleFillActive else AppleInk.copy(alpha = 0.75f),
+                    modifier = Modifier.size(26.dp)
+                )
+            }
+            AppleTabIcon(
+                active = true,
                 onClick = onQueueTab
             ) {
                 Icon(
                     imageVector = LmgGlyphs.ListPlayOutline28,
-                    contentDescription = null,
-                    tint = if (activeTab == AppleControlsTab.QUEUE) AppleFillActive else AppleInk.copy(alpha = 0.45f),
-                    modifier = Modifier.size(24.dp)
+                    contentDescription = stringResource(R.string.queue_title),
+                    tint = AppleFillActive,
+                    modifier = Modifier.size(26.dp)
                 )
             }
         }
@@ -168,7 +189,7 @@ private fun AppleTabIcon(
         modifier = Modifier
             .size(44.dp)
             .clip(RoundedCornerShape(50))
-            .background(Color.White.copy(alpha = if (active) 0.18f else 0f))
+            .background(Color.White.copy(alpha = if (active) 0.20f else 0f))
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
@@ -185,7 +206,7 @@ private fun AppleControlButton(
 ) {
     Box(
         modifier = Modifier
-            .size(52.dp)
+            .size(74.dp)
             .clip(RoundedCornerShape(50))
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
@@ -247,15 +268,15 @@ private fun AppleSlider(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(7.dp)
-                    .clip(RoundedCornerShape(3.5.dp))
+                    .height(if (dragFraction == null) 6.dp else 10.dp)
+                    .clip(RoundedCornerShape(5.dp))
                     .background(AppleTrack)
             )
             Box(
                 modifier = Modifier
                     .fillMaxWidth(fraction)
-                    .height(7.dp)
-                    .clip(RoundedCornerShape(3.5.dp))
+                    .height(if (dragFraction == null) 6.dp else 10.dp)
+                    .clip(RoundedCornerShape(5.dp))
                     .background(fillColor)
             )
         }

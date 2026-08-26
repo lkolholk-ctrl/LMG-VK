@@ -53,6 +53,7 @@ object PlayerSettings {
     private val KEY_CACHE_BYTES = longPreferencesKey("audio_cache_bytes")
     private val KEY_THEME_MODE = intPreferencesKey("theme_mode")  // 0=Auto 1=Dark 2=Light
     private val KEY_AUTO_MIX = booleanPreferencesKey("auto_mix")
+    private val KEY_AUTOPLAY = booleanPreferencesKey("autoplay")
     private val KEY_CROSSFADE_MS = intPreferencesKey("crossfade_ms")
     private val KEY_VOLUME_NORMALIZATION = booleanPreferencesKey("volume_normalization")
     private val KEY_INCREASE_CONTRAST = booleanPreferencesKey("increase_contrast")
@@ -72,6 +73,9 @@ object PlayerSettings {
     // подписывается на этот же Flow). По умолчанию ВКЛЮЧЕН.
     private val _autoMix = MutableStateFlow(true)
     val autoMix: StateFlow<Boolean> = _autoMix
+
+    private val _autoplay = MutableStateFlow(true)
+    val autoplay: StateFlow<Boolean> = _autoplay
 
     /**
      * Длительность кроссфейда на стриминге, мс. 0 = выключен.
@@ -110,6 +114,7 @@ object PlayerSettings {
         if (cacheChanged) MediaCacheManager.applyCacheSizeChange()
         _themeMode.value = p[KEY_THEME_MODE] ?: 0
         _autoMix.value = p[KEY_AUTO_MIX] ?: true
+        _autoplay.value = p[KEY_AUTOPLAY] ?: true
         _crossfadeMs.value = p[KEY_CROSSFADE_MS] ?: DEFAULT_CROSSFADE_MS
         _volumeNormalization.value = p[KEY_VOLUME_NORMALIZATION] ?: false
         _increaseContrast.value = p[KEY_INCREASE_CONTRAST] ?: false
@@ -137,6 +142,11 @@ object PlayerSettings {
     fun setAutoMix(enabled: Boolean) {
         _autoMix.value = enabled
         persist { it[KEY_AUTO_MIX] = enabled }
+    }
+
+    fun setAutoplay(enabled: Boolean) {
+        _autoplay.value = enabled
+        persist { it[KEY_AUTOPLAY] = enabled }
     }
 
     /** @param ms 0 = выключить, иначе зажимается в [MIN_CROSSFADE_MS, MAX_CROSSFADE_MS]. */

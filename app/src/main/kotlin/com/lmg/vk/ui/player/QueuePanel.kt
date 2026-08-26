@@ -58,6 +58,7 @@ import com.lmg.vk.R
 import com.lmg.vk.engine.Track
 import com.lmg.vk.ui.icons.LmgDrawables
 import com.lmg.vk.ui.icons.LmgGlyphs
+import com.lmg.vk.ui.icons.LiquidGlyphs
 import com.lmg.vk.ui.icons.lmgVector
 import com.lmg.vk.ui.theme.VkSansDisplay
 import kotlin.math.abs
@@ -167,7 +168,7 @@ internal fun InlineQueue(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Icon(
-                            LmgGlyphs.ShuffleOutline28,
+                            QueueInfinityIcon,
                             contentDescription = null,
                             tint = Color.White.copy(alpha = 0.75f),
                             modifier = Modifier.size(18.dp),
@@ -181,9 +182,9 @@ internal fun InlineQueue(
                             )
                             Text(
                                 text = if (autoplayStart < queue.size) {
-                                    "Similar music, picked to follow on"
+                                    stringResource(R.string.queue_autoplay_queued)
                                 } else {
-                                    "Similar music will keep playing"
+                                    stringResource(R.string.queue_autoplay_continues)
                                 },
                                 style = TextStyle(fontSize = 14.sp, fontFamily = VkSansDisplay),
                                 color = Color.White.copy(alpha = 0.55f),
@@ -363,7 +364,7 @@ private fun InlineQueueRow(
         }
         if (isCurrent) {
             Icon(
-                imageVector = LmgGlyphs.ListPlayOutline28,
+                imageVector = LiquidGlyphs.GraphicEq,
                 contentDescription = stringResource(R.string.queue_now_playing),
                 tint = Color.White,
                 modifier = Modifier.size(18.dp),

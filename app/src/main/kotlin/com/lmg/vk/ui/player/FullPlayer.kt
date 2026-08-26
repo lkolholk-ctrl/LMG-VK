@@ -219,6 +219,10 @@ fun FullPlayer(
     // Видимость контролов плеера. Когда открыта лирика — скрываются (как в Apple Music).
     // Тап по области лирики временно показывает их снова.
     var controlsVisible by remember { mutableStateOf(true) }
+    BackHandler(enabled = showQueue) {
+        showQueue = false
+        controlsVisible = true
+    }
     val playerBackdrop: LayerBackdrop = rememberLayerBackdrop()
 
     val shuffleEnabled by PlayerController.shuffleEnabled.collectAsState()
@@ -367,7 +371,7 @@ fun FullPlayer(
             val artAlpha by animateFloatAsState(
                 targetValue = when {
                     // Портрет: лирика прячет большую обложку (у лирики своя шапка).
-                    showLyrics && !isLandscape -> 0f
+                    (showLyrics || showQueue) && !isLandscape -> 0f
                     // Split (альбом/планшет): обложка и контролы в ОДНОЙ левой
                     // половине. Когда при открытой лирике/очереди всплыли контролы
                     // — обложку прячем, чтобы кнопки/прогресс читались чисто (не
@@ -375,7 +379,7 @@ fun FullPlayer(
                     isLandscape && (showLyrics || showQueue) && controlsVisible -> 0f
                     else -> 1f
                 },
-                animationSpec = tween(300),
+                animationSpec = tween(420),
                 label = "artAlpha"
             )
             val artPaddingH = (24f * expandProgress.coerceIn(0f, 1f)).coerceIn(0f, 24f)
@@ -606,7 +610,7 @@ fun FullPlayer(
             albumId = albumId,
             albumColors = albumColors,
             currentTrack = currentTrackObj,
-            onRequestControls = { controlsVisible = true },
+            onMoreClick = { showTrackMenu = true },
             // Landscape: очередь в ПРАВОЙ половине (обложка/контролы — слева).
             modifier = if (isLandscape)
                 Modifier.align(Alignment.CenterEnd).fillMaxWidth(0.5f).fillMaxHeight()
