@@ -343,18 +343,33 @@ object ExternalLyricsRepository {
                 put(id, Agent(element.getAttribute("type").ifBlank { "none" }, name))
             }
         }
+        run {
+            val attrs = document.documentElement.attributes
+            val rootAttrs = buildString {
+                for (index in 0 until attrs.length) {
+                    val item = attrs.item(index)
+                    append(item.nodeName).append('=').append(item.nodeValue).append(' ')
+                }
+            }.trim()
+            DebugLog.add(
+                "apple xml body=${document.getElementsByTagName("body").length} " +
+                    "div=${document.getElementsByTagName("div").length} " +
+                    "p=${document.getElementsByTagName("p").length} " +
+                    "span=${document.getElementsByTagName("span").length} " +
+                    "rootAttrs=$rootAttrs"
+            )
+        }
         val lines = buildList {
             val divisions = document.getElementsByTagName("div")
-            if (divisions.length > 0) {
-                for (divisionIndex in 0 until divisions.length) {
-                    val division = divisions.item(divisionIndex) as? Element ?: continue
-                    val paragraphs = division.getElementsByTagName("p")
-                    for (lineIndex in 0 until paragraphs.length) {
-                        val paragraph = paragraphs.item(lineIndex) as? Element ?: continue
-                        parseParagraph(paragraph, division, agents)?.let(::add)
-                    }
+            for (divisionIndex in 0 until divisions.length) {
+                val division = divisions.item(divisionIndex) as? Element ?: continue
+                val paragraphs = division.getElementsByTagName("p")
+                for (lineIndex in 0 until paragraphs.length) {
+                    val paragraph = paragraphs.item(lineIndex) as? Element ?: continue
+                    parseParagraph(paragraph, division, agents)?.let(::add)
                 }
-            } else {
+            }
+            if (isEmpty()) {
                 val paragraphs = document.getElementsByTagName("p")
                 for (lineIndex in 0 until paragraphs.length) {
                     val paragraph = paragraphs.item(lineIndex) as? Element ?: continue
@@ -384,8 +399,22 @@ object ExternalLyricsRepository {
     ): LyricsParser.LyricLine? {
         val main = collectTimedText(paragraph, skippedRoles)
         val paragraphStart = parseClock(paragraph.getAttribute("begin"))
-        val start = paragraphStart ?: main.words.firstOrNull()?.timeMs ?: return null
-        if (main.text.isBlank()) return null
+        val start = paragraphStart
+            ?: main.words.firstOrNull()?.timeMs
+            ?: division?.let { parseClock(it.getAttribute("begin")) }
+        if (start == null) {
+            DebugLog.add(
+                "apple p drop reason=no-begin-no-words " +
+                    "begin=${paragraph.getAttribute("begin")} text=${head(main.text)}"
+            )
+            return null
+        }
+        if (main.text.isBlank()) {
+            DebugLog.add(
+                "apple p drop reason=blank-text begin=${paragraph.getAttribute("begin")}"
+            )
+            return null
+        }
         val backgroundLayers = roleElements(paragraph, "x-bg", "x-bg").mapNotNull { element ->
             val layer = collectTimedText(element, localizedRoles)
             layer.takeIf { it.text.isNotBlank() }?.let {
