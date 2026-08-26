@@ -1,11 +1,14 @@
 package com.lmg.vk.network.proxy
 
+import java.net.Socket
+import java.security.KeyStore
 import java.security.cert.CertificateException
 import java.security.cert.X509Certificate
 import javax.net.ssl.HostnameVerifier
+import javax.net.ssl.SSLEngine
 import javax.net.ssl.SSLSession
 import javax.net.ssl.TrustManagerFactory
-import javax.net.ssl.X509TrustManager
+import javax.net.ssl.X509ExtendedTrustManager
 
 /**
  * TLS-часть прокси, перенесённая из `C11622e` и `C12737e` VK X.
@@ -20,12 +23,28 @@ import javax.net.ssl.X509TrustManager
  */
 internal class VkProxyTrustManager(
     private val pinnedCertificates: () -> List<X509Certificate>,
-) : X509TrustManager {
+) : X509ExtendedTrustManager() {
 
-    private val system: X509TrustManager = systemTrustManager()
+    private val system: X509ExtendedTrustManager = systemTrustManager()
 
     override fun checkClientTrusted(chain: Array<out X509Certificate>?, authType: String?) {
         system.checkClientTrusted(chain, authType)
+    }
+
+    override fun checkClientTrusted(
+        chain: Array<out X509Certificate>?,
+        authType: String?,
+        socket: Socket?,
+    ) {
+        system.checkClientTrusted(chain, authType, socket)
+    }
+
+    override fun checkClientTrusted(
+        chain: Array<out X509Certificate>?,
+        authType: String?,
+        engine: SSLEngine?,
+    ) {
+        system.checkClientTrusted(chain, authType, engine)
     }
 
     /**
@@ -33,25 +52,52 @@ internal class VkProxyTrustManager(
      * системная проверка, которая бросит [CertificateException] сама.
      */
     override fun checkServerTrusted(chain: Array<out X509Certificate>?, authType: String?) {
-        val pinned = pinnedCertificates()
-        if (pinned.isNotEmpty() && chain != null) {
-            for (candidate in chain) {
-                if (pinned.any { it == candidate }) return
-            }
-        }
-        system.checkServerTrusted(chain, authType)
+        if (matchesPins(chain)) return
+        val legacy = legacyTrustManager()
+        if (legacy != null) legacy.checkServerTrusted(chain, authType)
+        else system.checkServerTrusted(chain, authType)
+    }
+
+    override fun checkServerTrusted(
+        chain: Array<out X509Certificate>?,
+        authType: String?,
+        socket: Socket?,
+    ) {
+        if (matchesPins(chain)) return
+        system.checkServerTrusted(chain, authType, socket)
+    }
+
+    override fun checkServerTrusted(
+        chain: Array<out X509Certificate>?,
+        authType: String?,
+        engine: SSLEngine?,
+    ) {
+        if (matchesPins(chain)) return
+        system.checkServerTrusted(chain, authType, engine)
     }
 
     override fun getAcceptedIssuers(): Array<X509Certificate> =
         pinnedCertificates().toTypedArray() + system.acceptedIssuers
 
+    private fun matchesPins(chain: Array<out X509Certificate>?): Boolean {
+        val pinned = pinnedCertificates()
+        if (pinned.isEmpty() || chain == null) return false
+        return chain.any { certificate -> pinned.any { it == certificate } }
+    }
+
     private companion object {
-        fun systemTrustManager(): X509TrustManager {
+        fun systemTrustManager(): X509ExtendedTrustManager {
             val factory = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm())
-            factory.init(null as java.security.KeyStore?)
-            return factory.trustManagers.filterIsInstance<X509TrustManager>().firstOrNull()
-                ?: throw IllegalStateException("В системе нет X509TrustManager")
+            factory.init(null as KeyStore?)
+            return factory.trustManagers.filterIsInstance<X509ExtendedTrustManager>().firstOrNull()
+                ?: throw IllegalStateException("В системе нет X509ExtendedTrustManager")
         }
+
+        fun legacyTrustManager(): X509ExtendedTrustManager? = runCatching {
+            val factory = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm())
+            factory.init(KeyStore.getInstance("AndroidCAStore"))
+            factory.trustManagers.filterIsInstance<X509ExtendedTrustManager>().firstOrNull()
+        }.getOrNull()
     }
 }
 

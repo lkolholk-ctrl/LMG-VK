@@ -1,6 +1,7 @@
 package com.lmg.vk.engine.lyrics
 
 import android.content.Context
+import com.lmg.vk.debug.DebugLog
 import com.lmg.vk.engine.LyricsParser
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -56,25 +57,37 @@ object ExternalLyricsRepository {
         enabled: Set<LyricsSource>,
     ): LyricsParser.Lyrics? = coroutineScope {
         if (title.isBlank()) return@coroutineScope null
+        DebugLog.add("lookup title=$title artist=$artist durationSec=${durationMs / 1000L} sources=${enabled.joinToString(",") { it.name }}")
         var lineSynced: LyricsParser.Lyrics? = null
         if (LyricsSource.APPLE_TTML in enabled) {
             val cachedTtml = withContext(Dispatchers.IO) {
                 LocalTtmlStore.read(context, title, artist, durationMs)
             }
             if (cachedTtml != null) {
-                parseAppleTtml(cachedTtml, title, artist)?.let { cached ->
+                DebugLog.add("apple cache hit bytes=${cachedTtml.length} head=${head(cachedTtml)}")
+                val cachedParsed = parseAppleTtml(cachedTtml, title, artist)
+                logAppleParse("cache", cachedParsed)
+                cachedParsed?.let { cached ->
                     if (cached.isWordLevel) return@coroutineScope cached
                     lineSynced = cached
                 }
             } else {
+                DebugLog.add("apple cache miss")
                 val serverTtml = withTimeoutOrNull(14_000L) {
                     fetchAppleTtml(title, artist, durationMs)
                 }
-                if (serverTtml != null) {
-                    withContext(Dispatchers.IO) {
-                        LocalTtmlStore.write(context, title, artist, durationMs, serverTtml)
+                if (serverTtml == null) {
+                    DebugLog.add("apple net timeout/null")
+                } else {
+                    DebugLog.add("apple body bytes=${serverTtml.length} head=${head(serverTtml)}")
+                    val fetchedParsed = parseAppleTtml(serverTtml, title, artist)
+                    logAppleParse("net", fetchedParsed)
+                    if (fetchedParsed != null) {
+                        withContext(Dispatchers.IO) {
+                            LocalTtmlStore.write(context, title, artist, durationMs, serverTtml)
+                        }
                     }
-                    parseAppleTtml(serverTtml, title, artist)?.let { fetched ->
+                    fetchedParsed?.let { fetched ->
                         if (fetched.isWordLevel) return@coroutineScope fetched
                         lineSynced = fetched
                     }
@@ -85,6 +98,11 @@ object ExternalLyricsRepository {
             val lyricsPlus = withTimeoutOrNull(8_000L) {
                 fetchLyricsPlus(title, artist, durationMs)
             }
+            DebugLog.add("lyricsplus " + when {
+                lyricsPlus == null -> "none"
+                lyricsPlus.isWordLevel -> "found word-level"
+                else -> "found line-synced"
+            })
             if (lyricsPlus?.isWordLevel == true) return@coroutineScope lyricsPlus
             if (lineSynced == null && lyricsPlus != null) lineSynced = lyricsPlus
         }
@@ -92,6 +110,11 @@ object ExternalLyricsRepository {
             val betterLyrics = withTimeoutOrNull(7_000L) {
                 fetchBetterLyrics(title, artist, durationMs)
             }
+            DebugLog.add("betterlyrics " + when {
+                betterLyrics == null -> "none"
+                betterLyrics.isWordLevel -> "found word-level"
+                else -> "found line-synced"
+            })
             if (betterLyrics?.isWordLevel == true) return@coroutineScope betterLyrics
             if (lineSynced == null && betterLyrics != null) lineSynced = betterLyrics
         }
@@ -179,7 +202,21 @@ object ExternalLyricsRepository {
                 }
             }
             .build()
+        DebugLog.add("apple request url=$url")
         get(url.toString(), appleClient, "text/plain")
+    }
+
+    private fun head(raw: String): String =
+        raw.replace("\n", " ").replace("\r", " ").take(80)
+
+    private fun logAppleParse(stage: String, result: LyricsParser.Lyrics?) {
+        if (result == null) {
+            DebugLog.add("apple parse stage=$stage lines=0 reason=no lines")
+        } else {
+            val wordLines = result.lines.count { it.words.isNotEmpty() }
+            val reason = if (wordLines == 0) " reason=no word timings" else ""
+            DebugLog.add("apple parse stage=$stage lines=${result.lines.size} wordLines=$wordLines$reason")
+        }
     }
 
     private fun parseAppleTtml(
@@ -214,13 +251,16 @@ object ExternalLyricsRepository {
         continuation.invokeOnCancellation { call.cancel() }
         call.enqueue(object : Callback {
             override fun onFailure(call: Call, error: IOException) {
+                DebugLog.add("get fail cls=${error.javaClass.simpleName} msg=${error.message}")
                 if (continuation.isActive) continuation.resume(null)
             }
 
             override fun onResponse(call: Call, response: Response) {
+                val code = response.code
                 val body = runCatching {
                     response.use { if (it.isSuccessful) it.body?.string() else null }
                 }.getOrNull()
+                DebugLog.add("get status=$code bytes=${body?.length ?: -1}")
                 if (continuation.isActive) continuation.resume(body)
             }
         })

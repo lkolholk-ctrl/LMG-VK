@@ -115,6 +115,9 @@ fun LyricsBackground(
             )
         }
 
+        Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.30f)))
+        Box(modifier = Modifier.fillMaxSize().background(Color.White.copy(alpha = 0.10f)))
+
         // ── Layer 2: насыщенный цветовой градиент (глубина, без серого) ──
         Box(
             modifier = Modifier

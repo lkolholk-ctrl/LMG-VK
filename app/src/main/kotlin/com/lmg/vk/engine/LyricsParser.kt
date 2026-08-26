@@ -3,6 +3,7 @@ package com.lmg.vk.engine
 import android.content.Context
 import android.media.MediaMetadataRetriever
 import android.net.Uri
+import com.lmg.vk.debug.DebugLog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.withContext
@@ -207,25 +208,42 @@ object LyricsParser {
                     enabled = enabledSources,
                 )
             }
+            if (wordTimed == null) {
+                DebugLog.add("external timeout/null")
+            } else {
+                DebugLog.add(
+                    "external source=${wordTimed.source} wordLevel=${wordTimed.isWordLevel} lines=${wordTimed.lines.size} words=${wordTimed.lines.sumOf { it.words.size }}"
+                )
+            }
             if (wordTimed?.isWordLevel == true) {
                 val result = wordTimed.copy(title = title, artist = artist)
                 if (!trackId.isNullOrBlank()) cacheLyrics(trackId, result)
+                DebugLog.add("final source=${result.source} lines=${result.lines.size} words=${result.lines.sumOf { it.words.size }}")
                 return result
             }
             val externalLineSynced = wordTimed?.takeIf { it.lines.isNotEmpty() }
             if (com.lmg.vk.engine.lyrics.LyricsSource.LRCLIB in enabledSources) {
                 val lrc = fetchLrcLib(context, uri, title, artist, durationMs, trackId)
-                if (lrc.lines.isNotEmpty()) return lrc
+                if (lrc.lines.isNotEmpty()) {
+                    DebugLog.add("LRCLIB wins over external line-synced lrclibLines=${lrc.lines.size} extLines=${externalLineSynced?.lines?.size ?: 0}")
+                    DebugLog.add("final source=${lrc.source} lines=${lrc.lines.size} words=${lrc.lines.sumOf { it.words.size }}")
+                    return lrc
+                }
             }
             if (uri != null) {
                 val embedded = extractLyrics(context, uri)
-                if (embedded.lines.isNotEmpty()) return embedded
+                if (embedded.lines.isNotEmpty()) {
+                    DebugLog.add("final source=${embedded.source} lines=${embedded.lines.size} words=${embedded.lines.sumOf { it.words.size }}")
+                    return embedded
+                }
             }
             externalLineSynced?.let { synced ->
                 val result = synced.copy(title = title, artist = artist)
                 if (!trackId.isNullOrBlank()) cacheLyrics(trackId, result)
+                DebugLog.add("final source=${result.source} lines=${result.lines.size} words=${result.lines.sumOf { it.words.size }}")
                 return result
             }
+            DebugLog.add("final source=none lines=0 words=0")
             return Lyrics.EMPTY
         }
 
@@ -369,6 +387,7 @@ object LyricsParser {
 
     private fun finalizeLrc(raw: String, title: String, artist: String, trackId: String?): Lyrics {
         val parsed = parseLyrics(raw)
+        DebugLog.add("lrclib parse lines=${parsed.lines.size} words=${parsed.lines.sumOf { it.words.size }}")
         if (parsed.lines.isEmpty()) return Lyrics.EMPTY
         val result = parsed.copy(title = title, artist = artist, source = "lrclib")
         if (!trackId.isNullOrBlank()) cacheLyrics(trackId, result)
@@ -403,7 +422,9 @@ object LyricsParser {
             return LrcFetch.Failed
         }
         return try {
-            when (conn.responseCode) {
+            val code = conn.responseCode
+            DebugLog.add("lrclib status=$code")
+            when (code) {
                 200 -> {
                     val body = conn.inputStream.bufferedReader().use { it.readText() }
                     extractLrcFromJson(body)?.takeIf { it.isNotBlank() }

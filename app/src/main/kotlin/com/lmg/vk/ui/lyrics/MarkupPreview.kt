@@ -143,8 +143,8 @@ fun MarkupPreviewView(
                         LyricLineSweep(
                             text = line.text,
                             fillProgress = fillProgress,
-                            sungColor = Color.White.copy(alpha = if (isCurrent) 1f else 0.55f),
-                            unsungColor = Color.White.copy(alpha = 0.30f),
+                            sungColor = Color.White.copy(alpha = if (isCurrent) 0.94f else 0.55f),
+                            unsungColor = Color.White.copy(alpha = 0.18f),
                             isActive = isCurrent,
                             maxWidthPx = maxWidthPx,
                             glowColor = accent,

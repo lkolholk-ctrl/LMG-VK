@@ -6,9 +6,6 @@ import android.view.animation.PathInterpolator
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import kotlin.math.cos
@@ -501,16 +498,6 @@ fun LyricsScreen(
                             val isAlternateAgent = isDuet && line.agentId != null &&
                                 primaryAgentId != null && line.agentId != primaryAgentId
 
-                            // duet-цвет
-                            val duetColor = when {
-                                !isDuet -> null
-                                line.text.startsWith("[M", ignoreCase = true) ||
-                                    line.text.contains(Regex("""^\[Male""", RegexOption.IGNORE_CASE)) -> Color(0xFF4FC3F7)
-                                line.text.startsWith("[F", ignoreCase = true) ||
-                                    line.text.contains(Regex("""^\[Female""", RegexOption.IGNORE_CASE)) -> Color(0xFFF48FB1)
-                                line.text.startsWith("[D", ignoreCase = true) -> Color(0xFFFFF176)
-                                else -> null
-                            }
                             val cleanText = line.text.replace(
                                 Regex("""\[(M|F|D|Male|Female|Duet):?\s*""", RegexOption.IGNORE_CASE), ""
                             )
@@ -553,7 +540,7 @@ fun LyricsScreen(
                                 else -> 0f
                             }
 
-                            val base = duetColor ?: lyricInk
+                            val base = Color.White
 
                             // Глубина списка: чем дальше строка от активной, тем сильнее
                             // растворяется (ближние читаемы, дальние — «туман»). До первой
@@ -573,11 +560,11 @@ fun LyricsScreen(
                             )
 
                             val sungColor by animateColorAsState(
-                                targetValue = base.copy(alpha = if (isCurrent) 1f else 0.55f * depth),
+                                targetValue = base.copy(alpha = if (isCurrent) 0.94f else 0.55f * depth),
                                 animationSpec = if (animationsEnabled) tween(sungTweenMs) else snap(),
                                 label = "sung"
                             )
-                            val unsungColor = base.copy(alpha = 0.22f * depth)
+                            val unsungColor = base.copy(alpha = 0.18f * depth)
 
                             // Где строка стоит на экране. Держим в массиве, а не в
                             // состоянии: значение нужно только внутри обработчика
@@ -624,7 +611,7 @@ fun LyricsScreen(
                                     unsungColor = unsungColor,
                                     isActive = isCurrent,
                                     maxWidthPx = rowMaxWidthPx,
-                                    glowColor = duetColor ?: resolvedColors.vibrant,
+                                    glowColor = base,
                                     effect = lineEffect,
                                     edgeSoftPx = if (isCurrent) edgeSoftPx else 0f,
                                     fontSizeSp = 32f * lineFontScale,
@@ -654,8 +641,8 @@ fun LyricsScreen(
                                     LyricLineSweep(
                                         text = backgroundText,
                                         fillProgress = if (isPast) 1f else 0f,
-                                        sungColor = base.copy(alpha = 0.55f),
-                                        unsungColor = base.copy(alpha = 0.16f),
+                                            sungColor = base.copy(alpha = 0.35f),
+                                            unsungColor = base.copy(alpha = 0.16f),
                                         isActive = isCurrent,
                                         maxWidthPx = rowMaxWidthPx,
                                         glowColor = base,
@@ -721,7 +708,7 @@ fun LyricsScreen(
                                         contentAlignment = Alignment.Center
                                     ) {
                                         WaitingDots(
-                                            dotColor = duetColor ?: lyricInk,
+                                            dotColor = lyricInk,
                                             progress = interludeProgress
                                         )
                                     }
@@ -1222,18 +1209,7 @@ internal fun LyricLineSweep(
     val hDp = with(density) { layout.size.height.toDp() }
     val appleFeatherPx = with(density) { 30.dp.toPx() }
 
-    // «Дыхание» активной строки: неактивные визуально ~30sp (32 × 0.94),
-    // активная плавно вырастает до 100%. От левого края — без бокового дрейфа.
-    val lineScale by animateFloatAsState(
-        targetValue = if (isActive) 1f else 0.98f,
-        animationSpec = if (animationsEnabled) {
-            spring(
-                dampingRatio = 0.86f,
-                stiffness = 380f,
-            )
-        } else snap(),
-        label = "lineScale"
-    )
+    val lineScale = if (isActive) 1f else 0.98f
 
     val emphasisGroups = remember(timedLine, text, isBackground) {
         if (isBackground || timedLine == null) {
@@ -1257,8 +1233,23 @@ internal fun LyricLineSweep(
             val motion = evaluateWordMotion(emphasisGroups, position, density, animationsEnabled)
             val hasMotion = motion.stretch != null || motion.lifts.isNotEmpty()
             if (hasMotion) {
+                var gutter = 0f
+                for (group in emphasisGroups) {
+                    if (!group.stretchable || group.wordSpans.isEmpty()) continue
+                    val durSec = ((group.endMs - group.startMs).coerceAtLeast(1L) / 1_000f)
+                        .coerceIn(1f, 2f)
+                    val maxScale = 1f + 0.14f * (durSec - 1f)
+                    val tailWidth = if (group.wordSpans.size > 1) {
+                        layout.getPathForRange(group.wordSpans.last().first, group.end)
+                            .getBounds().width
+                    } else {
+                        layout.getPathForRange(group.start, group.end).getBounds().width * 0.45f
+                    }
+                    gutter = gutter.coerceAtLeast((maxScale - 1f) * tailWidth)
+                }
+                val topMargin = with(density) { 3.dp.toPx() }
                 drawContext.canvas.saveLayer(
-                    Rect(0f, 0f, size.width, size.height),
+                    Rect(-gutter, -topMargin, size.width + gutter, size.height + topMargin),
                     Paint(),
                 )
             }
@@ -1417,6 +1408,7 @@ private fun DrawScope.drawTimedLyric(
 private data class LyricEmphasis(
     val start: Int,
     val end: Int,
+    val tailStart: Int,
     val scale: Float,
     val liftPx: Float,
 )
@@ -1450,8 +1442,9 @@ private data class ResolvedLyricWord(
 
 private const val EMPHASIS_GROUP_MAX_MS = 3_000L
 private const val LONG_NOTE_MS = 1_000L
-private const val EMPHASIS_TAIL_MS = 180L
-private const val STAGGER_MAX_MS = 400L
+private const val EMPHASIS_TAIL_MS = 300L
+private const val STAGGER_MAX_MS = 500L
+private const val RELEASE_TIME_SCALE = 1.35f
 private const val LIFT_SETTLE_MS = 2_200L
 
 private val LIFT_ZETA = 0.93f
@@ -1484,7 +1477,11 @@ private fun wordLiftFraction(nowMs: Long, onMs: Long, offMs: Long): Float = when
     nowMs <= offMs -> liftSpringStep((nowMs - onMs).toFloat())
     else -> {
         val held = (offMs - onMs).coerceAtLeast(0L).toFloat()
-        liftSpringRelease(liftSpringStep(held), liftSpringStepVelocity(held), (nowMs - offMs).toFloat())
+        liftSpringRelease(
+            liftSpringStep(held),
+            liftSpringStepVelocity(held),
+            (nowMs - offMs).toFloat() / RELEASE_TIME_SCALE,
+        )
     }
 }
 
@@ -1542,7 +1539,7 @@ private fun evaluateWordMotion(
     animated: Boolean,
 ): WordMotion {
     if (groups.isEmpty()) return WordMotion(null, emptyList())
-    val unitLiftPx = with(density) { (-2).dp.toPx() }
+    val unitLiftPx = with(density) { (-2.5).dp.toPx() }
     var stretch: LyricEmphasis? = null
     val lifts = mutableListOf<LyricLift>()
     for (group in groups) {
@@ -1565,16 +1562,23 @@ private fun evaluateWordMotion(
             val durationSeconds = (duration / 1_000f).coerceIn(1f, 2f)
             val maxScale = 1f + 0.14f * (durationSeconds - 1f)
             val hold = if (animated) wordLiftFraction(positionMs, group.startMs, group.endMs) else 1f
+            val tailStart = if (group.wordSpans.size > 1) {
+                group.wordSpans.last().first
+            } else {
+                group.start + ((group.end - group.start) * 0.55f).toInt()
+                    .coerceIn(group.start, (group.end - 1).coerceAtLeast(group.start))
+            }
             stretch = LyricEmphasis(
                 start = group.start,
                 end = group.end,
+                tailStart = tailStart,
                 scale = 1f + (maxScale - 1f) * fraction,
                 liftPx = unitLiftPx * hold,
             )
         } else {
             if (!animated) continue
             val count = group.wordSpans.size
-            val stagger = (((group.endMs - group.startMs) * 0.4f) / count)
+            val stagger = (((group.endMs - group.startMs) * 0.5f) / count)
                 .coerceAtMost(STAGGER_MAX_MS.toFloat())
             for ((wordIndex, span) in group.wordSpans.withIndex()) {
                 val on = group.startMs + (wordIndex * stagger).toLong()
@@ -1657,39 +1661,33 @@ private fun DrawScope.drawAppleWordMotion(
     val start = emphasis.start.coerceIn(0, textLength)
     val end = emphasis.end.coerceIn(start, textLength)
     if (end <= start) return
-    val activePath = layout.getPathForRange(start, end)
-    val activeBounds = activePath.getBounds()
-    val visualLine = layout.getLineForOffset(start.coerceAtMost((textLength - 1).coerceAtLeast(0)))
-    val lineStart = layout.getLineStart(visualLine)
+    var tailStart = emphasis.tailStart.coerceIn(start, end - 1)
+    val sourceText = layout.layoutInput.text
+    if (tailStart < end && Character.isLowSurrogate(sourceText[tailStart])) {
+        tailStart = (tailStart + 1).coerceAtMost(end - 1)
+    }
+    val tailPath = layout.getPathForRange(tailStart, end)
+    val tailBounds = tailPath.getBounds()
+    val visualLine = layout.getLineForOffset(tailStart.coerceAtMost((textLength - 1).coerceAtLeast(0)))
     val lineEnd = layout.getLineEnd(visualLine, visibleEnd = true)
-    val beforePath = if (start > lineStart) layout.getPathForRange(lineStart, start) else null
     val afterPath = if (end < lineEnd) layout.getPathForRange(end, lineEnd) else null
-    drawPath(activePath, Color.Transparent, blendMode = BlendMode.Clear)
-    beforePath?.let { drawPath(it, Color.Transparent, blendMode = BlendMode.Clear) }
+    clearRange(tailStart, end)
     afterPath?.let { drawPath(it, Color.Transparent, blendMode = BlendMode.Clear) }
-    val expansion = (emphasis.scale - 1f) * activeBounds.width / 2f
-    beforePath?.let { path ->
-        val direction = if (path.getBounds().center.x < activeBounds.center.x) -1f else 1f
-        withTransform({ translate(left = direction * expansion) }) {
-            clipPath(path) { drawLayer() }
-        }
-    }
-    afterPath?.let { path ->
-        val direction = if (path.getBounds().center.x < activeBounds.center.x) -1f else 1f
-        withTransform({ translate(left = direction * expansion) }) {
-            clipPath(path) { drawLayer() }
-        }
-    }
     val baseline = layout.getLineBaseline(visualLine)
     withTransform({
         translate(top = emphasis.liftPx)
         scale(
             scaleX = emphasis.scale,
             scaleY = emphasis.scale,
-            pivot = Offset(activeBounds.center.x, baseline),
+            pivot = Offset(tailBounds.left, baseline),
         )
     }) {
-        clipPath(activePath) { drawLayer() }
+        clipPath(tailPath) { drawLayer() }
+    }
+    afterPath?.let { path ->
+        withTransform({ translate(left = (emphasis.scale - 1f) * tailBounds.width) }) {
+            clipPath(path) { drawLayer() }
+        }
     }
 }
 
