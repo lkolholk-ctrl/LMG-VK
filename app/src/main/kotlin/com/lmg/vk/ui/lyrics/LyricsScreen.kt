@@ -1259,15 +1259,8 @@ internal fun LyricLineSweep(
                 animationsEnabled = animationsEnabled,
             )
             if (hasMotion) {
-                val glowShadow = motion.stretch?.let {
-                    androidx.compose.ui.graphics.Shadow(
-                        color = Color.White.copy(alpha = 0.50f * it.glow),
-                        offset = Offset.Zero,
-                        blurRadius = with(density) { 5.dp.toPx() },
-                    )
-                }
                 drawAppleWordMotion(layout, motion) {
-                    drawText(layout, color = unsungColor, shadow = glowShadow)
+                    drawText(layout, color = unsungColor)
                     drawTimedLyric(
                         layout = layout,
                         line = timedLine,
@@ -1276,7 +1269,6 @@ internal fun LyricLineSweep(
                         sungColor = sungColor,
                         featherPx = if (animationsEnabled) appleFeatherPx else 0f,
                         animationsEnabled = animationsEnabled,
-                        glowShadow = glowShadow,
                     )
                 }
                 drawContext.canvas.restore()
@@ -1390,12 +1382,11 @@ private fun DrawScope.drawTimedLyric(
     sungColor: Color,
     featherPx: Float,
     animationsEnabled: Boolean,
-    glowShadow: androidx.compose.ui.graphics.Shadow? = null,
 ) {
     val wordEnd = line.wordEndMs()
     when {
         positionMs >= wordEnd + (if (animationsEnabled) 500L else 0L) ->
-            drawText(layout, color = sungColor, shadow = glowShadow)
+            drawText(layout, color = sungColor)
         positionMs > line.timeMs -> drawAppleSweptText(
             layout = layout,
             revealedChars = if (positionMs >= wordEnd) text.length.toFloat()
@@ -1405,7 +1396,6 @@ private fun DrawScope.drawTimedLyric(
             rushProgress = if (animationsEnabled && positionMs >= wordEnd) {
                 ((positionMs - wordEnd).toFloat() / 500f).coerceIn(0f, 1f)
             } else 0f,
-            glowShadow = glowShadow,
         )
     }
 }
@@ -1415,7 +1405,6 @@ private data class LyricEmphasis(
     val end: Int,
     val scale: Float,
     val liftPx: Float,
-    val glow: Float,
 )
 
 private data class LyricLift(
@@ -1572,7 +1561,6 @@ private fun evaluateWordMotion(
                 end = group.end,
                 scale = 1f + (maxScale - 1f) * fraction,
                 liftPx = unitLiftPx * hold,
-                glow = fraction,
             )
         } else {
             if (!animated) continue
@@ -1775,7 +1763,6 @@ private fun DrawScope.drawAppleSweptText(
     color: Color,
     featherPx: Float,
     rushProgress: Float,
-    glowShadow: androidx.compose.ui.graphics.Shadow? = null,
 ) {
     if (revealedChars <= 0f) return
     val textLength = layout.layoutInput.text.length
@@ -1790,7 +1777,7 @@ private fun DrawScope.drawAppleSweptText(
         val right = layout.getLineRight(visualLine)
         if (visualLine < boundaryLine) {
             clipRect(left, layout.getLineTop(visualLine), right, layout.getLineBottom(visualLine)) {
-                drawText(layout, color = color, shadow = glowShadow)
+                drawText(layout, color = color)
             }
             continue
         }
@@ -1805,7 +1792,7 @@ private fun DrawScope.drawAppleSweptText(
             val hard = edge + featherPx
             if (hard < right) {
                 clipRect(hard.coerceAtLeast(left), top, right, bottom) {
-                    drawText(layout, color = color, shadow = glowShadow)
+                    drawText(layout, color = color)
                 }
             }
             if (hard > edge) {
@@ -1827,7 +1814,7 @@ private fun DrawScope.drawAppleSweptText(
             val hard = edge - featherPx
             if (hard > left) {
                 clipRect(left, top, hard.coerceAtMost(right), bottom) {
-                    drawText(layout, color = color, shadow = glowShadow)
+                    drawText(layout, color = color)
                 }
             }
             if (edge > hard) {
