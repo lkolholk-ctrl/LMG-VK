@@ -1239,13 +1239,8 @@ internal fun LyricLineSweep(
                     val durSec = ((group.endMs - group.startMs).coerceAtLeast(1L) / 1_000f)
                         .coerceIn(1f, 2f)
                     val maxScale = 1f + 0.14f * (durSec - 1f)
-                    val tailWidth = if (group.wordSpans.size > 1) {
-                        layout.getPathForRange(group.wordSpans.last().first, group.end)
-                            .getBounds().width
-                    } else {
-                        layout.getPathForRange(group.start, group.end).getBounds().width * 0.45f
-                    }
-                    gutter = gutter.coerceAtLeast((maxScale - 1f) * tailWidth)
+                    val width = layout.getPathForRange(group.start, group.end).getBounds().width
+                    gutter = gutter.coerceAtLeast((maxScale - 1f) * width)
                 }
                 val topMargin = with(density) { 3.dp.toPx() }
                 drawContext.canvas.saveLayer(
@@ -1264,8 +1259,15 @@ internal fun LyricLineSweep(
                 animationsEnabled = animationsEnabled,
             )
             if (hasMotion) {
+                val glowShadow = motion.stretch?.let {
+                    androidx.compose.ui.graphics.Shadow(
+                        color = Color.White.copy(alpha = 0.50f * it.glow),
+                        offset = Offset.Zero,
+                        blurRadius = with(density) { 5.dp.toPx() },
+                    )
+                }
                 drawAppleWordMotion(layout, motion) {
-                    drawText(layout, color = unsungColor)
+                    drawText(layout, color = unsungColor, shadow = glowShadow)
                     drawTimedLyric(
                         layout = layout,
                         line = timedLine,
@@ -1274,6 +1276,7 @@ internal fun LyricLineSweep(
                         sungColor = sungColor,
                         featherPx = if (animationsEnabled) appleFeatherPx else 0f,
                         animationsEnabled = animationsEnabled,
+                        glowShadow = glowShadow,
                     )
                 }
                 drawContext.canvas.restore()
@@ -1387,11 +1390,12 @@ private fun DrawScope.drawTimedLyric(
     sungColor: Color,
     featherPx: Float,
     animationsEnabled: Boolean,
+    glowShadow: androidx.compose.ui.graphics.Shadow? = null,
 ) {
     val wordEnd = line.wordEndMs()
     when {
         positionMs >= wordEnd + (if (animationsEnabled) 500L else 0L) ->
-            drawText(layout, color = sungColor)
+            drawText(layout, color = sungColor, shadow = glowShadow)
         positionMs > line.timeMs -> drawAppleSweptText(
             layout = layout,
             revealedChars = if (positionMs >= wordEnd) text.length.toFloat()
@@ -1401,6 +1405,7 @@ private fun DrawScope.drawTimedLyric(
             rushProgress = if (animationsEnabled && positionMs >= wordEnd) {
                 ((positionMs - wordEnd).toFloat() / 500f).coerceIn(0f, 1f)
             } else 0f,
+            glowShadow = glowShadow,
         )
     }
 }
@@ -1408,9 +1413,9 @@ private fun DrawScope.drawTimedLyric(
 private data class LyricEmphasis(
     val start: Int,
     val end: Int,
-    val tailStart: Int,
     val scale: Float,
     val liftPx: Float,
+    val glow: Float,
 )
 
 private data class LyricLift(
@@ -1562,18 +1567,12 @@ private fun evaluateWordMotion(
             val durationSeconds = (duration / 1_000f).coerceIn(1f, 2f)
             val maxScale = 1f + 0.14f * (durationSeconds - 1f)
             val hold = if (animated) wordLiftFraction(positionMs, group.startMs, group.endMs) else 1f
-            val tailStart = if (group.wordSpans.size > 1) {
-                group.wordSpans.last().first
-            } else {
-                group.start + ((group.end - group.start) * 0.55f).toInt()
-                    .coerceIn(group.start, (group.end - 1).coerceAtLeast(group.start))
-            }
             stretch = LyricEmphasis(
                 start = group.start,
                 end = group.end,
-                tailStart = tailStart,
                 scale = 1f + (maxScale - 1f) * fraction,
                 liftPx = unitLiftPx * hold,
+                glow = fraction,
             )
         } else {
             if (!animated) continue
@@ -1661,37 +1660,51 @@ private fun DrawScope.drawAppleWordMotion(
     val start = emphasis.start.coerceIn(0, textLength)
     val end = emphasis.end.coerceIn(start, textLength)
     if (end <= start) return
-    var tailStart = if (end - start >= 2) emphasis.tailStart.coerceIn(start + 1, end - 1) else start
     val sourceText = layout.layoutInput.text
-    if (tailStart in (start + 1) until end && Character.isLowSurrogate(sourceText[tailStart])) {
-        tailStart = (tailStart + 1).coerceAtMost(end - 1)
-    }
-    val tailPath = layout.getPathForRange(tailStart, end)
-    val tailBounds = tailPath.getBounds()
-    val visualLine = layout.getLineForOffset(tailStart.coerceAtMost((textLength - 1).coerceAtLeast(0)))
+    val firstBox = layout.getBoundingBox(start)
+    val lastBox = layout.getBoundingBox((end - 1).coerceAtLeast(start))
+    val anchorX = firstBox.left + (lastBox.right - firstBox.left) * 0.4f
+    val spanX = (lastBox.right - anchorX).coerceAtLeast(1f)
+    val visualLine = layout.getLineForOffset(start.coerceAtMost((textLength - 1).coerceAtLeast(0)))
     val lineEnd = layout.getLineEnd(visualLine, visibleEnd = true)
     val afterPath = if (end < lineEnd) layout.getPathForRange(end, lineEnd) else null
     clearRange(start, end)
     afterPath?.let { clearRange(end, lineEnd) }
-    val baseline = layout.getLineBaseline(visualLine)
+    var totalGrow = 0f
     withTransform({ translate(top = emphasis.liftPx) }) {
-        if (tailStart > start) {
-            clipPath(layout.getPathForRange(start, tailStart)) { drawLayer() }
-        }
-        withTransform({
-            scale(
-                scaleX = emphasis.scale,
-                scaleY = emphasis.scale,
-                pivot = Offset(tailBounds.left, baseline),
-            )
-        }) {
-            clipPath(tailPath) { drawLayer() }
+        var offset = start
+        var cursorX = 0f
+        var rowTop = Float.NaN
+        while (offset < end) {
+            val step = Character.charCount(Character.codePointAt(sourceText, offset))
+            val rangeEnd = (offset + step).coerceAtMost(end)
+            val box = layout.getBoundingBox(offset)
+            if (box.top != rowTop) {
+                rowTop = box.top
+                cursorX = box.left
+            }
+            val center = (box.left + box.right) * 0.5f
+            val t = ((center - anchorX) / spanX).coerceIn(0f, 1f)
+            val wave = t * t * (3f - 2f * t)
+            val charScale = 1f + (emphasis.scale - 1f) * wave
+            val charBase = layout.getLineBaseline(layout.getLineForOffset(offset))
+            withTransform({
+                translate(left = cursorX, top = 0f)
+                scale(
+                    scaleX = charScale,
+                    scaleY = charScale,
+                    pivot = Offset(cursorX, charBase),
+                )
+            }) {
+                clipPath(layout.getPathForRange(offset, rangeEnd)) { drawLayer() }
+            }
+            totalGrow += box.width * (charScale - 1f)
+            cursorX += box.width * charScale
+            offset = rangeEnd
         }
     }
     afterPath?.let { path ->
-        withTransform({ translate(left = (emphasis.scale - 1f) * tailBounds.width) }) {
-            clipPath(path) { drawLayer() }
-        }
+        withTransform({ translate(left = totalGrow) }) { clipPath(path) { drawLayer() } }
     }
 }
 
@@ -1762,6 +1775,7 @@ private fun DrawScope.drawAppleSweptText(
     color: Color,
     featherPx: Float,
     rushProgress: Float,
+    glowShadow: androidx.compose.ui.graphics.Shadow? = null,
 ) {
     if (revealedChars <= 0f) return
     val textLength = layout.layoutInput.text.length
@@ -1776,7 +1790,7 @@ private fun DrawScope.drawAppleSweptText(
         val right = layout.getLineRight(visualLine)
         if (visualLine < boundaryLine) {
             clipRect(left, layout.getLineTop(visualLine), right, layout.getLineBottom(visualLine)) {
-                drawText(layout, color = color)
+                drawText(layout, color = color, shadow = glowShadow)
             }
             continue
         }
@@ -1791,7 +1805,7 @@ private fun DrawScope.drawAppleSweptText(
             val hard = edge + featherPx
             if (hard < right) {
                 clipRect(hard.coerceAtLeast(left), top, right, bottom) {
-                    drawText(layout, color = color)
+                    drawText(layout, color = color, shadow = glowShadow)
                 }
             }
             if (hard > edge) {
@@ -1813,7 +1827,7 @@ private fun DrawScope.drawAppleSweptText(
             val hard = edge - featherPx
             if (hard > left) {
                 clipRect(left, top, hard.coerceAtMost(right), bottom) {
-                    drawText(layout, color = color)
+                    drawText(layout, color = color, shadow = glowShadow)
                 }
             }
             if (edge > hard) {
