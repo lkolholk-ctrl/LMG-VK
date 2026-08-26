@@ -63,15 +63,23 @@ object ExternalLyricsRepository {
             val cachedTtml = withContext(Dispatchers.IO) {
                 LocalTtmlStore.read(context, title, artist, durationMs)
             }
+            var cacheUsable = false
             if (cachedTtml != null) {
                 DebugLog.add("apple cache hit bytes=${cachedTtml.length} head=${head(cachedTtml)}")
                 val cachedParsed = parseAppleTtml(cachedTtml, title, artist)
                 logAppleParse("cache", cachedParsed)
-                cachedParsed?.let { cached ->
-                    if (cached.isWordLevel) return@coroutineScope cached
-                    lineSynced = cached
+                if (cachedParsed == null) {
+                    DebugLog.add("apple cache entry invalid, refetching")
+                    withContext(Dispatchers.IO) {
+                        LocalTtmlStore.delete(context, title, artist, durationMs)
+                    }
+                } else {
+                    cacheUsable = true
+                    if (cachedParsed.isWordLevel) return@coroutineScope cachedParsed
+                    lineSynced = cachedParsed
                 }
-            } else {
+            }
+            if (!cacheUsable) {
                 DebugLog.add("apple cache miss")
                 val serverTtml = withTimeoutOrNull(14_000L) {
                     fetchAppleTtml(title, artist, durationMs)

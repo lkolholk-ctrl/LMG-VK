@@ -35,7 +35,20 @@ object LocalTtmlStore {
     ): String? {
         val file = cacheFile(context, title, artist, durationMs)
         if (!file.isFile) return null
+        if (System.currentTimeMillis() - file.lastModified() > MAX_AGE_MS) {
+            runCatching { file.delete() }
+            return null
+        }
         return runCatching { file.readText().takeIf(String::isNotBlank) }.getOrNull()
+    }
+
+    fun delete(
+        context: Context,
+        title: String,
+        artist: String,
+        durationMs: Long,
+    ) {
+        runCatching { cacheFile(context, title, artist, durationMs).delete() }
     }
 
     fun write(
