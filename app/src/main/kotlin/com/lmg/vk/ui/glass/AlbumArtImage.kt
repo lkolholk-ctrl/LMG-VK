@@ -21,6 +21,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
@@ -54,6 +55,7 @@ fun AlbumArtImage(
     coverUrl: String? = null,
     resolvedArtwork: ResolvedArtworkSource? = null,
     placeholderIconSize: androidx.compose.ui.unit.Dp = 44.dp,
+    colorFilter: ColorFilter? = null,
 ) {
     val artwork = resolvedArtwork
         ?: remember(uri, coverUrl) { ArtworkSourceResolver.resolve(uri, coverUrl) }
@@ -76,6 +78,7 @@ fun AlbumArtImage(
                 contentDescription = contentDescription,
                 modifier = modifier,
                 contentScale = contentScale,
+                colorFilter = colorFilter,
                 onSuccess = { state ->
                     if (resolvedArtwork != null) {
                         val drawable = state.result.drawable
@@ -197,7 +200,8 @@ fun AlbumArtImage(
             contentDescription = contentDescription,
             modifier = modifier,
             contentScale = contentScale,
-            filterQuality = FilterQuality.High
+            filterQuality = FilterQuality.High,
+            colorFilter = colorFilter
         )
     } else if (loadFailed) {
         MissingArtwork(

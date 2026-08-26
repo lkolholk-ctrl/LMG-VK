@@ -1,21 +1,26 @@
 package com.lmg.vk.ui.lyrics
 
 import android.net.Uri
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.animation.Crossfade
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.tween
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
-
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
@@ -32,44 +37,10 @@ fun LyricsBackground(
     saturationBoost: Float = LyricsTimeProcessor.SATURATION_BOOST,
     modifier: Modifier = Modifier
 ) {
-    val baseVibrant = rememberSaturationBoost(albumColors.vibrant, saturationBoost)
-    val baseDominant = rememberSaturationBoost(albumColors.dominant, saturationBoost)
-    val baseMuted = rememberSaturationBoost(albumColors.muted, saturationBoost)
-    // Задействуем БОЛЬШЕ свотчей обложки (раньше в градиенте крутились всего 3).
-    val baseLightVibrant = rememberSaturationBoost(albumColors.lightVibrant, saturationBoost)
-    val baseDarkMuted = rememberSaturationBoost(albumColors.darkMuted, saturationBoost)
-
-    // Насыщенный базовый цвет фона из обложки (+сатурация/+яркость, как у Apple).
     val bgColor by animateColorAsState(
         targetValue = boostedCoverColor(albumColors.vibrant),
         animationSpec = tween(durationMillis = 1000),
         label = "lyricsBgColor"
-    )
-
-    val boostedVibrant by animateColorAsState(
-        targetValue = baseVibrant,
-        animationSpec = tween(durationMillis = 1000),
-        label = "boostedVibrant"
-    )
-    val boostedDominant by animateColorAsState(
-        targetValue = baseDominant,
-        animationSpec = tween(durationMillis = 1000),
-        label = "boostedDominant"
-    )
-    val boostedMuted by animateColorAsState(
-        targetValue = baseMuted,
-        animationSpec = tween(durationMillis = 1000),
-        label = "boostedMuted"
-    )
-    val boostedLightVibrant by animateColorAsState(
-        targetValue = baseLightVibrant,
-        animationSpec = tween(durationMillis = 1000),
-        label = "boostedLightVibrant"
-    )
-    val boostedDarkMuted by animateColorAsState(
-        targetValue = baseDarkMuted,
-        animationSpec = tween(durationMillis = 1000),
-        label = "boostedDarkMuted"
     )
 
     data class ArtState(
@@ -82,82 +53,106 @@ fun LyricsBackground(
         ArtState(albumArtUri, coverUrl, audioFileUri, albumId)
     }
 
-    // База — НАСЫЩЕННЫЙ цвет обложки (никакого серого/чёрного оверлея поверх).
+    val saturatedFilter = remember {
+        val am = android.graphics.ColorMatrix().apply { setSaturation(2.5f) }
+        ColorFilter.colorMatrix(ColorMatrix(am.getArray()))
+    }
+    val degraded = com.lmg.vk.ui.PerfMonitor.degraded
+    val bgBlur = (if (degraded) 6 else LyricsTimeProcessor.BACKGROUND_BLUR_DP).dp
+
+    val spin = rememberInfiniteTransition(label = "lyricsArtSpin")
+    val rotA by spin.animateFloat(
+        initialValue = 0f,
+        targetValue = -360f,
+        animationSpec = infiniteRepeatable(tween(durationMillis = 120_000, easing = LinearEasing)),
+        label = "rotA"
+    )
+    val rotB by spin.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(tween(durationMillis = 90_000, easing = LinearEasing)),
+        label = "rotB"
+    )
+    val rotC by spin.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(tween(durationMillis = 70_000, easing = LinearEasing)),
+        label = "rotC"
+    )
+
+    @Composable
+    fun rotatingArt(angle: () -> Float) {
+        AlbumArtImage(
+            uri = artState.albumArtUri,
+            coverUrl = artState.coverUrl,
+            audioFileUri = artState.audioFileUri,
+            albumId = artState.albumId,
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            colorFilter = saturatedFilter,
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer {
+                    scaleX = 1.9f
+                    scaleY = 1.9f
+                    rotationZ = angle()
+                }
+        )
+    }
+
     Box(modifier = modifier.fillMaxSize().background(bgColor)) {
-        // ── Crossfade for static background image to prevent abrupt pops ──
         Crossfade(
             targetState = artState,
             animationSpec = tween(durationMillis = 1000),
             modifier = Modifier.fillMaxSize(),
             label = "lyricsBackgroundCrossfade"
         ) { state ->
-            // ── Layer 1: размытая обложка (лёгкая фактура поверх насыщенной базы) ──
-            AlbumArtImage(
-                uri = state.albumArtUri,
-                coverUrl = state.coverUrl,
-                audioFileUri = state.audioFileUri,
-                albumId = state.albumId,
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .graphicsLayer {
-                        scaleX = 1.5f
-                        scaleY = 1.5f
-                        alpha = 0.60f
-                    }
-                    // При просадке FPS режем тяжёлый full-screen blur (RenderEffect) —
-                    // на слабом GPU это один из главных пожирателей RenderThread.
-                    .blur(
-                        (if (com.lmg.vk.ui.PerfMonitor.degraded) 6
-                         else LyricsTimeProcessor.BACKGROUND_BLUR_DP).dp
+            Box(modifier = Modifier.fillMaxSize()) {
+                if (degraded) {
+                    AlbumArtImage(
+                        uri = state.albumArtUri,
+                        coverUrl = state.coverUrl,
+                        audioFileUri = state.audioFileUri,
+                        albumId = state.albumId,
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        colorFilter = saturatedFilter,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .graphicsLayer {
+                                scaleX = 1.4f
+                                scaleY = 1.4f
+                            }
+                            .blur(bgBlur)
                     )
-            )
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .blur(bgBlur)
+                    ) {
+                        rotatingArt { rotA }
+                        rotatingArt { rotB }
+                        rotatingArt { rotC }
+                    }
+                }
+            }
         }
 
         Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.30f)))
         Box(modifier = Modifier.fillMaxSize().background(Color.White.copy(alpha = 0.10f)))
 
-        // ── Layer 2: насыщенный цветовой градиент (глубина, без серого) ──
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .background(
                     Brush.verticalGradient(
                         colorStops = arrayOf(
-                            0.00f to boostedLightVibrant.copy(alpha = 0.70f),
-                            0.40f to boostedVibrant.copy(alpha = 0.62f),
-                            0.75f to boostedDominant.copy(alpha = 0.58f),
-                            1.00f to boostedDarkMuted.copy(alpha = 0.66f)
-                        )
-                    )
-                )
-        )
-
-        // ── Layer 3: горизонтальный акцент ──
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.horizontalGradient(
-                        colorStops = arrayOf(
-                            0.00f to boostedVibrant.copy(alpha = 0.28f),
-                            0.50f to Color.Transparent,
-                            1.00f to boostedMuted.copy(alpha = 0.24f)
-                        )
-                    )
-                )
-        )
-
-        // ── Лёгкое затемнение только у нижней кромки (под навбар), без серой плёнки ──
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.verticalGradient(
-                        colorStops = arrayOf(
-                            0.75f to Color.Transparent,
-                            1.00f to boostedDarkMuted.copy(alpha = 0.30f)   // тонируем, не чернить
+                            0.00f to Color.Black.copy(alpha = 0.55f),
+                            0.16f to Color.Black.copy(alpha = 0.06f),
+                            0.45f to Color.Transparent,
+                            0.72f to Color.Transparent,
+                            1.00f to Color.Black.copy(alpha = 0.60f)
                         )
                     )
                 )
@@ -171,14 +166,4 @@ fun boostedCoverColor(color: Color): Color {
     hsv[1] = hsv[1].coerceAtMost(1f)
     hsv[2] = (hsv[2] * 1.35f).coerceIn(0.42f, 0.96f)
     return Color(android.graphics.Color.HSVToColor(hsv))
-}
-
-@Composable
-private fun rememberSaturationBoost(color: Color, boost: Float): Color {
-    return androidx.compose.runtime.remember(color, boost) {
-        val hsv = FloatArray(3)
-        android.graphics.Color.colorToHSV(color.toArgb(), hsv)
-        hsv[1] = (hsv[1] * boost).coerceIn(0f, 1f)
-        androidx.compose.ui.graphics.Color(android.graphics.Color.HSVToColor(hsv))
-    }
 }
