@@ -73,6 +73,8 @@ object LyricsParser {
         val text: String,
         val words: List<LyricWord> = emptyList(),
         val language: String? = null,
+        val translations: Map<String, LyricLayer> = emptyMap(),
+        val pronunciations: Map<String, LyricLayer> = emptyMap(),
     )
 
     data class LyricLine(
@@ -86,8 +88,8 @@ object LyricsParser {
          */
         val endMs: Long = 0L,
         val backgroundLayers: List<LyricLayer> = emptyList(),
-        val translations: Map<String, String> = emptyMap(),
-        val pronunciations: Map<String, String> = emptyMap(),
+        val translations: Map<String, LyricLayer> = emptyMap(),
+        val pronunciations: Map<String, LyricLayer> = emptyMap(),
         val agentId: String? = null,
         val agentType: String? = null,
         val agentName: String? = null,
@@ -196,8 +198,9 @@ object LyricsParser {
     ): Lyrics {
         val enabledSources = com.lmg.vk.engine.lyrics.LyricsSourceStore.enabled(context)
         if (isLocalTrack(uri, trackId)) {
-            val wordTimed = kotlinx.coroutines.withTimeoutOrNull(12_000L) {
+            val wordTimed = kotlinx.coroutines.withTimeoutOrNull(30_000L) {
                 com.lmg.vk.engine.lyrics.ExternalLyricsRepository.findWordTimed(
+                    context = context,
                     title = title,
                     artist = artist,
                     durationMs = durationMs,
@@ -227,8 +230,9 @@ object LyricsParser {
                 null
             }
             val external = async {
-                kotlinx.coroutines.withTimeoutOrNull(12_000L) {
+                kotlinx.coroutines.withTimeoutOrNull(30_000L) {
                     com.lmg.vk.engine.lyrics.ExternalLyricsRepository.findWordTimed(
+                        context = context,
                         title = title,
                         artist = artist,
                         durationMs = durationMs,

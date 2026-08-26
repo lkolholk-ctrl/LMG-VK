@@ -1,7 +1,7 @@
 package com.lmg.vk.engine.lyrics
 
+import android.content.Context
 import com.lmg.vk.engine.LyricsParser
-import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -44,62 +44,58 @@ object ExternalLyricsRepository {
         .build()
     private val appleClient = OkHttpClient.Builder()
         .connectTimeout(4, TimeUnit.SECONDS)
-        .readTimeout(15, TimeUnit.SECONDS)
-        .callTimeout(18, TimeUnit.SECONDS)
+        .readTimeout(12, TimeUnit.SECONDS)
+        .callTimeout(14, TimeUnit.SECONDS)
         .build()
 
     suspend fun findWordTimed(
+        context: Context,
         title: String,
         artist: String,
         durationMs: Long,
         enabled: Set<LyricsSource>,
     ): LyricsParser.Lyrics? = coroutineScope {
         if (title.isBlank() || artist.isBlank()) return@coroutineScope null
-        val pending = mutableListOf<Pair<LyricsSource, Deferred<LyricsParser.Lyrics?>>>()
-        val appleTask = if (LyricsSource.APPLE_TTML in enabled) {
-            async(Dispatchers.IO) { fetchAppleTtml(title, artist, durationMs) }.also {
-                pending += LyricsSource.APPLE_TTML to it
-            }
-        } else null
-        if (LyricsSource.LYRICS_PLUS in enabled) {
-            pending += LyricsSource.LYRICS_PLUS to async(Dispatchers.IO) {
-                fetchLyricsPlus(title, artist, durationMs)
-            }
-        }
-        if (LyricsSource.BETTER_LYRICS in enabled) {
-            pending += LyricsSource.BETTER_LYRICS to async(Dispatchers.IO) {
-                fetchBetterLyrics(title, artist, durationMs)
-            }
-        }
         var lineSynced: LyricsParser.Lyrics? = null
-        if (appleTask != null) {
-            val preferred = withTimeoutOrNull(1_500L) { appleTask.await() }
-            if (preferred?.isWordLevel == true) {
-                pending.filterNot { it.first == LyricsSource.APPLE_TTML }
-                    .forEach { it.second.cancel() }
-                return@coroutineScope preferred
+        if (LyricsSource.APPLE_TTML in enabled) {
+            val cachedTtml = withContext(Dispatchers.IO) {
+                LocalTtmlStore.read(context, title, artist, durationMs)
             }
-            if (preferred?.lines?.isNotEmpty() == true) lineSynced = preferred
-            if (appleTask.isCompleted) {
-                pending.removeAll { it.first == LyricsSource.APPLE_TTML }
-            }
-        }
-        try {
-            while (pending.isNotEmpty()) {
-                val completed = select<Pair<LyricsSource, LyricsParser.Lyrics?>> {
-                    pending.forEach { (source, task) ->
-                        task.onAwait { source to it }
+            if (cachedTtml != null) {
+                parseAppleTtml(cachedTtml, title, artist)?.let { cached ->
+                    if (cached.isWordLevel) return@coroutineScope cached
+                    lineSynced = cached
+                }
+            } else {
+                val serverTtml = withTimeoutOrNull(14_000L) {
+                    fetchAppleTtml(title, artist, durationMs)
+                }
+                if (serverTtml != null) {
+                    withContext(Dispatchers.IO) {
+                        LocalTtmlStore.write(context, title, artist, durationMs, serverTtml)
+                    }
+                    parseAppleTtml(serverTtml, title, artist)?.let { fetched ->
+                        if (fetched.isWordLevel) return@coroutineScope fetched
+                        lineSynced = fetched
                     }
                 }
-                pending.removeAll { it.first == completed.first }
-                val lyrics = completed.second ?: continue
-                if (lyrics.isWordLevel) return@coroutineScope lyrics
-                if (lineSynced == null) lineSynced = lyrics
             }
-            lineSynced
-        } finally {
-            pending.forEach { it.second.cancel() }
         }
+        if (LyricsSource.LYRICS_PLUS in enabled) {
+            val lyricsPlus = withTimeoutOrNull(8_000L) {
+                fetchLyricsPlus(title, artist, durationMs)
+            }
+            if (lyricsPlus?.isWordLevel == true) return@coroutineScope lyricsPlus
+            if (lineSynced == null && lyricsPlus != null) lineSynced = lyricsPlus
+        }
+        if (LyricsSource.BETTER_LYRICS in enabled) {
+            val betterLyrics = withTimeoutOrNull(7_000L) {
+                fetchBetterLyrics(title, artist, durationMs)
+            }
+            if (betterLyrics?.isWordLevel == true) return@coroutineScope betterLyrics
+            if (lineSynced == null && betterLyrics != null) lineSynced = betterLyrics
+        }
+        lineSynced
     }
 
     private suspend fun fetchLyricsPlus(
@@ -168,7 +164,7 @@ object ExternalLyricsRepository {
         title: String,
         artist: String,
         durationMs: Long,
-    ): LyricsParser.Lyrics? = withContext(Dispatchers.IO) {
+    ): String? = withContext(Dispatchers.IO) {
         val url = "$APPLE_TTML_PROXY/v2/lyrics/ttml".toHttpUrl().newBuilder()
             .addQueryParameter("title", title)
             .addQueryParameter("artist", artist)
@@ -179,9 +175,16 @@ object ExternalLyricsRepository {
                 }
             }
             .build()
-        val ttml = get(url.toString(), appleClient, "text/plain") ?: return@withContext null
-        val parsed = parseTtml(ttml)?.takeIf { it.lines.isNotEmpty() } ?: return@withContext null
-        LyricsParser.Lyrics(
+        get(url.toString(), appleClient, "text/plain")
+    }
+
+    private fun parseAppleTtml(
+        ttml: String,
+        title: String,
+        artist: String,
+    ): LyricsParser.Lyrics? {
+        val parsed = parseTtml(ttml)?.takeIf { it.lines.isNotEmpty() } ?: return null
+        return LyricsParser.Lyrics(
             lines = parsed.lines,
             isSynced = true,
             title = title,
@@ -339,18 +342,20 @@ object ExternalLyricsRepository {
         val paragraphStart = parseClock(paragraph.getAttribute("begin"))
         val start = paragraphStart ?: main.words.firstOrNull()?.timeMs ?: return null
         if (main.text.isBlank()) return null
-        val backgroundLayers = roleElements(paragraph, "x-bg").mapNotNull { element ->
-            val layer = collectTimedText(element, emptySet())
+        val backgroundLayers = roleElements(paragraph, "x-bg", "x-bg").mapNotNull { element ->
+            val layer = collectTimedText(element, localizedRoles)
             layer.takeIf { it.text.isNotBlank() }?.let {
                 LyricsParser.LyricLayer(
                     text = it.text,
                     words = it.words,
                     language = element.getAttribute("xml:lang").takeIf(String::isNotBlank),
+                    translations = localizedTextLayers(element, "x-translation"),
+                    pronunciations = localizedTextLayers(element, "x-roman"),
                 )
             }
         }
-        val translations = localizedTextLayers(paragraph, "x-translation")
-        val pronunciations = localizedTextLayers(paragraph, "x-roman")
+        val translations = localizedTextLayers(paragraph, "x-translation", "x-bg")
+        val pronunciations = localizedTextLayers(paragraph, "x-roman", "x-bg")
         val agentId = paragraph.getAttribute("ttm:agent").takeIf(String::isNotBlank)
             ?: division?.getAttribute("ttm:agent")?.takeIf(String::isNotBlank)
         val agent = agentId?.let(agents::get)
@@ -423,19 +428,43 @@ object ExternalLyricsRepository {
         return false
     }
 
-    private fun roleElements(paragraph: Element, role: String): List<Element> = buildList {
-        val spans = paragraph.getElementsByTagName("span")
+    private fun roleElements(
+        container: Element,
+        role: String,
+        excludedAncestorRole: String? = null,
+    ): List<Element> = buildList {
+        val spans = container.getElementsByTagName("span")
         for (index in 0 until spans.length) {
             val element = spans.item(index) as? Element ?: continue
-            if (element.getAttribute("ttm:role") == role) add(element)
+            if (element.getAttribute("ttm:role") != role) continue
+            if (excludedAncestorRole != null && hasRoleAncestor(element, container, excludedAncestorRole)) continue
+            add(element)
         }
     }
 
-    private fun localizedTextLayers(paragraph: Element, role: String): Map<String, String> =
-        roleElements(paragraph, role).mapNotNull { element ->
-            val text = element.textContent?.trim()?.takeIf(String::isNotBlank) ?: return@mapNotNull null
+    private fun hasRoleAncestor(element: Element, boundary: Element, role: String): Boolean {
+        var parent = element.parentNode
+        while (parent != null && parent !== boundary) {
+            if (parent is Element && parent.getAttribute("ttm:role") == role) return true
+            parent = parent.parentNode
+        }
+        return false
+    }
+
+    private fun localizedTextLayers(
+        container: Element,
+        role: String,
+        excludedAncestorRole: String? = null,
+    ): Map<String, LyricsParser.LyricLayer> =
+        roleElements(container, role, excludedAncestorRole).mapNotNull { element ->
+            val timedText = collectTimedText(element, emptySet())
+            val text = timedText.text.takeIf(String::isNotBlank) ?: return@mapNotNull null
             val language = element.getAttribute("xml:lang").ifBlank { "und" }
-            language to text
+            language to LyricsParser.LyricLayer(
+                text = text,
+                words = timedText.words,
+                language = language,
+            )
         }.toMap()
 
     private fun parseClock(value: String?): Long? {
@@ -482,7 +511,8 @@ object ExternalLyricsRepository {
         return TimedText(text, adjusted)
     }
 
-    private val skippedRoles = setOf("x-translation", "x-roman", "x-bg")
+    private val localizedRoles = setOf("x-translation", "x-roman")
+    private val skippedRoles = localizedRoles + "x-bg"
 
     private data class TimedText(
         val text: String,

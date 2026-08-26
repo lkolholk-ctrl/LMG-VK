@@ -64,6 +64,30 @@ object LyricsSourceStore {
     }
 }
 
+object LyricsDisplayStore {
+    private const val PREFS = "lyrics_display"
+    private const val KEY_TRANSLATION = "translation"
+    private const val KEY_PRONUNCIATION = "pronunciation"
+
+    fun translation(context: Context): Boolean = context.applicationContext
+        .getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        .getBoolean(KEY_TRANSLATION, true)
+
+    fun pronunciation(context: Context): Boolean = context.applicationContext
+        .getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        .getBoolean(KEY_PRONUNCIATION, false)
+
+    fun setTranslation(context: Context, enabled: Boolean) {
+        context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .edit().putBoolean(KEY_TRANSLATION, enabled).apply()
+    }
+
+    fun setPronunciation(context: Context, enabled: Boolean) {
+        context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .edit().putBoolean(KEY_PRONUNCIATION, enabled).apply()
+    }
+}
+
 fun String.lyricsSourceTitle(): String = when (this) {
     "vk" -> "VK Музыка"
     LyricsSource.APPLE_TTML.id -> LyricsSource.APPLE_TTML.title

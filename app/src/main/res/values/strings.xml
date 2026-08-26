@@ -499,6 +499,10 @@
     <string name="lyrics_by_source">Текст из %1$s</string>
     <string name="lyrics_sources_title">Источники текста</string>
     <string name="lyrics_sources_description">Выберите дополнительные источники. Официальный текст VK остается доступен всегда.</string>
+    <string name="lyrics_translation">Перевод</string>
+    <string name="lyrics_translation_description">Показывать доступный перевод под оригиналом</string>
+    <string name="lyrics_pronunciation">Транслитерация</string>
+    <string name="lyrics_pronunciation_description">Показывать произношение основным текстом</string>
     <string name="sync_chip">СИНХР</string>
     <string name="sync_chip_offset">СИНХР %+.1f с</string>
     <string name="back_to_sync">К синхронизации</string>
