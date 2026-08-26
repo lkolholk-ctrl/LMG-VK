@@ -192,6 +192,7 @@ fun LyricsScreen(
         mutableLongStateOf(LyricsSyncStore.get(context, resolvedTrackId))
     }
     var syncUiOpen by remember { mutableStateOf(false) }
+    val wordTimingOffsetMs = if (lyrics.source == LyricsSource.APPLE_TTML.id) -100L else 0L
     // Долгий тап по строке лирики → карточка «поделиться» (как у Apple).
     var shareLine by remember { mutableStateOf<String?>(null) }
     fun adjustSync(deltaMs: Long) {
@@ -309,10 +310,11 @@ fun LyricsScreen(
 
     // ── Duet detection ──
     val isDuet = remember(lyrics) {
-        lyrics.lines.any { line ->
+        lyrics.lines.mapNotNull { it.agentId }.distinct().size > 1 || lyrics.lines.any { line ->
             line.text.contains(Regex("""\[(M|F|D|Male|Female|Duet):?\s*""", RegexOption.IGNORE_CASE))
         }
     }
+    val primaryAgentId = remember(lyrics) { lyrics.lines.firstNotNullOfOrNull { it.agentId } }
 
     // ── Colors ──
     // Фон здесь всегда из обложки, а не из темы приложения, поэтому цвет текста
@@ -441,6 +443,11 @@ fun LyricsScreen(
 
                             val isCurrent = index == currentLineIndex
                             val isPast = index < currentLineIndex
+                            val isAlternateAgent = isDuet && line.agentId != null &&
+                                primaryAgentId != null && line.agentId != primaryAgentId
+                            val rowAlignment = if (isAlternateAgent) Alignment.End else Alignment.Start
+                            val rowMaxWidthPx = if (isAlternateAgent) (lineMaxWidthPx * 0.85f).toInt()
+                            else lineMaxWidthPx
 
                             // duet-цвет
                             val duetColor = when {
@@ -525,7 +532,7 @@ fun LyricsScreen(
                                         }
                                     )
                                     .padding(horizontal = lineHPadding, vertical = if (splitMode) 6.dp else 10.dp),
-                                horizontalAlignment = Alignment.Start
+                                horizontalAlignment = rowAlignment
                             ) {
                                 LyricLineSweep(
                                     text = cleanText,
@@ -533,15 +540,53 @@ fun LyricsScreen(
                                     sungColor = sungColor,
                                     unsungColor = unsungColor,
                                     isActive = isCurrent,
-                                    maxWidthPx = lineMaxWidthPx,
+                                    maxWidthPx = rowMaxWidthPx,
                                     glowColor = duetColor ?: resolvedColors.vibrant,
                                     effect = lineEffect,
                                     edgeSoftPx = if (isCurrent) edgeSoftPx else 0f,
                                     fontSizeSp = 32f * lineFontScale,
                                     timedLine = line.takeIf { it.words.isNotEmpty() },
                                     positionState = lyricClock,
-                                    positionOffsetMs = syncOffsetMs,
+                                    positionOffsetMs = syncOffsetMs + wordTimingOffsetMs,
                                 )
+                                line.backgroundLayers.forEach { layer ->
+                                    val backgroundLine = remember(line, layer) {
+                                        LyricsParser.LyricLine(
+                                            timeMs = layer.words.firstOrNull()?.timeMs ?: line.timeMs,
+                                            text = layer.text,
+                                            words = layer.words,
+                                            endMs = layer.words.lastOrNull()?.endMs ?: line.endMs,
+                                        )
+                                    }
+                                    Spacer(Modifier.height(3.dp))
+                                    LyricLineSweep(
+                                        text = layer.text,
+                                        fillProgress = if (isPast) 1f else 0f,
+                                        sungColor = base.copy(alpha = 0.55f),
+                                        unsungColor = base.copy(alpha = 0.16f),
+                                        isActive = isCurrent,
+                                        maxWidthPx = rowMaxWidthPx,
+                                        glowColor = base,
+                                        fontSizeSp = 20f * lineFontScale,
+                                        timedLine = backgroundLine.takeIf { it.words.isNotEmpty() },
+                                        positionState = lyricClock,
+                                        positionOffsetMs = syncOffsetMs + wordTimingOffsetMs,
+                                    )
+                                }
+                                line.translations.values.firstOrNull()?.let { translation ->
+                                    Spacer(Modifier.height(5.dp))
+                                    Text(
+                                        text = translation,
+                                        color = base.copy(alpha = if (isCurrent) 0.72f else 0.38f),
+                                        fontSize = 16.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        fontFamily = AppFontFamily,
+                                        lineHeight = 21.sp,
+                                        modifier = Modifier.widthIn(
+                                            max = with(density) { rowMaxWidthPx.toDp() }
+                                        ),
+                                    )
+                                }
                                 // Точки ожидания во время инструментального проигрыша
                                 // (сегментная модель LyricsTimeProcessor, VAD не используется).
                                 // progress: точки наливаются по мере проигрыша и схлопываются
@@ -957,11 +1002,12 @@ internal fun LyricLineSweep(
 
     val wDp = with(LocalDensity.current) { layout.size.width.toDp() }
     val hDp = with(LocalDensity.current) { layout.size.height.toDp() }
+    val appleFeatherPx = with(LocalDensity.current) { 30.dp.toPx() }
 
     // «Дыхание» активной строки: неактивные визуально ~30sp (32 × 0.94),
     // активная плавно вырастает до 100%. От левого края — без бокового дрейфа.
     val lineScale by animateFloatAsState(
-        targetValue = if (isActive) 1f else 0.94f,
+        targetValue = if (isActive) 1f else 0.98f,
         animationSpec = spring(
             dampingRatio = Spring.DampingRatioNoBouncy,
             stiffness = Spring.StiffnessLow
@@ -980,7 +1026,7 @@ internal fun LyricLineSweep(
     ) {
         // 0) гло-подсветка активной строки: цвет облегает текст. Блюр УЗКИЙ —
         //    свечение хватает текст вплотную, без широких колец вокруг круглых букв.
-        if (isActive) {
+        if (isActive && timedLine == null) {
             drawText(
                 textLayoutResult = layout,
                 color = glowColor.copy(alpha = 0.50f),
@@ -995,12 +1041,18 @@ internal fun LyricLineSweep(
 
         if (timedLine != null && positionState != null) {
             val position = positionState.longValue + positionOffsetMs
+            val wordEnd = timedLine.wordEndMs()
             when {
-                position >= timedLine.wordEndMs() -> drawText(layout, color = sungColor)
-                position > timedLine.timeMs -> drawSweptText(
+                position >= wordEnd + 500L -> drawText(layout, color = sungColor)
+                position > timedLine.timeMs -> drawAppleSweptText(
                     layout = layout,
-                    revealedChars = timedLine.revealedChars(position, text),
+                    revealedChars = if (position >= wordEnd) text.length.toFloat()
+                    else timedLine.revealedChars(position, text),
                     color = sungColor,
+                    featherPx = appleFeatherPx,
+                    rushProgress = if (position >= wordEnd) {
+                        ((position - wordEnd).toFloat() / 500f).coerceIn(0f, 1f)
+                    } else 0f,
                 )
             }
             return@Canvas
@@ -1102,8 +1154,11 @@ private fun LyricsParser.LyricLine.revealedChars(positionMs: Long, renderedText:
     if (words.isEmpty()) return if (positionMs >= timeMs) renderedText.length.toFloat() else 0f
     var offset = 0
     words.forEachIndexed { index, word ->
-        val start = renderedText.indexOf(word.text, offset).takeIf { it >= 0 } ?: offset
-        val end = (start + word.text.length).coerceAtMost(renderedText.length)
+        val start = word.charStart.takeIf { it in 0..renderedText.length }
+            ?: renderedText.indexOf(word.text, offset).takeIf { it >= 0 }
+            ?: offset
+        val end = word.charEnd.takeIf { it in (start + 1)..renderedText.length }
+            ?: (start + word.text.length).coerceAtMost(renderedText.length)
         val next = words.getOrNull(index + 1)
         val wordEnd = word.endMs.takeIf { it > word.timeMs }
             ?: next?.timeMs?.takeIf { it > word.timeMs }
@@ -1113,10 +1168,12 @@ private fun LyricsParser.LyricLine.revealedChars(positionMs: Long, renderedText:
         if (positionMs < wordEnd) {
             val span = (wordEnd - word.timeMs).coerceAtLeast(1L)
             val through = (positionMs - word.timeMs).toFloat() / span
-            return start + through * word.text.length
+            return start + through * (end - start)
         }
         if (next != null && positionMs < next.timeMs) {
-            val gapStart = renderedText.indexOf(next.text, end).takeIf { it >= 0 } ?: end
+            val gapStart = next.charStart.takeIf { it in end..renderedText.length }
+                ?: renderedText.indexOf(next.text, end).takeIf { it >= 0 }
+                ?: end
             val pause = (next.timeMs - wordEnd).coerceAtLeast(1L)
             val through = (positionMs - wordEnd).toFloat() / pause
             return end + through * (gapStart - end)
@@ -1141,32 +1198,52 @@ private fun horizontalAt(
     return here + (next - here) * (chars - index)
 }
 
-private fun DrawScope.drawSweptText(
+private fun DrawScope.drawAppleSweptText(
     layout: androidx.compose.ui.text.TextLayoutResult,
     revealedChars: Float,
     color: Color,
+    featherPx: Float,
+    rushProgress: Float,
 ) {
     if (revealedChars <= 0f) return
-    if (revealedChars >= layout.layoutInput.text.length) {
-        drawText(layout, color = color)
-        return
-    }
+    val textLength = layout.layoutInput.text.length
+    val boundary = revealedChars.coerceIn(0f, textLength.toFloat())
+    val boundaryLine = if (boundary >= textLength) layout.lineCount - 1
+    else layout.getLineForOffset(boundary.toInt().coerceIn(0, (textLength - 1).coerceAtLeast(0)))
     for (visualLine in 0 until layout.lineCount) {
         val start = layout.getLineStart(visualLine)
-        if (revealedChars <= start) return
+        if (visualLine > boundaryLine || boundary <= start) return
         val end = layout.getLineEnd(visualLine, visibleEnd = true)
-        val right = if (revealedChars >= end) {
-            layout.getLineRight(visualLine)
-        } else {
-            horizontalAt(layout, revealedChars, start, end)
+        val left = layout.getLineLeft(visualLine)
+        val right = layout.getLineRight(visualLine)
+        if (visualLine < boundaryLine) {
+            clipRect(left, layout.getLineTop(visualLine), right, layout.getLineBottom(visualLine)) {
+                drawText(layout, color = color)
+            }
+            continue
         }
-        clipRect(
-            left = layout.getLineLeft(visualLine),
-            top = layout.getLineTop(visualLine),
-            right = right,
-            bottom = layout.getLineBottom(visualLine),
-        ) {
-            drawText(layout, color = color)
+        val edge = if (boundary >= end) right + featherPx * rushProgress
+        else horizontalAt(layout, boundary, start, end)
+        val hard = edge - featherPx
+        val top = layout.getLineTop(visualLine)
+        val bottom = layout.getLineBottom(visualLine)
+        if (hard > left) {
+            clipRect(left, top, hard.coerceAtMost(right), bottom) {
+                drawText(layout, color = color)
+            }
+        }
+        val fadeStart = hard.coerceAtMost(right)
+        val fadeEnd = edge.coerceAtLeast(left)
+        if (fadeEnd > fadeStart) {
+            val feather = Brush.horizontalGradient(
+                0f to color,
+                1f to color.copy(alpha = 0f),
+                startX = hard,
+                endX = edge,
+            )
+            clipRect(fadeStart.coerceAtLeast(left), top, fadeEnd.coerceAtMost(right), bottom) {
+                drawText(layout, brush = feather)
+            }
         }
     }
 }

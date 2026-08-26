@@ -22,15 +22,6 @@ import androidx.compose.ui.unit.dp
 import com.lmg.vk.ui.glass.AlbumArtImage
 import com.lmg.vk.ui.glass.AlbumColors
 
-/**
- * Статичный фон для экрана лирики с HSV-boost saturation = 2.5f.
- *
- * Техника:
- * 1. Размытая обложка (blur 25.dp)
- * 2. Два scrim-слоя: чёрный (alpha 0.30) + белый (alpha 0.08) для глянцевого свечения
- * 3. HSV-boosted цвет из палитры для неонового эффекта
- * Плавный переход (crossfade) цветов и изображений при смене песен.
- */
 @Composable
 fun LyricsBackground(
     albumArtUri: Uri?,
@@ -171,21 +162,17 @@ fun LyricsBackground(
     }
 }
 
-/**
- * Насыщенный цвет обложки для фона/шапки: +30% сатурации и +30% яркости
- * (но не вымывая в пастель). Используется и фоном лирики, и скрим-шапкой.
- */
 fun boostedCoverColor(color: Color): Color {
     val hsv = FloatArray(3)
     android.graphics.Color.colorToHSV(color.toArgb(), hsv)
-    hsv[1] = (hsv[1] * 1.5f).coerceAtMost(1f)
-    hsv[2] = (hsv[2] * 1.35f).coerceIn(0.42f, 0.96f)   // выше потолок + нижний пол — сочнее, но не в пастель
+    hsv[1] = hsv[1].coerceAtMost(1f)
+    hsv[2] = (hsv[2] * 1.35f).coerceIn(0.42f, 0.96f)
     return Color(android.graphics.Color.HSVToColor(hsv))
 }
 
 @Composable
 private fun rememberSaturationBoost(color: Color, boost: Float): Color {
-    return androidx.compose.runtime.remember(color) {
+    return androidx.compose.runtime.remember(color, boost) {
         val hsv = FloatArray(3)
         android.graphics.Color.colorToHSV(color.toArgb(), hsv)
         hsv[1] = (hsv[1] * boost).coerceIn(0f, 1f)

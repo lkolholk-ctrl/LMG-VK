@@ -8,6 +8,11 @@ enum class LyricsSource(
     val title: String,
     val description: String,
 ) {
+    APPLE_TTML(
+        id = "apple_ttml",
+        title = "Apple TTML",
+        description = "Оригинальная послоговая синхронизация",
+    ),
     LYRICS_PLUS(
         id = "lyrics_plus",
         title = "LyricsPlus",
@@ -28,15 +33,24 @@ enum class LyricsSource(
 object LyricsSourceStore {
     private const val PREFS = "lyrics_sources"
     private const val KEY = "enabled"
+    private const val KEY_APPLE_TTML_ADDED = "apple_ttml_added"
 
     fun enabled(context: Context): Set<LyricsSource> {
-        val stored = context.applicationContext
+        val preferences = context.applicationContext
             .getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            .getStringSet(KEY, null)
+        val stored = preferences.getStringSet(KEY, null)
             ?: return LyricsSource.entries.toSet()
-        return stored.mapNotNullTo(linkedSetOf()) { id ->
+        val result = stored.mapNotNullTo(linkedSetOf()) { id ->
             LyricsSource.entries.firstOrNull { it.id == id }
         }
+        if (!preferences.getBoolean(KEY_APPLE_TTML_ADDED, false)) {
+            result += LyricsSource.APPLE_TTML
+            preferences.edit()
+                .putStringSet(KEY, result.mapTo(linkedSetOf()) { it.id })
+                .putBoolean(KEY_APPLE_TTML_ADDED, true)
+                .apply()
+        }
+        return result
     }
 
     fun setEnabled(context: Context, sources: Set<LyricsSource>) {
@@ -44,6 +58,7 @@ object LyricsSourceStore {
             .getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             .edit()
             .putStringSet(KEY, sources.mapTo(linkedSetOf()) { it.id })
+            .putBoolean(KEY_APPLE_TTML_ADDED, true)
             .apply()
         LyricsParser.trimCache()
     }
@@ -51,6 +66,7 @@ object LyricsSourceStore {
 
 fun String.lyricsSourceTitle(): String = when (this) {
     "vk" -> "VK Музыка"
+    LyricsSource.APPLE_TTML.id -> LyricsSource.APPLE_TTML.title
     LyricsSource.LYRICS_PLUS.id -> LyricsSource.LYRICS_PLUS.title
     LyricsSource.BETTER_LYRICS.id -> LyricsSource.BETTER_LYRICS.title
     LyricsSource.LRCLIB.id -> LyricsSource.LRCLIB.title

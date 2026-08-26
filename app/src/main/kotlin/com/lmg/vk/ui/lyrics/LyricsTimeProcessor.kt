@@ -32,10 +32,7 @@ class LyricsTimeProcessor(
     private val lyrics: LyricsParser.Lyrics
 ) {
     companion object {
-        /** Saturation boost. Снижен 2.5→1.6: центральный экстрактор
-         *  (AlbumColorExtractor.vivid) теперь сам отдаёт сочные цвета, прежний
-         *  агрессивный локальный буст поверх клипал лирику в белый. */
-        const val SATURATION_BOOST = 1.6f
+        const val SATURATION_BOOST = 1.07f
 
         /** Alpha для уже пропетых слов. */
         const val PAST_ALPHA = 0.5f
@@ -209,9 +206,12 @@ class LyricsTimeProcessor(
                       else (nextStartMs
                           ?: (start + (w.text.length * trackMsPerChar).coerceIn(500L, LAST_LINE_MS)))
             // длина слова + пробел после (кроме последнего) — закрас «течёт» и через пробел
-            val len = (w.text.length + if (i < words.size - 1) 1 else 0).coerceAtLeast(1)
-            spans.add(WordSpan(charPos, len, start, end.coerceAtLeast(start + 1)))
-            charPos += len
+            val spanStart = w.charStart.takeIf { it >= 0 } ?: charPos
+            val spanEnd = w.charEnd.takeIf { it > spanStart }
+                ?: (spanStart + w.text.length + if (i < words.size - 1) 1 else 0)
+            val len = (spanEnd - spanStart).coerceAtLeast(1)
+            spans.add(WordSpan(spanStart, len, start, end.coerceAtLeast(start + 1)))
+            charPos = spanEnd
         }
         val totalChars = charPos.coerceAtLeast(1)
         val lastEnd = spans.lastOrNull()?.endMs ?: (line.timeMs + LAST_LINE_MS)

@@ -65,6 +65,14 @@ object LyricsParser {
         val timeMs: Long,
         val text: String,
         val endMs: Long = 0L,
+        val charStart: Int = -1,
+        val charEnd: Int = -1,
+    )
+
+    data class LyricLayer(
+        val text: String,
+        val words: List<LyricWord> = emptyList(),
+        val language: String? = null,
     )
 
     data class LyricLine(
@@ -76,7 +84,15 @@ object LyricsParser {
          * Реальный конец строки, если он был размечен в LRC пустым таймкодом.
          * 0 — неизвестен, длительность придётся оценивать по длине текста.
          */
-        val endMs: Long = 0L
+        val endMs: Long = 0L,
+        val backgroundLayers: List<LyricLayer> = emptyList(),
+        val translations: Map<String, String> = emptyMap(),
+        val pronunciations: Map<String, String> = emptyMap(),
+        val agentId: String? = null,
+        val agentType: String? = null,
+        val agentName: String? = null,
+        val songPart: String? = null,
+        val lineKey: String? = null,
     )
 
     data class LyricInterval(
@@ -94,6 +110,9 @@ object LyricsParser {
         val interludes: List<LyricInterval> = emptyList(),
         val countdown: LyricInterval? = null,
         val credits: String? = null,
+        val language: String? = null,
+        val timing: String? = null,
+        val songwriters: List<String> = emptyList(),
     ) {
         /** Есть ли пословная разметка (караоке-подсветка вместо построчной). */
         val isWordLevel: Boolean get() = lines.any { it.words.isNotEmpty() }
@@ -177,7 +196,7 @@ object LyricsParser {
     ): Lyrics {
         val enabledSources = com.lmg.vk.engine.lyrics.LyricsSourceStore.enabled(context)
         if (isLocalTrack(uri, trackId)) {
-            val wordTimed = kotlinx.coroutines.withTimeoutOrNull(4_500L) {
+            val wordTimed = kotlinx.coroutines.withTimeoutOrNull(12_000L) {
                 com.lmg.vk.engine.lyrics.ExternalLyricsRepository.findWordTimed(
                     title = title,
                     artist = artist,
@@ -208,7 +227,7 @@ object LyricsParser {
                 null
             }
             val external = async {
-                kotlinx.coroutines.withTimeoutOrNull(4_500L) {
+                kotlinx.coroutines.withTimeoutOrNull(12_000L) {
                     com.lmg.vk.engine.lyrics.ExternalLyricsRepository.findWordTimed(
                         title = title,
                         artist = artist,

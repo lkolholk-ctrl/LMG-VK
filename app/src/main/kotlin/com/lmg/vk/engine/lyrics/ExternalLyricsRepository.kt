@@ -8,6 +8,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.selects.select
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.Call
 import okhttp3.Callback
 import okhttp3.HttpUrl.Companion.toHttpUrl
@@ -27,6 +28,7 @@ import kotlin.coroutines.resume
 
 object ExternalLyricsRepository {
     private const val BETTER_LYRICS_URL = "https://lyrics-api.boidu.dev/getLyrics"
+    private const val APPLE_TTML_PROXY = "http://50.117.3.97:8777"
     private val lyricsPlusMirrors = listOf(
         "https://lyricsplus.prjktla.my.id",
         "https://lyricsplus.atomix.one",
@@ -40,6 +42,11 @@ object ExternalLyricsRepository {
         .readTimeout(6, TimeUnit.SECONDS)
         .callTimeout(7, TimeUnit.SECONDS)
         .build()
+    private val appleClient = OkHttpClient.Builder()
+        .connectTimeout(4, TimeUnit.SECONDS)
+        .readTimeout(15, TimeUnit.SECONDS)
+        .callTimeout(18, TimeUnit.SECONDS)
+        .build()
 
     suspend fun findWordTimed(
         title: String,
@@ -49,6 +56,11 @@ object ExternalLyricsRepository {
     ): LyricsParser.Lyrics? = coroutineScope {
         if (title.isBlank() || artist.isBlank()) return@coroutineScope null
         val pending = mutableListOf<Pair<LyricsSource, Deferred<LyricsParser.Lyrics?>>>()
+        val appleTask = if (LyricsSource.APPLE_TTML in enabled) {
+            async(Dispatchers.IO) { fetchAppleTtml(title, artist, durationMs) }.also {
+                pending += LyricsSource.APPLE_TTML to it
+            }
+        } else null
         if (LyricsSource.LYRICS_PLUS in enabled) {
             pending += LyricsSource.LYRICS_PLUS to async(Dispatchers.IO) {
                 fetchLyricsPlus(title, artist, durationMs)
@@ -60,6 +72,18 @@ object ExternalLyricsRepository {
             }
         }
         var lineSynced: LyricsParser.Lyrics? = null
+        if (appleTask != null) {
+            val preferred = withTimeoutOrNull(1_500L) { appleTask.await() }
+            if (preferred?.isWordLevel == true) {
+                pending.filterNot { it.first == LyricsSource.APPLE_TTML }
+                    .forEach { it.second.cancel() }
+                return@coroutineScope preferred
+            }
+            if (preferred?.lines?.isNotEmpty() == true) lineSynced = preferred
+            if (appleTask.isCompleted) {
+                pending.removeAll { it.first == LyricsSource.APPLE_TTML }
+            }
+        }
         try {
             while (pending.isNotEmpty()) {
                 val completed = select<Pair<LyricsSource, LyricsParser.Lyrics?>> {
@@ -126,24 +150,60 @@ object ExternalLyricsRepository {
         val ttml = get(url.toString())?.let { body ->
             runCatching { JSONObject(body).optString("ttml").takeIf(String::isNotBlank) }.getOrNull()
         } ?: return@withContext null
-        parseTtml(ttml).takeIf { it.isNotEmpty() }?.let { lines ->
+        parseTtml(ttml)?.takeIf { it.lines.isNotEmpty() }?.let { parsed ->
             LyricsParser.Lyrics(
-                lines = lines,
+                lines = parsed.lines,
                 isSynced = true,
                 title = title,
                 artist = artist,
                 source = LyricsSource.BETTER_LYRICS.id,
+                language = parsed.language,
+                timing = parsed.timing,
+                songwriters = parsed.songwriters,
             )
         }
     }
 
-    private suspend fun get(url: String): String? = suspendCancellableCoroutine { continuation ->
+    private suspend fun fetchAppleTtml(
+        title: String,
+        artist: String,
+        durationMs: Long,
+    ): LyricsParser.Lyrics? = withContext(Dispatchers.IO) {
+        val url = "$APPLE_TTML_PROXY/v2/lyrics/ttml".toHttpUrl().newBuilder()
+            .addQueryParameter("title", title)
+            .addQueryParameter("artist", artist)
+            .addQueryParameter("lang", "all")
+            .apply {
+                if (durationMs > 0L) {
+                    addQueryParameter("duration", (durationMs / 1000L).toString())
+                }
+            }
+            .build()
+        val ttml = get(url.toString(), appleClient, "text/plain") ?: return@withContext null
+        val parsed = parseTtml(ttml)?.takeIf { it.lines.isNotEmpty() } ?: return@withContext null
+        LyricsParser.Lyrics(
+            lines = parsed.lines,
+            isSynced = true,
+            title = title,
+            artist = artist,
+            source = LyricsSource.APPLE_TTML.id,
+            language = parsed.language,
+            timing = parsed.timing,
+            songwriters = parsed.songwriters,
+        )
+    }
+
+    private suspend fun get(
+        url: String,
+        httpClient: OkHttpClient = client,
+        accept: String = "application/json",
+    ): String? = suspendCancellableCoroutine { continuation ->
         val request = Request.Builder()
             .url(url)
-            .header("Accept", "application/json")
+            .header("Accept", accept)
             .header("User-Agent", "LMG-VK/1.1")
             .build()
-        val call = client.newCall(request)
+        val call = httpClient.newCall(request)
         continuation.invokeOnCancellation { call.cancel() }
         call.enqueue(object : Callback {
             override fun onFailure(call: Call, error: IOException) {
@@ -167,9 +227,10 @@ object ExternalLyricsRepository {
                 val row = rows.optJSONObject(index) ?: continue
                 val start = row.optLongOrNull("time") ?: continue
                 val syllables = row.optJSONArray("syllabus")
-                val words = syllables?.let(::mergeSyllables).orEmpty()
-                val text = if (words.isNotEmpty()) words.joinToString(" ") { it.text }
-                else row.optString("text").trim()
+                val timedText = syllables?.let(::parseSyllables)
+                val words = timedText?.words.orEmpty()
+                val text = timedText?.text?.takeIf(String::isNotBlank)
+                    ?: row.optString("text").trim()
                 if (text.isBlank()) continue
                 val duration = row.optLongOrNull("duration") ?: 0L
                 add(
@@ -192,29 +253,32 @@ object ExternalLyricsRepository {
         )
     }.getOrNull()
 
-    private fun mergeSyllables(syllables: JSONArray): List<LyricsParser.LyricWord> {
-        val result = mutableListOf<LyricsParser.LyricWord>()
-        val text = StringBuilder()
-        var start = 0L
-        var end = 0L
+    private fun parseSyllables(syllables: JSONArray): TimedText {
+        val words = mutableListOf<LyricsParser.LyricWord>()
+        val output = StringBuilder()
         for (index in 0 until syllables.length()) {
             val syllable = syllables.optJSONObject(index) ?: continue
             val raw = syllable.optString("text")
             val time = syllable.optLongOrNull("time") ?: continue
-            if (raw.isBlank()) continue
-            if (text.isEmpty()) start = time
-            text.append(raw.trim())
-            end = time + (syllable.optLongOrNull("duration") ?: 0L)
-            if (raw.lastOrNull()?.isWhitespace() == true) {
-                result += LyricsParser.LyricWord(start, text.toString(), end)
-                text.clear()
+            if (raw.isEmpty()) continue
+            val leading = raw.indexOfFirst { !it.isWhitespace() }.let { if (it < 0) raw.length else it }
+            val trailing = raw.indexOfLast { !it.isWhitespace() }.let { if (it < 0) leading else it + 1 }
+            val charStart = output.length + leading
+            output.append(raw)
+            if (trailing > leading) {
+                words += LyricsParser.LyricWord(
+                    timeMs = time,
+                    text = raw.substring(leading, trailing),
+                    endMs = time + (syllable.optLongOrNull("duration") ?: 0L),
+                    charStart = charStart,
+                    charEnd = charStart + trailing - leading,
+                )
             }
         }
-        if (text.isNotEmpty()) result += LyricsParser.LyricWord(start, text.toString(), end)
-        return result
+        return trimTimedText(output.toString(), words)
     }
 
-    private fun parseTtml(ttml: String): List<LyricsParser.LyricLine> = runCatching {
+    private fun parseTtml(ttml: String): ParsedTtml? = runCatching {
         val factory = DocumentBuilderFactory.newInstance().apply {
             isNamespaceAware = false
             setFeature("http://apache.org/xml/features/disallow-doctype-decl", true)
@@ -222,57 +286,132 @@ object ExternalLyricsRepository {
             setFeature("http://xml.org/sax/features/external-parameter-entities", false)
         }
         val document = factory.newDocumentBuilder().parse(InputSource(StringReader(ttml)))
-        val paragraphs = document.getElementsByTagName("p")
-        buildList {
-            for (index in 0 until paragraphs.length) {
-                val paragraph = paragraphs.item(index) as? Element ?: continue
-                parseParagraph(paragraph)?.let(::add)
+        val agents = buildMap {
+            val nodes = document.getElementsByTagName("ttm:agent")
+            for (index in 0 until nodes.length) {
+                val element = nodes.item(index) as? Element ?: continue
+                val id = element.getAttribute("xml:id").takeIf(String::isNotBlank) ?: continue
+                val names = element.getElementsByTagName("ttm:name")
+                val name = (names.item(0) as? Element)?.textContent?.trim()?.takeIf(String::isNotBlank)
+                put(id, Agent(element.getAttribute("type").ifBlank { "none" }, name))
             }
-        }.sortedBy { it.timeMs }
-    }.getOrDefault(emptyList())
-
-    private fun parseParagraph(paragraph: Element): LyricsParser.LyricLine? {
-        if (paragraph.getAttribute("ttm:role") in skippedRoles) return null
-        val pieces = mutableListOf<Piece>()
-        collectTimedPieces(paragraph, pieces)
-        val words = mergeTimedPieces(pieces)
-        val paragraphStart = parseClock(paragraph.getAttribute("begin"))
-        if (words.isNotEmpty()) {
-            val start = paragraphStart ?: words.first().timeMs
-            return LyricsParser.LyricLine(
-                timeMs = minOf(start, words.first().timeMs),
-                text = words.joinToString(" ") { it.text },
-                words = words,
-                endMs = words.last().endMs,
-            )
         }
-        val text = paragraph.textContent?.trim().orEmpty()
-        val start = paragraphStart ?: return null
-        if (text.isBlank()) return null
+        val lines = buildList {
+            val divisions = document.getElementsByTagName("div")
+            if (divisions.length > 0) {
+                for (divisionIndex in 0 until divisions.length) {
+                    val division = divisions.item(divisionIndex) as? Element ?: continue
+                    val paragraphs = division.getElementsByTagName("p")
+                    for (lineIndex in 0 until paragraphs.length) {
+                        val paragraph = paragraphs.item(lineIndex) as? Element ?: continue
+                        parseParagraph(paragraph, division, agents)?.let(::add)
+                    }
+                }
+            } else {
+                val paragraphs = document.getElementsByTagName("p")
+                for (lineIndex in 0 until paragraphs.length) {
+                    val paragraph = paragraphs.item(lineIndex) as? Element ?: continue
+                    parseParagraph(paragraph, null, agents)?.let(::add)
+                }
+            }
+        }.distinctBy { it.lineKey ?: "${it.timeMs}:${it.text}" }.sortedBy { it.timeMs }
+        val writers = buildList {
+            val nodes = document.getElementsByTagName("songwriter")
+            for (index in 0 until nodes.length) {
+                nodes.item(index)?.textContent?.trim()?.takeIf(String::isNotBlank)?.let(::add)
+            }
+        }
+        val root = document.documentElement
+        ParsedTtml(
+            lines = lines,
+            language = root.getAttribute("xml:lang").takeIf(String::isNotBlank),
+            timing = root.getAttribute("itunes:timing").takeIf(String::isNotBlank),
+            songwriters = writers,
+        )
+    }.getOrNull()
+
+    private fun parseParagraph(
+        paragraph: Element,
+        division: Element?,
+        agents: Map<String, Agent>,
+    ): LyricsParser.LyricLine? {
+        val main = collectTimedText(paragraph, skippedRoles)
+        val paragraphStart = parseClock(paragraph.getAttribute("begin"))
+        val start = paragraphStart ?: main.words.firstOrNull()?.timeMs ?: return null
+        if (main.text.isBlank()) return null
+        val backgroundLayers = roleElements(paragraph, "x-bg").mapNotNull { element ->
+            val layer = collectTimedText(element, emptySet())
+            layer.takeIf { it.text.isNotBlank() }?.let {
+                LyricsParser.LyricLayer(
+                    text = it.text,
+                    words = it.words,
+                    language = element.getAttribute("xml:lang").takeIf(String::isNotBlank),
+                )
+            }
+        }
+        val translations = localizedTextLayers(paragraph, "x-translation")
+        val pronunciations = localizedTextLayers(paragraph, "x-roman")
+        val agentId = paragraph.getAttribute("ttm:agent").takeIf(String::isNotBlank)
+            ?: division?.getAttribute("ttm:agent")?.takeIf(String::isNotBlank)
+        val agent = agentId?.let(agents::get)
+        val end = parseClock(paragraph.getAttribute("end"))
+            ?: main.words.lastOrNull()?.endMs
+            ?: backgroundLayers.flatMap { it.words }.maxOfOrNull { it.endMs }
+            ?: 0L
         return LyricsParser.LyricLine(
             timeMs = start,
-            text = text,
-            endMs = parseClock(paragraph.getAttribute("end")) ?: 0L,
+            text = main.text,
+            words = main.words,
+            endMs = end,
+            backgroundLayers = backgroundLayers,
+            translations = translations,
+            pronunciations = pronunciations,
+            agentId = agentId,
+            agentType = agent?.type,
+            agentName = agent?.name,
+            songPart = division?.getAttribute("itunes:songPart")?.takeIf(String::isNotBlank),
+            lineKey = paragraph.getAttribute("itunes:key").takeIf(String::isNotBlank),
         )
     }
 
-    private fun collectTimedPieces(node: Node, output: MutableList<Piece>) {
-        val children = node.childNodes
-        for (index in 0 until children.length) {
-            val child = children.item(index)
-            if (child is Element) {
-                if (child.getAttribute("ttm:role") in skippedRoles) continue
-                val start = parseClock(child.getAttribute("begin"))
-                val end = parseClock(child.getAttribute("end"))
-                if (start != null && end != null && !hasTimedChild(child)) {
-                    output += Piece.Timed(child.textContent.orEmpty(), start, end)
-                } else {
-                    collectTimedPieces(child, output)
+    private fun collectTimedText(node: Node, excludedRoles: Set<String>): TimedText {
+        val output = StringBuilder()
+        val words = mutableListOf<LyricsParser.LyricWord>()
+        fun append(current: Node) {
+            val children = current.childNodes
+            for (index in 0 until children.length) {
+                val child = children.item(index)
+                if (child is Element) {
+                    if (child.getAttribute("ttm:role") in excludedRoles) continue
+                    val start = parseClock(child.getAttribute("begin"))
+                    val end = parseClock(child.getAttribute("end"))
+                    if (start != null && end != null && !hasTimedChild(child)) {
+                        val raw = child.textContent.orEmpty()
+                        val leading = raw.indexOfFirst { !it.isWhitespace() }
+                            .let { if (it < 0) raw.length else it }
+                        val trailing = raw.indexOfLast { !it.isWhitespace() }
+                            .let { if (it < 0) leading else it + 1 }
+                        val charStart = output.length + leading
+                        output.append(raw)
+                        if (trailing > leading) {
+                            words += LyricsParser.LyricWord(
+                                timeMs = start,
+                                text = raw.substring(leading, trailing),
+                                endMs = end,
+                                charStart = charStart,
+                                charEnd = charStart + trailing - leading,
+                            )
+                        }
+                    } else {
+                        append(child)
+                    }
+                } else if (child.nodeType == Node.TEXT_NODE) {
+                    output.append(child.textContent.orEmpty())
                 }
-            } else if (child.nodeType == Node.TEXT_NODE && child.textContent.isNotEmpty()) {
-                output += Piece.Text(child.textContent)
             }
         }
+        append(node)
+        return trimTimedText(output.toString(), words)
     }
 
     private fun hasTimedChild(element: Element): Boolean {
@@ -284,35 +423,20 @@ object ExternalLyricsRepository {
         return false
     }
 
-    private fun mergeTimedPieces(pieces: List<Piece>): List<LyricsParser.LyricWord> {
-        val result = mutableListOf<LyricsParser.LyricWord>()
-        val text = StringBuilder()
-        var start = 0L
-        var end = 0L
-        var timed = false
-        fun flush() {
-            val word = text.toString().trim()
-            if (word.isNotEmpty() && timed) result += LyricsParser.LyricWord(start, word, end)
-            text.clear()
-            timed = false
+    private fun roleElements(paragraph: Element, role: String): List<Element> = buildList {
+        val spans = paragraph.getElementsByTagName("span")
+        for (index in 0 until spans.length) {
+            val element = spans.item(index) as? Element ?: continue
+            if (element.getAttribute("ttm:role") == role) add(element)
         }
-        pieces.forEach { piece ->
-            when (piece) {
-                is Piece.Text -> if (piece.value.isBlank()) flush() else if (timed) text.append(piece.value)
-                is Piece.Timed -> {
-                    if (piece.value.isBlank()) return@forEach
-                    if (piece.value.first().isWhitespace()) flush()
-                    if (text.isEmpty()) start = piece.startMs
-                    text.append(piece.value.trim())
-                    end = piece.endMs
-                    timed = true
-                    if (piece.value.last().isWhitespace()) flush()
-                }
-            }
-        }
-        if (text.isNotEmpty()) flush()
-        return result
     }
+
+    private fun localizedTextLayers(paragraph: Element, role: String): Map<String, String> =
+        roleElements(paragraph, role).mapNotNull { element ->
+            val text = element.textContent?.trim()?.takeIf(String::isNotBlank) ?: return@mapNotNull null
+            val language = element.getAttribute("xml:lang").ifBlank { "und" }
+            language to text
+        }.toMap()
 
     private fun parseClock(value: String?): Long? {
         val raw = value?.trim()?.takeIf(String::isNotEmpty) ?: return null
@@ -338,10 +462,39 @@ object ExternalLyricsRepository {
         return optLong(name)
     }
 
+    private fun trimTimedText(
+        raw: String,
+        words: List<LyricsParser.LyricWord>,
+    ): TimedText {
+        val first = raw.indexOfFirst { !it.isWhitespace() }.let { if (it < 0) raw.length else it }
+        val last = raw.indexOfLast { !it.isWhitespace() }.let { if (it < 0) first else it + 1 }
+        if (last <= first) return TimedText("", emptyList())
+        val text = raw.substring(first, last)
+        val adjusted = words.mapNotNull { word ->
+            val start = (word.charStart - first).coerceAtLeast(0)
+            val end = (word.charEnd - first).coerceAtMost(text.length)
+            if (end <= start) null else word.copy(
+                text = text.substring(start, end),
+                charStart = start,
+                charEnd = end,
+            )
+        }
+        return TimedText(text, adjusted)
+    }
+
     private val skippedRoles = setOf("x-translation", "x-roman", "x-bg")
 
-    private sealed interface Piece {
-        data class Text(val value: String) : Piece
-        data class Timed(val value: String, val startMs: Long, val endMs: Long) : Piece
-    }
+    private data class TimedText(
+        val text: String,
+        val words: List<LyricsParser.LyricWord>,
+    )
+
+    private data class ParsedTtml(
+        val lines: List<LyricsParser.LyricLine>,
+        val language: String?,
+        val timing: String?,
+        val songwriters: List<String>,
+    )
+
+    private data class Agent(val type: String, val name: String?)
 }
