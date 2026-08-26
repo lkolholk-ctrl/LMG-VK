@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -67,7 +68,9 @@ import androidx.compose.ui.unit.sp
 import com.lmg.vk.R
 import com.lmg.vk.ui.icons.LmgDrawables
 import com.lmg.vk.ui.icons.lmgVector
+import androidx.compose.foundation.border
 import com.lmg.vk.engine.PlaybackBackend
+import com.lmg.vk.ui.lyrics.AppleBackdrop
 import com.lmg.vk.engine.PlayerController
 import com.lmg.vk.engine.Track
 import com.lmg.vk.ui.theme.LiquidMetrics
@@ -108,7 +111,16 @@ fun QueueSheet(
 ) {
     val context = LocalContext.current
     val colors = LiquidTheme.colors
-    val isDark = colors.isDark
+    var controlsVisible by remember { mutableStateOf(false) }
+    val playerPlaying by PlayerController.isPlaying.collectAsState()
+    val playerPosition by PlayerController.currentPositionMs.collectAsState()
+    val playerDuration by PlayerController.durationMs.collectAsState()
+    LaunchedEffect(controlsVisible, playerPlaying) {
+        if (controlsVisible && playerPlaying) {
+            kotlinx.coroutines.delay(3000)
+            controlsVisible = false
+        }
+    }
     // Локальное воспроизведение через JUCE идёт мимо очереди ExoPlayer — там
     // переставлять и удалять нечего, поэтому жесты в этом режиме не навешиваем.
     val backend by PlayerController.playbackBackend.collectAsState()
@@ -142,30 +154,16 @@ fun QueueSheet(
         modifier = modifier
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
-            // Dynamic background from album art (в split НЕ рисуем — фон плеера
-            // уже под нами, свой давал бы шов и другой оттенок).
             if (!splitMode) {
-                if (albumColors != null) {
-                    AnimatedPlayerBackground(
-                        albumColors = albumColors
-                    )
-                } else {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(Color(0xFF1C1C2E))
-                    )
-                }
+                AppleBackdrop(
+                    albumArtUri = albumArtUri,
+                    coverUrl = coverUrl,
+                    audioFileUri = audioFileUri,
+                    albumId = albumId,
+                    albumColors = albumColors,
+                    intense = true
+                )
             }
-
-            // Затемнение для читаемости: плоский Black α0.65 «гасил» весь цвет фона
-            // в чёрную простыню, поэтому градиент — сверху прозрачнее (цвет обложки
-            // виден), книзу плотнее (под текстом). Плотность зависит от темы.
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(LiquidSurfaces.queueScrim(isDark, splitMode))
-            )
 
             Column(
                 modifier = Modifier
@@ -177,22 +175,15 @@ fun QueueSheet(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = LiquidMetrics.QueuePadding, vertical = 12.dp),
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = stringResource(R.string.queue_title),
-                        color = LiquidSurfaces.onHeaderPrimary,
-                        fontSize = 22.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        fontFamily = VkSansDisplay,
-                        modifier = Modifier.weight(1f)
-                    )
+                    Spacer(Modifier.weight(1f))
                     Box(
                         modifier = Modifier
                             .size(44.dp)
                             .clip(RoundedCornerShape(50))
-                            .background(Color.White.copy(alpha = 0.10f))
+                            .background(Color.White.copy(alpha = 0.18f))
                             .clickable(
                                 interactionSource = remember { MutableInteractionSource() },
                                 indication = null,
@@ -203,8 +194,8 @@ fun QueueSheet(
                         Icon(
                             imageVector = com.lmg.vk.ui.icons.LmgGlyphs.CancelOutline28,
                             contentDescription = null,
-                            tint = Color.White,
-                            modifier = Modifier.size(22.dp)
+                            tint = Color.White.copy(alpha = 0.90f),
+                            modifier = Modifier.size(20.dp)
                         )
                     }
                 }
@@ -214,8 +205,8 @@ fun QueueSheet(
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = LiquidMetrics.QueuePadding)
-                            .padding(bottom = 12.dp)
+                            .padding(horizontal = 24.dp)
+                            .padding(bottom = 10.dp)
                     ) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -223,8 +214,9 @@ fun QueueSheet(
                         ) {
                             Box(
                                 modifier = Modifier
-                                    .size(LiquidMetrics.QueueNowPlayingCover)
-                                    .clip(RoundedCornerShape(8.dp))
+                                    .size(60.dp)
+                                    .clip(RoundedCornerShape(5.dp))
+                                    .border(0.5.dp, Color(0x1A000000), RoundedCornerShape(5.dp))
                             ) {
                                 AlbumArtImage(
                                     uri = currentTrack.albumArtUri,
@@ -235,32 +227,35 @@ fun QueueSheet(
                                     contentScale = ContentScale.Crop
                                 )
                             }
-                            Spacer(modifier = Modifier.width(14.dp))
+                            Spacer(modifier = Modifier.width(12.dp))
                             Column(
                                 modifier = Modifier.weight(1f)
                             ) {
                                 Text(
                                     text = currentTrack.title,
-                                    color = Color.White,
-                                    fontSize = 16.sp,
+                                    color = Color.White.copy(alpha = 0.94f),
+                                    fontSize = 17.sp,
                                     fontWeight = FontWeight.SemiBold,
+                                    fontFamily = VkSansDisplay,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
                                 )
                                 Spacer(modifier = Modifier.height(2.dp))
                                 Text(
                                     text = currentTrack.artist,
-                                    color = Color.White.copy(alpha = 0.60f),
-                                    fontSize = 14.sp,
+                                    color = Color.White.copy(alpha = 0.45f),
+                                    fontSize = 13.sp,
+                                    fontFamily = VkSansDisplay,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
                                 )
                             }
                             Spacer(modifier = Modifier.width(12.dp))
-                            // Heart (Favorite) button
                             Box(
                                 modifier = Modifier
                                     .size(44.dp)
+                                    .clip(RoundedCornerShape(50))
+                                    .background(Color.White.copy(alpha = 0.18f))
                                     .pressScale {
                                         scope.launch {
                                             libraryRepo.toggleFavorite(currentTrack, "player")
@@ -272,9 +267,9 @@ fun QueueSheet(
                                     imageVector = if (isFavorite) com.lmg.vk.ui.icons.LmgGlyphs.Favorite28
                                     else com.lmg.vk.ui.icons.LmgGlyphs.FavoriteOutline28,
                                     contentDescription = null,
-                                    tint = if (isFavorite) colors.accentRed
-                                    else LiquidSurfaces.onHeaderSecondary,
-                                    modifier = Modifier.size(24.dp)
+                                    tint = if (isFavorite) Color.White.copy(alpha = 0.94f)
+                                    else Color.White.copy(alpha = 0.90f),
+                                    modifier = Modifier.size(20.dp)
                                 )
                             }
                         }
@@ -376,7 +371,6 @@ fun QueueSheet(
                                 draggingKey = draggingKey,
                                 dragOffsetY = dragOffsetY,
                                 editable = queueEditable,
-                                accent = colors.accentRed,
                                 onDragStateChange = { key, offset ->
                                     draggingKey = key
                                     dragOffsetY.value = offset
@@ -430,10 +424,43 @@ fun QueueSheet(
                         }
                     }
 
-                    item { Spacer(modifier = Modifier.height(16.dp)) }
+                    item { Spacer(modifier = Modifier.height(160.dp)) }
                 }
                 } // Box (clickable queue area)
 
+            }
+
+            if (!splitMode) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth()
+                        .fillMaxHeight(0.425f)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) { if (!controlsVisible) controlsVisible = true }
+                )
+                AnimatedVisibility(
+                    visible = controlsVisible,
+                    enter = fadeIn(tween(500)),
+                    exit = fadeOut(tween(500)),
+                    modifier = Modifier.align(Alignment.BottomCenter)
+                ) {
+                    AppleControlsBar(
+                        positionMs = playerPosition,
+                        durationMs = playerDuration,
+                        isPlaying = playerPlaying,
+                        activeTab = AppleControlsTab.QUEUE,
+                        onSeek = { PlayerController.seekTo(it) },
+                        onTogglePlay = { PlayerController.togglePlayPause(context) },
+                        onSkipNext = { PlayerController.skipNext(context) },
+                        onSkipPrevious = { PlayerController.skipPrevious(context) },
+                        onLyricsTab = onDismiss,
+                        onQueueTab = { controlsVisible = false },
+                        modifier = Modifier.windowInsetsPadding(WindowInsets.navigationBars)
+                    )
+                }
             }
 
             // Капсула отмены. У Apple удаление из очереди не отменить вовсе —
@@ -500,29 +527,30 @@ private fun QueueSectionHeader(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(LiquidSurfaces.queueHeaderFill)
-            .padding(horizontal = LiquidMetrics.QueuePadding, vertical = 8.dp),
+            .padding(horizontal = 24.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
             text = title,
-            color = LiquidSurfaces.onHeaderPrimary.copy(alpha = 0.75f),
-            fontSize = 13.sp,
-            fontWeight = FontWeight.Bold,
+            color = Color.White.copy(alpha = 0.94f),
+            fontSize = 17.sp,
+            fontWeight = FontWeight.SemiBold,
+            fontFamily = VkSansDisplay,
             modifier = Modifier.weight(1f)
         )
         if (onClear != null) {
             Spacer(Modifier.width(10.dp))
             Box(
                 modifier = Modifier
-                    .clip(LiquidMetrics.Pill)
+                    .clip(RoundedCornerShape(50))
                     .clickable(onClick = onClear)
-                    .padding(horizontal = 10.dp, vertical = 3.dp)
+                    .padding(horizontal = 8.dp, vertical = 4.dp)
             ) {
                 Text(
                     text = stringResource(R.string.action_clear),
-                    color = LiquidSurfaces.onHeaderPrimary.copy(alpha = 0.60f),
-                    fontSize = 12.sp
+                    color = Color.White.copy(alpha = 0.45f),
+                    fontSize = 13.sp,
+                    fontFamily = VkSansDisplay
                 )
             }
         }
@@ -545,7 +573,6 @@ private fun DraggableQueueRow(
     draggingKey: String?,
     dragOffsetY: State<Float>,
     editable: Boolean,
-    accent: Color,
     onDragStateChange: (String?, Float) -> Unit,
     absoluteIndex: (Int) -> Int,
     onRemoved: (Track, Int) -> Unit,
@@ -596,8 +623,8 @@ private fun DraggableQueueRow(
                 .graphicsLayer {
                     alpha = (abs(removeOffset.value) / removeThresholdPx).coerceIn(0f, 1f)
                 }
-                .background(LiquidSurfaces.queueDestructive(accent))
-                .padding(horizontal = LiquidMetrics.QueuePadding)
+                .background(Color(0xFFFA233B))
+                .padding(horizontal = 24.dp)
         ) {
             Icon(
                 imageVector = lmgVector(LmgDrawables.ListDeleteOutline20),
@@ -605,7 +632,7 @@ private fun DraggableQueueRow(
                 tint = Color.White,
                 modifier = Modifier
                     .align(Alignment.CenterStart)
-                    .size(22.dp)
+                    .size(24.dp)
                     .graphicsLayer { alpha = if (removeOffset.value > 0f) 1f else 0f }
             )
             Icon(
@@ -614,7 +641,7 @@ private fun DraggableQueueRow(
                 tint = Color.White,
                 modifier = Modifier
                     .align(Alignment.CenterEnd)
-                    .size(22.dp)
+                    .size(24.dp)
                     .graphicsLayer { alpha = if (removeOffset.value < 0f) 1f else 0f }
             )
         }
@@ -674,13 +701,14 @@ private fun DraggableQueueRow(
                     }
                 )
             )
-            .padding(horizontal = LiquidMetrics.QueuePadding),
+            .padding(start = 32.dp, end = 16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
             modifier = Modifier
-                .size(LiquidMetrics.QueueRowCover)
-                .clip(RoundedCornerShape(6.dp))
+                .size(48.dp)
+                .clip(RoundedCornerShape(5.dp))
+                .border(0.5.dp, Color(0x1A000000), RoundedCornerShape(5.dp))
         ) {
             AlbumArtImage(
                 uri = track.albumArtUri,
@@ -692,22 +720,24 @@ private fun DraggableQueueRow(
             )
         }
 
-        Spacer(modifier = Modifier.width(12.dp))
+        Spacer(modifier = Modifier.width(16.dp))
 
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = track.title,
-                color = Color.White,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.SemiBold,
+                color = Color.White.copy(alpha = 0.94f),
+                fontSize = 17.sp,
+                fontWeight = FontWeight.Medium,
+                fontFamily = VkSansDisplay,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
             Spacer(modifier = Modifier.height(2.dp))
             Text(
                 text = track.artist,
-                color = Color.White.copy(alpha = 0.70f),
-                fontSize = 12.sp,
+                color = Color.White.copy(alpha = 0.45f),
+                fontSize = 13.sp,
+                fontFamily = VkSansDisplay,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
@@ -762,8 +792,10 @@ private fun DraggableQueueRow(
             Icon(
                 imageVector = lmgVector(LmgDrawables.Reorder24),
                 contentDescription = null,
-                tint = LiquidSurfaces.onHeaderPrimary.copy(alpha = if (editable) 0.55f else 0f),
-                modifier = Modifier.size(LiquidMetrics.QueueHandleIcon)
+                tint = Color.White.copy(alpha = if (editable) 0.18f else 0f),
+                modifier = Modifier
+                    .size(LiquidMetrics.QueueHandleIcon)
+                    .padding(end = 16.dp)
             )
         }
     }

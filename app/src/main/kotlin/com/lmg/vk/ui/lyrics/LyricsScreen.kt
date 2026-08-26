@@ -4,7 +4,13 @@ import android.net.Uri
 import android.provider.Settings
 import android.view.animation.PathInterpolator
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.FastOutLinearInEasing
+import androidx.compose.animation.core.LinearOutSlowInEasing
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.runtime.collectAsState
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
@@ -68,7 +74,10 @@ import com.lmg.vk.R
 import com.lmg.vk.engine.LyricsFxController
 import com.lmg.vk.engine.LyricsParser
 import com.lmg.vk.engine.LyricsSyncStore
+import androidx.compose.foundation.border
 import com.lmg.vk.engine.PlayerController
+import com.lmg.vk.ui.player.AppleControlsBar
+import com.lmg.vk.ui.player.AppleControlsTab
 import com.lmg.vk.engine.lyrics.LyricsSource
 import com.lmg.vk.engine.lyrics.LyricsSourceStore
 import com.lmg.vk.engine.lyrics.LyricsDisplayStore
@@ -135,6 +144,7 @@ fun LyricsScreen(
     onFavoriteClick: () -> Unit = {},
     onMoreClick: () -> Unit = {},
     onRequestControls: () -> Unit = {},
+    onOpenQueue: () -> Unit = {},
     onClose: () -> Unit = {},
     // Split-режим (альбомная ориентация, правая половина): СВОЙ фон не рисуем —
     // общий фон плеера уже под нами (иначе жёсткий вертикальный шов-«полоса»).
@@ -142,6 +152,17 @@ fun LyricsScreen(
 ) {
     val context = LocalContext.current
     val resolvedColors = albumColors ?: rememberAlbumColors(albumArtUri, coverUrl)
+
+    var controlsVisible by remember { mutableStateOf(false) }
+    val playerPlaying by PlayerController.isPlaying.collectAsState()
+    val playerPosition by PlayerController.currentPositionMs.collectAsState()
+    val playerDuration by PlayerController.durationMs.collectAsState()
+    LaunchedEffect(controlsVisible, playerPlaying) {
+        if (controlsVisible && playerPlaying) {
+            delay(3000)
+            controlsVisible = false
+        }
+    }
 
     val resolvedTrackId = remember(trackId, audioFileUri) {
         trackId ?: com.lmg.vk.engine.VkAudioIdentity.trackIdFromUri(audioFileUri).orEmpty()
@@ -278,7 +299,7 @@ fun LyricsScreen(
     // Доступная ширина строки лирики. В split (альбом/планшет) лирика живёт в
     // ПРАВОЙ половине — считаем от неё, иначе текст рассчитан на полный экран и
     // обрезается справа. Плюс левый отступ меньше (текст ближе к обложке-шву).
-    val lineHPadding = if (splitMode) 16.dp else 24.dp
+    val lineHPadding = if (splitMode) 16.dp else 32.dp
     val lyricColumnWidthDp = if (splitMode) (configuration.screenWidthDp * 0.5f) else configuration.screenWidthDp.toFloat()
     val lineMaxWidthPx = with(density) { (lyricColumnWidthDp.dp - lineHPadding * 2).toPx().toInt() }
     // В узкой split-колонке шрифт строк меньше, чтобы влезал без обрезки.
@@ -355,21 +376,23 @@ fun LyricsScreen(
     // выбираем по яркости фона. Раньше он был белым намертво, и на светлой
     // обложке (фон поднимается почти до максимальной яркости) выходило белое по
     // белому — экран лирики про светлую тему не знал вовсе.
-    val lyricInk = remember(resolvedColors.vibrant) {
+    val lyricInk = if (splitMode) remember(resolvedColors.vibrant) {
         if (boostedCoverColor(resolvedColors.vibrant).luminance() > 0.55f) {
             Color(0xFF101014)
         } else {
             Color.White
         }
-    }
+    } else Color.White
 
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = onRequestControls
+            .then(
+                if (splitMode) Modifier.clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = onRequestControls
+                ) else Modifier
             )
     ) {
         // ═══ Background layers ═══
@@ -444,16 +467,21 @@ fun LyricsScreen(
 
                         // Waiting dots before first line starts
                         if (lyrics.isSynced && currentLineIndex < 0 && isInterlude) {
-                            item {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(vertical = 40.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    WaitingDots(dotColor = lyricInk, progress = interludeProgress)
-                                }
-                            }
+                         item {
+                             Box(
+                                 modifier = Modifier
+                                     .fillMaxWidth()
+                                     .padding(start = 32.dp, top = 40.dp, bottom = 40.dp),
+                                 contentAlignment = Alignment.CenterStart
+                             ) {
+                                 WaitingDots(
+                                     dotColor = Color.White.copy(alpha = 0.45f),
+                                     dotSize = 7.dp,
+                                     spacing = 10.dp,
+                                     progress = interludeProgress
+                                 )
+                             }
+                         }
                         }
 
                         itemsIndexed(lyrics.lines) { index, line ->
@@ -725,11 +753,7 @@ fun LyricsScreen(
                 }
             }
 
-            // ── Градиент-скрим под заголовком ──
-            // Плотный от самого верха (под статусбаром) → прозрачный вниз.
-            // Цвет — тот же НАСЫЩЕННЫЙ цвет обложки, что и фон лирики
-            // (boostedCoverColor от vibrant), никакого серого/чёрного.
-            val headerScrimColor = boostedCoverColor(resolvedColors.vibrant)
+            // ── Градиент-скрим под заголовком (Apple: чёрная тень сверху) ──
             if (!splitMode) Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -738,27 +762,22 @@ fun LyricsScreen(
                     .background(
                         Brush.verticalGradient(
                             colors = listOf(
-                                headerScrimColor.copy(alpha = 0.92f),
-                                headerScrimColor.copy(alpha = 0.65f),
+                                Color.Black.copy(alpha = 0.22f),
                                 Color.Transparent
                             )
                         )
                     )
             )
 
-            Spacer(
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .padding(top = 8.dp)
-                    .size(width = 46.dp, height = 5.dp)
-                    .clip(RoundedCornerShape(50))
-                    .background(lyricInk.copy(alpha = 0.35f)),
-            )
-
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 24.dp, vertical = 34.dp),
+                    .padding(
+                        start = if (splitMode) 24.dp else 32.dp,
+                        end = 16.dp,
+                        top = 24.dp,
+                        bottom = 10.dp
+                    ),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 AlbumArtImage(
@@ -768,25 +787,26 @@ fun LyricsScreen(
                     coverUrl = coverUrl,
                     contentDescription = null,
                     modifier = Modifier
-                        .size(if (splitMode) 42.dp else 54.dp)
-                        .clip(RoundedCornerShape(10.dp)),
+                        .size(if (splitMode) 42.dp else 60.dp)
+                        .clip(RoundedCornerShape(5.dp))
+                        .border(0.5.dp, Color(0x1A000000), RoundedCornerShape(5.dp)),
                     contentScale = ContentScale.Crop,
                 )
-                Spacer(Modifier.width(14.dp))
+                Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
                     Text(
                         text = trackTitle,
-                        color = lyricInk,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
+                        color = lyricInk.copy(alpha = 0.94f),
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.SemiBold,
                         maxLines = 1,
                     )
                     Spacer(Modifier.height(2.dp))
                     Text(
                         text = trackArtist,
-                        color = lyricInk.copy(alpha = 0.62f),
+                        color = lyricInk.copy(alpha = 0.45f),
                         fontSize = 14.sp,
-                        fontWeight = FontWeight.SemiBold,
+                        fontWeight = FontWeight.Medium,
                         maxLines = 1,
                     )
                 }
@@ -796,103 +816,51 @@ fun LyricsScreen(
                             imageVector = if (isFavorite) com.lmg.vk.ui.icons.LmgGlyphs.Favorite28
                             else com.lmg.vk.ui.icons.LmgGlyphs.FavoriteOutline28,
                             contentDescription = stringResource(R.string.action_like),
-                            tint = lyricInk,
-                            modifier = Modifier.size(23.dp),
+                            tint = lyricInk.copy(alpha = 0.90f),
+                            modifier = Modifier.size(20.dp),
                         )
                     }
-                    Spacer(Modifier.width(10.dp))
+                    Spacer(Modifier.width(6.dp))
                     LyricsHeaderButton(onClick = onMoreClick) {
                         Icon(
                             imageVector = com.lmg.vk.ui.icons.LmgGlyphs.MoreHorizontal28,
                             contentDescription = stringResource(R.string.track_actions),
-                            tint = lyricInk,
-                            modifier = Modifier.size(24.dp),
+                            tint = lyricInk.copy(alpha = 0.90f),
+                            modifier = Modifier.size(20.dp),
                         )
                     }
                 }
             }
 
-            // ── Подстройка синхры: бейдж SYNC в правом верхнем углу ──
-            // Тап раскрывает чипы −0.5s / +0.5s / Reset; сдвиг хранится на трек.
-            if (lyrics.isSynced) {
-                // Авто-скрытие чипов через 6с бездействия.
-                LaunchedEffect(syncUiOpen, syncOffsetMs) {
-                    if (syncUiOpen) {
-                        delay(6000)
-                        syncUiOpen = false
-                    }
-                }
-                Column(
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(top = 100.dp, end = 12.dp),
-                    horizontalAlignment = Alignment.End
-                ) {
-                    val badgeActive = syncUiOpen || syncOffsetMs != 0L
-                    Row(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(Color.Black.copy(alpha = 0.35f))
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null
-                            ) { syncUiOpen = !syncUiOpen }
-                            .padding(horizontal = 10.dp, vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            text = if (syncOffsetMs == 0L) stringResource(R.string.sync_chip)
-                                   else stringResource(R.string.sync_chip_offset, syncOffsetMs / 1000f),
-                            color = Color.White.copy(alpha = if (badgeActive) 0.95f else 0.45f),
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.SemiBold,
-                        )
-                        Spacer(Modifier.width(3.dp))
-                        Icon(
-                            imageVector = com.lmg.vk.ui.icons.LmgGlyphs.ChevronDownOutline28,
-                            contentDescription = null,
-                            tint = Color.White.copy(alpha = if (badgeActive) 0.95f else 0.45f),
-                            modifier = Modifier.size(13.dp),
-                        )
-                    }
-                    if (syncUiOpen) {
-                        Spacer(Modifier.height(8.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            SyncChip("−0.5s") { adjustSync(-500L) }
-                            SyncChip("+0.5s") { adjustSync(+500L) }
-                            SyncChip(stringResource(R.string.action_reset)) { adjustSync(-syncOffsetMs) }
-                        }
-                    }
-                }
-            }
-
-            if (lyrics.lines.isNotEmpty() && !splitMode) {
-                Column(
+            if (!splitMode && lyrics.lines.isNotEmpty()) {
+                Box(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .fillMaxWidth()
-                        .padding(horizontal = 24.dp, vertical = 12.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
+                        .fillMaxHeight(0.425f)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) { if (!controlsVisible) controlsVisible = true }
+                )
+                AnimatedVisibility(
+                    visible = controlsVisible,
+                    enter = fadeIn(tween(500, easing = LinearOutSlowInEasing)),
+                    exit = fadeOut(tween(500, easing = FastOutLinearInEasing)),
+                    modifier = Modifier.align(Alignment.BottomCenter)
                 ) {
-                    LyricsProgress(
-                        positionMs = currentPositionMs,
-                        durationMs = trackDurationMs,
-                        color = lyricInk,
-                    )
-                    Spacer(Modifier.height(14.dp))
-                    Text(
-                        text = stringResource(R.string.lyrics_by_source, lyrics.source.lyricsSourceTitle()),
-                        color = lyricInk.copy(alpha = 0.86f),
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(50))
-                            .background(Color.Black.copy(alpha = 0.24f))
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null,
-                            ) { showSources = true }
-                            .padding(horizontal = 18.dp, vertical = 10.dp),
+                    AppleControlsBar(
+                        positionMs = playerPosition,
+                        durationMs = playerDuration,
+                        isPlaying = playerPlaying,
+                        activeTab = AppleControlsTab.LYRICS,
+                        onSeek = { PlayerController.seekTo(it) },
+                        onTogglePlay = { PlayerController.togglePlayPause(context) },
+                        onSkipNext = { PlayerController.skipNext(context) },
+                        onSkipPrevious = { PlayerController.skipPrevious(context) },
+                        onLyricsTab = { controlsVisible = false },
+                        onQueueTab = onOpenQueue,
+                        modifier = Modifier.windowInsetsPadding(WindowInsets.navigationBars)
                     )
                 }
             }
@@ -944,9 +912,9 @@ private fun LyricsHeaderButton(
 ) {
     Box(
         modifier = Modifier
-            .size(46.dp)
+            .size(44.dp)
             .clip(RoundedCornerShape(50))
-            .background(Color.Black.copy(alpha = 0.20f))
+            .background(Color.White.copy(alpha = 0.18f))
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
@@ -1677,7 +1645,7 @@ private fun DrawScope.drawAppleWordMotion(
             val charScale = 1f + (emphasis.scale - 1f) * wave
             val charBase = layout.getLineBaseline(layout.getLineForOffset(offset))
             withTransform({
-                translate(left = cursorX, top = 0f)
+                translate(left = cursorX - box.left, top = 0f)
                 scale(
                     scaleX = charScale,
                     scaleY = charScale,
