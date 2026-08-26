@@ -591,7 +591,6 @@ fun FullPlayer(
                 },
                 onMoreClick = { showTrackMenu = true },
                 onRequestControls = { controlsVisible = true },
-                onOpenQueue = { showQueue = true },
                 onClose = { showLyrics = false },
                 splitMode = isLandscape
             )
