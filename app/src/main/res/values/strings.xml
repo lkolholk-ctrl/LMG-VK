@@ -488,6 +488,9 @@
     <string name="delete_download_body">Удалить этот трек с устройства? Для повторного прослушивания понадобится интернет.</string>
 
     <string name="queue_title">Очередь</string>
+    <string name="queue_autoplay">Автовоспроизведение</string>
+    <string name="queue_drag_reorder">Изменить порядок</string>
+    <string name="queue_now_playing">Сейчас играет</string>
     <string name="up_next_section">Далее</string>
     <string name="repeat_on_hint">Повтор включён — играет по кругу</string>
     <string name="local_track_hint">Локальный трек играет отдельно</string>
