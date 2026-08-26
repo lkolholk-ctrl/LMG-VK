@@ -114,7 +114,6 @@ import com.lmg.vk.ui.glass.ResolvedArtworkSource
 import com.lmg.vk.ui.glass.pressScale
 import com.lmg.vk.ui.glass.rememberAlbumColors
 import com.lmg.vk.ui.liquid.LiquidSlider
-import com.lmg.vk.ui.lyrics.AppleBackdrop
 import com.lmg.vk.ui.lyrics.LyricsScreen
 import com.lmg.vk.ui.theme.VkSansDisplay
 import kotlinx.coroutines.launch
@@ -355,13 +354,8 @@ fun FullPlayer(
             if (isVideoClip) {
                 Box(modifier = Modifier.fillMaxSize().background(Color.Black))
             } else {
-                AppleBackdrop(
-                    albumArtUri = albumArtUri,
-                    coverUrl = resolvedCoverUrl,
-                    audioFileUri = audioFileUri,
-                    albumId = albumId,
+                AnimatedPlayerBackground(
                     albumColors = albumColors,
-                    intense = true,
                     modifier = Modifier.fillMaxSize()
                 )
             }

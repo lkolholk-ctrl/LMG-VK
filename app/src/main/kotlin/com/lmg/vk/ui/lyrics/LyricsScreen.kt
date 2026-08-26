@@ -97,25 +97,11 @@ import kotlin.math.abs
 import java.util.Locale
 
 
-/** Насколько высоко поднимать активную строку: доля высоты экрана от верха (0.25–0.35 — верхняя треть). */
-private const val ACTIVE_LINE_TOP_BIAS = 0.28f
-
-/**
- * Доля высоты экрана сверху, в которой тап по строке перематывает трек. Ниже
- * строки уходят под растушёвку и почти не читаются — попадание по ним обычно
- * промах, а цена промаха велика.
- */
-private const val SEEK_TAP_ZONE = 0.575f
-
 /** Высота зоны заголовка со скрим-градиентом (плотная часть закрывает название+артиста). */
 private val HEADER_SCRIM_HEIGHT = 170.dp
 
-/** Пауза автоследования после ручного скролла: пользователь читает текст —
- *  не дёргаем список обратно, возвращаемся к активной строке через этот таймаут. */
-private const val USER_SCROLL_PAUSE_MS = 4000L
 private val APPLE_EMPHASIS_INTERPOLATOR = PathInterpolator(0.25f, 0.1f, 0.25f, 1f)
-private val LYRICS_GLIDE_EASING = CubicBezierEasing(0.40f, 0.00f, 0.20f, 1.00f)
-private const val LYRICS_GLIDE_MS = 620
+
 
 /**
  * Полноэкранный караоке-экран лирики (Apple Music style).
@@ -180,7 +166,6 @@ fun LyricsScreen(
     var showPronunciations by remember { mutableStateOf(LyricsDisplayStore.pronunciation(context)) }
     var sourceRevision by remember { mutableIntStateOf(0) }
     var showSources by remember { mutableStateOf(false) }
-    val animationsEnabled = remember(context) { systemLyricsAnimationsEnabled(context) }
 
     LaunchedEffect(audioFileUri, lrcText, trackTitle, trackArtist, resolvedTrackId, sourceRevision) {
         if (!lrcText.isNullOrBlank()) {
@@ -221,9 +206,6 @@ fun LyricsScreen(
         timeProcessor?.reset()
     }
 
-    val isInterlude by timeProcessor?.isInterlude?.collectAsState() ?: remember { mutableStateOf(false) }
-    val interludeProgress by timeProcessor?.interludeProgress?.collectAsState()
-        ?: remember { mutableFloatStateOf(0f) }
 
     // ── Ручная подстройка синхры (± мс, память на трек) ──
     // Лечит кривые таймкоды источника: + = лирика раньше, − = позже.
@@ -231,7 +213,6 @@ fun LyricsScreen(
         mutableLongStateOf(LyricsSyncStore.get(context, resolvedTrackId))
     }
     var syncUiOpen by remember { mutableStateOf(false) }
-    val wordTimingOffsetMs = if (lyrics.source == LyricsSource.APPLE_TTML.id) -100L else 0L
     // Долгий тап по строке лирики → карточка «поделиться» (как у Apple).
     var shareLine by remember { mutableStateOf<String?>(null) }
     fun adjustSync(deltaMs: Long) {
@@ -279,97 +260,7 @@ fun LyricsScreen(
         }
     }
 
-    val currentLineIndex by timeProcessor?.currentLineIndex?.collectAsState() ?: remember { mutableIntStateOf(-1) }
-    // Подсветка идёт по currentLineIndex, а наводка списка — по этому: он бежит
-    // с упреждением, чтобы строка встала на место к началу пения.
-    val scrollLineIndex by timeProcessor?.scrollLineIndex?.collectAsState() ?: remember { mutableIntStateOf(-1) }
 
-    val lineEffect = LyricsFxController.WordEffect.FILL
-    val sungTweenMs = 180
-
-    // Waiting считает сам LyricsTimeProcessor (сегментная модель): строка докрашена
-    // ПОЛНОСТЬЮ + до следующей строки реальный разрыв > WAIT_GAP_MS. VAD выключен.
-    val showWaiting = isInterlude
-
-    // ── Auto-scroll с fluid gliding ──
-    val listState = rememberLazyListState()
-    val density = LocalDensity.current
-    val configuration = LocalConfiguration.current
-    val screenHeightPx = with(density) { configuration.screenHeightDp.dp.toPx() }
-    // Доступная ширина строки лирики. В split (альбом/планшет) лирика живёт в
-    // ПРАВОЙ половине — считаем от неё, иначе текст рассчитан на полный экран и
-    // обрезается справа. Плюс левый отступ меньше (текст ближе к обложке-шву).
-    val lineHPadding = if (splitMode) 16.dp else 32.dp
-    val lyricColumnWidthDp = if (splitMode) (configuration.screenWidthDp * 0.5f) else configuration.screenWidthDp.toFloat()
-    val lineMaxWidthPx = with(density) { (lyricColumnWidthDp.dp - lineHPadding * 2).toPx().toInt() }
-    // В узкой split-колонке шрифт строк меньше, чтобы влезал без обрезки.
-    val lineFontScale = if (splitMode) 0.66f else 1f
-    val edgeSoftPx = with(density) { 10.dp.toPx() }
-
-    /** Ниже этой отметки тап по строке перемотку не делает (см. обработчик тапа). */
-    val seekTapLimitPx = screenHeightPx * SEEK_TAP_ZONE
-
-    // Ручной скролл (drag) ставит автоследование на паузу — фиксируем момент касания.
-    var userScrolledAt by remember { mutableLongStateOf(0L) }
-    LaunchedEffect(listState) {
-        listState.interactionSource.interactions.collect { interaction ->
-            if (interaction is DragInteraction.Start) {
-                userScrolledAt = System.currentTimeMillis()
-            }
-        }
-    }
-
-    LaunchedEffect(scrollLineIndex, userScrolledAt) {
-        if (scrollLineIndex >= 0) {
-            // Если пользователь недавно листал руками — ждём остаток паузы,
-            // потом плавно возвращаемся (новый drag перезапустит эффект и ожидание).
-            val sinceTouch = System.currentTimeMillis() - userScrolledAt
-            if (sinceTouch < USER_SCROLL_PAUSE_MS) delay(USER_SCROLL_PAUSE_MS - sinceTouch)
-            // Возврат к автоследованию ждёт остановки списка. Раньше решал только
-            // таймер, и если он истекал посреди инерции от броска, список дёргало
-            // обратно прямо под рукой.
-            while (listState.isScrollInProgress) delay(120)
-            // Поднимаем активную строку в верхнюю треть (см. ACTIVE_LINE_TOP_BIAS).
-            // lineToItem: нулевой элемент списка — распорка шапки, поэтому индекс
-            // строки и индекс элемента не совпадают. Без сдвига список наводился
-            // на ПРЕДЫДУЩУЮ строку, и подсвеченная всегда стояла ниже якоря.
-            val lineIndex = scrollLineIndex.coerceAtMost((lyrics.lines.size - 1).coerceAtLeast(0))
-            val targetIndex = lineIndex + 1
-            // Высоту берём у самого списка, а не у экрана: в split и с вырезами
-            // экранная высота не равна видимой области, и якорь промахивается.
-            val viewportPx = listState.layoutInfo.viewportSize.height
-                .takeIf { it > 0 }?.toFloat() ?: screenHeightPx
-            val aboveCenterOffset = (viewportPx * ACTIVE_LINE_TOP_BIAS).toInt()
-            if (!animationsEnabled) {
-                listState.scrollToItem(
-                    index = targetIndex,
-                    scrollOffset = -aboveCenterOffset,
-                )
-            } else {
-                val info = listState.layoutInfo.visibleItemsInfo
-                    .firstOrNull { it.index == targetIndex }
-                if (info != null) {
-                    listState.animateScrollBy(
-                        info.offset.toFloat() - aboveCenterOffset,
-                        tween(durationMillis = LYRICS_GLIDE_MS, easing = LYRICS_GLIDE_EASING),
-                    )
-                } else {
-                    listState.animateScrollToItem(
-                        index = targetIndex,
-                        scrollOffset = -aboveCenterOffset,
-                    )
-                }
-            }
-        }
-    }
-
-    // ── Duet detection ──
-    val isDuet = remember(lyrics) {
-        lyrics.lines.mapNotNull { it.agentId }.distinct().size > 1 || lyrics.lines.any { line ->
-            line.text.contains(Regex("""\[(M|F|D|Male|Female|Duet):?\s*""", RegexOption.IGNORE_CASE))
-        }
-    }
-    val primaryAgentId = remember(lyrics) { lyrics.lines.firstNotNullOfOrNull { it.agentId } }
 
     // ── Colors ──
     // Фон здесь всегда из обложки, а не из темы приложения, поэтому цвет текста
@@ -457,299 +348,14 @@ fun LyricsScreen(
                 }
 
                 else -> {
-                    LazyColumn(
-                        state = listState,
+                    val bitChordLines = remember(lyrics) { lyrics.toPanelLines() }
+                    LyricsPanel(
+                        lines = bitChordLines,
+                        positionMs = lyricClock.longValue,
+                        isPlaying = playerPlaying,
+                        onSeekToLine = { PlayerController.seekTo(it) },
                         modifier = Modifier.fillMaxSize(),
-                        horizontalAlignment = Alignment.Start
-                    ) {
-                        // Header spacer
-                        item { Spacer(Modifier.height(100.dp)) }
-
-                        // Waiting dots before first line starts
-                        if (lyrics.isSynced && currentLineIndex < 0 && isInterlude) {
-                         item {
-                             Box(
-                                 modifier = Modifier
-                                     .fillMaxWidth()
-                                     .padding(start = 32.dp, top = 40.dp, bottom = 40.dp),
-                                 contentAlignment = Alignment.CenterStart
-                             ) {
-                                 WaitingDots(
-                                     dotColor = Color.White.copy(alpha = 0.45f),
-                                     dotSize = 7.dp,
-                                     spacing = 10.dp,
-                                     progress = interludeProgress
-                                 )
-                             }
-                         }
-                        }
-
-                        itemsIndexed(lyrics.lines) { index, line ->
-                            // Несинхронная лирика — обычный текст: мельче и кучнее
-                            // (32sp-строки с воздухом рассчитаны на караоке-свип,
-                            // без таймкодов они просто раздувают простыню).
-                            if (!lyrics.isSynced) {
-                                Text(
-                                    text = line.text,
-                                    color = lyricInk.copy(alpha = 0.82f),
-                                    fontSize = 17.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    fontFamily = AppFontFamily,
-                                    lineHeight = 24.sp,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(horizontal = 24.dp, vertical = 4.dp)
-                                )
-                                return@itemsIndexed
-                            }
-
-                            val sectionTitle = line.songPart?.trim()
-                                ?.takeIf { part ->
-                                    part.isNotEmpty() &&
-                                        lyrics.lines.getOrNull(index - 1)?.songPart?.trim() != part
-                                }
-                            if (sectionTitle != null) {
-                                Spacer(Modifier.height(18.dp))
-                                Text(
-                                    text = sectionTitle.uppercase(Locale.ROOT),
-                                    color = lyricInk.copy(alpha = 0.55f),
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    fontFamily = AppFontFamily,
-                                    letterSpacing = 1.5.sp,
-                                    modifier = Modifier.padding(horizontal = lineHPadding),
-                                )
-                            }
-
-                            val isCurrent = index == currentLineIndex
-                            val isPast = index < currentLineIndex
-                            val isAlternateAgent = isDuet && line.agentId != null &&
-                                primaryAgentId != null && line.agentId != primaryAgentId
-
-                            val cleanText = line.text.replace(
-                                Regex("""\[(M|F|D|Male|Female|Duet):?\s*""", RegexOption.IGNORE_CASE), ""
-                            )
-                            val pronunciationLayer = if (showPronunciations) {
-                                line.pronunciations.preferredLyricsLayer()
-                            } else null
-                            val displayText = pronunciationLayer?.text?.takeIf(String::isNotBlank) ?: cleanText
-                            val displayLine = remember(line, pronunciationLayer, displayText) {
-                                when {
-                                    pronunciationLayer == null -> line
-                                    pronunciationLayer.words.isNotEmpty() -> line.copy(
-                                        text = displayText,
-                                        words = pronunciationLayer.words,
-                                    )
-                                    else -> null
-                                }
-                            }
-                            val rtl = displayText.isRtlLyricsText()
-                            val centeredAgent = line.agentType.equals("group", true) ||
-                                line.agentType.equals("other", true)
-                            val rowAlignment = when {
-                                centeredAgent -> Alignment.CenterHorizontally
-                                isAlternateAgent && rtl -> Alignment.Start
-                                isAlternateAgent -> Alignment.End
-                                rtl -> Alignment.End
-                                else -> Alignment.Start
-                            }
-                            val transformOriginX = when (rowAlignment) {
-                                Alignment.End -> 1f
-                                Alignment.CenterHorizontally -> 0.5f
-                                else -> 0f
-                            }
-                            val rowMaxWidthPx = if (isAlternateAgent) (lineMaxWidthPx * 0.85f).toInt()
-                            else lineMaxWidthPx
-
-                            val fillProgress = when {
-                                isPast -> 1f
-                                isCurrent && displayLine?.words?.isNotEmpty() == true -> 0f
-                                isCurrent -> 1f
-                                else -> 0f
-                            }
-
-                            val base = Color.White
-
-                            // Глубина списка: чем дальше строка от активной, тем сильнее
-                            // растворяется (ближние читаемы, дальние — «туман»). До первой
-                            // строки градации нет — весь текст ровный.
-                            // Считаем напрямую: раньше на КАЖДУЮ строку висел свой
-                            // animateFloatAsState, то есть десятки параллельных
-                            // анимаций на один список. Плавность перехода даёт
-                            // анимация цвета ниже, а отдельная анимация глубины
-                            // только грузила прокрутку.
-                            val dist = if (currentLineIndex >= 0) abs(index - currentLineIndex) else 1
-                            val depth = if (isCurrent || currentLineIndex < 0) 1f
-                                else (1f - 0.13f * (dist - 1)).coerceAtLeast(0.45f)
-                            val lineBlur by animateDpAsState(
-                                targetValue = if (isCurrent) 0.dp else (dist * 1.4f).coerceAtMost(6f).dp,
-                                animationSpec = if (animationsEnabled) tween(220) else snap(),
-                                label = "lyricsLineBlur",
-                            )
-
-                            val sungColor by animateColorAsState(
-                                targetValue = base.copy(alpha = if (isCurrent) 0.94f else 0.55f * depth),
-                                animationSpec = if (animationsEnabled) tween(sungTweenMs) else snap(),
-                                label = "sung"
-                            )
-                            val unsungColor = base.copy(alpha = 0.18f * depth)
-
-                            // Где строка стоит на экране. Держим в массиве, а не в
-                            // состоянии: значение нужно только внутри обработчика
-                            // касания, а состояние вызывало бы рекомпозицию строки
-                            // на каждом кадре прокрутки.
-                            val rowTop = remember { floatArrayOf(Float.MAX_VALUE) }
-
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .blur(lineBlur)
-                                    .onGloballyPositioned { rowTop[0] = it.positionInRoot().y }
-                                    // Тап по строке = перемотка на неё (Apple Music).
-                                    // Только для синхронной лирики.
-                                    .then(
-                                        // Тап = перемотка на строку; долгий тап =
-                                        // карточка «поделиться» (Apple Music).
-                                        if (lyrics.isSynced) Modifier.pointerInput(line.timeMs) {
-                                            detectTapGestures(
-                                                onTap = {
-                                                    // Нижняя часть экрана перемотку не
-                                                    // принимает: там строки едва видны
-                                                    // под растушёвкой, и попадание по
-                                                    // ним почти всегда промах, а цена
-                                                    // промаха — прыжок по треку.
-                                                    if (rowTop[0] < seekTapLimitPx) {
-                                                        PlayerController.seekTo(line.timeMs)
-                                                    }
-                                                },
-                                                onLongPress = { shareLine = cleanText }
-                                            )
-                                        }
-                                        else Modifier.pointerInput(line.text) {
-                                            detectTapGestures(onLongPress = { shareLine = cleanText })
-                                        }
-                                    )
-                                    .padding(horizontal = lineHPadding, vertical = if (splitMode) 6.dp else 10.dp),
-                                horizontalAlignment = rowAlignment
-                            ) {
-                                LyricLineSweep(
-                                    text = displayText,
-                                    fillProgress = fillProgress,
-                                    sungColor = sungColor,
-                                    unsungColor = unsungColor,
-                                    isActive = isCurrent,
-                                    maxWidthPx = rowMaxWidthPx,
-                                    glowColor = base,
-                                    effect = lineEffect,
-                                    edgeSoftPx = if (isCurrent) edgeSoftPx else 0f,
-                                    fontSizeSp = 32f * lineFontScale,
-                                    timedLine = displayLine?.takeIf { it.words.isNotEmpty() },
-                                    positionState = lyricClock,
-                                    positionOffsetMs = syncOffsetMs + wordTimingOffsetMs,
-                                    transformOriginX = transformOriginX,
-                                    animationsEnabled = animationsEnabled,
-                                )
-                                line.backgroundLayers.forEach { layer ->
-                                    val backgroundPronunciation = if (showPronunciations) {
-                                        layer.pronunciations.preferredLyricsLayer()
-                                    } else null
-                                    val backgroundText = backgroundPronunciation?.text
-                                        ?.takeIf(String::isNotBlank) ?: layer.text
-                                    val backgroundLine = remember(line, layer, backgroundPronunciation) {
-                                        val timedWords = backgroundPronunciation?.words
-                                            ?.takeIf { it.isNotEmpty() } ?: layer.words
-                                        LyricsParser.LyricLine(
-                                            timeMs = timedWords.firstOrNull()?.timeMs ?: line.timeMs,
-                                            text = backgroundText,
-                                            words = timedWords,
-                                            endMs = timedWords.lastOrNull()?.endMs ?: line.endMs,
-                                        )
-                                    }
-                                    Spacer(Modifier.height(3.dp))
-                                    LyricLineSweep(
-                                        text = backgroundText,
-                                        fillProgress = if (isPast) 1f else 0f,
-                                            sungColor = base.copy(alpha = 0.35f),
-                                            unsungColor = base.copy(alpha = 0.16f),
-                                        isActive = isCurrent,
-                                        maxWidthPx = rowMaxWidthPx,
-                                        glowColor = base,
-                                        fontSizeSp = 20f * lineFontScale,
-                                        timedLine = backgroundLine.takeIf { it.words.isNotEmpty() },
-                                        positionState = lyricClock,
-                                        positionOffsetMs = syncOffsetMs + wordTimingOffsetMs,
-                                        transformOriginX = transformOriginX,
-                                        animationsEnabled = animationsEnabled,
-                                        isBackground = true,
-                                    )
-                                    if (showTranslations) {
-                                        layer.translations.preferredLyricsLayer()?.text
-                                            ?.takeIf { !it.equals(backgroundText, true) }
-                                            ?.let { translation ->
-                                                Spacer(Modifier.height(3.dp))
-                                                Text(
-                                                    text = translation,
-                                                    color = base.copy(alpha = if (isCurrent) 0.46f else 0.28f),
-                                                    fontSize = 14.sp,
-                                                    fontWeight = FontWeight.SemiBold,
-                                                    fontFamily = AppFontFamily,
-                                                    lineHeight = 18.sp,
-                                                )
-                                            }
-                                    }
-                                }
-                                val secondaryLines = buildList {
-                                    if (pronunciationLayer != null && !cleanText.equals(displayText, true)) {
-                                        add(cleanText)
-                                    }
-                                    if (showTranslations) {
-                                        line.translations.preferredLyricsLayer()?.text
-                                            ?.takeIf { translation ->
-                                                !translation.equals(displayText, true) &&
-                                                    none { it.equals(translation, true) }
-                                            }
-                                            ?.let(::add)
-                                    }
-                                }
-                                secondaryLines.forEach { secondary ->
-                                    Spacer(Modifier.height(5.dp))
-                                    Text(
-                                        text = secondary,
-                                        color = base.copy(alpha = if (isCurrent) 0.72f else 0.38f),
-                                        fontSize = 16.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                        fontFamily = AppFontFamily,
-                                        lineHeight = 21.sp,
-                                        modifier = Modifier.widthIn(
-                                            max = with(density) { rowMaxWidthPx.toDp() }
-                                        ),
-                                    )
-                                }
-                                // Точки ожидания во время инструментального проигрыша
-                                // (сегментная модель LyricsTimeProcessor, VAD не используется).
-                                // progress: точки наливаются по мере проигрыша и схлопываются
-                                // перед возвратом вокала.
-                                if (isCurrent && showWaiting) {
-                                    Spacer(Modifier.height(16.dp))
-                                    Box(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        WaitingDots(
-                                            dotColor = lyricInk,
-                                            progress = interludeProgress
-                                        )
-                                    }
-                                }
-                            }
-                        }
-
-                        // Нижняя распорка. 200dp не хватало: под лирикой лежит
-                        // растушёвка высотой 460dp, и последние строки физически
-                        // нельзя было поднять из-под неё — они дочитывались уже
-                        // в затемнении.
-                        item { Spacer(Modifier.height((configuration.screenHeightDp * 0.42f).dp)) }
-                    }
+                    )
                 }
             }
 
@@ -969,44 +575,6 @@ private fun LyricsProgress(
 private fun formatLyricsTime(milliseconds: Long): String {
     val seconds = (milliseconds.coerceAtLeast(0L) / 1000L)
     return "%d:%02d".format(seconds / 60L, seconds % 60L)
-}
-
-private fun systemLyricsAnimationsEnabled(context: android.content.Context): Boolean = runCatching {
-    val resolver = context.contentResolver
-    Settings.Global.getFloat(resolver, Settings.Global.TRANSITION_ANIMATION_SCALE, 1f) > 0f &&
-        Settings.Global.getFloat(resolver, Settings.Global.WINDOW_ANIMATION_SCALE, 1f) > 0f &&
-        Settings.Global.getFloat(resolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) > 0f
-}.getOrDefault(true)
-
-private fun Map<String, LyricsParser.LyricLayer>.preferredLyricsLayer(): LyricsParser.LyricLayer? {
-    if (isEmpty()) return null
-    val locale = Locale.getDefault()
-    val language = locale.language.lowercase(Locale.ROOT)
-    val tag = locale.toLanguageTag().lowercase(Locale.ROOT)
-    return entries.firstOrNull { it.key.lowercase(Locale.ROOT) == tag }?.value
-        ?: entries.firstOrNull {
-            val key = it.key.lowercase(Locale.ROOT)
-            key == language || key.startsWith("$language-")
-        }?.value
-        ?: values.firstOrNull()
-}
-
-private fun String.isRtlLyricsText(): Boolean {
-    var index = 0
-    while (index < length) {
-        val codePoint = Character.codePointAt(this, index)
-        when (Character.getDirectionality(codePoint)) {
-            Character.DIRECTIONALITY_LEFT_TO_RIGHT,
-            Character.DIRECTIONALITY_LEFT_TO_RIGHT_EMBEDDING,
-            Character.DIRECTIONALITY_LEFT_TO_RIGHT_OVERRIDE -> return false
-            Character.DIRECTIONALITY_RIGHT_TO_LEFT,
-            Character.DIRECTIONALITY_RIGHT_TO_LEFT_ARABIC,
-            Character.DIRECTIONALITY_RIGHT_TO_LEFT_EMBEDDING,
-            Character.DIRECTIONALITY_RIGHT_TO_LEFT_OVERRIDE -> return true
-        }
-        index += Character.charCount(codePoint)
-    }
-    return false
 }
 
 @Composable
@@ -1244,17 +812,6 @@ internal fun LyricLineSweep(
             return@Canvas
         }
 
-        if (isActive && timedLine == null) {
-            drawText(
-                textLayoutResult = layout,
-                color = glowColor.copy(alpha = 0.50f),
-                shadow = androidx.compose.ui.graphics.Shadow(
-                    color = glowColor.copy(alpha = 0.50f),
-                    offset = Offset(0f, 0f),
-                    blurRadius = 6f
-                )
-            )
-        }
         drawText(layout, color = unsungColor)
 
         val p = fillProgress.coerceIn(0f, 1f)

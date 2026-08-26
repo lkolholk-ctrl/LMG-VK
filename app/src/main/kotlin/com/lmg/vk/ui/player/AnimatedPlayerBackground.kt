@@ -33,9 +33,9 @@ fun AnimatedPlayerBackground(
     albumColors: AlbumColors,
     modifier: Modifier = Modifier
 ) {
-    val baseVibrant = rememberSaturationBoost(albumColors.vibrant)
-    val baseDominant = rememberSaturationBoost(albumColors.dominant)
-    val baseLightVibrant = rememberSaturationBoost(albumColors.lightVibrant)
+    val baseVibrant = dimColor(rememberSaturationBoost(albumColors.vibrant))
+    val baseDominant = dimColor(rememberSaturationBoost(albumColors.dominant))
+    val baseLightVibrant = dimColor(rememberSaturationBoost(albumColors.lightVibrant))
 
     LaunchedEffect(albumColors) {
         DebugLog.add(
@@ -155,6 +155,14 @@ private fun rememberSaturationBoost(
         hsv[2] = (hsv[2] * valBoost).coerceAtLeast(valFloor).coerceIn(0f, 1f)
         androidx.compose.ui.graphics.Color(android.graphics.Color.HSVToColor(hsv))
     }
+}
+
+private fun dimColor(color: Color): Color {
+    val hsv = FloatArray(3)
+    android.graphics.Color.colorToHSV(color.toArgb(), hsv)
+    hsv[1] = (hsv[1] * 0.7f).coerceIn(0f, 1f)
+    hsv[2] = ((hsv[2] - 0.5f) * 0.75f + 0.5f).coerceIn(0f, 1f) * 0.65f
+    return Color(android.graphics.Color.HSVToColor(hsv))
 }
 
 private fun Int.hex(): String = "#%08X".format(this)
