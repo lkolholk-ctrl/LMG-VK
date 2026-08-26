@@ -1661,9 +1661,9 @@ private fun DrawScope.drawAppleWordMotion(
     val start = emphasis.start.coerceIn(0, textLength)
     val end = emphasis.end.coerceIn(start, textLength)
     if (end <= start) return
-    var tailStart = emphasis.tailStart.coerceIn(start, end - 1)
+    var tailStart = if (end - start >= 2) emphasis.tailStart.coerceIn(start + 1, end - 1) else start
     val sourceText = layout.layoutInput.text
-    if (tailStart < end && Character.isLowSurrogate(sourceText[tailStart])) {
+    if (tailStart in (start + 1) until end && Character.isLowSurrogate(sourceText[tailStart])) {
         tailStart = (tailStart + 1).coerceAtMost(end - 1)
     }
     val tailPath = layout.getPathForRange(tailStart, end)
@@ -1671,18 +1671,22 @@ private fun DrawScope.drawAppleWordMotion(
     val visualLine = layout.getLineForOffset(tailStart.coerceAtMost((textLength - 1).coerceAtLeast(0)))
     val lineEnd = layout.getLineEnd(visualLine, visibleEnd = true)
     val afterPath = if (end < lineEnd) layout.getPathForRange(end, lineEnd) else null
-    clearRange(tailStart, end)
-    afterPath?.let { drawPath(it, Color.Transparent, blendMode = BlendMode.Clear) }
+    clearRange(start, end)
+    afterPath?.let { clearRange(end, lineEnd) }
     val baseline = layout.getLineBaseline(visualLine)
-    withTransform({
-        translate(top = emphasis.liftPx)
-        scale(
-            scaleX = emphasis.scale,
-            scaleY = emphasis.scale,
-            pivot = Offset(tailBounds.left, baseline),
-        )
-    }) {
-        clipPath(tailPath) { drawLayer() }
+    withTransform({ translate(top = emphasis.liftPx) }) {
+        if (tailStart > start) {
+            clipPath(layout.getPathForRange(start, tailStart)) { drawLayer() }
+        }
+        withTransform({
+            scale(
+                scaleX = emphasis.scale,
+                scaleY = emphasis.scale,
+                pivot = Offset(tailBounds.left, baseline),
+            )
+        }) {
+            clipPath(tailPath) { drawLayer() }
+        }
     }
     afterPath?.let { path ->
         withTransform({ translate(left = (emphasis.scale - 1f) * tailBounds.width) }) {
