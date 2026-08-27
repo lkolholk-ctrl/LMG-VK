@@ -1230,9 +1230,11 @@ internal fun LyricLineSweep(
     // через graphicsLayer ниже, вёрстка не меняется никогда.
     val style = TextStyle(
         fontSize = fontSizeSp.sp,
-        fontWeight = FontWeight.Bold,
+        // BitChord uses its 800-weight display face for the lyric panel.
+        fontWeight = FontWeight.ExtraBold,
         fontFamily = VkSansDisplay,
         lineHeight = lineHeightSp.sp,
+        letterSpacing = (-0.7).sp,
         textAlign = TextAlign.Start,
         platformStyle = PlatformTextStyle(includeFontPadding = false)
     )
@@ -1250,21 +1252,12 @@ internal fun LyricLineSweep(
     val density = LocalDensity.current
     val wDp = with(density) { layout.size.width.toDp() }
     val hDp = with(density) { layout.size.height.toDp() }
-    val appleFeatherPx = with(density) { 30.dp.toPx() }
 
     val lineScale by androidx.compose.animation.core.animateFloatAsState(
         targetValue = if (isActive && !isBackground) 1.04f else 1f,
         animationSpec = if (animationsEnabled) androidx.compose.animation.core.spring() else snap(),
         label = "lyricScale",
     )
-
-    val emphasisGroups = remember(timedLine, text, isBackground) {
-        if (isBackground || timedLine == null) {
-            emptyList()
-        } else {
-            timedLine.buildEmphasisGroups(timedLine.resolvedWords(text), text)
-        }
-    }
 
     Canvas(
         modifier = Modifier
@@ -1277,24 +1270,6 @@ internal fun LyricLineSweep(
     ) {
         if (timedLine != null && positionState != null) {
             val position = positionState.longValue + positionOffsetMs
-            val motion = evaluateWordMotion(emphasisGroups, position, density, animationsEnabled)
-            val hasMotion = motion.stretch != null || motion.lifts.isNotEmpty()
-            if (hasMotion) {
-                var gutter = 0f
-                for (group in emphasisGroups) {
-                    if (!group.stretchable || group.wordSpans.isEmpty()) continue
-                    val durSec = ((group.endMs - group.startMs).coerceAtLeast(1L) / 1_000f)
-                        .coerceIn(1f, 2f)
-                    val maxScale = 1f + 0.14f * (durSec - 1f)
-                    val width = layout.getPathForRange(group.start, group.end).getBounds().width
-                    gutter = gutter.coerceAtLeast((maxScale - 1f) * width)
-                }
-                val topMargin = with(density) { 3.dp.toPx() }
-                drawContext.canvas.saveLayer(
-                    Rect(-gutter, -topMargin, size.width + gutter, size.height + topMargin),
-                    Paint(),
-                )
-            }
             drawText(layout, color = unsungColor)
             drawTimedLyric(
                 layout = layout,
@@ -1302,24 +1277,8 @@ internal fun LyricLineSweep(
                 positionMs = position,
                 text = text,
                 sungColor = sungColor,
-                featherPx = if (animationsEnabled) appleFeatherPx else 0f,
-                animationsEnabled = animationsEnabled,
+                featherPx = 0f,
             )
-            if (hasMotion) {
-                drawAppleWordMotion(layout, motion) {
-                    drawText(layout, color = unsungColor)
-                    drawTimedLyric(
-                        layout = layout,
-                        line = timedLine,
-                        positionMs = position,
-                        text = text,
-                        sungColor = sungColor,
-                        featherPx = if (animationsEnabled) appleFeatherPx else 0f,
-                        animationsEnabled = animationsEnabled,
-                    )
-                }
-                drawContext.canvas.restore()
-            }
             return@Canvas
         }
 
@@ -1417,21 +1376,19 @@ private fun DrawScope.drawTimedLyric(
     text: String,
     sungColor: Color,
     featherPx: Float,
-    animationsEnabled: Boolean,
 ) {
     val wordEnd = line.wordEndMs()
     when {
-        positionMs >= wordEnd + (if (animationsEnabled) 500L else 0L) ->
+        positionMs >= wordEnd ->
             drawText(layout, color = sungColor)
         positionMs > line.timeMs -> drawAppleSweptText(
             layout = layout,
-            revealedChars = if (positionMs >= wordEnd) text.length.toFloat()
-            else line.revealedChars(positionMs, text, animationsEnabled),
+            // Karaoke timing is semantic playback feedback, so it stays smooth
+            // even when Android's decorative animation scale is disabled.
+            revealedChars = line.revealedChars(positionMs, text, animated = true),
             color = sungColor,
             featherPx = featherPx,
-            rushProgress = if (animationsEnabled && positionMs >= wordEnd) {
-                ((positionMs - wordEnd).toFloat() / 500f).coerceIn(0f, 1f)
-            } else 0f,
+            rushProgress = 0f,
         )
     }
 }
