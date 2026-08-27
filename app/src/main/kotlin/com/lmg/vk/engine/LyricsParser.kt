@@ -1,6 +1,7 @@
 package com.lmg.vk.engine
 
 import android.content.Context
+import android.media.MediaMetadataRetriever
 import android.net.Uri
 import com.lmg.vk.debug.DebugLog
 import kotlinx.coroutines.Dispatchers
