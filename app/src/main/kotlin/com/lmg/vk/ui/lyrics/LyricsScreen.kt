@@ -69,6 +69,11 @@ import com.lmg.vk.engine.LyricsFxController
 import com.lmg.vk.engine.LyricsParser
 import com.lmg.vk.engine.LyricsSyncStore
 import com.lmg.vk.engine.PlayerController
+import com.lmg.vk.engine.lyrics.LyricsContent
+import com.lmg.vk.engine.lyrics.LyricsRepository
+import com.lmg.vk.ui.lyrics.apple.AppleKaraokeList
+import com.lmg.vk.ui.lyrics.apple.AppleLyricsEventProcessor
+import com.lmg.vk.ui.lyrics.apple.rememberAppleLyricsEventState
 import com.lmg.vk.engine.lyrics.LyricsSource
 import com.lmg.vk.engine.lyrics.LyricsSourceStore
 import com.lmg.vk.engine.lyrics.LyricsDisplayStore
@@ -150,6 +155,7 @@ fun LyricsScreen(
         LyricsParser.getCachedLyrics(resolvedTrackId)
     }
 
+    var lyricsContent by remember { mutableStateOf<LyricsContent?>(null) }
     var lyrics by remember { mutableStateOf(cachedLyrics ?: LyricsParser.Lyrics.EMPTY) }
     var isLoading by remember { mutableStateOf(cachedLyrics == null && lrcText.isNullOrBlank()) }
     var enabledSources by remember { mutableStateOf(LyricsSourceStore.enabled(context)) }
@@ -157,26 +163,29 @@ fun LyricsScreen(
     var showPronunciations by remember { mutableStateOf(LyricsDisplayStore.pronunciation(context)) }
     var sourceRevision by remember { mutableIntStateOf(0) }
     var showSources by remember { mutableStateOf(false) }
+    var seekEpoch by remember { mutableLongStateOf(0L) }
     val animationsEnabled = remember(context) { systemLyricsAnimationsEnabled(context) }
+
+    LaunchedEffect(Unit) {
+        PlayerController.positionDiscontinuity.collect {
+            seekEpoch++
+        }
+    }
 
     LaunchedEffect(audioFileUri, lrcText, trackTitle, trackArtist, resolvedTrackId, sourceRevision) {
         if (!lrcText.isNullOrBlank()) {
-            lyrics = withContext(Dispatchers.Default) {
+            val parsed = withContext(Dispatchers.Default) {
                 LyricsParser.parseLyrics(lrcText)
             }
-            isLoading = false
-            return@LaunchedEffect
-        }
-
-        LyricsParser.getCachedLyrics(resolvedTrackId)?.let {
-            lyrics = it
+            lyrics = parsed
+            lyricsContent = LyricsContent.Legacy(parsed)
             isLoading = false
             return@LaunchedEffect
         }
 
         isLoading = true
-        lyrics = withContext(Dispatchers.IO) {
-            LyricsParser.loadLyrics(
+        val loaded = withContext(Dispatchers.IO) {
+            LyricsRepository.load(
                 context = context,
                 uri = audioFileUri,
                 title = trackTitle,
@@ -184,6 +193,11 @@ fun LyricsScreen(
                 durationMs = trackDurationMs,
                 trackId = resolvedTrackId
             )
+        }
+        lyricsContent = loaded
+        lyrics = when (loaded) {
+            is LyricsContent.Apple -> LyricsRepository.toLegacyProjection(loaded.document, trackTitle, trackArtist)
+            is LyricsContent.Legacy -> loaded.lyrics
         }
         isLoading = false
     }
@@ -421,6 +435,29 @@ fun LyricsScreen(
                             modifier = Modifier.size(24.dp)
                         )
                     }
+                }
+
+                lyricsContent is LyricsContent.Apple -> {
+                    val appleDoc = (lyricsContent as LyricsContent.Apple).document
+                    val eventProcessor = remember(appleDoc) { AppleLyricsEventProcessor(appleDoc) }
+                    val eventState by rememberAppleLyricsEventState(
+                        processor = eventProcessor,
+                        currentPositionMs = lyricClock.longValue + syncOffsetMs,
+                        discontinuityEpoch = seekEpoch
+                    )
+                    AppleKaraokeList(
+                        document = appleDoc,
+                        uiState = eventState,
+                        currentPositionMs = lyricClock.longValue + syncOffsetMs,
+                        primaryTextColor = lyricInk,
+                        unsungTextColor = lyricInk.copy(alpha = 0.40f),
+                        glowColor = resolvedColors.vibrant,
+                        onSeek = { targetMs -> PlayerController.seekTo(targetMs) },
+                        onShareLine = { line ->
+                            val text = line.main.joinToString("") { it.text }
+                            shareLine = text
+                        }
+                    )
                 }
 
                 lyrics.lines.isEmpty() -> {

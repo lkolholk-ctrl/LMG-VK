@@ -31,8 +31,11 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
@@ -580,6 +583,9 @@ object PlayerController {
 
     private val _currentPositionMs = MutableStateFlow(0L)
     val currentPositionMs: StateFlow<Long> = _currentPositionMs
+
+    private val _positionDiscontinuity = MutableSharedFlow<Long>(extraBufferCapacity = 1)
+    val positionDiscontinuity: SharedFlow<Long> = _positionDiscontinuity.asSharedFlow()
 
     private var lastPlayerPositionMs: Long = 0L
     private var lastSyncTimeMs: Long = 0L
@@ -1540,6 +1546,7 @@ object PlayerController {
 
     fun seekTo(positionMs: Long) {
         val safePosition = positionMs.coerceIn(0L, (_durationMs.value - 500L).coerceAtLeast(0L))
+        _positionDiscontinuity.tryEmit(safePosition)
         mainScope.launch {
             getPlayer(appContext ?: return@launch)?.seekTo(safePosition)
             _currentPositionMs.value = safePosition
