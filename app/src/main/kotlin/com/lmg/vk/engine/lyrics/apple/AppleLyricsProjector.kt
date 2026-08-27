@@ -9,6 +9,7 @@ object AppleLyricsProjector {
         document: AppleLyricsDocument,
         title: String? = null,
         artist: String? = null,
+        source: String = LyricsSource.APPLE_TTML.id,
     ): LyricsParser.Lyrics {
         val lines = document.allLines.map { line ->
             val words = line.main.filterNot { it.isWhitespace }.map { piece ->
@@ -35,7 +36,7 @@ object AppleLyricsProjector {
             isSynced = true,
             title = title,
             artist = artist,
-            source = LyricsSource.APPLE_TTML.id,
+            source = source,
             language = document.language,
             timing = document.timing.name,
             songwriters = document.songwriters.map { it.name },

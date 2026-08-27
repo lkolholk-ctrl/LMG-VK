@@ -10,6 +10,7 @@ import com.lmg.vk.engine.lyrics.apple.AppleTtmlCache
 import com.lmg.vk.engine.lyrics.apple.AppleTtmlClient
 import com.lmg.vk.engine.lyrics.apple.AppleTtmlParser
 import com.lmg.vk.engine.lyrics.apple.DefaultAppleTtmlClient
+import com.lmg.vk.engine.lyrics.apple.LyricsPlusRichAdapter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -42,7 +43,11 @@ object LyricsRepository {
                         val parsed = AppleTtmlParser.parse(cachedTtml)
                         if (parsed != null) {
                             DebugLog.add("LyricsRepository: Apple TTML cache hit lines=${parsed.allLines.size}")
-                            return@withContext LyricsContent.Apple(document = parsed, sourceLabel = "Apple TTML")
+                            return@withContext LyricsContent.Rich(
+                                document = parsed,
+                                sourceId = LyricsSource.APPLE_TTML.id,
+                                sourceLabel = LyricsSource.APPLE_TTML.title,
+                            )
                         } else {
                             DebugLog.add("LyricsRepository: cached Apple TTML invalid, deleting cache entry")
                             AppleTtmlCache.delete(context, title, artist, durationMs, language)
@@ -57,7 +62,11 @@ object LyricsRepository {
                     if (parsed != null && parsed.allLines.isNotEmpty()) {
                         DebugLog.add("LyricsRepository: Apple TTML network success lines=${parsed.allLines.size}")
                         AppleTtmlCache.write(context, title, artist, durationMs, language, rawTtml)
-                        return@withContext LyricsContent.Apple(document = parsed, sourceLabel = "Apple TTML")
+                        return@withContext LyricsContent.Rich(
+                            document = parsed,
+                            sourceId = LyricsSource.APPLE_TTML.id,
+                            sourceLabel = LyricsSource.APPLE_TTML.title,
+                        )
                     } else {
                         DebugLog.add("LyricsRepository: Apple TTML network parse empty or failed")
                     }
@@ -82,6 +91,20 @@ object LyricsRepository {
             preferExternalBeforeOfficial = true,
         )
 
+        if (legacy.source == LyricsSource.LYRICS_PLUS.id && legacy.isWordLevel) {
+            LyricsPlusRichAdapter.convert(legacy, durationMs)?.let { document ->
+                DebugLog.add(
+                    "LyricsRepository: LyricsPlus rich lines=${document.allLines.size} " +
+                        "pieces=${document.allLines.sumOf { it.main.size }}"
+                )
+                return@withContext LyricsContent.Rich(
+                    document = document,
+                    sourceId = LyricsSource.LYRICS_PLUS.id,
+                    sourceLabel = LyricsSource.LYRICS_PLUS.title,
+                )
+            }
+        }
+
         LyricsContent.Legacy(lyrics = legacy)
     }
 
@@ -89,7 +112,12 @@ object LyricsRepository {
      * Converts an [AppleLyricsDocument] into a legacy [LyricsParser.Lyrics] projection
      * for components like WaveHomeScreen that only require a simple line projection.
      */
-    fun toLegacyProjection(doc: AppleLyricsDocument, title: String? = null, artist: String? = null): LyricsParser.Lyrics {
-        return AppleLyricsProjector.toLegacy(doc, title, artist)
+    fun toLegacyProjection(
+        doc: AppleLyricsDocument,
+        title: String? = null,
+        artist: String? = null,
+        source: String = LyricsSource.APPLE_TTML.id,
+    ): LyricsParser.Lyrics {
+        return AppleLyricsProjector.toLegacy(doc, title, artist, source)
     }
 }

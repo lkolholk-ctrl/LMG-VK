@@ -4,9 +4,10 @@ import com.lmg.vk.engine.LyricsParser
 import com.lmg.vk.engine.lyrics.apple.AppleLyricsDocument
 
 sealed interface LyricsContent {
-    data class Apple(
+    data class Rich(
         val document: AppleLyricsDocument,
-        val sourceLabel: String = "Apple TTML"
+        val sourceId: String,
+        val sourceLabel: String,
     ) : LyricsContent
 
     data class Legacy(

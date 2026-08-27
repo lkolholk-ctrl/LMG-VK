@@ -196,16 +196,21 @@ fun LyricsScreen(
         }
         lyricsContent = loaded
         lyrics = when (loaded) {
-            is LyricsContent.Apple -> LyricsRepository.toLegacyProjection(loaded.document, trackTitle, trackArtist)
+            is LyricsContent.Rich -> LyricsRepository.toLegacyProjection(
+                loaded.document,
+                trackTitle,
+                trackArtist,
+                loaded.sourceId,
+            )
             is LyricsContent.Legacy -> loaded.lyrics
         }
         isLoading = false
     }
 
     // ── Time processor for line-level sync ──
-    val isRichAppleLyrics = lyricsContent is LyricsContent.Apple
-    val timeProcessor = remember(lyrics, isRichAppleLyrics) {
-        if (!isRichAppleLyrics && lyrics.lines.isNotEmpty()) LyricsTimeProcessor(lyrics) else null
+    val isRichLyrics = lyricsContent is LyricsContent.Rich
+    val timeProcessor = remember(lyrics, isRichLyrics) {
+        if (!isRichLyrics && lyrics.lines.isNotEmpty()) LyricsTimeProcessor(lyrics) else null
     }
 
     // Reset processor when track changes
@@ -260,8 +265,8 @@ fun LyricsScreen(
     // процессор — иначе закрас не полз бы с первого открытия.
     val currentProcessor by rememberUpdatedState(timeProcessor)
 
-    LaunchedEffect(resolvedTrackId, isRichAppleLyrics) {
-        if (isRichAppleLyrics) return@LaunchedEffect
+    LaunchedEffect(resolvedTrackId, isRichLyrics) {
+        if (isRichLyrics) return@LaunchedEffect
         while (isActive) {
             withFrameMillis { _ ->
                 if (PlayerController.isPlaying.value) {
@@ -436,9 +441,11 @@ fun LyricsScreen(
                     }
                 }
 
-                lyricsContent is LyricsContent.Apple -> {
-                    val appleDoc = (lyricsContent as LyricsContent.Apple).document
-                    val eventProcessor = remember(appleDoc) { AppleLyricsEventProcessor(appleDoc) }
+                lyricsContent is LyricsContent.Rich -> {
+                    val richDocument = (lyricsContent as LyricsContent.Rich).document
+                    val eventProcessor = remember(richDocument) {
+                        AppleLyricsEventProcessor(richDocument)
+                    }
                     val eventState by rememberAppleLyricsEventState(
                         processor = eventProcessor,
                         currentPositionMs = currentPositionMs + syncOffsetMs,
@@ -447,7 +454,7 @@ fun LyricsScreen(
                         positionProvider = { PlayerController.getSmoothPositionMs() + syncOffsetMs },
                     )
                     AppleKaraokeList(
-                        document = appleDoc,
+                        document = richDocument,
                         uiState = eventState,
                         currentPositionMs = eventState.currentPositionMs,
                         isPlaying = isPlaying,
