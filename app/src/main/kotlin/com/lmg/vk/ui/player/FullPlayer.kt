@@ -79,12 +79,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
@@ -221,6 +219,10 @@ fun FullPlayer(
     var controlsVisible by remember { mutableStateOf(true) }
     BackHandler(enabled = showQueue) {
         showQueue = false
+        controlsVisible = true
+    }
+    BackHandler(enabled = showLyrics) {
+        showLyrics = false
         controlsVisible = true
     }
     val playerBackdrop: LayerBackdrop = rememberLayerBackdrop()
@@ -594,7 +596,6 @@ fun FullPlayer(
                     }
                 },
                 onMoreClick = { showTrackMenu = true },
-                onRequestControls = { controlsVisible = true },
                 onClose = { showLyrics = false },
                 splitMode = isLandscape
             )
@@ -617,39 +618,6 @@ fun FullPlayer(
             else Modifier,
             splitMode = isLandscape
         )
-
-        // ═══ Нижняя растушёвка под лирикой/очередью ═══
-        // Раньше жила ВНУТРИ блока контролов: контролы прятались — и текст
-        // упирался прямо в кромку экрана. Теперь слой самостоятельный, а от
-        // контролов зависит только плотность: под ними нужна подложка, без них
-        // достаточно мягкого угасания.
-        if (showLyrics || showQueue) {
-            val scrimColor = lerp(albumColors.dominant, Color.Black, 0.24f)
-            val scrimDepth by animateFloatAsState(
-                targetValue = if (controlsVisible) 1f else 0.45f,
-                animationSpec = tween(250),
-                label = "bottomScrim"
-            )
-            Box(
-                modifier = Modifier
-                    // Landscape: подложка только под ЛЕВОЙ половиной (там контролы);
-                    // правую (лирика/очередь) не затемняем.
-                    .then(
-                        if (isLandscape)
-                            Modifier.fillMaxWidth(0.5f).align(Alignment.BottomStart)
-                        else
-                            Modifier.fillMaxWidth().align(Alignment.BottomCenter)
-                    )
-                    .height(460.dp)
-                    .background(
-                        Brush.verticalGradient(
-                            0.00f to Color.Transparent,
-                            0.32f to scrimColor.copy(alpha = 0.9f * scrimDepth),
-                            1.00f to scrimColor.copy(alpha = scrimDepth)
-                        )
-                    )
-            )
-        }
 
         // ═══ Controls ═══
         // Видны всегда, когда лирика и очередь закрыты. Когда открыты — только

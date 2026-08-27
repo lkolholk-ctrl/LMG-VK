@@ -3,7 +3,6 @@ package com.lmg.vk.ui.lyrics
 import android.net.Uri
 import android.provider.Settings
 import android.view.animation.PathInterpolator
-import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.snap
@@ -34,6 +33,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
+import androidx.compose.ui.draw.BlurredEdgeTreatment
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
@@ -76,6 +76,7 @@ import com.lmg.vk.engine.lyrics.lyricsSourceTitle
 import com.lmg.vk.ui.glass.AlbumArtImage
 import com.lmg.vk.ui.glass.AlbumColors
 import com.lmg.vk.ui.glass.rememberAlbumColors
+import com.lmg.vk.ui.player.BitChordThinSlider
 import com.lmg.vk.ui.theme.AppFontFamily
 import com.lmg.vk.ui.theme.VkSansDisplay
 import kotlinx.coroutines.Dispatchers
@@ -99,8 +100,6 @@ private const val ACTIVE_LINE_TOP_BIAS = 0.28f
 private const val SEEK_TAP_ZONE = 0.575f
 
 /** Высота зоны заголовка со скрим-градиентом (плотная часть закрывает название+артиста). */
-private val HEADER_SCRIM_HEIGHT = 170.dp
-
 /** Пауза автоследования после ручного скролла: пользователь читает текст —
  *  не дёргаем список обратно, возвращаемся к активной строке через этот таймаут. */
 private const val USER_SCROLL_PAUSE_MS = 4000L
@@ -134,7 +133,6 @@ fun LyricsScreen(
     isFavorite: Boolean = false,
     onFavoriteClick: () -> Unit = {},
     onMoreClick: () -> Unit = {},
-    onRequestControls: () -> Unit = {},
     onClose: () -> Unit = {},
     // Split-режим (альбомная ориентация, правая половина): СВОЙ фон не рисуем —
     // общий фон плеера уже под нами (иначе жёсткий вертикальный шов-«полоса»).
@@ -262,9 +260,11 @@ fun LyricsScreen(
     // Подсветка идёт по currentLineIndex, а наводка списка — по этому: он бежит
     // с упреждением, чтобы строка встала на место к началу пения.
     val scrollLineIndex by timeProcessor?.scrollLineIndex?.collectAsState() ?: remember { mutableIntStateOf(-1) }
+    val visualLineIndex by remember(lyrics) {
+        derivedStateOf { lyrics.lines.indexOfLast { it.timeMs <= lyricClock.longValue + syncOffsetMs } }
+    }
 
     val lineEffect = LyricsFxController.WordEffect.FILL
-    val sungTweenMs = 180
 
     // Waiting считает сам LyricsTimeProcessor (сегментная модель): строка докрашена
     // ПОЛНОСТЬЮ + до следующей строки реальный разрыв > WAIT_GAP_MS. VAD выключен.
@@ -278,7 +278,7 @@ fun LyricsScreen(
     // Доступная ширина строки лирики. В split (альбом/планшет) лирика живёт в
     // ПРАВОЙ половине — считаем от неё, иначе текст рассчитан на полный экран и
     // обрезается справа. Плюс левый отступ меньше (текст ближе к обложке-шву).
-    val lineHPadding = if (splitMode) 16.dp else 24.dp
+    val lineHPadding = if (splitMode) 16.dp else 30.dp
     val lyricColumnWidthDp = if (splitMode) (configuration.screenWidthDp * 0.5f) else configuration.screenWidthDp.toFloat()
     val lineMaxWidthPx = with(density) { (lyricColumnWidthDp.dp - lineHPadding * 2).toPx().toInt() }
     // В узкой split-колонке шрифт строк меньше, чтобы влезал без обрезки.
@@ -290,11 +290,20 @@ fun LyricsScreen(
 
     // Ручной скролл (drag) ставит автоследование на паузу — фиксируем момент касания.
     var userScrolledAt by remember { mutableLongStateOf(0L) }
+    var browsing by remember { mutableStateOf(false) }
     LaunchedEffect(listState) {
         listState.interactionSource.interactions.collect { interaction ->
             if (interaction is DragInteraction.Start) {
                 userScrolledAt = System.currentTimeMillis()
+                browsing = true
             }
+        }
+    }
+
+    LaunchedEffect(browsing, listState.isScrollInProgress) {
+        if (browsing && !listState.isScrollInProgress) {
+            delay(5000)
+            browsing = false
         }
     }
 
@@ -366,11 +375,6 @@ fun LyricsScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = onRequestControls
-            )
     ) {
         // ═══ Background layers ═══
         if (!splitMode) {
@@ -493,8 +497,8 @@ fun LyricsScreen(
                                 )
                             }
 
-                            val isCurrent = index == currentLineIndex
-                            val isPast = index < currentLineIndex
+                            val isCurrent = index == visualLineIndex
+                            val isPast = index < visualLineIndex
                             val isAlternateAgent = isDuet && line.agentId != null &&
                                 primaryAgentId != null && line.agentId != primaryAgentId
 
@@ -550,21 +554,25 @@ fun LyricsScreen(
                             // анимаций на один список. Плавность перехода даёт
                             // анимация цвета ниже, а отдельная анимация глубины
                             // только грузила прокрутку.
-                            val dist = if (currentLineIndex >= 0) abs(index - currentLineIndex) else 1
-                            val depth = if (isCurrent || currentLineIndex < 0) 1f
-                                else (1f - 0.13f * (dist - 1)).coerceAtLeast(0.45f)
+                            val dist = if (visualLineIndex < 0) 0 else abs(index - visualLineIndex)
                             val lineBlur by animateDpAsState(
-                                targetValue = if (isCurrent) 0.dp else (dist * 1.4f).coerceAtMost(6f).dp,
-                                animationSpec = if (animationsEnabled) tween(220) else snap(),
+                                targetValue = when {
+                                    browsing || isCurrent -> 0.dp
+                                    else -> (dist * 1.6f).coerceAtMost(7f).dp
+                                },
+                                animationSpec = if (animationsEnabled) androidx.compose.animation.core.spring() else snap(),
                                 label = "lyricsLineBlur",
                             )
-
-                            val sungColor by animateColorAsState(
-                                targetValue = base.copy(alpha = if (isCurrent) 0.94f else 0.55f * depth),
-                                animationSpec = if (animationsEnabled) tween(sungTweenMs) else snap(),
-                                label = "sung"
+                            val lineAlpha by androidx.compose.animation.core.animateFloatAsState(
+                                targetValue = when {
+                                    browsing || isCurrent -> 1f
+                                    else -> (0.5f - dist * 0.06f).coerceAtLeast(0.22f)
+                                },
+                                animationSpec = if (animationsEnabled) androidx.compose.animation.core.spring() else snap(),
+                                label = "lyricsLineAlpha",
                             )
-                            val unsungColor = base.copy(alpha = 0.18f * depth)
+                            val sungColor = base
+                            val unsungColor = base.copy(alpha = if (isCurrent) 0.45f else 1f)
 
                             // Где строка стоит на экране. Держим в массиве, а не в
                             // состоянии: значение нужно только внутри обработчика
@@ -575,7 +583,8 @@ fun LyricsScreen(
                             Column(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .blur(lineBlur)
+                                    .graphicsLayer { alpha = lineAlpha }
+                                    .blur(lineBlur, BlurredEdgeTreatment.Unbounded)
                                     .onGloballyPositioned { rowTop[0] = it.positionInRoot().y }
                                     // Тап по строке = перемотка на неё (Apple Music).
                                     // Только для синхронной лирики.
@@ -614,7 +623,8 @@ fun LyricsScreen(
                                     glowColor = base,
                                     effect = lineEffect,
                                     edgeSoftPx = if (isCurrent) edgeSoftPx else 0f,
-                                    fontSizeSp = 32f * lineFontScale,
+                                    fontSizeSp = 27f * lineFontScale,
+                                    lineHeightSp = 33f * lineFontScale,
                                     timedLine = displayLine?.takeIf { it.words.isNotEmpty() },
                                     positionState = lyricClock,
                                     positionOffsetMs = syncOffsetMs + wordTimingOffsetMs,
@@ -725,34 +735,18 @@ fun LyricsScreen(
                 }
             }
 
-            // ── Градиент-скрим под заголовком ──
-            // Плотный от самого верха (под статусбаром) → прозрачный вниз.
-            // Цвет — тот же НАСЫЩЕННЫЙ цвет обложки, что и фон лирики
-            // (boostedCoverColor от vibrant), никакого серого/чёрного.
-            val headerScrimColor = boostedCoverColor(resolvedColors.vibrant)
-            if (!splitMode) Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(HEADER_SCRIM_HEIGHT)
-                    .align(Alignment.TopCenter)
-                    .background(
-                        Brush.verticalGradient(
-                            colors = listOf(
-                                headerScrimColor.copy(alpha = 0.92f),
-                                headerScrimColor.copy(alpha = 0.65f),
-                                Color.Transparent
-                            )
-                        )
-                    )
-            )
-
             Spacer(
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .padding(top = 8.dp)
-                    .size(width = 46.dp, height = 5.dp)
+                    .size(width = 38.dp, height = 5.dp)
                     .clip(RoundedCornerShape(50))
-                    .background(lyricInk.copy(alpha = 0.35f)),
+                    .background(Color.White.copy(alpha = 0.32f))
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = onClose,
+                    ),
             )
 
             Row(
@@ -769,7 +763,12 @@ fun LyricsScreen(
                     contentDescription = null,
                     modifier = Modifier
                         .size(if (splitMode) 42.dp else 54.dp)
-                        .clip(RoundedCornerShape(10.dp)),
+                        .clip(RoundedCornerShape(10.dp))
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = onClose,
+                        ),
                     contentScale = ContentScale.Crop,
                 )
                 Spacer(Modifier.width(14.dp))
@@ -797,16 +796,16 @@ fun LyricsScreen(
                             else com.lmg.vk.ui.icons.LmgGlyphs.FavoriteOutline28,
                             contentDescription = stringResource(R.string.action_like),
                             tint = lyricInk,
-                            modifier = Modifier.size(23.dp),
+                            modifier = Modifier.size(19.dp),
                         )
                     }
-                    Spacer(Modifier.width(10.dp))
+                    Spacer(Modifier.width(8.dp))
                     LyricsHeaderButton(onClick = onMoreClick) {
                         Icon(
                             imageVector = com.lmg.vk.ui.icons.LmgGlyphs.MoreHorizontal28,
                             contentDescription = stringResource(R.string.track_actions),
                             tint = lyricInk,
-                            modifier = Modifier.size(24.dp),
+                            modifier = Modifier.size(19.dp),
                         )
                     }
                 }
@@ -871,7 +870,7 @@ fun LyricsScreen(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .fillMaxWidth()
-                        .padding(horizontal = 24.dp, vertical = 12.dp),
+                        .padding(horizontal = 30.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     LyricsProgress(
@@ -879,21 +878,22 @@ fun LyricsScreen(
                         durationMs = trackDurationMs,
                         color = lyricInk,
                     )
-                    Spacer(Modifier.height(14.dp))
+                    Spacer(Modifier.height(16.dp))
                     Text(
                         text = stringResource(R.string.lyrics_by_source, lyrics.source.lyricsSourceTitle()),
-                        color = lyricInk.copy(alpha = 0.86f),
+                        color = Color.White.copy(alpha = 0.70f),
                         fontSize = 12.sp,
                         fontWeight = FontWeight.SemiBold,
                         modifier = Modifier
                             .clip(RoundedCornerShape(50))
-                            .background(Color.Black.copy(alpha = 0.24f))
+                            .background(Color.White.copy(alpha = 0.10f))
                             .clickable(
                                 interactionSource = remember { MutableInteractionSource() },
                                 indication = null,
                             ) { showSources = true }
-                            .padding(horizontal = 18.dp, vertical = 10.dp),
+                            .padding(horizontal = 18.dp, vertical = 8.dp),
                     )
+                    Spacer(Modifier.height(20.dp))
                 }
             }
         }
@@ -944,9 +944,9 @@ private fun LyricsHeaderButton(
 ) {
     Box(
         modifier = Modifier
-            .size(46.dp)
+            .size(34.dp)
             .clip(RoundedCornerShape(50))
-            .background(Color.Black.copy(alpha = 0.20f))
+            .background(Color.White.copy(alpha = 0.18f))
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
@@ -963,36 +963,36 @@ private fun LyricsProgress(
     durationMs: Long,
     color: Color,
 ) {
-    val progress = if (durationMs > 0L) {
+    val actualProgress = if (durationMs > 0L) {
         (positionMs.toFloat() / durationMs).coerceIn(0f, 1f)
     } else 0f
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(4.dp)
-            .clip(RoundedCornerShape(50))
-            .background(color.copy(alpha = 0.22f))
-            .pointerInput(durationMs) {
-                detectTapGestures { point ->
-                    if (durationMs > 0L && size.width > 0) {
-                        PlayerController.seekTo((durationMs * (point.x / size.width)).toLong())
-                    }
-                }
-            },
-    ) {
-        Box(
-            Modifier
-                .fillMaxHeight()
-                .fillMaxWidth(progress)
-                .background(color.copy(alpha = 0.92f)),
-        )
+    var scrubbing by remember { mutableStateOf(false) }
+    var shown by remember { mutableFloatStateOf(actualProgress) }
+    LaunchedEffect(actualProgress, scrubbing) {
+        if (!scrubbing) shown = actualProgress
     }
-    Spacer(Modifier.height(5.dp))
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-        Text(formatLyricsTime(positionMs), color = color.copy(alpha = 0.78f), fontSize = 11.sp)
+    BitChordThinSlider(
+        value = shown,
+        onValueChange = {
+            scrubbing = true
+            shown = it
+        },
+        onValueChangeFinished = {
+            if (durationMs > 0L) PlayerController.seekTo((durationMs * shown).toLong())
+            scrubbing = false
+        },
+    )
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .offset(y = (-9).dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        val shownPosition = (durationMs * shown).toLong()
+        Text(formatLyricsTime(shownPosition), color = color.copy(alpha = 0.55f), fontSize = 11.sp)
         Text(
-            "-${formatLyricsTime((durationMs - positionMs).coerceAtLeast(0L))}",
-            color = color.copy(alpha = 0.78f),
+            "-${formatLyricsTime((durationMs - shownPosition).coerceAtLeast(0L))}",
+            color = color.copy(alpha = 0.55f),
             fontSize = 11.sp,
         )
     }
@@ -1171,6 +1171,7 @@ internal fun LyricLineSweep(
     effect: LyricsFxController.WordEffect = LyricsFxController.WordEffect.FILL,
     edgeSoftPx: Float = 0f,
     fontSizeSp: Float = 32f,
+    lineHeightSp: Float = fontSizeSp * 1.375f,
     timedLine: LyricsParser.LyricLine? = null,
     positionState: MutableLongState? = null,
     positionOffsetMs: Long = 0L,
@@ -1189,7 +1190,7 @@ internal fun LyricLineSweep(
         fontSize = fontSizeSp.sp,
         fontWeight = FontWeight.Bold,
         fontFamily = VkSansDisplay,
-        lineHeight = (fontSizeSp * 1.375f).sp,
+        lineHeight = lineHeightSp.sp,
         textAlign = TextAlign.Start,
         platformStyle = PlatformTextStyle(includeFontPadding = false)
     )
@@ -1209,7 +1210,11 @@ internal fun LyricLineSweep(
     val hDp = with(density) { layout.size.height.toDp() }
     val appleFeatherPx = with(density) { 30.dp.toPx() }
 
-    val lineScale = if (isActive) 1f else 0.98f
+    val lineScale by androidx.compose.animation.core.animateFloatAsState(
+        targetValue = if (isActive && !isBackground) 1.04f else 1f,
+        animationSpec = if (animationsEnabled) androidx.compose.animation.core.spring() else snap(),
+        label = "lyricScale",
+    )
 
     val emphasisGroups = remember(timedLine, text, isBackground) {
         if (isBackground || timedLine == null) {
