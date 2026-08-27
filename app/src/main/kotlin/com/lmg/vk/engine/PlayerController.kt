@@ -586,6 +586,16 @@ object PlayerController {
 
     private val _positionDiscontinuity = MutableSharedFlow<Long>(extraBufferCapacity = 1)
     val positionDiscontinuity: SharedFlow<Long> = _positionDiscontinuity.asSharedFlow()
+    private var lastDiscontinuityPositionMs = -1L
+    private var lastDiscontinuityAtMs = Long.MIN_VALUE
+
+    private fun emitPositionDiscontinuity(positionMs: Long) {
+        val now = SystemClock.elapsedRealtime()
+        if (positionMs == lastDiscontinuityPositionMs && now - lastDiscontinuityAtMs < 500L) return
+        lastDiscontinuityPositionMs = positionMs
+        lastDiscontinuityAtMs = now
+        _positionDiscontinuity.tryEmit(positionMs)
+    }
 
     private var lastPlayerPositionMs: Long = 0L
     private var lastSyncTimeMs: Long = 0L
@@ -1546,7 +1556,6 @@ object PlayerController {
 
     fun seekTo(positionMs: Long) {
         val safePosition = positionMs.coerceIn(0L, (_durationMs.value - 500L).coerceAtLeast(0L))
-        _positionDiscontinuity.tryEmit(safePosition)
         mainScope.launch {
             getPlayer(appContext ?: return@launch)?.seekTo(safePosition)
             _currentPositionMs.value = safePosition
@@ -1554,6 +1563,7 @@ object PlayerController {
             // re-anchor smooth position to the new seek target
             lastPlayerPositionMs = safePosition
             lastSyncTimeMs = SystemClock.elapsedRealtime()
+            emitPositionDiscontinuity(safePosition)
         }
     }
 
@@ -2729,6 +2739,18 @@ object PlayerController {
     }
 
     private class PlayerStateBridge : Player.Listener {
+        override fun onPositionDiscontinuity(
+            oldPosition: Player.PositionInfo,
+            newPosition: Player.PositionInfo,
+            reason: Int,
+        ) {
+            val positionMs = newPosition.positionMs.coerceAtLeast(0L)
+            emitPositionDiscontinuity(positionMs)
+            _currentPositionMs.value = positionMs
+            lastPlayerPositionMs = positionMs
+            lastSyncTimeMs = SystemClock.elapsedRealtime()
+        }
+
         override fun onPlaybackStateChanged(playbackState: Int) {
             _isBuffering.value = (playbackState == Player.STATE_BUFFERING)
         }

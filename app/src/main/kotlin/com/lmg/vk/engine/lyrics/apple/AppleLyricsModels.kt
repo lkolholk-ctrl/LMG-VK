@@ -43,6 +43,10 @@ data class AppleLyricsDocument(
     val script: String? = null,
     val translation: String? = null,
     val pronunciation: String? = null,
+    val translationLanguages: List<String> = emptyList(),
+    val pronunciationLanguages: List<String> = emptyList(),
+    val translationAutomaticallyCreated: Boolean = false,
+    val pronunciationAutomaticallyCreated: Boolean = false,
     val songwriters: List<AppleSongwriter> = emptyList(),
     val rawTtml: String? = null
 ) {
@@ -82,6 +86,7 @@ data class AppleLyricPiece(
     val endMs: Long,
     val agentId: String?,
     val role: ApplePieceRole,
+    val language: String? = null,
     val isWhitespace: Boolean = false,
     val sourceOrder: Int
 ) {

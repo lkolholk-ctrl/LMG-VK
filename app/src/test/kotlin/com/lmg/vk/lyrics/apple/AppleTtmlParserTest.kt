@@ -108,4 +108,22 @@ class AppleTtmlParserTest {
         assertEquals(15500L, fastPiece.beginMs)
         assertTrue("Zero duration must be normalized to at least +1ms", fastPiece.endMs > fastPiece.beginMs)
     }
+
+    @Test
+    fun generatedLineIdsStayUniqueAcrossDivisions() {
+        val ttml = """
+            <tt xmlns="http://www.w3.org/ns/ttml"
+                xmlns:ttm="http://www.w3.org/ns/ttml#metadata"
+                xmlns:itunes="http://music.apple.com/lyric-ttml-internal"
+                itunes:timing="Word">
+              <body dur="10.000">
+                <div><p begin="1.000" end="2.000"><span begin="1.000" end="2.000">One</span></p></div>
+                <div><p begin="3.000" end="4.000"><span begin="3.000" end="4.000">Two</span></p></div>
+              </body>
+            </tt>
+        """.trimIndent()
+
+        val lines = AppleTtmlParser.parse(ttml)!!.allLines
+        assertEquals(lines.size, lines.map { it.id }.distinct().size)
+    }
 }

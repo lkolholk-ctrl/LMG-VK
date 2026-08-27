@@ -3,6 +3,7 @@ package com.lmg.vk.engine.lyrics
 import android.content.Context
 import com.lmg.vk.debug.DebugLog
 import com.lmg.vk.engine.LyricsParser
+import com.lmg.vk.engine.lyrics.apple.AppleLyricsConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -29,7 +30,6 @@ import kotlin.coroutines.resume
 
 object ExternalLyricsRepository {
     private const val BETTER_LYRICS_URL = "https://lyrics-api.boidu.dev/getLyrics"
-    private const val APPLE_TTML_PROXY = "http://50.117.3.97:8777"
     private val lyricsPlusMirrors = listOf(
         "https://lyricsplus.prjktla.my.id",
         "https://lyricsplus.atomix.one",
@@ -130,7 +130,7 @@ object ExternalLyricsRepository {
     }
 
     suspend fun warmUp() {
-        get("$APPLE_TTML_PROXY/ping", appleClient)
+        get("${AppleLyricsConfig.PROXY_BASE_URL}/ping", appleClient)
     }
 
     private suspend fun fetchLyricsPlus(
@@ -200,7 +200,7 @@ object ExternalLyricsRepository {
         artist: String,
         durationMs: Long,
     ): String? = withContext(Dispatchers.IO) {
-        val url = "$APPLE_TTML_PROXY/v2/lyrics/ttml".toHttpUrl().newBuilder()
+        val url = "${AppleLyricsConfig.PROXY_BASE_URL}/v2/lyrics/ttml".toHttpUrl().newBuilder()
             .addQueryParameter("title", title)
             .addQueryParameter("artist", artist)
             .addQueryParameter("lang", "all")

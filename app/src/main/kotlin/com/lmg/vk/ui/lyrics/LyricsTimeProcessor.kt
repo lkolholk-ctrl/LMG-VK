@@ -49,10 +49,7 @@ class LyricsTimeProcessor(
         /** Blur radius для фона. */
         const val BACKGROUND_BLUR_DP = 25
 
-        /** Кривая наплыва заливки слова — ТОЧНО как у Apple Music (реверс их
-         *  Android-плеера: PlayerLyricsViewFragment использует ровно этот
-         *  PathInterpolator для заливки слова/перехода строки). Резкая ease-in-out:
-         *  медленный старт → быстрый разгон → мягкое торможение. */
+        /** Legacy LRC-only curve. It is not used by the Apple rich TTML renderer. */
         val LYRIC_PROGRESS_INTERPOLATOR = PathInterpolator(0.75f, 0.0f, 0.25f, 1.0f)
 
         /** Порог скачка позиции для сброса курсора (ручная перемотка). */

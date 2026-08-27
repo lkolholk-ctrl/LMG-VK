@@ -47,6 +47,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.Velocity
@@ -113,13 +114,21 @@ internal fun InlineQueue(
         ) {
             Text(
                 text = stringResource(R.string.queue_title),
-                style = TextStyle(fontSize = 22.sp, fontFamily = VkSansDisplay),
+                style = TextStyle(
+                    fontSize = 22.sp,
+                    fontFamily = VkSansDisplay,
+                    fontWeight = FontWeight.Bold,
+                ),
                 color = Color.White,
                 modifier = Modifier.weight(1f),
             )
             Text(
                 text = stringResource(R.string.action_clear),
-                style = TextStyle(fontSize = 16.sp, fontFamily = VkSansDisplay),
+                style = TextStyle(
+                    fontSize = 16.sp,
+                    fontFamily = VkSansDisplay,
+                    fontWeight = FontWeight.Bold,
+                ),
                 color = Color.White.copy(alpha = 0.75f),
                 modifier = Modifier
                     .clip(RoundedCornerShape(percent = 50))
@@ -177,7 +186,11 @@ internal fun InlineQueue(
                         Column {
                             Text(
                                 text = stringResource(R.string.queue_autoplay),
-                                style = TextStyle(fontSize = 16.sp, fontFamily = VkSansDisplay),
+                                style = TextStyle(
+                                    fontSize = 16.sp,
+                                    fontFamily = VkSansDisplay,
+                                    fontWeight = FontWeight.Bold,
+                                ),
                                 color = Color.White,
                             )
                             Text(
@@ -186,7 +199,11 @@ internal fun InlineQueue(
                                 } else {
                                     stringResource(R.string.queue_autoplay_continues)
                                 },
-                                style = TextStyle(fontSize = 14.sp, fontFamily = VkSansDisplay),
+                                style = TextStyle(
+                                    fontSize = 14.sp,
+                                    fontFamily = VkSansDisplay,
+                                    fontWeight = FontWeight.SemiBold,
+                                ),
                                 color = Color.White.copy(alpha = 0.55f),
                             )
                         }
@@ -349,14 +366,22 @@ private fun InlineQueueRow(
         Column(Modifier.weight(1f)) {
             Text(
                 text = track.title,
-                style = TextStyle(fontSize = 16.sp, fontFamily = VkSansDisplay),
+                style = TextStyle(
+                    fontSize = 16.sp,
+                    fontFamily = VkSansDisplay,
+                    fontWeight = FontWeight.Bold,
+                ),
                 color = if (isCurrent) Color.White else Color.White.copy(alpha = 0.92f),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
                 text = track.artist,
-                style = TextStyle(fontSize = 14.sp, fontFamily = VkSansDisplay),
+                style = TextStyle(
+                    fontSize = 14.sp,
+                    fontFamily = VkSansDisplay,
+                    fontWeight = FontWeight.SemiBold,
+                ),
                 color = Color.White.copy(alpha = 0.55f),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,

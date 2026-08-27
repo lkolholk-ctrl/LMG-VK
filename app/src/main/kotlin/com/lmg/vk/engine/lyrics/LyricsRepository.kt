@@ -5,7 +5,7 @@ import android.net.Uri
 import com.lmg.vk.debug.DebugLog
 import com.lmg.vk.engine.LyricsParser
 import com.lmg.vk.engine.lyrics.apple.AppleLyricsDocument
-import com.lmg.vk.engine.lyrics.apple.ApplePieceRole
+import com.lmg.vk.engine.lyrics.apple.AppleLyricsProjector
 import com.lmg.vk.engine.lyrics.apple.AppleTtmlCache
 import com.lmg.vk.engine.lyrics.apple.AppleTtmlClient
 import com.lmg.vk.engine.lyrics.apple.AppleTtmlParser
@@ -32,6 +32,9 @@ object LyricsRepository {
             val appleEnabled = LyricsSource.APPLE_TTML in enabledSources
 
             if (appleEnabled) {
+                if (forceRefresh) {
+                    AppleTtmlCache.delete(context, title, artist, durationMs, language)
+                }
                 // 1. Check persistent local Apple TTML cache
                 if (!forceRefresh) {
                     val cachedTtml = AppleTtmlCache.read(context, title, artist, durationMs, language)
@@ -70,7 +73,13 @@ object LyricsRepository {
             title = title,
             artist = artist,
             durationMs = durationMs,
-            trackId = trackId
+            trackId = trackId,
+            // Apple was already resolved above. Prevent a second cache/server pass in
+            // ExternalLyricsRepository while preserving LyricsPlus/BetterLyrics/LRCLIB.
+            excludedSources = setOf(LyricsSource.APPLE_TTML),
+            // Product priority: local Apple TTML -> Apple proxy -> LyricsPlus/other
+            // configured external providers -> VK/LRCLIB/embedded legacy fallback.
+            preferExternalBeforeOfficial = true,
         )
 
         LyricsContent.Legacy(lyrics = legacy)
@@ -81,33 +90,6 @@ object LyricsRepository {
      * for components like WaveHomeScreen that only require a simple line projection.
      */
     fun toLegacyProjection(doc: AppleLyricsDocument, title: String? = null, artist: String? = null): LyricsParser.Lyrics {
-        val legacyLines = doc.allLines.map { line ->
-            val mainPieces = line.main.filter { !it.isWhitespace }
-            val words = mainPieces.map { piece ->
-                LyricsParser.LyricWord(
-                    timeMs = piece.beginMs,
-                    text = piece.text,
-                    endMs = piece.endMs
-                )
-            }
-            val lineText = line.main.joinToString("") { it.text }.trim()
-            val bgText = line.background.joinToString("") { it.text }.trim()
-            val fullText = if (bgText.isNotEmpty()) "$lineText ($bgText)" else lineText
-
-            LyricsParser.LyricLine(
-                timeMs = line.beginMs,
-                text = fullText,
-                words = words,
-                endMs = line.endMs
-            )
-        }
-
-        return LyricsParser.Lyrics(
-            lines = legacyLines,
-            isSynced = true,
-            title = title,
-            artist = artist,
-            source = LyricsSource.APPLE_TTML.id
-        )
+        return AppleLyricsProjector.toLegacy(doc, title, artist)
     }
 }

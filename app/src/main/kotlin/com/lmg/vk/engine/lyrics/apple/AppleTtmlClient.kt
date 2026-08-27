@@ -24,7 +24,7 @@ interface AppleTtmlClient {
 }
 
 class DefaultAppleTtmlClient(
-    private val proxyBaseUrl: String = "http://50.117.3.97:8777",
+    private val proxyBaseUrl: String = AppleLyricsConfig.PROXY_BASE_URL,
     private val httpClient: OkHttpClient = OkHttpClient.Builder()
         .connectTimeout(4, TimeUnit.SECONDS)
         .readTimeout(12, TimeUnit.SECONDS)
@@ -93,7 +93,10 @@ class DefaultAppleTtmlClient(
                                 return
                             }
                             val body = resp.body?.string().orEmpty()
-                            val isTtml = body.trimStart().startsWith("<tt", ignoreCase = true)
+                            val trimmed = body.trimStart()
+                            val isTtml = trimmed.startsWith("<tt", ignoreCase = true) ||
+                                (trimmed.startsWith("<?xml", ignoreCase = true) &&
+                                    trimmed.contains("<tt", ignoreCase = true))
                             DebugLog.add("apple client success status=$code bytes=${body.length} isTtml=$isTtml")
                             if (!isTtml || body.isBlank()) {
                                 if (continuation.isActive) {

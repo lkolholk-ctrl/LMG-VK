@@ -1,16 +1,14 @@
 package com.lmg.vk.ui.lyrics.apple
 
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
-import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import com.lmg.vk.engine.lyrics.apple.AppleLyricsDocument
 import com.lmg.vk.engine.lyrics.apple.AppleLyricsLine
 import com.lmg.vk.engine.lyrics.apple.AppleLyricPiece
-import com.lmg.vk.engine.lyrics.apple.ApplePieceRole
 import com.lmg.vk.engine.lyrics.apple.AppleTimingType
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -18,6 +16,7 @@ import kotlin.math.roundToInt
 
 data class AppleKaraokeUiState(
     val activeLineIndex: Int = -1,
+    val scrollTargetLineIndex: Int = -1,
     val activeLineId: String? = null,
     val activeMainPieceIds: Set<String> = emptySet(),
     val activeBgPieceIds: Set<String> = emptySet(),
@@ -87,8 +86,10 @@ class AppleLyricsEventProcessor(
                 list += AppleLyricsEvent.PieceEnd(piece = piece, lineIndex = index, atMs = piece.endMs)
             }
 
-            // Pronunciation pieces
-            line.pronunciation.filter { !it.isWhitespace }.forEach { piece ->
+            // Pronunciation and pronunciation-background are separate native channels.
+            (line.pronunciation + line.pronunciationBackground)
+                .filter { !it.isWhitespace }
+                .forEach { piece ->
                 val b = (piece.beginMs + wordOffset).coerceAtLeast(0L)
                 list += AppleLyricsEvent.PieceStart(piece = piece, lineIndex = index, atMs = b)
                 list += AppleLyricsEvent.PieceEnd(piece = piece, lineIndex = index, atMs = piece.endMs)
@@ -100,31 +101,31 @@ class AppleLyricsEventProcessor(
 
     /**
      * Analytically evaluates the active state for any [positionMs].
-     * Deterministic, zero allocations during seek/scrubbing.
+     * It does not replay the event history, so seek/scrubbing is deterministic.
      */
     fun evaluateAt(positionMs: Long, epoch: Long = 0L): AppleKaraokeUiState {
-        if (lines.isEmpty()) {
-            return AppleKaraokeUiState(playbackEpoch = epoch)
+        if (lines.isEmpty() || document.timing == AppleTimingType.NONE) {
+            return AppleKaraokeUiState(
+                currentPositionMs = positionMs,
+                playbackEpoch = epoch,
+            )
         }
 
         val wordOffset = if (document.timing == AppleTimingType.WORD) -100L else 0L
 
-        // 1. Find active line
-        var activeIdx = -1
-        for (i in lines.indices) {
-            val line = lines[i]
-            val lineLeadMs = if (i == 0) 500L else appleLineMoveDuration(lines[i - 1].endMs, line.beginMs).toLong()
-            val start = (line.beginMs - lineLeadMs).coerceAtLeast(0L)
-            if (positionMs in start..line.endMs) {
-                activeIdx = i
-                break
-            }
+        // Singing state and pre-lead scroll state are deliberately separate. Apple can
+        // relocate the next line before it becomes the active lyric callback.
+        val activeIdx = lines.indexOfLast { line ->
+            positionMs >= line.beginMs && positionMs < line.endMs
         }
-
-        // If between lines, find if we are in past lines or before first line
-        if (activeIdx == -1) {
-            val lastPast = lines.indexOfLast { it.endMs <= positionMs }
-            activeIdx = if (lastPast >= 0) lastPast else 0
+        var scrollTargetIdx = -1
+        lines.forEachIndexed { index, line ->
+            val lead = if (index == 0) 500L else {
+                appleLineMoveDuration(lines[index - 1].endMs, line.beginMs).toLong()
+            }
+            if (positionMs >= (line.beginMs - lead).coerceAtLeast(0L)) {
+                scrollTargetIdx = index
+            }
         }
 
         val activeLine = lines.getOrNull(activeIdx)
@@ -136,30 +137,32 @@ class AppleLyricsEventProcessor(
 
         activeLine?.main?.filter { !it.isWhitespace }?.forEach { piece ->
             val b = (piece.beginMs + wordOffset).coerceAtLeast(0L)
-            if (positionMs in b..piece.endMs) {
+            if (positionMs >= b && positionMs < piece.endMs) {
                 mainActive += piece.id
             }
         }
 
         activeLine?.background?.filter { !it.isWhitespace }?.forEach { piece ->
             val b = (piece.beginMs + wordOffset).coerceAtLeast(0L)
-            if (positionMs in b..piece.endMs) {
+            if (positionMs >= b && positionMs < piece.endMs) {
                 bgActive += piece.id
             }
         }
 
-        activeLine?.pronunciation?.filter { !it.isWhitespace }?.forEach { piece ->
-            val b = (piece.beginMs + wordOffset).coerceAtLeast(0L)
-            if (positionMs in b..piece.endMs) {
-                pronActive += piece.id
+        (activeLine?.pronunciation.orEmpty() + activeLine?.pronunciationBackground.orEmpty())
+            .filter { !it.isWhitespace }
+            .forEach { piece ->
+                val b = (piece.beginMs + wordOffset).coerceAtLeast(0L)
+                if (positionMs >= b && positionMs < piece.endMs) {
+                    pronActive += piece.id
+                }
             }
-        }
 
         // 3. Interlude check: if no line is singing and next line begin is >= 7000ms away
         var isInterlude = false
         val nextLine = lines.firstOrNull { it.beginMs > positionMs }
         if (nextLine != null) {
-            val isCurrentSinging = activeLine != null && positionMs in activeLine.beginMs..activeLine.endMs
+            val isCurrentSinging = activeLine != null
             if (!isCurrentSinging && (nextLine.beginMs - positionMs) >= 7000L) {
                 isInterlude = true
             }
@@ -170,6 +173,7 @@ class AppleLyricsEventProcessor(
 
         return AppleKaraokeUiState(
             activeLineIndex = activeIdx,
+            scrollTargetLineIndex = scrollTargetIdx,
             activeLineId = activeLine?.id,
             activeMainPieceIds = mainActive,
             activeBgPieceIds = bgActive,
@@ -195,36 +199,40 @@ fun appleLineMoveDuration(currentEnd: Long, nextBegin: Long): Int {
 fun rememberAppleLyricsEventState(
     processor: AppleLyricsEventProcessor?,
     currentPositionMs: Long,
-    discontinuityEpoch: Long = 0L
+    isPlaying: Boolean,
+    discontinuityEpoch: Long = 0L,
+    positionProvider: () -> Long,
 ): State<AppleKaraokeUiState> {
     val state = remember(processor, discontinuityEpoch) {
         mutableStateOf(processor?.evaluateAt(currentPositionMs, discontinuityEpoch) ?: AppleKaraokeUiState())
     }
 
-    LaunchedEffect(processor, discontinuityEpoch) {
+    val latestPositionProvider = rememberUpdatedState(positionProvider)
+
+    LaunchedEffect(processor, discontinuityEpoch, isPlaying) {
         if (processor == null) return@LaunchedEffect
-        var localPos = currentPositionMs
+        state.value = processor.evaluateAt(latestPositionProvider.value(), discontinuityEpoch)
+        if (!isPlaying) return@LaunchedEffect
 
         while (isActive) {
-            val eval = processor.evaluateAt(localPos, discontinuityEpoch)
+            val playerPosition = latestPositionProvider.value()
+            val eval = processor.evaluateAt(playerPosition, discontinuityEpoch)
             state.value = eval
 
             val nextAt = eval.nextEventAtMs
-            if (nextAt != null && nextAt > localPos) {
-                val delayMs = (nextAt - localPos).coerceIn(16L, 1000L)
-                delay(delayMs)
-                localPos += delayMs
-            } else {
-                delay(33L)
-                localPos += 33L
-            }
+            // The job is cancelled immediately on pause/seek by LaunchedEffect keys.
+            // Local piece animators continue at display refresh rate; this scheduler only
+            // wakes at a confirmed TTML boundary.
+            delay(if (nextAt != null) (nextAt - playerPosition).coerceAtLeast(1L) else 1_000L)
         }
     }
 
-    // Immediate sync on external currentPositionMs changes (e.g. seek)
-    LaunchedEffect(currentPositionMs) {
-        processor?.let {
-            state.value = it.evaluateAt(currentPositionMs, discontinuityEpoch)
+    // While paused there is no scheduler. Keep scrubbing/manual position updates exact.
+    LaunchedEffect(processor, currentPositionMs, discontinuityEpoch, isPlaying) {
+        if (!isPlaying) {
+            processor?.let {
+                state.value = it.evaluateAt(currentPositionMs, discontinuityEpoch)
+            }
         }
     }
 

@@ -1,7 +1,6 @@
 package com.lmg.vk.engine
 
 import android.content.Context
-import android.media.MediaMetadataRetriever
 import android.net.Uri
 import com.lmg.vk.debug.DebugLog
 import kotlinx.coroutines.Dispatchers
@@ -13,14 +12,15 @@ import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
+import org.jaudiotagger.audio.AudioFileIO
+import org.jaudiotagger.tag.FieldKey
 
 /**
  * Lyrics Parser — извлечение и разбор текстов песен.
  *
- * Источники (по приоритету):
- * 1. backend API lyrics — официальный текст от партнёра
- * 2. Embedded lyrics из тегов аудиофайлов
- * 3. Plain text fallback
+ * Legacy lyrics fallback used after the rich Apple TTML repository. It keeps the
+ * existing VK/LyricsPlus/BetterLyrics/LRCLIB and embedded-tag paths separate from
+ * the lossless Apple model.
  */
 object LyricsParser {
 
@@ -129,10 +129,8 @@ object LyricsParser {
      * Извлекает lyrics из аудиофайла (embedded только).
      */
     fun extractLyrics(context: Context, uri: Uri): Lyrics {
-        val mmr = MediaMetadataRetriever()
         return try {
-            mmr.setDataSource(context, uri)
-            val rawLyrics = tryExtractEmbedded(mmr)
+            val rawLyrics = tryExtractEmbedded(context, uri)
             if (rawLyrics.isNullOrBlank()) {
                 Lyrics.EMPTY
             } else {
@@ -140,8 +138,6 @@ object LyricsParser {
             }
         } catch (_: Exception) {
             Lyrics.EMPTY
-        } finally {
-            try { mmr.release() } catch (_: Exception) {}
         }
     }
 
@@ -195,9 +191,11 @@ object LyricsParser {
         title: String,
         artist: String,
         durationMs: Long,
-        trackId: String? = null
+        trackId: String? = null,
+        excludedSources: Set<com.lmg.vk.engine.lyrics.LyricsSource> = emptySet(),
+        preferExternalBeforeOfficial: Boolean = false,
     ): Lyrics {
-        val enabledSources = com.lmg.vk.engine.lyrics.LyricsSourceStore.enabled(context)
+        val enabledSources = com.lmg.vk.engine.lyrics.LyricsSourceStore.enabled(context) - excludedSources
         if (isLocalTrack(uri, trackId)) {
             val wordTimed = kotlinx.coroutines.withTimeoutOrNull(30_000L) {
                 com.lmg.vk.engine.lyrics.ExternalLyricsRepository.findWordTimed(
@@ -222,6 +220,11 @@ object LyricsParser {
                 return result
             }
             val externalLineSynced = wordTimed?.takeIf { it.lines.isNotEmpty() }
+            if (preferExternalBeforeOfficial && externalLineSynced != null) {
+                val result = externalLineSynced.copy(title = title, artist = artist)
+                if (!trackId.isNullOrBlank()) cacheLyrics(trackId, result)
+                return result
+            }
             if (com.lmg.vk.engine.lyrics.LyricsSource.LRCLIB in enabledSources) {
                 val lrc = fetchLrcLib(context, uri, title, artist, durationMs, trackId)
                 if (lrc.lines.isNotEmpty()) {
@@ -265,6 +268,10 @@ object LyricsParser {
                 }
             }
             val richer = external.await()
+            if (preferExternalBeforeOfficial && richer != null && richer.lines.isNotEmpty()) {
+                official?.cancel()
+                return@coroutineScope richer.copy(title = title, artist = artist)
+            }
             if (richer?.isWordLevel == true) {
                 official?.cancel()
                 richer.copy(title = title, artist = artist)
@@ -567,12 +574,31 @@ object LyricsParser {
     //  Embedded & Parsing
     // ═══════════════════════════════════════════════════════════
 
-    private fun tryExtractEmbedded(mmr: MediaMetadataRetriever): String? {
+    private fun tryExtractEmbedded(context: Context, uri: Uri): String? {
+        var temporary: File? = null
         return try {
-            mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_TITLE)
-            null
+            val source = if (uri.scheme == "file") {
+                uri.path?.let(::File)?.takeIf(File::isFile)
+            } else {
+                val suffix = uri.lastPathSegment
+                    ?.substringAfterLast('.', missingDelimiterValue = "")
+                    ?.takeIf { it.length in 2..5 }
+                    ?.let { ".$it" }
+                    ?: ".audio"
+                File.createTempFile("embedded_lyrics_", suffix, context.cacheDir).also { target ->
+                    temporary = target
+                    context.contentResolver.openInputStream(uri)?.use { input ->
+                        target.outputStream().use { output -> input.copyTo(output) }
+                    } ?: return null
+                }
+            } ?: return null
+            AudioFileIO.read(source).tag
+                ?.getFirst(FieldKey.LYRICS)
+                ?.takeIf(String::isNotBlank)
         } catch (_: Exception) {
             null
+        } finally {
+            temporary?.delete()
         }
     }
 

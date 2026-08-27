@@ -43,7 +43,12 @@ fun LyricsBackground(
 
     // Насыщенный базовый цвет фона из обложки (+сатурация/+яркость, как у Apple).
     val bgColor by animateColorAsState(
-        targetValue = dimColor(boostedCoverColor(albumColors.vibrant)),
+        targetValue = dimColor(
+            boostedCoverColor(
+                albumColors.vibrant,
+                saturationBoost / LyricsTimeProcessor.SATURATION_BOOST,
+            )
+        ),
         animationSpec = tween(durationMillis = 1000),
         label = "lyricsBgColor"
     )
@@ -184,10 +189,10 @@ private fun dimColor(color: Color): Color {
     return Color(android.graphics.Color.HSVToColor(hsv))
 }
 
-fun boostedCoverColor(color: Color): Color {
+fun boostedCoverColor(color: Color, saturationScale: Float = 1f): Color {
     val hsv = FloatArray(3)
     android.graphics.Color.colorToHSV(color.toArgb(), hsv)
-    hsv[1] = hsv[1].coerceAtMost(1f)
+    hsv[1] = (hsv[1] * saturationScale).coerceIn(0f, 1f)
     hsv[2] = (hsv[2] * 1.35f).coerceIn(0.42f, 0.96f)
     return Color(android.graphics.Color.HSVToColor(hsv))
 }

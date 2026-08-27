@@ -29,19 +29,34 @@ object AppleTtmlParser {
             "word" -> AppleTimingType.WORD
             "line" -> AppleTimingType.LINE
             "none" -> AppleTimingType.NONE
-            else -> AppleTimingType.WORD
+            // Native auto-detection edge cases are not fully recovered. Do not label
+            // an unknown document as Word and enable karaoke mechanics speculatively.
+            else -> AppleTimingType.NONE
         }
 
         val language = root.getAttrOrNull("xml:lang") ?: root.getAttrOrNull("lang")
         val script = root.getAttrOrNull("itunes:script")
-        val translation = root.getAttrOrNull("itunes:translation")
-        val pronunciation = root.getAttrOrNull("itunes:pronunciation")
 
         val agents = parseAgents(document)
         val songwriters = parseSongwriters(document)
 
-        val sections = parseBodySections(document, agents)
+        val sections = parseBodySections(document)
         if (sections.isEmpty() || sections.all { it.lines.isEmpty() }) return null
+
+        val translationLanguages = sections.asSequence()
+            .flatMap { it.lines.asSequence() }
+            .flatMap { (it.translation + it.translationBackground).asSequence() }
+            .mapNotNull { it.language }
+            .distinct()
+            .toList()
+        val pronunciationLanguages = sections.asSequence()
+            .flatMap { it.lines.asSequence() }
+            .flatMap { (it.pronunciation + it.pronunciationBackground).asSequence() }
+            .mapNotNull { it.language }
+            .distinct()
+            .toList()
+        val translation = root.getAttrOrNull("itunes:translation") ?: translationLanguages.firstOrNull()
+        val pronunciation = root.getAttrOrNull("itunes:pronunciation") ?: pronunciationLanguages.firstOrNull()
 
         val bodyDuration = parseAppleTime(document.getElementsByTagName("body").item(0)?.let {
             (it as? Element)?.getAttrOrNull("dur")
@@ -56,6 +71,10 @@ object AppleTtmlParser {
             script = script,
             translation = translation,
             pronunciation = pronunciation,
+            translationLanguages = translationLanguages,
+            pronunciationLanguages = pronunciationLanguages,
+            translationAutomaticallyCreated = metadataBoolean(document, "translations"),
+            pronunciationAutomaticallyCreated = metadataBoolean(document, "transliterations"),
             songwriters = songwriters,
             rawTtml = rawTtml
         )
@@ -136,16 +155,20 @@ object AppleTtmlParser {
         return writers
     }
 
-    private fun parseBodySections(
-        document: Document,
-        agents: Map<String, AppleLyricsAgent>
-    ): List<AppleLyricsSection> {
+    private fun parseBodySections(document: Document): List<AppleLyricsSection> {
+        var generatedLineOrdinal = 0
+        fun nextGeneratedLineId(): String = "line_${generatedLineOrdinal++}"
+
         val divisions = document.getElementsByTagName("div")
         if (divisions.length > 0) {
             val sections = mutableListOf<AppleLyricsSection>()
             for (i in 0 until divisions.length) {
                 val div = divisions.item(i) as? Element ?: continue
-                val section = parseDivision(div, agents, defaultOrderStart = sections.sumOf { it.lines.size } * 1000)
+                val section = parseDivision(
+                    division = div,
+                    defaultOrderStart = sections.sumOf { it.lines.size } * 1000,
+                    nextGeneratedLineId = ::nextGeneratedLineId,
+                )
                 if (section.lines.isNotEmpty()) {
                     sections += section
                 }
@@ -162,7 +185,12 @@ object AppleTtmlParser {
 
         for (i in 0 until paragraphs.length) {
             val p = paragraphs.item(i) as? Element ?: continue
-            val line = parseParagraph(p, null, agents, lineIndex = i, orderStart = orderCounter)
+            val line = parseParagraph(
+                p = p,
+                inheritedAgentId = null,
+                generatedLineId = nextGeneratedLineId(),
+                orderStart = orderCounter,
+            )
             if (line != null) {
                 lines += line
                 orderCounter += (line.main.size + line.background.size) + 10
@@ -185,8 +213,8 @@ object AppleTtmlParser {
 
     private fun parseDivision(
         division: Element,
-        agents: Map<String, AppleLyricsAgent>,
-        defaultOrderStart: Int
+        defaultOrderStart: Int,
+        nextGeneratedLineId: () -> String,
     ): AppleLyricsSection {
         val songPart = division.getAttrOrNull("itunes:songPart") ?: division.getAttrOrNull("songPart")
         val divAgentId = division.getAttrOrNull("ttm:agent") ?: division.getAttrOrNull("agent")
@@ -198,7 +226,12 @@ object AppleTtmlParser {
 
         for (i in 0 until paragraphs.length) {
             val p = paragraphs.item(i) as? Element ?: continue
-            val line = parseParagraph(p, divAgentId, agents, lineIndex = i, orderStart = orderCounter)
+            val line = parseParagraph(
+                p = p,
+                inheritedAgentId = divAgentId,
+                generatedLineId = nextGeneratedLineId(),
+                orderStart = orderCounter,
+            )
             if (line != null) {
                 lines += line
                 orderCounter += (line.main.size + line.background.size + line.translation.size + line.pronunciation.size) + 10
@@ -224,11 +257,10 @@ object AppleTtmlParser {
     private fun parseParagraph(
         p: Element,
         inheritedAgentId: String?,
-        agents: Map<String, AppleLyricsAgent>,
-        lineIndex: Int,
+        generatedLineId: String,
         orderStart: Int
     ): AppleLyricsLine? {
-        val lineId = p.getAttrOrNull("xml:id") ?: p.getAttrOrNull("id") ?: "line_$lineIndex"
+        val lineId = p.getAttrOrNull("xml:id") ?: p.getAttrOrNull("id") ?: generatedLineId
         val lineKey = p.getAttrOrNull("itunes:key") ?: p.getAttrOrNull("key")
         val lineAgentId = p.getAttrOrNull("ttm:agent") ?: p.getAttrOrNull("agent") ?: inheritedAgentId
 
@@ -245,6 +277,7 @@ object AppleTtmlParser {
             node: Node,
             currentRole: ApplePieceRole,
             inheritedPieceAgentId: String?,
+            inheritedLanguage: String?,
             defaultBeginMs: Long?,
             defaultEndMs: Long?
         ) {
@@ -252,36 +285,48 @@ object AppleTtmlParser {
             for (i in 0 until children.length) {
                 val child = children.item(i) ?: continue
                 if (child is Element) {
-                    val roleAttr = child.getAttrOrNull("ttm:role") ?: child.getAttrOrNull("role")
+                    val roleAttr = (child.getAttrOrNull("ttm:role") ?: child.getAttrOrNull("role"))
+                        ?.lowercase()
                     val targetRole = when (roleAttr) {
                         "x-bg" -> if (currentRole == ApplePieceRole.TRANSLATION) ApplePieceRole.TRANSLATION_BACKGROUND
                                   else if (currentRole == ApplePieceRole.PRONUNCIATION) ApplePieceRole.PRONUNCIATION_BACKGROUND
                                   else ApplePieceRole.BACKGROUND
-                        "x-translation" -> ApplePieceRole.TRANSLATION
-                        "x-roman" -> ApplePieceRole.PRONUNCIATION
+                        "x-translation" -> if (
+                            currentRole == ApplePieceRole.BACKGROUND ||
+                            currentRole == ApplePieceRole.PRONUNCIATION_BACKGROUND
+                        ) ApplePieceRole.TRANSLATION_BACKGROUND else ApplePieceRole.TRANSLATION
+                        "x-roman" -> if (
+                            currentRole == ApplePieceRole.BACKGROUND ||
+                            currentRole == ApplePieceRole.TRANSLATION_BACKGROUND
+                        ) ApplePieceRole.PRONUNCIATION_BACKGROUND else ApplePieceRole.PRONUNCIATION
                         else -> currentRole
                     }
 
                     val spanAgentId = child.getAttrOrNull("ttm:agent") ?: child.getAttrOrNull("agent") ?: inheritedPieceAgentId
+                    val spanLanguage = child.getAttrOrNull("xml:lang")
+                        ?: child.getAttrOrNull("lang")
+                        ?: inheritedLanguage
                     val spanBegin = parseAppleTime(child.getAttrOrNull("begin")) ?: defaultBeginMs
                     val spanEnd = parseAppleTime(child.getAttrOrNull("end")) ?: defaultEndMs
 
                     if (hasTimedDescendant(child)) {
-                        processNode(child, targetRole, spanAgentId, spanBegin, spanEnd)
+                        processNode(child, targetRole, spanAgentId, spanLanguage, spanBegin, spanEnd)
                     } else {
                         val text = child.textContent.orEmpty()
                         if (text.isNotEmpty()) {
                             val bMs = spanBegin ?: 0L
                             val eMs = (spanEnd ?: (bMs + 1)).coerceAtLeast(bMs + 1)
+                            val sourceOrder = pieceOrder++
                             val piece = AppleLyricPiece(
-                                id = "${lineId}_p_${pieceOrder++}",
+                                id = "${lineId}_p_$sourceOrder",
                                 text = text,
                                 beginMs = bMs,
                                 endMs = eMs,
                                 agentId = spanAgentId,
                                 role = targetRole,
+                                language = spanLanguage,
                                 isWhitespace = text.all { it.isWhitespace() },
-                                sourceOrder = pieceOrder
+                                sourceOrder = sourceOrder
                             )
                             when (targetRole) {
                                 ApplePieceRole.MAIN -> parsedMain += piece
@@ -293,22 +338,24 @@ object AppleTtmlParser {
                             }
                         }
                     }
-                } else if (child.nodeType == Node.TEXT_NODE) {
+                } else if (child.nodeType == Node.TEXT_NODE || child.nodeType == Node.CDATA_SECTION_NODE) {
                     val rawText = child.textContent.orEmpty()
                     // If text node is purely newlines/indentation between XML tags, ignore it as formatting
                     val isFormatting = (rawText.contains('\n') || rawText.contains('\r')) && rawText.isBlank()
                     if (rawText.isNotEmpty() && !isFormatting) {
                         val bMs = defaultBeginMs ?: 0L
                         val eMs = (defaultEndMs ?: (bMs + 1)).coerceAtLeast(bMs + 1)
+                        val sourceOrder = pieceOrder++
                         val piece = AppleLyricPiece(
-                            id = "${lineId}_p_${pieceOrder++}",
+                            id = "${lineId}_p_$sourceOrder",
                             text = rawText,
                             beginMs = bMs,
                             endMs = eMs,
                             agentId = inheritedPieceAgentId,
                             role = currentRole,
+                            language = inheritedLanguage,
                             isWhitespace = rawText.all { it.isWhitespace() },
-                            sourceOrder = pieceOrder
+                            sourceOrder = sourceOrder
                         )
                         when (currentRole) {
                             ApplePieceRole.MAIN -> parsedMain += piece
@@ -326,7 +373,14 @@ object AppleTtmlParser {
         val pBegin = parseAppleTime(p.getAttrOrNull("begin"))
         val pEnd = parseAppleTime(p.getAttrOrNull("end"))
 
-        processNode(p, ApplePieceRole.MAIN, lineAgentId, pBegin, pEnd)
+        processNode(
+            node = p,
+            currentRole = ApplePieceRole.MAIN,
+            inheritedPieceAgentId = lineAgentId,
+            inheritedLanguage = p.getAttrOrNull("xml:lang") ?: p.getAttrOrNull("lang"),
+            defaultBeginMs = pBegin,
+            defaultEndMs = pEnd,
+        )
 
         val nonWhitespaceMain = parsedMain.filter { !it.isWhitespace }
         val nonWhitespaceBg = parsedBg.filter { !it.isWhitespace }
@@ -355,8 +409,20 @@ object AppleTtmlParser {
             translation = parsedTrans,
             translationBackground = parsedTransBg,
             pronunciation = parsedPron,
-            pronunciationBackground = parsedPronBg
+            pronunciationBackground = parsedPronBg,
+            keepParenthesis = parsedBg.joinToString("") { it.text }.trim()
+                .let { it.startsWith('(') && it.endsWith(')') },
         )
+    }
+
+    private fun metadataBoolean(document: Document, elementName: String): Boolean {
+        val nodes = document.getElementsByTagName(elementName)
+        val element = if (nodes.length > 0) nodes.item(0) as? Element else null
+        val raw = element?.getAttrOrNull("automaticallyCreated")
+            ?: element?.getAttrOrNull("automatic")
+            ?: element?.getAttrOrNull("isAutomatic")
+            ?: return false
+        return raw.equals("true", ignoreCase = true) || raw == "1"
     }
 
     private fun hasTimedDescendant(element: Element): Boolean {

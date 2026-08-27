@@ -3,6 +3,8 @@ package com.lmg.vk.ui.lyrics.apple
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
+import kotlin.math.ceil
+import kotlin.math.floor
 import kotlin.math.abs
 import kotlin.math.roundToLong
 
@@ -73,7 +75,7 @@ object AppleEmphasisEngine {
      * Confirmed Apple animator duration cap: min(durationMs, 3000ms)
      */
     fun calculateAnimationDurationMs(durationMs: Long): Long {
-        return durationMs.coerceIn(100L, 3000L)
+        return durationMs.coerceAtLeast(1L).coerceAtMost(3000L)
     }
 
     /**
@@ -96,36 +98,25 @@ object AppleEmphasisEngine {
         if (size <= 1) return FloatArray(size)
 
         val translations = FloatArray(size)
-        val center = if (size % 2 == 1) {
-            (size / 2).toFloat()
-        } else {
-            (size / 2.0f) - 0.5f
-        }
-
-        // Left side (from center - 0.5 downward to 0)
-        var accumulatedLeft = 0f
-        val leftStart = if (size % 2 == 1) (size / 2) - 1 else size / 2 - 1
+        val center = if (size % 2 == 0) size / 2f - 0.5f else (size / 2).toFloat()
+        val centerFloor = floor(center)
+        val centerCeil = ceil(center)
+        val leftStart = if (centerFloor == center) center.toInt() - 1 else centerFloor.toInt()
         for (i in leftStart downTo 0) {
-            val ownExpansion = expansionPx[i]
-            val neighborExpansion = expansionPx[i + 1]
-            accumulatedLeft += (ownExpansion + neighborExpansion)
-            translations[i] = -accumulatedLeft * 0.5f
+            var displacement = expansionPx[i]
+            val inner = i + 1
+            if (inner <= center) displacement += expansionPx[inner]
+            if (inner < center) displacement += abs(translations[inner])
+            translations[i] = (if (isRtl) displacement else -displacement) * 0.5f
         }
 
-        // Right side (from center + 0.5 upward to size - 1)
-        var accumulatedRight = 0f
-        val rightStart = if (size % 2 == 1) (size / 2) + 1 else size / 2
+        val rightStart = if (centerCeil == center) center.toInt() + 1 else centerCeil.toInt()
         for (i in rightStart until size) {
-            val ownExpansion = expansionPx[i]
-            val neighborExpansion = expansionPx[i - 1]
-            accumulatedRight += (ownExpansion + neighborExpansion)
-            translations[i] = accumulatedRight * 0.5f
-        }
-
-        if (isRtl) {
-            for (i in 0 until size) {
-                translations[i] = -translations[i]
-            }
+            var displacement = expansionPx[i]
+            val inner = i - 1
+            if (inner >= center) displacement += expansionPx[inner]
+            if (inner > center) displacement += abs(translations[inner])
+            translations[i] = (if (isRtl) -displacement else displacement) * 0.5f
         }
 
         return translations

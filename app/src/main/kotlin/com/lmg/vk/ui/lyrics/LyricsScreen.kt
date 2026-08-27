@@ -203,8 +203,9 @@ fun LyricsScreen(
     }
 
     // ── Time processor for line-level sync ──
-    val timeProcessor = remember(lyrics) {
-        if (lyrics.lines.isNotEmpty()) LyricsTimeProcessor(lyrics) else null
+    val isRichAppleLyrics = lyricsContent is LyricsContent.Apple
+    val timeProcessor = remember(lyrics, isRichAppleLyrics) {
+        if (!isRichAppleLyrics && lyrics.lines.isNotEmpty()) LyricsTimeProcessor(lyrics) else null
     }
 
     // Reset processor when track changes
@@ -228,6 +229,7 @@ fun LyricsScreen(
     fun adjustSync(deltaMs: Long) {
         syncOffsetMs = (syncOffsetMs + deltaMs).coerceIn(-10_000L, 10_000L)
         LyricsSyncStore.set(context, resolvedTrackId, syncOffsetMs)
+        seekEpoch++
         // Сброс процессора: монотонный курсор не пускает позицию назад,
         // без сброса сдвиг «−» применился бы только на следующей строке.
         timeProcessor?.reset()
@@ -258,7 +260,8 @@ fun LyricsScreen(
     // процессор — иначе закрас не полз бы с первого открытия.
     val currentProcessor by rememberUpdatedState(timeProcessor)
 
-    LaunchedEffect(resolvedTrackId) {
+    LaunchedEffect(resolvedTrackId, isRichAppleLyrics) {
+        if (isRichAppleLyrics) return@LaunchedEffect
         while (isActive) {
             withFrameMillis { _ ->
                 if (PlayerController.isPlaying.value) {
@@ -378,13 +381,8 @@ fun LyricsScreen(
     // выбираем по яркости фона. Раньше он был белым намертво, и на светлой
     // обложке (фон поднимается почти до максимальной яркости) выходило белое по
     // белому — экран лирики про светлую тему не знал вовсе.
-    val lyricInk = remember(resolvedColors.vibrant) {
-        if (boostedCoverColor(resolvedColors.vibrant).luminance() > 0.55f) {
-            Color(0xFF101014)
-        } else {
-            Color.White
-        }
-    }
+    // BitChord/Apple lyrics surface keeps the foreground white over its art scrim.
+    val lyricInk = Color.White
 
     Box(
         modifier = Modifier
@@ -398,6 +396,7 @@ fun LyricsScreen(
                 audioFileUri = audioFileUri,
                 albumId = albumId,
                 albumColors = resolvedColors,
+                saturationBoost = LyricsTimeProcessor.SATURATION_BOOST * (2f / 3f),
                 modifier = Modifier.fillMaxSize()
             )
         } else {
@@ -442,16 +441,21 @@ fun LyricsScreen(
                     val eventProcessor = remember(appleDoc) { AppleLyricsEventProcessor(appleDoc) }
                     val eventState by rememberAppleLyricsEventState(
                         processor = eventProcessor,
-                        currentPositionMs = lyricClock.longValue + syncOffsetMs,
-                        discontinuityEpoch = seekEpoch
+                        currentPositionMs = currentPositionMs + syncOffsetMs,
+                        isPlaying = isPlaying,
+                        discontinuityEpoch = seekEpoch,
+                        positionProvider = { PlayerController.getSmoothPositionMs() + syncOffsetMs },
                     )
                     AppleKaraokeList(
                         document = appleDoc,
                         uiState = eventState,
-                        currentPositionMs = lyricClock.longValue + syncOffsetMs,
-                        primaryTextColor = lyricInk,
-                        unsungTextColor = lyricInk.copy(alpha = 0.40f),
-                        glowColor = resolvedColors.vibrant,
+                        currentPositionMs = eventState.currentPositionMs,
+                        isPlaying = isPlaying,
+                        showTranslations = showTranslations,
+                        showPronunciations = showPronunciations,
+                        primaryTextColor = lyricInk.copy(alpha = 0.94f),
+                        unsungTextColor = lyricInk.copy(alpha = 0.18f),
+                        glowColor = Color.White,
                         onSeek = { targetMs -> PlayerController.seekTo(targetMs) },
                         onShareLine = { line ->
                             val text = line.main.joinToString("") { it.text }
@@ -506,7 +510,7 @@ fun LyricsScreen(
                                     text = line.text,
                                     color = lyricInk.copy(alpha = 0.82f),
                                     fontSize = 17.sp,
-                                    fontWeight = FontWeight.Medium,
+                                    fontWeight = FontWeight.Bold,
                                     fontFamily = AppFontFamily,
                                     lineHeight = 24.sp,
                                     modifier = Modifier
@@ -585,13 +589,14 @@ fun LyricsScreen(
 
                             // Глубина списка: чем дальше строка от активной, тем сильнее
                             // растворяется (ближние читаемы, дальние — «туман»). До первой
-                            // строки градации нет — весь текст ровный.
+                            // строки фокус уже стоит на первой, поэтому blur виден сразу.
                             // Считаем напрямую: раньше на КАЖДУЮ строку висел свой
                             // animateFloatAsState, то есть десятки параллельных
                             // анимаций на один список. Плавность перехода даёт
                             // анимация цвета ниже, а отдельная анимация глубины
                             // только грузила прокрутку.
-                            val dist = if (visualLineIndex < 0) 0 else abs(index - visualLineIndex)
+                            val blurFocusIndex = visualLineIndex.coerceAtLeast(0)
+                            val dist = abs(index - blurFocusIndex)
                             val lineBlur by animateDpAsState(
                                 targetValue = when {
                                     browsing || isCurrent -> 0.dp
@@ -1318,17 +1323,6 @@ internal fun LyricLineSweep(
             return@Canvas
         }
 
-        if (isActive && timedLine == null) {
-            drawText(
-                textLayoutResult = layout,
-                color = glowColor.copy(alpha = 0.50f),
-                shadow = androidx.compose.ui.graphics.Shadow(
-                    color = glowColor.copy(alpha = 0.50f),
-                    offset = Offset(0f, 0f),
-                    blurRadius = 6f
-                )
-            )
-        }
         drawText(layout, color = unsungColor)
 
         val p = fillProgress.coerceIn(0f, 1f)
