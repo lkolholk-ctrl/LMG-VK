@@ -33,3 +33,30 @@ internal val QueueInfinityIcon: ImageVector by lazy {
         }
     }.build()
 }
+
+internal val QueueHeartIcon: ImageVector by lazy { queueHeartIcon("QueueHeart", false) }
+internal val QueueHeartFilledIcon: ImageVector by lazy { queueHeartIcon("QueueHeartFilled", true) }
+
+private fun queueHeartIcon(name: String, filled: Boolean): ImageVector =
+    ImageVector.Builder(
+        name = name,
+        defaultWidth = 24.dp,
+        defaultHeight = 24.dp,
+        viewportWidth = 24f,
+        viewportHeight = 24f,
+    ).apply {
+        path(
+            fill = if (filled) SolidColor(Color.Black) else null,
+            stroke = SolidColor(Color.Black),
+            strokeLineWidth = 1.9f,
+            strokeLineCap = StrokeCap.Round,
+            strokeLineJoin = StrokeJoin.Round,
+        ) {
+            moveTo(12f, 20f)
+            curveTo(12f, 20f, 3.2f, 14.6f, 3.2f, 8.9f)
+            arcToRelative(4.5f, 4.5f, 0f, false, true, 8.8f, -1.5f)
+            arcToRelative(4.5f, 4.5f, 0f, false, true, 8.8f, 1.5f)
+            curveTo(20.8f, 14.6f, 12f, 20f, 12f, 20f)
+            close()
+        }
+    }.build()
