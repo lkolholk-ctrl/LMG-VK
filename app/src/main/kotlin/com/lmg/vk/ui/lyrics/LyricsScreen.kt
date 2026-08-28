@@ -111,6 +111,16 @@ private val LYRICS_GLIDE_EASING = CubicBezierEasing(0.40f, 0.00f, 0.20f, 1.00f)
 private const val LYRICS_GLIDE_MS = 620
 
 /**
+ * AMLL is confined to the clear middle viewport. The player header and the
+ * progress/provider controls stay fully clean: lyric rows never render below
+ * those zones, matching the hard top and bottom boundaries in BitChord.
+ */
+private val AMLL_PORTRAIT_TOP_GUARD = 142.dp
+private val AMLL_PORTRAIT_BOTTOM_GUARD = 122.dp
+private val AMLL_SPLIT_TOP_GUARD = 96.dp
+private val AMLL_SPLIT_BOTTOM_GUARD = 20.dp
+
+/**
  * Полноэкранный караоке-экран лирики (Apple Music style).
  *
  * Фичи:
@@ -487,6 +497,10 @@ fun LyricsScreen(
                         },
                         onSeek = { targetMs -> PlayerController.seekTo(targetMs) },
                         onShareLine = { text -> shareLine = text },
+                        modifier = Modifier.padding(
+                            top = if (splitMode) AMLL_SPLIT_TOP_GUARD else AMLL_PORTRAIT_TOP_GUARD,
+                            bottom = if (splitMode) AMLL_SPLIT_BOTTOM_GUARD else AMLL_PORTRAIT_BOTTOM_GUARD,
+                        ),
                     )
                 }
 
