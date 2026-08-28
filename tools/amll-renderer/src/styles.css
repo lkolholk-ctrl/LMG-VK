@@ -37,6 +37,9 @@ body {
   --amll-lp-color: white;
   --amll-lp-font-size: clamp(27px, 8vw, 36px);
   --lyric-line-padding-x: 30px;
+  /* A transparent Android WebView is composited separately from Compose.
+     Blending against that transparent surface can make AMLL fully invisible. */
+  mix-blend-mode: normal;
 }
 
 .amll-lyric-player * {

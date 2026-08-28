@@ -8,7 +8,6 @@ import com.lmg.vk.engine.lyrics.apple.AppleLyricsDocument
 import com.lmg.vk.engine.lyrics.apple.AppleLyricsProjector
 import com.lmg.vk.engine.lyrics.apple.AppleTtmlCache
 import com.lmg.vk.engine.lyrics.apple.AppleTtmlClient
-import com.lmg.vk.engine.lyrics.apple.AppleTtmlParser
 import com.lmg.vk.engine.lyrics.apple.DefaultAppleTtmlClient
 import com.lmg.vk.engine.lyrics.apple.LyricsPlusRichAdapter
 import kotlinx.coroutines.Dispatchers
@@ -40,36 +39,25 @@ object LyricsRepository {
                 if (!forceRefresh) {
                     val cachedTtml = AppleTtmlCache.read(context, title, artist, durationMs, language)
                     if (!cachedTtml.isNullOrBlank()) {
-                        val parsed = AppleTtmlParser.parse(cachedTtml)
-                        if (parsed != null) {
-                            DebugLog.add("LyricsRepository: Apple TTML cache hit lines=${parsed.allLines.size}")
-                            return@withContext LyricsContent.Rich(
-                                document = parsed,
-                                sourceId = LyricsSource.APPLE_TTML.id,
-                                sourceLabel = LyricsSource.APPLE_TTML.title,
-                            )
-                        } else {
-                            DebugLog.add("LyricsRepository: cached Apple TTML invalid, deleting cache entry")
-                            AppleTtmlCache.delete(context, title, artist, durationMs, language)
-                        }
+                        DebugLog.add("LyricsRepository: Apple TTML cache hit bytes=${cachedTtml.length}")
+                        return@withContext LyricsContent.RawTtml(
+                            value = cachedTtml,
+                            sourceId = LyricsSource.APPLE_TTML.id,
+                            sourceLabel = LyricsSource.APPLE_TTML.title,
+                        )
                     }
                 }
 
                 // 2. Network fetch Apple TTML
                 val fetchResult = ttmlClient.fetch(title, artist, durationMs, language)
                 fetchResult.getOrNull()?.let { rawTtml ->
-                    val parsed = AppleTtmlParser.parse(rawTtml)
-                    if (parsed != null && parsed.allLines.isNotEmpty()) {
-                        DebugLog.add("LyricsRepository: Apple TTML network success lines=${parsed.allLines.size}")
-                        AppleTtmlCache.write(context, title, artist, durationMs, language, rawTtml)
-                        return@withContext LyricsContent.Rich(
-                            document = parsed,
-                            sourceId = LyricsSource.APPLE_TTML.id,
-                            sourceLabel = LyricsSource.APPLE_TTML.title,
-                        )
-                    } else {
-                        DebugLog.add("LyricsRepository: Apple TTML network parse empty or failed")
-                    }
+                    DebugLog.add("LyricsRepository: Apple TTML network success bytes=${rawTtml.length}")
+                    AppleTtmlCache.write(context, title, artist, durationMs, language, rawTtml)
+                    return@withContext LyricsContent.RawTtml(
+                        value = rawTtml,
+                        sourceId = LyricsSource.APPLE_TTML.id,
+                        sourceLabel = LyricsSource.APPLE_TTML.title,
+                    )
                 }
             }
         }

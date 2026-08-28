@@ -9,6 +9,8 @@ import android.view.View
 import android.webkit.ConsoleMessage
 import android.webkit.JavascriptInterface
 import android.webkit.WebChromeClient
+import android.webkit.WebResourceError
+import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -91,7 +93,34 @@ fun AmllLyricsView(
                     ),
                     "Android",
                 )
-                webViewClient = object : WebViewClient() {}
+                webViewClient = object : WebViewClient() {
+                    override fun onPageFinished(view: WebView, url: String) {
+                        super.onPageFinished(view, url)
+                        // Do not depend solely on a JavaScript-interface callback:
+                        // some Android WebView releases can miss it while loading a
+                        // local module. Probe the exported API after page completion.
+                        view.evaluateJavascript(
+                            "Boolean(window.LMG_AMLL)",
+                        ) { ready ->
+                            if (ready == "true") {
+                                pageReady = true
+                            } else {
+                                DebugLog.add("AMLL page finished without renderer API")
+                            }
+                        }
+                    }
+
+                    override fun onReceivedError(
+                        view: WebView,
+                        request: WebResourceRequest,
+                        error: WebResourceError,
+                    ) {
+                        super.onReceivedError(view, request, error)
+                        if (request.isForMainFrame) {
+                            DebugLog.add("AMLL page load error ${error.errorCode}: ${error.description}")
+                        }
+                    }
+                }
                 webChromeClient = object : WebChromeClient() {
                     override fun onConsoleMessage(consoleMessage: ConsoleMessage): Boolean {
                         if (consoleMessage.messageLevel() == ConsoleMessage.MessageLevel.ERROR) {
@@ -226,6 +255,7 @@ private sealed interface AmllPayload {
 }
 
 private fun LyricsContent.toAmllPayload(): AmllPayload = when (this) {
+    is LyricsContent.RawTtml -> AmllPayload.Ttml(value)
     is LyricsContent.Rich -> document.rawTtml?.takeIf(String::isNotBlank)
         ?.let(AmllPayload::Ttml)
         ?: AmllPayload.Lines(document.toAmllJson())

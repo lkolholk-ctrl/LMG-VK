@@ -172,6 +172,27 @@ fun LyricsScreen(
 
     LaunchedEffect(audioFileUri, lrcText, trackTitle, trackArtist, resolvedTrackId, sourceRevision) {
         if (!lrcText.isNullOrBlank()) {
+            val trimmedLyrics = lrcText.trimStart()
+            val isRawTtml = trimmedLyrics.startsWith("<tt", ignoreCase = true) ||
+                (trimmedLyrics.startsWith("<?xml", ignoreCase = true) &&
+                    trimmedLyrics.contains("<tt", ignoreCase = true))
+            if (isRawTtml) {
+                lyricsContent = LyricsContent.RawTtml(
+                    value = lrcText,
+                    sourceId = LyricsSource.APPLE_TTML.id,
+                    sourceLabel = LyricsSource.APPLE_TTML.title,
+                )
+                lyrics = LyricsParser.Lyrics(
+                    lines = emptyList(),
+                    isSynced = true,
+                    title = trackTitle,
+                    artist = trackArtist,
+                    source = LyricsSource.APPLE_TTML.id,
+                    timing = "ttml",
+                )
+                isLoading = false
+                return@LaunchedEffect
+            }
             val parsed = withContext(Dispatchers.Default) {
                 LyricsParser.parseLyrics(lrcText)
             }
@@ -194,6 +215,14 @@ fun LyricsScreen(
         }
         lyricsContent = loaded
         lyrics = when (loaded) {
+            is LyricsContent.RawTtml -> LyricsParser.Lyrics(
+                lines = emptyList(),
+                isSynced = true,
+                title = trackTitle,
+                artist = trackArtist,
+                source = loaded.sourceId,
+                timing = "ttml",
+            )
             is LyricsContent.Rich -> LyricsRepository.toLegacyProjection(
                 loaded.document,
                 trackTitle,
@@ -203,6 +232,13 @@ fun LyricsScreen(
             is LyricsContent.Legacy -> loaded.lyrics
         }
         isLoading = false
+    }
+
+    val hasRenderableLyrics = when (val content = lyricsContent) {
+        is LyricsContent.RawTtml -> content.value.isNotBlank()
+        is LyricsContent.Rich -> content.document.allLines.isNotEmpty()
+        is LyricsContent.Legacy -> content.lyrics.lines.isNotEmpty()
+        null -> false
     }
 
     // ── Time processor for line-level sync ──
@@ -439,7 +475,7 @@ fun LyricsScreen(
                     }
                 }
 
-                lyricsContent != null && lyrics.lines.isNotEmpty() -> {
+                hasRenderableLyrics -> {
                     AmllLyricsView(
                         content = lyricsContent!!,
                         isPlaying = isPlaying,
@@ -897,7 +933,7 @@ fun LyricsScreen(
                 }
             }
 
-            if (lyrics.lines.isNotEmpty() && !splitMode) {
+            if (hasRenderableLyrics && !splitMode) {
                 Column(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
