@@ -1,0 +1,52 @@
+@font-face {
+  font-family: "LMG Lyrics";
+  src: url("file:///android_res/font/golos_text.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+html,
+body,
+#app {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background: transparent;
+}
+
+html,
+body {
+  color: white;
+  overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+#app {
+  position: relative;
+}
+
+.amll-lyric-player {
+  position: absolute;
+  inset: 0;
+  font-family: "LMG Lyrics", "Golos Text", system-ui, sans-serif;
+  font-weight: 750;
+  letter-spacing: -0.025em;
+  --amll-lp-color: white;
+  --amll-lp-font-size: clamp(27px, 8vw, 36px);
+  --lyric-line-padding-x: 30px;
+}
+
+.amll-lyric-player * {
+  font-family: inherit;
+}
+
+.hide-translation [class*="lyricSubLine"]:nth-child(2) {
+  display: none;
+}
+
+.hide-pronunciation [class*="lyricSubLine"]:nth-child(3) {
+  display: none;
+}

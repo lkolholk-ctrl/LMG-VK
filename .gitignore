@@ -18,3 +18,6 @@ media3-m2/
 # документ живёт только на сервере и отдаётся приложению в рантайме.
 network-config.json
 **/network-config.json
+
+# Local dependencies used only to regenerate the embedded AMLL renderer.
+tools/amll-renderer/node_modules/

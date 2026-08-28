@@ -71,9 +71,7 @@ import com.lmg.vk.engine.LyricsSyncStore
 import com.lmg.vk.engine.PlayerController
 import com.lmg.vk.engine.lyrics.LyricsContent
 import com.lmg.vk.engine.lyrics.LyricsRepository
-import com.lmg.vk.ui.lyrics.apple.AppleKaraokeList
-import com.lmg.vk.ui.lyrics.apple.AppleLyricsEventProcessor
-import com.lmg.vk.ui.lyrics.apple.rememberAppleLyricsEventState
+import com.lmg.vk.ui.lyrics.amll.AmllLyricsView
 import com.lmg.vk.engine.lyrics.LyricsSource
 import com.lmg.vk.engine.lyrics.LyricsSourceStore
 import com.lmg.vk.engine.lyrics.LyricsDisplayStore
@@ -208,9 +206,9 @@ fun LyricsScreen(
     }
 
     // ── Time processor for line-level sync ──
-    val isRichLyrics = lyricsContent is LyricsContent.Rich
-    val timeProcessor = remember(lyrics, isRichLyrics) {
-        if (!isRichLyrics && lyrics.lines.isNotEmpty()) LyricsTimeProcessor(lyrics) else null
+    val isAmllLyrics = lyricsContent != null
+    val timeProcessor = remember(lyrics, isAmllLyrics) {
+        if (!isAmllLyrics && lyrics.lines.isNotEmpty()) LyricsTimeProcessor(lyrics) else null
     }
 
     // Reset processor when track changes
@@ -265,8 +263,8 @@ fun LyricsScreen(
     // процессор — иначе закрас не полз бы с первого открытия.
     val currentProcessor by rememberUpdatedState(timeProcessor)
 
-    LaunchedEffect(resolvedTrackId, isRichLyrics) {
-        if (isRichLyrics) return@LaunchedEffect
+    LaunchedEffect(resolvedTrackId, isAmllLyrics) {
+        if (isAmllLyrics) return@LaunchedEffect
         while (isActive) {
             withFrameMillis { _ ->
                 if (PlayerController.isPlaying.value) {
@@ -441,33 +439,18 @@ fun LyricsScreen(
                     }
                 }
 
-                lyricsContent is LyricsContent.Rich -> {
-                    val richDocument = (lyricsContent as LyricsContent.Rich).document
-                    val eventProcessor = remember(richDocument) {
-                        AppleLyricsEventProcessor(richDocument)
-                    }
-                    val eventState by rememberAppleLyricsEventState(
-                        processor = eventProcessor,
-                        currentPositionMs = currentPositionMs + syncOffsetMs,
+                lyricsContent != null && lyrics.lines.isNotEmpty() -> {
+                    AmllLyricsView(
+                        content = lyricsContent!!,
                         isPlaying = isPlaying,
-                        discontinuityEpoch = seekEpoch,
-                        positionProvider = { PlayerController.getSmoothPositionMs() + syncOffsetMs },
-                    )
-                    AppleKaraokeList(
-                        document = richDocument,
-                        uiState = eventState,
-                        currentPositionMs = eventState.currentPositionMs,
-                        isPlaying = isPlaying,
+                        playbackEpoch = seekEpoch,
                         showTranslations = showTranslations,
                         showPronunciations = showPronunciations,
-                        primaryTextColor = lyricInk.copy(alpha = 0.94f),
-                        unsungTextColor = lyricInk.copy(alpha = 0.18f),
-                        glowColor = Color.White,
+                        positionProvider = {
+                            PlayerController.getSmoothPositionMs() + syncOffsetMs
+                        },
                         onSeek = { targetMs -> PlayerController.seekTo(targetMs) },
-                        onShareLine = { line ->
-                            val text = line.main.joinToString("") { it.text }
-                            shareLine = text
-                        }
+                        onShareLine = { text -> shareLine = text },
                     )
                 }
 
