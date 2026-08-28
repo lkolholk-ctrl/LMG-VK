@@ -34,7 +34,6 @@ import com.lmg.vk.engine.lyrics.LyricsContent
 import com.lmg.vk.engine.lyrics.apple.AppleLyricPiece
 import com.lmg.vk.engine.lyrics.apple.AppleLyricsDocument
 import com.lmg.vk.engine.lyrics.apple.AppleLyricsLine
-import kotlinx.coroutines.delay
 import org.json.JSONArray
 import org.json.JSONObject
 import java.nio.charset.StandardCharsets
@@ -43,7 +42,6 @@ private const val AMLL_ASSET_HOST = "appassets.androidplatform.net"
 private const val AMLL_ASSET_PATH = "/assets/amll/index.html"
 private const val AMLL_FONT_PATH = "/fonts/golos_text.ttf"
 private const val AMLL_ASSET_URL = "https://$AMLL_ASSET_HOST$AMLL_ASSET_PATH"
-private const val POSITION_SYNC_INTERVAL_MS = 250L
 
 /**
  * Hosts the original Apple Music Like Lyrics DOM renderer inside a transparent
@@ -241,14 +239,6 @@ fun AmllLyricsView(
             isPlaying.toString(),
             latestPositionProvider().coerceAtLeast(0L).toString(),
         )
-        while (isPlaying) {
-            delay(POSITION_SYNC_INTERVAL_MS)
-            view.callAmll(
-                "setPosition",
-                latestPositionProvider().coerceAtLeast(0L).toString(),
-                "false",
-            )
-        }
     }
 }
 
