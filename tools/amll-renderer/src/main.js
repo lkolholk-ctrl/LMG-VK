@@ -61,9 +61,14 @@ function cloneForDisplay(line) {
 }
 
 function renderLyrics(initialPositionMs, forceSeek) {
+  const safePosition = Number.isFinite(initialPositionMs)
+    ? Math.max(0, initialPositionMs)
+    : 0;
+  anchorPositionMs = safePosition;
+  anchorClockMs = performance.now();
   renderedLines = sourceLines.map(cloneForDisplay);
-  player.setLyricLines(renderedLines, initialPositionMs);
-  player.setCurrentTime(initialPositionMs, forceSeek);
+  player.setLyricLines(renderedLines, safePosition);
+  player.setCurrentTime(safePosition, forceSeek);
   player.update(0);
 }
 
@@ -75,9 +80,11 @@ function setAnchor(positionMs, forceSeek) {
   player.update(0);
 }
 
-function setPlaying(nextPlaying, positionMs) {
-  const current = Number.isFinite(positionMs) ? positionMs : nowPositionMs();
-  anchorPositionMs = Math.max(0, current);
+function setPlaying(nextPlaying) {
+  // Keep the WebView's frame clock monotonic across pause/buffering/resume.
+  // The native playback snapshot may lag a frame and must not pull AMLL back
+  // across a line or interlude boundary. Real seeks use setPosition(..., true).
+  anchorPositionMs = Math.max(0, nowPositionMs());
   anchorClockMs = performance.now();
   playing = Boolean(nextPlaying);
   if (playing) player.resume();

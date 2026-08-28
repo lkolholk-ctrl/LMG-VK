@@ -2745,10 +2745,15 @@ object PlayerController {
             reason: Int,
         ) {
             val positionMs = newPosition.positionMs.coerceAtLeast(0L)
-            emitPositionDiscontinuity(positionMs)
             _currentPositionMs.value = positionMs
             lastPlayerPositionMs = positionMs
             lastSyncTimeMs = SystemClock.elapsedRealtime()
+            // AMLL must snap only for a real user/system seek. Internal timeline
+            // corrections and SEEK_ADJUSTMENT can arrive with a slightly older
+            // position and otherwise make the lyrics and interlude dots bounce.
+            if (reason == Player.DISCONTINUITY_REASON_SEEK) {
+                emitPositionDiscontinuity(positionMs)
+            }
         }
 
         override fun onPlaybackStateChanged(playbackState: Int) {
