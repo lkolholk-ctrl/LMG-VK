@@ -6,11 +6,13 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Base64
 import android.view.View
+import android.view.ViewGroup
 import android.webkit.ConsoleMessage
 import android.webkit.JavascriptInterface
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -25,6 +27,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.AndroidView
+import com.lmg.vk.R
 import com.lmg.vk.debug.DebugLog
 import com.lmg.vk.engine.LyricsParser
 import com.lmg.vk.engine.lyrics.LyricsContent
@@ -36,7 +39,10 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.nio.charset.StandardCharsets
 
-private const val AMLL_ASSET_URL = "file:///android_asset/amll/index.html"
+private const val AMLL_ASSET_HOST = "appassets.androidplatform.net"
+private const val AMLL_ASSET_PATH = "/assets/amll/index.html"
+private const val AMLL_FONT_PATH = "/fonts/golos_text.ttf"
+private const val AMLL_ASSET_URL = "https://$AMLL_ASSET_HOST$AMLL_ASSET_PATH"
 private const val POSITION_SYNC_INTERVAL_MS = 250L
 
 /**
@@ -67,6 +73,10 @@ fun AmllLyricsView(
         modifier = modifier.fillMaxSize(),
         factory = { viewContext ->
             WebView(viewContext).apply {
+                layoutParams = ViewGroup.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                )
                 setBackgroundColor(Color.TRANSPARENT)
                 setLayerType(View.LAYER_TYPE_HARDWARE, null)
                 isVerticalScrollBarEnabled = false
@@ -74,10 +84,10 @@ fun AmllLyricsView(
                 overScrollMode = View.OVER_SCROLL_NEVER
 
                 settings.javaScriptEnabled = true
-                settings.domStorageEnabled = false
-                settings.allowFileAccess = true
-                settings.allowContentAccess = false
-                settings.blockNetworkLoads = true
+                settings.domStorageEnabled = true
+                settings.allowFileAccess = false
+                settings.allowContentAccess = true
+                settings.blockNetworkLoads = false
                 settings.cacheMode = WebSettings.LOAD_NO_CACHE
                 settings.setSupportZoom(false)
                 settings.builtInZoomControls = false
@@ -94,8 +104,42 @@ fun AmllLyricsView(
                     "Android",
                 )
                 webViewClient = object : WebViewClient() {
+                    override fun shouldInterceptRequest(
+                        view: WebView,
+                        request: WebResourceRequest,
+                    ): WebResourceResponse? {
+                        val uri = request.url
+                        if (uri.scheme != "https" || uri.host != AMLL_ASSET_HOST) {
+                            return null
+                        }
+                        if (uri.path == AMLL_ASSET_PATH) {
+                            return runCatching {
+                                WebResourceResponse(
+                                    "text/html",
+                                    "UTF-8",
+                                    viewContext.assets.open("amll/index.html"),
+                                )
+                            }.onFailure { error ->
+                                DebugLog.add("AMLL asset open error: ${error.message}")
+                            }.getOrNull()
+                        }
+                        if (uri.path == AMLL_FONT_PATH) {
+                            return runCatching {
+                                WebResourceResponse(
+                                    "font/ttf",
+                                    null,
+                                    viewContext.resources.openRawResource(R.font.golos_text),
+                                )
+                            }.onFailure { error ->
+                                DebugLog.add("AMLL font open error: ${error.message}")
+                            }.getOrNull()
+                        }
+                        return null
+                    }
+
                     override fun onPageFinished(view: WebView, url: String) {
                         super.onPageFinished(view, url)
+                        view.setBackgroundColor(Color.TRANSPARENT)
                         // Do not depend solely on a JavaScript-interface callback:
                         // some Android WebView releases can miss it while loading a
                         // local module. Probe the exported API after page completion.

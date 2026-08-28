@@ -1,6 +1,6 @@
 @font-face {
   font-family: "LMG Lyrics";
-  src: url("file:///android_res/font/golos_text.ttf") format("truetype");
+  src: url("https://appassets.androidplatform.net/fonts/golos_text.ttf") format("truetype");
   font-style: normal;
   font-weight: 100 900;
   font-display: swap;
