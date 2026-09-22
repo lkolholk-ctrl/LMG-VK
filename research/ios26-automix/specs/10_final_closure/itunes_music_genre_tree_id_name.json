@@ -1,0 +1,2106 @@
+{
+"10": {
+"name": "Singer/Songwriter",
+"parent": "34"
+},
+"100000": {
+"name": "Inspirational",
+"parent": "34"
+},
+"100001": {
+"name": "Art Song",
+"parent": "5"
+},
+"100002": {
+"name": "Brass & Woodwinds",
+"parent": "5"
+},
+"100003": {
+"name": "Solo Instrumental",
+"parent": "5"
+},
+"100004": {
+"name": "Contemporary Era",
+"parent": "5"
+},
+"100005": {
+"name": "Oratorio",
+"parent": "5"
+},
+"100006": {
+"name": "Cantata",
+"parent": "5"
+},
+"100007": {
+"name": "Electronic",
+"parent": "5"
+},
+"100008": {
+"name": "Sacred",
+"parent": "5"
+},
+"100009": {
+"name": "Guitar",
+"parent": "5"
+},
+"100010": {
+"name": "Piano",
+"parent": "5"
+},
+"100011": {
+"name": "Violin",
+"parent": "5"
+},
+"100012": {
+"name": "Cello",
+"parent": "5"
+},
+"100013": {
+"name": "Percussion",
+"parent": "5"
+},
+"100014": {
+"name": "Dubstep",
+"parent": "7"
+},
+"100015": {
+"name": "Bass",
+"parent": "7"
+},
+"100016": {
+"name": "UK Hip-Hop",
+"parent": "18"
+},
+"100017": {
+"name": "Lovers Rock",
+"parent": "24"
+},
+"100018": {
+"name": "EMO",
+"parent": "20"
+},
+"100019": {
+"name": "Pop Punk",
+"parent": "20"
+},
+"100020": {
+"name": "Indie Pop",
+"parent": "20"
+},
+"100021": {
+"name": "Yoga",
+"parent": "13"
+},
+"100022": {
+"name": "Tribute",
+"parent": "14"
+},
+"100023": {
+"name": "Shows",
+"parent": "14"
+},
+"100024": {
+"name": "Cuban",
+"parent": "34"
+},
+"100025": {
+"name": "Mambo",
+"parent": "100024"
+},
+"100026": {
+"name": "Chachacha",
+"parent": "100024"
+},
+"100027": {
+"name": "Guajira",
+"parent": "100024"
+},
+"100028": {
+"name": "Son",
+"parent": "100024"
+},
+"100029": {
+"name": "Bolero",
+"parent": "100024"
+},
+"100030": {
+"name": "Guaracha",
+"parent": "100024"
+},
+"100031": {
+"name": "Timba",
+"parent": "100024"
+},
+"100032": {
+"name": "Video Game",
+"parent": "16"
+},
+"100033": {
+"name": "Punjabi Pop",
+"parent": "100045"
+},
+"100034": {
+"name": "Rabindra Sangeet",
+"parent": "100046"
+},
+"100035": {
+"name": "Malayalam",
+"parent": "1266"
+},
+"100036": {
+"name": "Kannada",
+"parent": "1266"
+},
+"100037": {
+"name": "Marathi",
+"parent": "1266"
+},
+"100038": {
+"name": "Gujarati",
+"parent": "1266"
+},
+"100039": {
+"name": "Assamese",
+"parent": "1266"
+},
+"100040": {
+"name": "Bhojpuri",
+"parent": "1266"
+},
+"100041": {
+"name": "Haryanvi",
+"parent": "1266"
+},
+"100042": {
+"name": "Odia",
+"parent": "1266"
+},
+"100043": {
+"name": "Rajasthani",
+"parent": "1266"
+},
+"100044": {
+"name": "Urdu",
+"parent": "1266"
+},
+"100045": {
+"name": "Punjabi",
+"parent": "1266"
+},
+"100046": {
+"name": "Bengali",
+"parent": "1266"
+},
+"100047": {
+"name": "Carnatic Classical",
+"parent": "1269"
+},
+"100048": {
+"name": "Hindustani Classical",
+"parent": "1269"
+},
+"100049": {
+"name": "Afro House",
+"parent": "1203"
+},
+"100050": {
+"name": "Afro Soul",
+"parent": "1203"
+},
+"100051": {
+"name": "Afrobeats",
+"parent": "1203"
+},
+"100052": {
+"name": "Benga",
+"parent": "1203"
+},
+"100053": {
+"name": "Bongo-Flava",
+"parent": "1203"
+},
+"100054": {
+"name": "Coupé-Décalé",
+"parent": "1203"
+},
+"100055": {
+"name": "Gqom",
+"parent": "1203"
+},
+"100056": {
+"name": "Highlife",
+"parent": "1203"
+},
+"100057": {
+"name": "Kuduro",
+"parent": "1203"
+},
+"100058": {
+"name": "Kizomba",
+"parent": "1203"
+},
+"100059": {
+"name": "Kwaito",
+"parent": "1203"
+},
+"100060": {
+"name": "Mbalax",
+"parent": "1203"
+},
+"100061": {
+"name": "Ndombolo",
+"parent": "1203"
+},
+"100062": {
+"name": "Shangaan Electro",
+"parent": "1203"
+},
+"100063": {
+"name": "Soukous",
+"parent": "1203"
+},
+"100064": {
+"name": "Taarab",
+"parent": "1203"
+},
+"100065": {
+"name": "Zouglou",
+"parent": "1203"
+},
+"100066": {
+"name": "Özgün",
+"parent": "1300"
+},
+"100067": {
+"name": "Fantezi",
+"parent": "1300"
+},
+"100068": {
+"name": "Religious",
+"parent": "1300"
+},
+"100069": {
+"name": "Turkish Pop",
+"parent": "14"
+},
+"100070": {
+"name": "Turkish Rock",
+"parent": "21"
+},
+"100071": {
+"name": "Turkish Alternative",
+"parent": "20"
+},
+"100072": {
+"name": "Turkish Hip-Hop/Rap",
+"parent": "18"
+},
+"100073": {
+"name": "Maskandi",
+"parent": "1203"
+},
+"100074": {
+"name": "Romance in Russian",
+"parent": "1299"
+},
+"100075": {
+"name": "Bard in Russian",
+"parent": "1299"
+},
+"100076": {
+"name": "Pop in Russian",
+"parent": "14"
+},
+"100077": {
+"name": "Rock in Russian",
+"parent": "21"
+},
+"100078": {
+"name": "Hip-Hop in Russian",
+"parent": "18"
+},
+"100079": {
+"name": "Levant",
+"parent": "1197"
+},
+"100080": {
+"name": "Dabke",
+"parent": "100079"
+},
+"100081": {
+"name": "Maghreb Rai",
+"parent": "1197"
+},
+"100082": {
+"name": "Khaleeji Jalsat",
+"parent": "1284"
+},
+"100083": {
+"name": "Khaleeji Shailat",
+"parent": "1284"
+},
+"100084": {
+"name": "Tarab",
+"parent": "34"
+},
+"100085": {
+"name": "Iraqi Tarab",
+"parent": "100084"
+},
+"100086": {
+"name": "Egyptian Tarab",
+"parent": "100084"
+},
+"100087": {
+"name": "Khaleeji Tarab",
+"parent": "100084"
+},
+"100088": {
+"name": "Levant Pop",
+"parent": "14"
+},
+"100089": {
+"name": "Iraqi Pop",
+"parent": "14"
+},
+"100090": {
+"name": "Egyptian Pop",
+"parent": "14"
+},
+"100091": {
+"name": "Maghreb Pop",
+"parent": "14"
+},
+"100092": {
+"name": "Khaleeji Pop",
+"parent": "14"
+},
+"100093": {
+"name": "Levant Hip-Hop",
+"parent": "18"
+},
+"100094": {
+"name": "Egyptian Hip-Hop",
+"parent": "18"
+},
+"100095": {
+"name": "Maghreb Hip-Hop",
+"parent": "18"
+},
+"100096": {
+"name": "Khaleeji Hip-Hop",
+"parent": "18"
+},
+"100097": {
+"name": "Indie Levant",
+"parent": "20"
+},
+"100098": {
+"name": "Indie Egyptian",
+"parent": "20"
+},
+"100099": {
+"name": "Indie Maghreb",
+"parent": "20"
+},
+"1001": {
+"name": "College Rock",
+"parent": "20"
+},
+"100100": {
+"name": "Levant Electronic",
+"parent": "7"
+},
+"100101": {
+"name": "Electro-Cha'abi",
+"parent": "7"
+},
+"100102": {
+"name": "Maghreb Electronic",
+"parent": "7"
+},
+"100103": {
+"name": "Iraqi Folk",
+"parent": "1289"
+},
+"100104": {
+"name": "Khaleeji Folk",
+"parent": "1289"
+},
+"100105": {
+"name": "Maghreb Dance",
+"parent": "17"
+},
+"100106": {
+"name": "Christmas: Country",
+"parent": "8"
+},
+"100107": {
+"name": "Hörspiele",
+"parent": "34"
+},
+"1002": {
+"name": "Goth Rock",
+"parent": "20"
+},
+"1003": {
+"name": "Grunge",
+"parent": "20"
+},
+"1004": {
+"name": "Indie Rock",
+"parent": "20"
+},
+"1005": {
+"name": "New Wave",
+"parent": "20"
+},
+"1006": {
+"name": "Punk",
+"parent": "20"
+},
+"1007": {
+"name": "Chicago Blues",
+"parent": "2"
+},
+"1009": {
+"name": "Classic Blues",
+"parent": "2"
+},
+"1010": {
+"name": "Contemporary Blues",
+"parent": "2"
+},
+"1011": {
+"name": "Country Blues",
+"parent": "2"
+},
+"1012": {
+"name": "Delta Blues",
+"parent": "2"
+},
+"1013": {
+"name": "Electric Blues",
+"parent": "2"
+},
+"1014": {
+"name": "Lullabies",
+"parent": "4"
+},
+"1015": {
+"name": "Sing-Along",
+"parent": "4"
+},
+"1016": {
+"name": "Stories",
+"parent": "4"
+},
+"1017": {
+"name": "Avant-Garde",
+"parent": "5"
+},
+"1018": {
+"name": "Baroque Era",
+"parent": "5"
+},
+"1019": {
+"name": "Chamber Music",
+"parent": "5"
+},
+"1020": {
+"name": "Chant",
+"parent": "5"
+},
+"1021": {
+"name": "Choral",
+"parent": "5"
+},
+"1022": {
+"name": "Classical Crossover",
+"parent": "5"
+},
+"1023": {
+"name": "Early Music",
+"parent": "5"
+},
+"1024": {
+"name": "Impressionist",
+"parent": "5"
+},
+"1025": {
+"name": "Medieval Era",
+"parent": "5"
+},
+"1026": {
+"name": "Minimalism",
+"parent": "5"
+},
+"1027": {
+"name": "Modern Era",
+"parent": "5"
+},
+"1028": {
+"name": "Opera",
+"parent": "5"
+},
+"1029": {
+"name": "Orchestral",
+"parent": "5"
+},
+"1030": {
+"name": "Renaissance",
+"parent": "5"
+},
+"1031": {
+"name": "Romantic Era",
+"parent": "5"
+},
+"1032": {
+"name": "Wedding Music",
+"parent": "5"
+},
+"1033": {
+"name": "Alternative Country",
+"parent": "6"
+},
+"1034": {
+"name": "Americana",
+"parent": "6"
+},
+"1035": {
+"name": "Bluegrass",
+"parent": "6"
+},
+"1036": {
+"name": "Contemporary Bluegrass",
+"parent": "6"
+},
+"1037": {
+"name": "Contemporary Country",
+"parent": "6"
+},
+"1038": {
+"name": "Country Gospel",
+"parent": "6"
+},
+"1039": {
+"name": "Honky Tonk",
+"parent": "6"
+},
+"1040": {
+"name": "Outlaw Country",
+"parent": "6"
+},
+"1041": {
+"name": "Traditional Bluegrass",
+"parent": "6"
+},
+"1042": {
+"name": "Traditional Country",
+"parent": "6"
+},
+"1043": {
+"name": "Urban Cowboy",
+"parent": "6"
+},
+"1044": {
+"name": "Breakbeat",
+"parent": "17"
+},
+"1045": {
+"name": "Exercise",
+"parent": "17"
+},
+"1046": {
+"name": "Garage",
+"parent": "17"
+},
+"1047": {
+"name": "Hardcore",
+"parent": "17"
+},
+"1048": {
+"name": "House",
+"parent": "17"
+},
+"1049": {
+"name": "Jungle/Drum'n'bass",
+"parent": "17"
+},
+"1050": {
+"name": "Techno",
+"parent": "17"
+},
+"1051": {
+"name": "Trance",
+"parent": "17"
+},
+"1052": {
+"name": "Big Band",
+"parent": "11"
+},
+"1053": {
+"name": "Bop",
+"parent": "11"
+},
+"1054": {
+"name": "Lounge",
+"parent": "25"
+},
+"1055": {
+"name": "Swing",
+"parent": "25"
+},
+"1056": {
+"name": "Ambient",
+"parent": "7"
+},
+"1057": {
+"name": "Downtempo",
+"parent": "7"
+},
+"1058": {
+"name": "Electronica",
+"parent": "7"
+},
+"1060": {
+"name": "IDM/Experimental",
+"parent": "7"
+},
+"1061": {
+"name": "Industrial",
+"parent": "7"
+},
+"1062": {
+"name": "Alternative Folk",
+"parent": "10"
+},
+"1063": {
+"name": "Contemporary Folk",
+"parent": "10"
+},
+"1064": {
+"name": "Contemporary Singer/Songwriter",
+"parent": "10"
+},
+"1065": {
+"name": "Folk-Rock",
+"parent": "10"
+},
+"1066": {
+"name": "New Acoustic",
+"parent": "10"
+},
+"1067": {
+"name": "Traditional Folk",
+"parent": "10"
+},
+"1068": {
+"name": "Alternative Rap",
+"parent": "18"
+},
+"1069": {
+"name": "Dirty South",
+"parent": "18"
+},
+"1070": {
+"name": "East Coast Rap",
+"parent": "18"
+},
+"1071": {
+"name": "Gangsta Rap",
+"parent": "18"
+},
+"1072": {
+"name": "Hardcore Rap",
+"parent": "18"
+},
+"1073": {
+"name": "Hip-Hop",
+"parent": "18"
+},
+"1074": {
+"name": "Latin Rap",
+"parent": "18"
+},
+"1075": {
+"name": "Old School Rap",
+"parent": "18"
+},
+"1076": {
+"name": "Rap",
+"parent": "18"
+},
+"1077": {
+"name": "Underground Rap",
+"parent": "18"
+},
+"1078": {
+"name": "West Coast Rap",
+"parent": "18"
+},
+"1079": {
+"name": "Chanukah",
+"parent": "8"
+},
+"1080": {
+"name": "Christmas",
+"parent": "8"
+},
+"1081": {
+"name": "Christmas: Children's",
+"parent": "8"
+},
+"1082": {
+"name": "Christmas: Classic",
+"parent": "8"
+},
+"1083": {
+"name": "Christmas: Classical",
+"parent": "8"
+},
+"1084": {
+"name": "Christmas: Jazz",
+"parent": "8"
+},
+"1085": {
+"name": "Christmas: Modern",
+"parent": "8"
+},
+"1086": {
+"name": "Christmas: Pop",
+"parent": "8"
+},
+"1087": {
+"name": "Christmas: R&B",
+"parent": "8"
+},
+"1088": {
+"name": "Christmas: Religious",
+"parent": "8"
+},
+"1089": {
+"name": "Christmas: Rock",
+"parent": "8"
+},
+"1090": {
+"name": "Easter",
+"parent": "8"
+},
+"1091": {
+"name": "Halloween",
+"parent": "8"
+},
+"1092": {
+"name": "Holiday: Other",
+"parent": "8"
+},
+"1093": {
+"name": "Thanksgiving",
+"parent": "8"
+},
+"1094": {
+"name": "CCM",
+"parent": "22"
+},
+"1095": {
+"name": "Christian Metal",
+"parent": "22"
+},
+"1096": {
+"name": "Christian Pop",
+"parent": "22"
+},
+"1097": {
+"name": "Christian Rap",
+"parent": "22"
+},
+"1098": {
+"name": "Christian Rock",
+"parent": "22"
+},
+"1099": {
+"name": "Classic Christian",
+"parent": "22"
+},
+"11": {
+"name": "Jazz",
+"parent": "34"
+},
+"1100": {
+"name": "Contemporary Gospel",
+"parent": "22"
+},
+"1101": {
+"name": "Gospel",
+"parent": "22"
+},
+"1103": {
+"name": "Praise & Worship",
+"parent": "22"
+},
+"1104": {
+"name": "Southern Gospel",
+"parent": "22"
+},
+"1105": {
+"name": "Traditional Gospel",
+"parent": "22"
+},
+"1106": {
+"name": "Avant-Garde Jazz",
+"parent": "11"
+},
+"1107": {
+"name": "Contemporary Jazz",
+"parent": "11"
+},
+"1108": {
+"name": "Crossover Jazz",
+"parent": "11"
+},
+"1109": {
+"name": "Dixieland",
+"parent": "11"
+},
+"1110": {
+"name": "Fusion",
+"parent": "11"
+},
+"1111": {
+"name": "Latin Jazz",
+"parent": "11"
+},
+"1112": {
+"name": "Mainstream Jazz",
+"parent": "11"
+},
+"1113": {
+"name": "Ragtime",
+"parent": "11"
+},
+"1114": {
+"name": "Smooth Jazz",
+"parent": "11"
+},
+"1115": {
+"name": "Latin Jazz",
+"parent": "12"
+},
+"1116": {
+"name": "Contemporary Latin",
+"parent": "12"
+},
+"1117": {
+"name": "Pop Latino",
+"parent": "12"
+},
+"1118": {
+"name": "Raíces",
+"parent": "12"
+},
+"1119": {
+"name": "Urbano latino",
+"parent": "12"
+},
+"1120": {
+"name": "Baladas y Boleros",
+"parent": "12"
+},
+"1121": {
+"name": "Rock y Alternativo",
+"parent": "12"
+},
+"1122": {
+"name": "Brazilian",
+"parent": "34"
+},
+"1123": {
+"name": "Música Mexicana",
+"parent": "12"
+},
+"1124": {
+"name": "Música tropical",
+"parent": "12"
+},
+"1125": {
+"name": "Environmental",
+"parent": "13"
+},
+"1126": {
+"name": "Healing",
+"parent": "13"
+},
+"1127": {
+"name": "Meditation",
+"parent": "13"
+},
+"1128": {
+"name": "Nature",
+"parent": "13"
+},
+"1129": {
+"name": "Relaxation",
+"parent": "13"
+},
+"1130": {
+"name": "Travel",
+"parent": "13"
+},
+"1131": {
+"name": "Adult Contemporary",
+"parent": "14"
+},
+"1132": {
+"name": "Britpop",
+"parent": "14"
+},
+"1133": {
+"name": "Pop/Rock",
+"parent": "14"
+},
+"1134": {
+"name": "Soft Rock",
+"parent": "14"
+},
+"1135": {
+"name": "Teen Pop",
+"parent": "14"
+},
+"1136": {
+"name": "Contemporary R&B",
+"parent": "15"
+},
+"1137": {
+"name": "Disco",
+"parent": "15"
+},
+"1138": {
+"name": "Doo Wop",
+"parent": "15"
+},
+"1139": {
+"name": "Funk",
+"parent": "15"
+},
+"1140": {
+"name": "Motown",
+"parent": "15"
+},
+"1141": {
+"name": "Neo-Soul",
+"parent": "15"
+},
+"1142": {
+"name": "Quiet Storm",
+"parent": "15"
+},
+"1143": {
+"name": "Soul",
+"parent": "15"
+},
+"1144": {
+"name": "Adult Alternative",
+"parent": "21"
+},
+"1145": {
+"name": "American Trad Rock",
+"parent": "21"
+},
+"1146": {
+"name": "Arena Rock",
+"parent": "21"
+},
+"1147": {
+"name": "Blues-Rock",
+"parent": "21"
+},
+"1148": {
+"name": "British Invasion",
+"parent": "21"
+},
+"1149": {
+"name": "Death Metal/Black Metal",
+"parent": "21"
+},
+"1150": {
+"name": "Glam Rock",
+"parent": "21"
+},
+"1151": {
+"name": "Hair Metal",
+"parent": "21"
+},
+"1152": {
+"name": "Hard Rock",
+"parent": "21"
+},
+"1153": {
+"name": "Metal",
+"parent": "21"
+},
+"1154": {
+"name": "Jam Bands",
+"parent": "21"
+},
+"1155": {
+"name": "Prog-Rock/Art Rock",
+"parent": "21"
+},
+"1156": {
+"name": "Psychedelic",
+"parent": "21"
+},
+"1157": {
+"name": "Rock & Roll",
+"parent": "21"
+},
+"1158": {
+"name": "Rockabilly",
+"parent": "21"
+},
+"1159": {
+"name": "Roots Rock",
+"parent": "21"
+},
+"1160": {
+"name": "Singer/Songwriter",
+"parent": "21"
+},
+"1161": {
+"name": "Southern Rock",
+"parent": "21"
+},
+"1162": {
+"name": "Surf",
+"parent": "21"
+},
+"1163": {
+"name": "Tex-Mex",
+"parent": "21"
+},
+"1165": {
+"name": "Foreign Cinema",
+"parent": "16"
+},
+"1166": {
+"name": "Musicals",
+"parent": "16"
+},
+"1167": {
+"name": "Novelty",
+"parent": "3"
+},
+"1168": {
+"name": "Original Score",
+"parent": "16"
+},
+"1169": {
+"name": "Soundtrack",
+"parent": "16"
+},
+"1171": {
+"name": "Standup Comedy",
+"parent": "3"
+},
+"1172": {
+"name": "TV Soundtrack",
+"parent": "16"
+},
+"1173": {
+"name": "Standards",
+"parent": "23"
+},
+"1174": {
+"name": "Traditional Pop",
+"parent": "23"
+},
+"1175": {
+"name": "Vocal Jazz",
+"parent": "11"
+},
+"1176": {
+"name": "Vocal Pop",
+"parent": "23"
+},
+"1177": {
+"name": "Afro-Beat",
+"parent": "1203"
+},
+"1178": {
+"name": "Afro-Pop",
+"parent": "1203"
+},
+"1179": {
+"name": "Cajun",
+"parent": "19"
+},
+"1180": {
+"name": "Celtic",
+"parent": "19"
+},
+"1181": {
+"name": "Celtic Folk",
+"parent": "19"
+},
+"1182": {
+"name": "Contemporary Celtic",
+"parent": "19"
+},
+"1183": {
+"name": "Modern Dancehall",
+"parent": "24"
+},
+"1184": {
+"name": "Drinking Songs",
+"parent": "19"
+},
+"1185": {
+"name": "Indian Pop",
+"parent": "1262"
+},
+"1186": {
+"name": "Japanese Pop",
+"parent": "19"
+},
+"1187": {
+"name": "Klezmer",
+"parent": "19"
+},
+"1188": {
+"name": "Polka",
+"parent": "19"
+},
+"1189": {
+"name": "Traditional Celtic",
+"parent": "19"
+},
+"1190": {
+"name": "Worldbeat",
+"parent": "19"
+},
+"1191": {
+"name": "Zydeco",
+"parent": "19"
+},
+"1192": {
+"name": "Roots Reggae",
+"parent": "24"
+},
+"1193": {
+"name": "Dub",
+"parent": "24"
+},
+"1194": {
+"name": "Ska",
+"parent": "24"
+},
+"1195": {
+"name": "Caribbean",
+"parent": "19"
+},
+"1196": {
+"name": "South America",
+"parent": "19"
+},
+"1197": {
+"name": "Arabic",
+"parent": "34"
+},
+"1198": {
+"name": "North America",
+"parent": "19"
+},
+"1199": {
+"name": "Hawaii",
+"parent": "19"
+},
+"12": {
+"name": "Latin",
+"parent": "34"
+},
+"1200": {
+"name": "Australia",
+"parent": "19"
+},
+"1201": {
+"name": "Japan",
+"parent": "19"
+},
+"1202": {
+"name": "France",
+"parent": "19"
+},
+"1203": {
+"name": "African",
+"parent": "34"
+},
+"1204": {
+"name": "Asia",
+"parent": "19"
+},
+"1205": {
+"name": "Europe",
+"parent": "19"
+},
+"1206": {
+"name": "South Africa",
+"parent": "19"
+},
+"1207": {
+"name": "Hard Bop",
+"parent": "11"
+},
+"1208": {
+"name": "Trad Jazz",
+"parent": "11"
+},
+"1209": {
+"name": "Cool Jazz",
+"parent": "11"
+},
+"1210": {
+"name": "Acoustic Blues",
+"parent": "2"
+},
+"1211": {
+"name": "High Classical",
+"parent": "5"
+},
+"1220": {
+"name": "Axé",
+"parent": "1122"
+},
+"1221": {
+"name": "Bossa Nova",
+"parent": "1122"
+},
+"1222": {
+"name": "Choro",
+"parent": "1122"
+},
+"1223": {
+"name": "Forró",
+"parent": "1122"
+},
+"1224": {
+"name": "Frevo",
+"parent": "1122"
+},
+"1225": {
+"name": "MPB",
+"parent": "1122"
+},
+"1226": {
+"name": "Pagode",
+"parent": "1122"
+},
+"1227": {
+"name": "Samba",
+"parent": "1122"
+},
+"1228": {
+"name": "Sertanejo",
+"parent": "1122"
+},
+"1229": {
+"name": "Baile Funk",
+"parent": "1122"
+},
+"1230": {
+"name": "Chinese Alt",
+"parent": "20"
+},
+"1231": {
+"name": "Korean Indie",
+"parent": "20"
+},
+"1232": {
+"name": "Chinese",
+"parent": "34"
+},
+"1233": {
+"name": "Chinese Classical",
+"parent": "1232"
+},
+"1234": {
+"name": "Chinese Flute",
+"parent": "1232"
+},
+"1235": {
+"name": "Chinese Opera",
+"parent": "1232"
+},
+"1236": {
+"name": "Chinese Orchestral",
+"parent": "1232"
+},
+"1237": {
+"name": "Chinese Regional Folk",
+"parent": "1232"
+},
+"1238": {
+"name": "Chinese Strings",
+"parent": "1232"
+},
+"1239": {
+"name": "Taiwanese Folk",
+"parent": "1232"
+},
+"1240": {
+"name": "Tibetan Native Music",
+"parent": "1232"
+},
+"1241": {
+"name": "Chinese Hip-Hop",
+"parent": "18"
+},
+"1242": {
+"name": "Korean Hip-Hop",
+"parent": "18"
+},
+"1243": {
+"name": "Korean",
+"parent": "34"
+},
+"1244": {
+"name": "Korean Classical",
+"parent": "1243"
+},
+"1245": {
+"name": "Korean Trad Song",
+"parent": "1243"
+},
+"1246": {
+"name": "Korean Trad Instrumental",
+"parent": "1243"
+},
+"1247": {
+"name": "Korean Trad Theater",
+"parent": "1243"
+},
+"1248": {
+"name": "Chinese Rock",
+"parent": "21"
+},
+"1249": {
+"name": "Korean Rock",
+"parent": "21"
+},
+"1250": {
+"name": "C-Pop",
+"parent": "14"
+},
+"1251": {
+"name": "Cantopop/HK-Pop",
+"parent": "14"
+},
+"1252": {
+"name": "Korean Folk-Pop",
+"parent": "14"
+},
+"1253": {
+"name": "Mandopop",
+"parent": "14"
+},
+"1254": {
+"name": "Tai-Pop",
+"parent": "14"
+},
+"1255": {
+"name": "Malaysian Pop",
+"parent": "14"
+},
+"1256": {
+"name": "Pinoy Pop",
+"parent": "14"
+},
+"1257": {
+"name": "Original Pilipino Music",
+"parent": "14"
+},
+"1258": {
+"name": "Manilla Sound",
+"parent": "14"
+},
+"1259": {
+"name": "Indo Pop",
+"parent": "14"
+},
+"1260": {
+"name": "Thai Pop",
+"parent": "14"
+},
+"1261": {
+"name": "Trot",
+"parent": "23"
+},
+"1262": {
+"name": "Indian",
+"parent": "34"
+},
+"1263": {
+"name": "Bollywood",
+"parent": "1262"
+},
+"1264": {
+"name": "Tamil",
+"parent": "1266"
+},
+"1265": {
+"name": "Telugu",
+"parent": "1266"
+},
+"1266": {
+"name": "Regional Indian",
+"parent": "1262"
+},
+"1267": {
+"name": "Devotional & Spiritual",
+"parent": "1262"
+},
+"1268": {
+"name": "Sufi",
+"parent": "1262"
+},
+"1269": {
+"name": "Indian Classical",
+"parent": "1262"
+},
+"1270": {
+"name": "Chanson in Russian",
+"parent": "1299"
+},
+"1271": {
+"name": "Dini",
+"parent": "19"
+},
+"1272": {
+"name": "Halk",
+"parent": "1300"
+},
+"1273": {
+"name": "Sanat",
+"parent": "1300"
+},
+"1274": {
+"name": "Dangdut",
+"parent": "19"
+},
+"1275": {
+"name": "Indonesian Religious",
+"parent": "19"
+},
+"1276": {
+"name": "Calypso",
+"parent": "19"
+},
+"1277": {
+"name": "Soca",
+"parent": "19"
+},
+"1278": {
+"name": "Ghazals",
+"parent": "1262"
+},
+"1279": {
+"name": "Indian Folk",
+"parent": "1262"
+},
+"1280": {
+"name": "Arabesque",
+"parent": "1300"
+},
+"1281": {
+"name": "Afrikaans",
+"parent": "1203"
+},
+"1282": {
+"name": "Farsi",
+"parent": "19"
+},
+"1283": {
+"name": "Israeli",
+"parent": "19"
+},
+"1284": {
+"name": "Khaleeji",
+"parent": "1197"
+},
+"1285": {
+"name": "North African",
+"parent": "1197"
+},
+"1286": {
+"name": "Arabic Pop",
+"parent": "1197"
+},
+"1287": {
+"name": "Islamic",
+"parent": "1197"
+},
+"1288": {
+"name": "Sound Effects",
+"parent": "16"
+},
+"1289": {
+"name": "Folk",
+"parent": "34"
+},
+"1290": {
+"name": "Orchestral",
+"parent": "34"
+},
+"1291": {
+"name": "Marching",
+"parent": "34"
+},
+"1293": {
+"name": "Oldies",
+"parent": "14"
+},
+"1294": {
+"name": "Thai Country",
+"parent": "6"
+},
+"1295": {
+"name": "Flamenco",
+"parent": "19"
+},
+"1296": {
+"name": "Tango",
+"parent": "19"
+},
+"1297": {
+"name": "Fado",
+"parent": "19"
+},
+"1298": {
+"name": "Iberia",
+"parent": "19"
+},
+"1299": {
+"name": "Russian",
+"parent": "34"
+},
+"13": {
+"name": "New Age",
+"parent": "34"
+},
+"1300": {
+"name": "Turkish",
+"parent": "34"
+},
+"14": {
+"name": "Pop",
+"parent": "34"
+},
+"15": {
+"name": "R&B/Soul",
+"parent": "34"
+},
+"16": {
+"name": "Soundtrack",
+"parent": "34"
+},
+"17": {
+"name": "Dance",
+"parent": "34"
+},
+"18": {
+"name": "Hip-Hop/Rap",
+"parent": "34"
+},
+"19": {
+"name": "Worldwide",
+"parent": "34"
+},
+"2": {
+"name": "Blues",
+"parent": "34"
+},
+"20": {
+"name": "Alternative",
+"parent": "34"
+},
+"21": {
+"name": "Rock",
+"parent": "34"
+},
+"22": {
+"name": "Christian",
+"parent": "34"
+},
+"23": {
+"name": "Vocal",
+"parent": "34"
+},
+"24": {
+"name": "Reggae",
+"parent": "34"
+},
+"25": {
+"name": "Easy Listening",
+"parent": "34"
+},
+"27": {
+"name": "J-Pop",
+"parent": "34"
+},
+"28": {
+"name": "Enka",
+"parent": "34"
+},
+"29": {
+"name": "Anime",
+"parent": "34"
+},
+"3": {
+"name": "Comedy",
+"parent": "34"
+},
+"30": {
+"name": "Kayokyoku",
+"parent": "34"
+},
+"34": {
+"name": "Music",
+"parent": null
+},
+"4": {
+"name": "Children's Music",
+"parent": "34"
+},
+"41": {
+"name": "Alte",
+"parent": "1203"
+},
+"42": {
+"name": "Amapiano",
+"parent": "1203"
+},
+"43": {
+"name": "Afro-folk",
+"parent": "1203"
+},
+"44": {
+"name": "Afro-fusion",
+"parent": "1203"
+},
+"45": {
+"name": "African Dancehall",
+"parent": "1203"
+},
+"46": {
+"name": "African Reggae",
+"parent": "1203"
+},
+"5": {
+"name": "Classical",
+"parent": "34"
+},
+"50": {
+"name": "Fitness & Workout",
+"parent": "34"
+},
+"50000061": {
+"name": "Spoken Word",
+"parent": "34"
+},
+"50000063": {
+"name": "Disney",
+"parent": "34"
+},
+"50000064": {
+"name": "French Pop",
+"parent": "34"
+},
+"50000066": {
+"name": "German Pop",
+"parent": "34"
+},
+"50000068": {
+"name": "German Folk",
+"parent": "34"
+},
+"50000121": {
+"name": "Jewish Music",
+"parent": "34"
+},
+"50000124": {
+"name": "Jewish Holidays",
+"parent": "50000121"
+},
+"50000127": {
+"name": "Klezmer",
+"parent": "50000121"
+},
+"50000130": {
+"name": "Country Hip-Hop/Rap",
+"parent": "6"
+},
+"50000133": {
+"name": "Deutschpop",
+"parent": "14"
+},
+"50000136": {
+"name": "Deutschrap",
+"parent": "18"
+},
+"50000139": {
+"name": "Genge",
+"parent": "1203"
+},
+"50000142": {
+"name": "Chimurenga",
+"parent": "1203"
+},
+"50000145": {
+"name": "Fuji",
+"parent": "1203"
+},
+"50000148": {
+"name": "Kwassa",
+"parent": "1203"
+},
+"50000151": {
+"name": "Mapouka",
+"parent": "1203"
+},
+"50000154": {
+"name": "Ghanaian Drill",
+"parent": "18"
+},
+"50000157": {
+"name": "South African Hip-Hop",
+"parent": "18"
+},
+"50000160": {
+"name": "Ethio Jazz",
+"parent": "11"
+},
+"50000163": {
+"name": "T-Pop",
+"parent": "14"
+},
+"50000166": {
+"name": "Experimental Classical",
+"parent": "5"
+},
+"50000167": {
+"name": "Stage Works",
+"parent": "5"
+},
+"50000168": {
+"name": "Vocal Music",
+"parent": "5"
+},
+"50000169": {
+"name": "Film Music",
+"parent": "5"
+},
+"50000170": {
+"name": "Electroacoustic",
+"parent": "50000166"
+},
+"50000171": {
+"name": "Music Theatre",
+"parent": "50000166"
+},
+"50000172": {
+"name": "Concerto Grosso",
+"parent": "1029"
+},
+"50000173": {
+"name": "Concerto",
+"parent": "1029"
+},
+"50000174": {
+"name": "Symphony",
+"parent": "1029"
+},
+"50000175": {
+"name": "Tone Poem",
+"parent": "1029"
+},
+"50000176": {
+"name": "Sonata",
+"parent": "1019"
+},
+"50000177": {
+"name": "String Quartet",
+"parent": "1019"
+},
+"50000178": {
+"name": "Fantasy",
+"parent": "100003"
+},
+"50000179": {
+"name": "Nocturne",
+"parent": "100003"
+},
+"50000180": {
+"name": "Opera",
+"parent": "50000167"
+},
+"50000181": {
+"name": "Ballet",
+"parent": "50000167"
+},
+"50000182": {
+"name": "Cantata",
+"parent": "50000168"
+},
+"50000183": {
+"name": "Art Song",
+"parent": "50000168"
+},
+"50000184": {
+"name": "Chant",
+"parent": "50000168"
+},
+"50000185": {
+"name": "Choral",
+"parent": "50000168"
+},
+"50000186": {
+"name": "Oratorio",
+"parent": "50000168"
+},
+"50000187": {
+"name": "Sacred",
+"parent": "50000168"
+},
+"50000188": {
+"name": "Passion",
+"parent": "50000168"
+},
+"50000189": {
+"name": "Mass",
+"parent": "50000168"
+},
+"50000190": {
+"name": "Lied",
+"parent": "50000168"
+},
+"50000191": {
+"name": "Polyphony",
+"parent": "50000168"
+},
+"50000192": {
+"name": "Gregorian Chant",
+"parent": "50000168"
+},
+"50000193": {
+"name": "Chanson",
+"parent": "50000168"
+},
+"50000194": {
+"name": "Air de Cours",
+"parent": "50000168"
+},
+"50000195": {
+"name": "English Ayre",
+"parent": "50000168"
+},
+"50000196": {
+"name": "Concert Aria",
+"parent": "50000168"
+},
+"50000197": {
+"name": "Carol",
+"parent": "50000168"
+},
+"50000198": {
+"name": "Video Game",
+"parent": "50000169"
+},
+"50000199": {
+"name": "Original Score",
+"parent": "50000169"
+},
+"50000200": {
+"name": "Medieval",
+"parent": "5"
+},
+"50000201": {
+"name": "Baroque",
+"parent": "5"
+},
+"50000202": {
+"name": "Classical",
+"parent": "5"
+},
+"50000203": {
+"name": "Romantic",
+"parent": "5"
+},
+"50000204": {
+"name": "Early 20th Century",
+"parent": "5"
+},
+"50000205": {
+"name": "Late 20th Century",
+"parent": "5"
+},
+"50000206": {
+"name": "21st Century",
+"parent": "5"
+},
+"50000207": {
+"name": "Ars Nova",
+"parent": "50000200"
+},
+"50000208": {
+"name": "Ars Antiqua",
+"parent": "50000200"
+},
+"50000209": {
+"name": "Minnesang",
+"parent": "50000200"
+},
+"50000210": {
+"name": "Troubadour Music",
+"parent": "50000200"
+},
+"50000211": {
+"name": "Trouvère Music",
+"parent": "50000200"
+},
+"50000212": {
+"name": "Meistergesang",
+"parent": "1030"
+},
+"50000213": {
+"name": "Prima Pratica",
+"parent": "1030"
+},
+"50000214": {
+"name": "French Baroque",
+"parent": "50000201"
+},
+"50000215": {
+"name": "Seconda Pratica",
+"parent": "50000201"
+},
+"50000216": {
+"name": "First Viennese School",
+"parent": "50000202"
+},
+"50000217": {
+"name": "Early Romantic",
+"parent": "50000203"
+},
+"50000218": {
+"name": "Late Romantic",
+"parent": "50000203"
+},
+"50000219": {
+"name": "Nationalism",
+"parent": "50000203"
+},
+"50000220": {
+"name": "Bel Canto",
+"parent": "50000203"
+},
+"50000221": {
+"name": "Modernism",
+"parent": "50000204"
+},
+"50000222": {
+"name": "Impressionism",
+"parent": "50000204"
+},
+"50000223": {
+"name": "Expressionism",
+"parent": "50000204"
+},
+"50000224": {
+"name": "Neoclassicism",
+"parent": "50000204"
+},
+"50000225": {
+"name": "Second Viennese School",
+"parent": "50000204"
+},
+"50000226": {
+"name": "Serialism",
+"parent": "50000204"
+},
+"50000227": {
+"name": "Dodecaphony",
+"parent": "50000204"
+},
+"50000228": {
+"name": "Musique concrète",
+"parent": "50000204"
+},
+"50000229": {
+"name": "Avant-Garde",
+"parent": "50000205"
+},
+"50000230": {
+"name": "Post-modernism",
+"parent": "50000205"
+},
+"50000231": {
+"name": "New Simplicity",
+"parent": "50000205"
+},
+"50000232": {
+"name": "New Complexity",
+"parent": "50000205"
+},
+"50000233": {
+"name": "Music Theatre",
+"parent": "50000205"
+},
+"50000234": {
+"name": "Spectral Music",
+"parent": "50000205"
+},
+"50000235": {
+"name": "Minimalism",
+"parent": "50000206"
+},
+"50000236": {
+"name": "PostMinimalism",
+"parent": "50000206"
+},
+"50000237": {
+"name": "Eclecticism",
+"parent": "50000206"
+},
+"50000238": {
+"name": "Polystylism",
+"parent": "50000206"
+},
+"51": {
+"name": "K-Pop",
+"parent": "14"
+},
+"52": {
+"name": "Karaoke",
+"parent": "34"
+},
+"53": {
+"name": "Instrumental",
+"parent": "34"
+},
+"6": {
+"name": "Country",
+"parent": "34"
+},
+"7": {
+"name": "Electronic",
+"parent": "34"
+},
+"8": {
+"name": "Holiday",
+"parent": "34"
+},
+"9": {
+"name": "Opera",
+"parent": "5"
+}
+}

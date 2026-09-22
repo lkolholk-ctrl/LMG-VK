@@ -1,0 +1,17 @@
+{
+  "binary": "/srv/research/tmp/extracted_dylibs/MusicKitInternal",
+  "binary_sha256": "1e63c987ceea1ca0c3f04a0f05b9024a42b45ec4ef7292ac361a386e815a0e72",
+  "function": "0x1d3e81ad4",
+  "cases": 1045,
+  "scores": "all -20..1020, INT64_MIN/MAX, +/-2^62",
+  "times": [
+    0.0,
+    -0.0,
+    -1.25,
+    123.125
+  ],
+  "hooks": [],
+  "patches": [],
+  "fixture_format": "uint32 count; repeated int64 score, double inputTime, double outputTime, uint64 optionalTag(4=nil), double amplitude",
+  "fixture_sha256": "41bc6b3c83ce88cd072dc1c656a6e245f09559e781bedd45d8439abc06522dd7"
+}

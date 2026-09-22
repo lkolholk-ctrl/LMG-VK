@@ -1,0 +1,267 @@
+{
+  "code_sha256": {
+    "0x234fe37c8": "37d2708a01a933422eed7618a7f1d4d1c4a7d223c571b3859755756a8a078a6a",
+    "0x234fe4d2c": "c7c889b2950a95f38f469b4b4b498d7f6b521589b9046fd7d6a517423598acf1"
+  },
+  "scope": "Setter and serial block-boundary bypass control flow; active DSP body skipped",
+  "cases": [
+    {
+      "inputs": 1,
+      "outputs": 1,
+      "bypass": 0,
+      "flags": [
+        0,
+        0
+      ],
+      "events": [
+        "active"
+      ]
+    },
+    {
+      "inputs": 1,
+      "outputs": 1,
+      "bypass": 1,
+      "flags": [
+        1,
+        0
+      ],
+      "events": [
+        "copy"
+      ]
+    },
+    {
+      "inputs": 1,
+      "outputs": 1,
+      "bypass": 1,
+      "flags": [
+        1,
+        0
+      ],
+      "events": [
+        "copy"
+      ]
+    },
+    {
+      "inputs": 1,
+      "outputs": 1,
+      "bypass": 0,
+      "flags": [
+        0,
+        0
+      ],
+      "events": [
+        "active"
+      ]
+    },
+    {
+      "inputs": 1,
+      "outputs": 1,
+      "bypass": 1,
+      "flags": [
+        1,
+        0
+      ],
+      "events": [
+        "copy"
+      ]
+    },
+    {
+      "inputs": 1,
+      "outputs": 1,
+      "bypass": 0,
+      "flags": [
+        0,
+        0
+      ],
+      "events": [
+        "active"
+      ]
+    },
+    {
+      "inputs": 1,
+      "outputs": 1,
+      "bypass": 0,
+      "flags": [
+        0,
+        0
+      ],
+      "events": [
+        "active"
+      ]
+    },
+    {
+      "inputs": 1,
+      "outputs": 2,
+      "bypass": 0,
+      "flags": [
+        0,
+        0
+      ],
+      "events": [
+        "active"
+      ]
+    },
+    {
+      "inputs": 1,
+      "outputs": 2,
+      "bypass": 1,
+      "flags": [
+        1,
+        0
+      ],
+      "events": [
+        "copy",
+        "copy"
+      ]
+    },
+    {
+      "inputs": 1,
+      "outputs": 2,
+      "bypass": 1,
+      "flags": [
+        1,
+        0
+      ],
+      "events": [
+        "copy",
+        "copy"
+      ]
+    },
+    {
+      "inputs": 1,
+      "outputs": 2,
+      "bypass": 0,
+      "flags": [
+        0,
+        0
+      ],
+      "events": [
+        "active"
+      ]
+    },
+    {
+      "inputs": 1,
+      "outputs": 2,
+      "bypass": 1,
+      "flags": [
+        1,
+        0
+      ],
+      "events": [
+        "copy",
+        "copy"
+      ]
+    },
+    {
+      "inputs": 1,
+      "outputs": 2,
+      "bypass": 0,
+      "flags": [
+        0,
+        0
+      ],
+      "events": [
+        "active"
+      ]
+    },
+    {
+      "inputs": 1,
+      "outputs": 2,
+      "bypass": 0,
+      "flags": [
+        0,
+        0
+      ],
+      "events": [
+        "active"
+      ]
+    },
+    {
+      "inputs": 2,
+      "outputs": 2,
+      "bypass": 0,
+      "flags": [
+        0,
+        0
+      ],
+      "events": [
+        "active"
+      ]
+    },
+    {
+      "inputs": 2,
+      "outputs": 2,
+      "bypass": 1,
+      "flags": [
+        1,
+        0
+      ],
+      "events": [
+        "copy",
+        "copy"
+      ]
+    },
+    {
+      "inputs": 2,
+      "outputs": 2,
+      "bypass": 1,
+      "flags": [
+        1,
+        0
+      ],
+      "events": [
+        "copy",
+        "copy"
+      ]
+    },
+    {
+      "inputs": 2,
+      "outputs": 2,
+      "bypass": 0,
+      "flags": [
+        0,
+        0
+      ],
+      "events": [
+        "active"
+      ]
+    },
+    {
+      "inputs": 2,
+      "outputs": 2,
+      "bypass": 1,
+      "flags": [
+        1,
+        0
+      ],
+      "events": [
+        "copy",
+        "copy"
+      ]
+    },
+    {
+      "inputs": 2,
+      "outputs": 2,
+      "bypass": 0,
+      "flags": [
+        0,
+        0
+      ],
+      "events": [
+        "active"
+      ]
+    },
+    {
+      "inputs": 2,
+      "outputs": 2,
+      "bypass": 0,
+      "flags": [
+        0,
+        0
+      ],
+      "events": [
+        "active"
+      ]
+    }
+  ]
+}

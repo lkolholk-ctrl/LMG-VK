@@ -1,0 +1,97 @@
+; Image: libEmbeddedSystemAUs.dylib iOS 23A341
+; Range: 0x234f43a68..0x234f43be0
+; Code SHA256: 896bf68854e2941e4a8a7e9b8b495153bca00c13be5e8874ebd6924900bada87
+0x234f43a68: 7f2303d5 pacibsp 
+0x234f43a6c: f657bda9 stp x22, x21, [sp, #-0x30]!
+0x234f43a70: f44f01a9 stp x20, x19, [sp, #0x10]
+0x234f43a74: fd7b02a9 stp x29, x30, [sp, #0x20]
+0x234f43a78: fd830091 add x29, sp, #0x20
+0x234f43a7c: f30300aa mov x19, x0
+0x234f43a80: 08046a39 ldrb w8, [x0, #0xa81]
+0x234f43a84: 1f050071 cmp w8, #1
+0x234f43a88: 81000054 b.ne #0x234f43a98
+0x234f43a8c: 699688b9 ldrsw x9, [x19, #0x894]
+0x234f43a90: e80309aa mov x8, x9
+0x234f43a94: 03000014 b #0x234f43aa0
+0x234f43a98: 080080d2 mov x8, #0
+0x234f43a9c: 699248b9 ldr w9, [x19, #0x890]
+0x234f43aa0: 69b204f9 str x9, [x19, #0x960]
+0x234f43aa4: 69aa04f9 str x9, [x19, #0x950]
+0x234f43aa8: 7fae04f9 str xzr, [x19, #0x958]
+0x234f43aac: 7fb604f9 str xzr, [x19, #0x968]
+0x234f43ab0: 68ba04f9 str x8, [x19, #0x970]
+0x234f43ab4: 7fbe04f9 str xzr, [x19, #0x978]
+0x234f43ab8: 68c204f9 str x8, [x19, #0x980]
+0x234f43abc: 7f5a08b9 str wzr, [x19, #0x858]
+0x234f43ac0: 7ffe00a9 stp xzr, xzr, [x19, #8]
+0x234f43ac4: 7f620039 strb wzr, [x19, #0x18]
+0x234f43ac8: c88fd0d2 mov x8, #0x847e00000000
+0x234f43acc: c825f8f2 movk x8, #0xc12e, lsl #48
+0x234f43ad0: 681200f9 str x8, [x19, #0x20]
+0x234f43ad4: c9478892 mov x9, #-0x423f
+0x234f43ad8: 09febff2 movk x9, #0xfff0, lsl #16
+0x234f43adc: 200d084e dup v0.2d, x9
+0x234f43ae0: 6082823c stur q0, [x19, #0x28]
+0x234f43ae4: 69a20191 add x9, x19, #0x68
+0x234f43ae8: 0a088052 mov w10, #0x40
+0x234f43aec: 3f011f38 sturb wzr, [x9, #-0x10]
+0x234f43af0: 28811ff8 stur x8, [x9, #-8]
+0x234f43af4: 2005823c str q0, [x9], #0x20
+0x234f43af8: 4a0500f1 subs x10, x10, #1
+0x234f43afc: 81ffff54 b.ne #0x234f43aec
+0x234f43b00: 28008052 mov w8, #1
+0x234f43b04: 68e20039 strb w8, [x19, #0x38]
+0x234f43b08: 7f8a09b9 str wzr, [x19, #0x988]
+0x234f43b0c: 7ffe04a9 stp xzr, xzr, [x19, #0x48]
+0x234f43b10: 7f2200f9 str xzr, [x19, #0x40]
+0x234f43b14: 694645f9 ldr x9, [x19, #0xa88]
+0x234f43b18: 2081c23c ldur q0, [x9, #0x28]
+0x234f43b1c: 6036823d str q0, [x19, #0x8d0]
+0x234f43b20: 6032823d str q0, [x19, #0x8c0]
+0x234f43b24: 68c22339 strb w8, [x19, #0x8f0]
+0x234f43b28: 69222591 add x9, x19, #0x948
+0x234f43b2c: 2085004d st1 {v0.d}[1], [x9]
+0x234f43b30: 609e04fd str d0, [x19, #0x938]
+0x234f43b34: 680a2a39 strb w8, [x19, #0xa82]
+0x234f43b38: 68862691 add x8, x19, #0x9a1
+0x234f43b3c: 09208052 mov w9, #0x100
+0x234f43b40: 09010079 strh w9, [x8]
+0x234f43b44: 68b648b9 ldr w8, [x19, #0x8b4]
+0x234f43b48: 48040034 cbz w8, #0x234f43bd0
+0x234f43b4c: 140080d2 mov x20, #0
+0x234f43b50: 150080d2 mov x21, #0
+0x234f43b54: 682a45f9 ldr x8, [x19, #0xa50]
+0x234f43b58: 006974f8 ldr x0, [x8, x20]
+0x234f43b5c: 681a49b9 ldr w8, [x19, #0x918]
+0x234f43b60: 01f57ed3 lsl x1, x8, #2
+0x234f43b64: c3068094 bl #0x236f45670
+0x234f43b68: 682a45f9 ldr x8, [x19, #0xa50]
+0x234f43b6c: 0801148b add x8, x8, x20
+0x234f43b70: 000540f9 ldr x0, [x8, #8]
+0x234f43b74: 682a49b9 ldr w8, [x19, #0x928]
+0x234f43b78: 01f57ed3 lsl x1, x8, #2
+0x234f43b7c: bd068094 bl #0x236f45670
+0x234f43b80: 68826639 ldrb w8, [x19, #0x9a0]
+0x234f43b84: 1f050071 cmp w8, #1
+0x234f43b88: a1010054 b.ne #0x234f43bbc
+0x234f43b8c: 682a45f9 ldr x8, [x19, #0xa50]
+0x234f43b90: 0801148b add x8, x8, x20
+0x234f43b94: 000d40f9 ldr x0, [x8, #0x18]
+0x234f43b98: 689248b9 ldr w8, [x19, #0x890]
+0x234f43b9c: 01f57ed3 lsl x1, x8, #2
+0x234f43ba0: b4068094 bl #0x236f45670
+0x234f43ba4: 682a45f9 ldr x8, [x19, #0xa50]
+0x234f43ba8: 0801148b add x8, x8, x20
+0x234f43bac: 001140f9 ldr x0, [x8, #0x20]
+0x234f43bb0: 689248b9 ldr w8, [x19, #0x890]
+0x234f43bb4: 01f57ed3 lsl x1, x8, #2
+0x234f43bb8: ae068094 bl #0x236f45670
+0x234f43bbc: b5060091 add x21, x21, #1
+0x234f43bc0: 68b648b9 ldr w8, [x19, #0x8b4]
+0x234f43bc4: 94c20091 add x20, x20, #0x30
+0x234f43bc8: bf0208eb cmp x21, x8
+0x234f43bcc: 43fcff54 b.lo #0x234f43b54
+0x234f43bd0: fd7b42a9 ldp x29, x30, [sp, #0x20]
+0x234f43bd4: f44f41a9 ldp x20, x19, [sp, #0x10]
+0x234f43bd8: f657c3a8 ldp x22, x21, [sp], #0x30
+0x234f43bdc: ff0f5fd6 retab 

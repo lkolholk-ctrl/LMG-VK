@@ -1,0 +1,2393 @@
+[
+  {
+    "id": 0,
+    "name": "Gapless",
+    "offset": {
+      "relative": 0,
+      "offsetInSeconds":0
+    },
+    "instructions": {
+      "outgoing": [
+        {
+          "name": "GAIN",
+          "automations": [
+            {
+              "parameterId": "out_gain",
+              "startTime": {
+                "default": {
+                  "relative": 0
+                }
+              },
+              "endTime": {
+                "default": {
+                  "relative": 1
+                }
+              },
+              "startValue": {
+                "default": 1
+              },
+              "endValue": {
+                "default": 0
+              },
+              "interpolation": "ease-in-0.5"
+            }
+          ],
+          "placement": {
+            "start": {
+              "relative": 1,
+              "offsetInSeconds":-0.300
+            },
+            "end": {
+              "relative": 1
+            }
+          }
+        }
+      ],
+      "incoming": [
+        {
+          "name": "GAIN",
+          "automations": [
+            {
+              "parameterId": "out_gain",
+              "startTime": {
+                "default": {
+                  "relative": 0
+                }
+              },
+              "endTime": {
+                "default": {
+                  "relative": 1
+                }
+              },
+              "startValue": {
+                "default": 1
+              },
+              "endValue": {
+                "default": 1
+              },
+              "interpolation": "ease-out-0.5"
+            }
+          ],
+          "placement": {
+            "start": {
+              "relative": 0
+            },
+            "end": {
+              "relative": 0,
+              "offsetInSeconds":0.300
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": 1,
+    "name": "constant-power cross-fade",
+    "offset": {
+      "relative": 0
+    },
+    "instructions": {
+      "outgoing": [
+        {
+          "name": "GAIN",
+          "automations": [
+            {
+              "parameterId": "out_gain",
+              "startTime": {
+                "default": {
+                  "relative": 0
+                }
+              },
+              "endTime": {
+                "default": {
+                  "relative": 1
+                }
+              },
+              "startValue": {
+                "default": 1
+              },
+              "endValue": {
+                "default": 0
+              },
+              "interpolation": "ease-in-0.5"
+            }
+          ],
+          "placement": {
+            "start": {
+              "relative": 0
+            },
+            "end": {
+              "relative": 1
+            }
+          }
+        }
+      ],
+      "incoming": [
+        {
+          "name": "GAIN",
+          "automations": [
+            {
+              "parameterId": "out_gain",
+              "startTime": {
+                "default": {
+                  "relative": 0
+                }
+              },
+              "endTime": {
+                "default": {
+                  "relative": 1
+                }
+              },
+              "startValue": {
+                "default": 0
+              },
+              "endValue": {
+                "default": 1
+              },
+              "interpolation": "ease-out-0.5"
+            }
+          ],
+          "placement": {
+            "start": {
+              "relative": 0
+            },
+            "end": {
+              "relative": 1
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": 2,
+    "name": "constant-power long fade-out short fade-in",
+    "offset": {
+      "relative": 1,
+      "offsetInSeconds":-0.300
+    },
+    "instructions": {
+      "outgoing": [
+        {
+          "name": "GAIN",
+          "automations": [
+            {
+              "parameterId": "out_gain",
+              "startTime": {
+                "default": {
+                  "relative": 0
+                }
+              },
+              "endTime": {
+                "default": {
+                  "relative": 1
+                }
+              },
+              "startValue": {
+                "default": 1
+              },
+              "endValue": {
+                "default": 0
+              },
+              "interpolation": "ease-in-0.5"
+            }
+          ],
+          "placement": {
+            "start": {
+              "relative": 0
+            },
+            "end": {
+              "relative": 1
+            }
+          }
+        }
+      ],
+      "incoming": [
+        {
+          "name": "GAIN",
+          "automations": [
+            {
+              "parameterId": "out_gain",
+              "startTime": {
+                "default": {
+                  "relative": 0
+                }
+              },
+              "endTime": {
+                "default": {
+                  "relative": 1
+                }
+              },
+              "startValue": {
+                "default": 0
+              },
+              "endValue": {
+                "default": 1
+              },
+              "interpolation": "ease-out-0.5"
+            }
+          ],
+          "placement": {
+            "start": {
+              "relative": 0.75
+            },
+            "end": {
+              "relative": 1
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": 3,
+    "name": "overlap",
+    "instructions": {
+      "outgoing": [
+      ],
+      "incoming": [
+      ]
+    }
+  },
+  {
+    "id": 33,
+    "name": "overlap + Reverb",
+    "instructions": {
+      "outgoing": [
+        {
+          "name": "AUReverb2",
+          "automations": [
+            {
+              "parameterId": "fx_reverb_high_frequency_decay_time",
+              "startTime": {
+                "default": {
+                  "relative": 0
+                }
+              },
+              "endTime": {
+                "default": {
+                  "relative": 0
+                }
+              },
+              "startValue": {
+                "default": 0.001
+              },
+              "endValue": {
+                "default": 6
+              },
+              "interpolation": "linear"
+            },
+            {
+              "parameterId": "fx_reverb_low_frequency_decay_time",
+              "startTime": {
+                "default": {
+                  "relative": 0
+                }
+              },
+              "endTime": {
+                "default": {
+                  "relative": 0
+                }
+              },
+              "startValue": {
+                "default": 0.001
+              },
+              "endValue": {
+                "default": 5
+              },
+              "interpolation": "linear"
+            },
+            {
+              "parameterId": "fx_reverb_min_delay_time",
+              "startTime": {
+                "default": {
+                  "relative": 0
+                }
+              },
+              "endTime": {
+                "default": {
+                  "relative": 0
+                }
+              },
+              "startValue": {
+                "default": 0.008
+              },
+              "endValue": {
+                "default": 0.9
+              },
+              "interpolation": "linear"
+            },
+            {
+              "parameterId": "fx_reverb_dry_wet",
+              "startTime": {
+                "default": {
+                  "relative": 0
+                }
+              },
+              "endTime": {
+                "default": {
+                  "relative": 0
+                }
+              },
+              "startValue": {
+                "default": 0
+              },
+              "endValue": {
+                "default": 100
+              },
+              "interpolation": "linear"
+            },
+            {
+               "parameterId":"send_mixer_gain",
+               "startTime":{
+                  "default":{
+                     "relative":0
+                  }
+               },
+               "endTime":{
+                "default": {
+                  "relative": 0,
+                  "offsetInSeconds":2
+                }
+               },
+               "startValue":{
+                  "default":0
+               },
+               "endValue":{
+                  "default":0.75
+               },
+               "interpolation":"linear"
+            },
+            {
+               "parameterId":"fx_mixer_wet",
+               "startTime":{
+                  "default":{
+                     "relative":0
+                  }
+               },
+               "endTime":{
+                  "default":{
+                     "relative":0
+                  }
+               },
+               "startValue":{
+                  "default":0
+               },
+               "endValue":{
+                  "default":1
+               },
+               "interpolation":"linear"
+            }
+          ],
+          "placement": {
+            "start": {
+              "relative": 0
+            },
+            "end": {
+              "relative": 1
+            }
+          }
+        }
+      ],
+      "incoming": [
+      ]
+    }
+  },
+  {
+    "id": 4,
+    "name": "Ease-in Ring-out",
+    "offset": {
+      "relative": 0
+    },
+    "instructions": {
+      "outgoing": [
+      ],
+      "incoming": [
+        {
+          "name": "GAIN",
+          "automations": [
+            {
+              "parameterId": "out_gain",
+              "startTime": {
+                "default": {
+                  "relative": 0
+                }
+              },
+              "endTime": {
+                "default": {
+                  "relative": 1
+                }
+              },
+              "startValue": {
+                "default": 0
+              },
+              "endValue": {
+                "default": 1
+              },
+              "interpolation": "ease-out-0.5"
+            }
+          ],
+          "placement": {
+            "start": {
+              "relative": 0
+            },
+            "end": {
+              "relative": 0,
+              "offsetInSeconds":2
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": 44,
+    "name": "Ease-in Ring-out + Reverb",
+    "offset": {
+      "relative": 0
+    },
+    "instructions": {
+      "outgoing": [
+        {
+          "name": "AUReverb2",
+          "automations": [
+            {
+              "parameterId": "fx_reverb_high_frequency_decay_time",
+              "startTime": {
+                "default": {
+                  "relative": 0
+                }
+              },
+              "endTime": {
+                "default": {
+                  "relative": 0
+                }
+              },
+              "startValue": {
+                "default": 0.001
+              },
+              "endValue": {
+                "default": 6
+              },
+              "interpolation": "linear"
+            },
+            {
+              "parameterId": "fx_reverb_low_frequency_decay_time",
+              "startTime": {
+                "default": {
+                  "relative": 0
+                }
+              },
+              "endTime": {
+                "default": {
+                  "relative": 0
+                }
+              },
+              "startValue": {
+                "default": 0.001
+              },
+              "endValue": {
+                "default": 5
+              },
+              "interpolation": "linear"
+            },
+            {
+              "parameterId": "fx_reverb_min_delay_time",
+              "startTime": {
+                "default": {
+                  "relative": 0
+                }
+              },
+              "endTime": {
+                "default": {
+                  "relative": 0
+                }
+              },
+              "startValue": {
+                "default": 0.008
+              },
+              "endValue": {
+                "default": 0.9
+              },
+              "interpolation": "linear"
+            },
+            {
+              "parameterId": "fx_reverb_dry_wet",
+              "startTime": {
+                "default": {
+                  "relative": 0
+                }
+              },
+              "endTime": {
+                "default": {
+                  "relative": 0
+                }
+              },
+              "startValue": {
+                "default": 0
+              },
+              "endValue": {
+                "default": 100
+              },
+              "interpolation": "linear"
+            },
+            {
+               "parameterId":"send_mixer_gain",
+               "startTime":{
+                  "default":{
+                     "relative":0
+                  }
+               },
+               "endTime":{
+                "default": {
+                  "relative": 0,
+                  "offsetInSeconds":2
+                }
+               },
+               "startValue":{
+                  "default":0
+               },
+               "endValue":{
+                  "default":0.75
+               },
+               "interpolation":"linear"
+            },
+            {
+               "parameterId":"fx_mixer_wet",
+               "startTime":{
+                  "default":{
+                     "relative":0
+                  }
+               },
+               "endTime":{
+                  "default":{
+                     "relative":0
+                  }
+               },
+               "startValue":{
+                  "default":0
+               },
+               "endValue":{
+                  "default":1
+               },
+               "interpolation":"linear"
+            }
+          ],
+          "placement": {
+            "start": {
+              "relative": 0
+            },
+            "end": {
+              "relative": 1
+            }
+          }
+        }
+      ],
+      "incoming": [
+        {
+          "name": "GAIN",
+          "automations": [
+            {
+              "parameterId": "out_gain",
+              "startTime": {
+                "default": {
+                  "relative": 0
+                }
+              },
+              "endTime": {
+                "default": {
+                  "relative": 1
+                }
+              },
+              "startValue": {
+                "default": 0
+              },
+              "endValue": {
+                "default": 1
+              },
+              "interpolation": "ease-out-0.5"
+            }
+          ],
+          "placement": {
+            "start": {
+              "relative": 0
+            },
+            "end": {
+              "relative": 0,
+              "offsetInSeconds":2
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": 6,
+    "name": "Beat-matched long fade-out short fade-in - Same Bar num",
+    "offset": {
+      "relative":0
+    },
+    "instructions": {
+      "outgoing": [
+        {
+          "name": "TimeStretching",
+          "automations": [
+            {
+              "parameterId": "ts_rate",
+              "startTime": {
+                "default": {
+                  "relative": 0
+                }
+              },
+              "endTime": {
+                "default": {
+                  "relative": 1
+                }
+              },
+              "startValue": {
+                "default": 1
+              },
+              "endValue": {
+                "default": 1
+              },
+              "interpolation": "linear"
+            }
+          ],
+          "placement": {
+            "start": {
+              "relative": 0
+            },
+            "end": {
+              "relative": 1
+            }
+          }
+        },
+        {
+          "name": "GAIN",
+          "automations": [
+            {
+              "parameterId": "out_gain",
+              "startTime": {
+                "default": {
+                  "relative": 0
+                }
+              },
+              "endTime": {
+                "default": {
+                  "relative": 1
+                }
+              },
+              "startValue": {
+                "default": 1
+              },
+              "endValue": {
+                "default": 0
+              },
+              "interpolation": "ease-in-0.5"
+            }
+          ],
+          "placement": {
+            "start": {
+              "relative": 0
+            },
+            "end": {
+              "relative": 1
+            }
+          }
+        }
+      ],
+      "incoming": [
+        {
+          "name": "TimeStretching",
+          "automations": [
+            {
+              "parameterId": "ts_rate",
+              "startTime": {
+                "default": {
+                  "relative": 0
+                }
+              },
+              "endTime": {
+                "default": {
+                  "relative": 1
+                }
+              },
+              "startValue": {
+                "default": 1
+              },
+              "endValue": {
+                "default": 1
+              },
+              "interpolation": "linear"
+            }
+          ],
+          "placement": {
+            "start": {
+              "relative": 0
+            },
+            "end": {
+              "relative": 1
+            }
+          }
+        },
+        {
+          "name": "GAIN",
+          "automations": [
+            {
+              "parameterId": "out_gain",
+              "startTime": {
+                "default": {
+                  "relative": 0
+                }
+              },
+              "endTime": {
+                "default": {
+                  "relative": 1
+                }
+              },
+              "startValue": {
+                "default": 0
+              },
+              "endValue": {
+                "default": 1
+              },
+              "interpolation": "ease-out-0.5"
+            }
+          ],
+          "placement": {
+            "start": {
+              "relative": 0.75
+            },
+            "end": {
+              "relative": 1
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": 7,
+    "name": "Beat-matched long fade-out dynamic fade-in",
+    "offset": {
+      "relative":0
+    },
+    "instructions": {
+      "outgoing": [
+        {
+          "name": "TimeStretching",
+          "automations": [
+            {
+              "parameterId": "ts_rate",
+              "startTime": {
+                "default": {
+                  "relative": 0
+                }
+              },
+              "endTime": {
+                "default": {
+                  "relative": 1
+                }
+              },
+              "startValue": {
+                "default": 1
+              },
+              "endValue": {
+                "default": 2
+              },
+              "interpolation": "linear"
+            }
+          ],
+          "placement": {
+            "start": {
+              "relative": 0
+            },
+            "end": {
+              "relative": 1
+            }
+          }
+        },
+        {
+          "name": "GAIN",
+          "automations": [
+            {
+              "parameterId": "out_gain",
+              "startTime": {
+                "default": {
+                  "relative": 0
+                }
+              },
+              "endTime": {
+                "default": {
+                  "relative": 1
+                }
+              },
+              "startValue": {
+                "default": 1
+              },
+              "endValue": {
+                "default": 0
+              },
+              "interpolation": "ease-in-0.5"
+            }
+          ],
+          "placement": {
+            "start": {
+              "relative": 0
+            },
+            "end": {
+              "relative": 1
+            }
+          }
+        }
+      ],
+      "incoming": [
+        {
+          "name": "TimeStretching",
+          "automations": [
+            {
+              "parameterId": "ts_rate",
+              "startTime": {
+                "default": {
+                  "relative": 0
+                }
+              },
+              "endTime": {
+                "default": {
+                  "relative": 1
+                }
+              },
+              "startValue": {
+                "default": 2
+              },
+              "endValue": {
+                "default": 1
+              },
+              "interpolation": "linear"
+            }
+          ],
+          "placement": {
+            "start": {
+              "relative": 0
+            },
+            "end": {
+              "relative": 1
+            }
+          }
+        },
+        {
+          "name": "GAIN",
+          "automations": [
+            {
+              "parameterId": "out_gain",
+              "startTime": {
+                "default": {
+                  "relative": 0
+                }
+              },
+              "endTime": {
+                "default": {
+                  "relative": 1
+                }
+              },
+              "startValue": {
+                "default": 0
+              },
+              "endValue": {
+                "default": 1
+              },
+              "interpolation": "ease-out-0.5"
+            }
+          ],
+          "placement": {
+            "start": {
+              "relative": 0
+            },
+            "end": {
+              "relative": 1
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": 8,
+    "name": "BM - Filter high to low",
+    "offset": {
+      "relative": 0
+    },
+    "duration": 8,
+    "instructions": {
+      "outgoing": [
+        {
+          "name": "TimeStretching",
+          "automations": [
+            {
+              "parameterId": "ts_rate",
+              "startTime": {
+                "default": {
+                  "relative": 0
+                }
+              },
+              "endTime": {
+                "default": {
+                  "relative": 1
+                }
+              },
+              "startValue": {
+                "default": 1
+              },
+              "endValue": {
+                "default": 2
+              },
+              "interpolation": "linear"
+            }
+          ],
+          "placement": {
+            "start": {
+              "relative": 0
+            },
+            "end": {
+              "relative": 1
+            }
+          }
+        },
+        {
+          "name": "AULowpass",
+          "automations": [
+            {
+              "parameterId": "lp_cutoff_freq",
+              "startTime": {
+                "default": {
+                  "relative": 0
+                }
+              },
+              "endTime": {
+                "default": {
+                  "relative": 1
+                }
+              },
+              "startValue": {
+                "default": 20000
+              },
+              "endValue": {
+                "default": 200
+              },
+              "interpolation": "ease-out-2"
+            }
+          ],
+          "placement": {
+            "start": {
+              "relative": 0
+            },
+            "end": {
+              "relative": 1
+            }
+          }
+        },
+        {
+          "name": "GAIN",
+          "automations": [
+            {
+              "parameterId": "out_gain",
+              "startTime": {
+                "default": {
+                  "relative": 0
+                }
+              },
+              "endTime": {
+                "default": {
+                  "relative": 1
+                }
+              },
+              "startValue": {
+                "default": 1
+              },
+              "endValue": {
+                "default": 0
+              },
+              "interpolation": "linear"
+            }
+          ],
+          "placement": {
+            "start": {
+              "relative": 1,
+              "offsetInSeconds":-0.300
+            },
+            "end": {
+              "relative": 1
+            }
+          }
+        }
+      ],
+      "incoming": [
+        {
+          "name": "TimeStretching",
+          "automations": [
+            {
+              "parameterId": "ts_rate",
+              "startTime": {
+                "default": {
+                  "relative": 0
+                }
+              },
+              "endTime": {
+                "default": {
+                  "relative": 1
+                }
+              },
+              "startValue": {
+                "default": 2
+              },
+              "endValue": {
+                "default": 1
+              },
+              "interpolation": "linear"
+            }
+          ],
+          "placement": {
+            "start": {
+              "relative": 0
+            },
+            "end": {
+              "relative": 1
+            }
+          }
+        },
+        {
+          "name": "AUHipass",
+          "automations": [
+            {
+              "parameterId": "hp_cutoff_freq",
+              "startTime": {
+                "default": {
+                  "relative": 0
+                }
+              },
+              "endTime": {
+                "default": {
+                  "relative": 1
+                }
+              },
+              "startValue": {
+                "default": 20000
+              },
+              "endValue": {
+                "default": 10
+              },
+              "interpolation": "ease-out-2"
+            }
+          ],
+          "placement": {
+            "start": {
+              "relative": 0
+            },
+            "end": {
+              "relative": 1
+            }
+          }
+        },
+        {
+          "name": "AULowpass",
+          "automations": [
+            {
+              "parameterId": "lp_cutoff_freq",
+              "startTime": {
+                "default": {
+                  "relative": 0
+                }
+              },
+              "endTime": {
+                "default": {
+                  "relative": 1
+                }
+              },
+              "startValue": {
+                "default": 1200
+              },
+              "endValue": {
+                "default": 20000
+              },
+              "interpolation": "ease-in-4"
+            }
+          ],
+          "placement": {
+            "start": {
+              "relative": 0
+            },
+            "end": {
+              "relative": 1
+            }
+          }
+        },
+        {
+          "name": "GAIN",
+          "automations": [
+            {
+              "parameterId": "out_gain",
+              "startTime": {
+                "default": {
+                  "relative": 0
+                }
+              },
+              "endTime": {
+                "default": {
+                  "relative": 1
+                }
+              },
+              "startValue": {
+                "default": 0
+              },
+              "endValue": {
+                "default": 1
+              },
+              "interpolation": "linear"
+            }
+          ],
+          "placement": {
+            "start": {
+              "relative": 0
+            },
+            "end": {
+              "relative": 0,
+              "offsetInSeconds":0.300
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": 9,
+    "name": "BM - Filter expansion",
+    "offset": {
+      "relative": 0
+    },
+    "duration": 8,
+    "instructions": {
+      "outgoing": [
+        {
+          "name": "TimeStretching",
+          "automations": [
+            {
+              "parameterId": "ts_rate",
+              "startTime": {
+                "default": {
+                  "relative": 0
+                }
+              },
+              "endTime": {
+                "default": {
+                  "relative": 1
+                }
+              },
+              "startValue": {
+                "default": 1
+              },
+              "endValue": {
+                "default": 2
+              },
+              "interpolation": "linear"
+            }
+          ],
+          "placement": {
+            "start": {
+              "relative": 0
+            },
+            "end": {
+              "relative": 1
+            }
+          }
+        },
+        {
+          "name": "AULowpass",
+          "automations": [
+            {
+              "parameterId": "lp_cutoff_freq",
+              "startTime": {
+                "default": {
+                  "relative": 0.5
+                }
+              },
+              "endTime": {
+                "default": {
+                  "relative": 1
+                }
+              },
+              "startValue": {
+                "default": 20000
+              },
+              "endValue": {
+                "default": 20
+              },
+              "interpolation": "ease-out-2"
+            }
+          ],
+          "placement": {
+            "start": {
+              "relative": 0
+            },
+            "end": {
+              "relative": 1
+            }
+          }
+        },
+        {
+          "name": "AUHipass",
+          "automations": [
+            {
+              "parameterId": "hp_cutoff_freq",
+              "startTime": {
+                "default": {
+                  "relative": 0.5
+                }
+              },
+              "endTime": {
+                "default": {
+                  "relative": 0.75
+                }
+              },
+              "startValue": {
+                "default": 20
+              },
+              "endValue": {
+                "default": 200
+              },
+              "interpolation": "ease-out-0.5"
+            }
+          ],
+          "placement": {
+            "start": {
+              "relative": 0
+            },
+            "end": {
+              "relative": 1
+            }
+          }
+        },
+        {
+          "name": "GAIN",
+          "automations": [
+            {
+              "parameterId": "out_gain",
+              "startTime": {
+                "default": {
+                  "relative": 0
+                }
+              },
+              "endTime": {
+                "default": {
+                  "relative": 1
+                }
+              },
+              "startValue": {
+                "default": 1
+              },
+              "endValue": {
+                "default": 0
+              },
+              "interpolation": "linear"
+            }
+          ],
+          "placement": {
+            "start": {
+              "relative": 1,
+              "offsetInSeconds":-0.300
+            },
+            "end": {
+              "relative": 1
+            }
+          }
+        }
+      ],
+      "incoming": [
+        {
+          "name": "TimeStretching",
+          "automations": [
+            {
+              "parameterId": "ts_rate",
+              "startTime": {
+                "default": {
+                  "relative": 0
+                }
+              },
+              "endTime": {
+                "default": {
+                  "relative": 1
+                }
+              },
+              "startValue": {
+                "default": 2
+              },
+              "endValue": {
+                "default": 1
+              },
+              "interpolation": "linear"
+            }
+          ],
+          "placement": {
+            "start": {
+              "relative": 0
+            },
+            "end": {
+              "relative": 1
+            }
+          }
+        },
+        {
+          "name": "AULowpass",
+          "automations": [
+            {
+              "parameterId": "lp_cutoff_freq",
+              "startTime": {
+                "default": {
+                  "relative": 0
+                }
+              },
+              "endTime": {
+                "default": {
+                  "relative": 0.75
+                }
+              },
+              "startValue": {
+                "default": 1000
+              },
+              "endValue": {
+                "default": 20000
+              },
+              "interpolation": "ease-out-0.5"
+            }
+          ],
+          "placement": {
+            "start": {
+              "relative": 0
+            },
+            "end": {
+              "relative": 1
+            }
+          }
+        },
+        {
+          "name": "AUHipass",
+          "automations": [
+            {
+              "parameterId": "hp_cutoff_freq",
+              "startTime": {
+                "default": {
+                  "relative": 0.5
+                }
+              },
+              "endTime": {
+                "default": {
+                  "relative": 0.75
+                }
+              },
+              "startValue": {
+                "default": 1000
+              },
+              "endValue": {
+                "default": 20
+              },
+              "interpolation": "ease-out-2"
+            }
+          ],
+          "placement": {
+            "start": {
+              "relative": 0
+            },
+            "end": {
+              "relative": 1
+            }
+          }
+        },
+        {
+          "name": "GAIN",
+          "automations": [
+            {
+              "parameterId": "out_gain",
+              "startTime": {
+                "default": {
+                  "relative": 0
+                }
+              },
+              "endTime": {
+                "default": {
+                  "relative": 1
+                }
+              },
+              "startValue": {
+                "default": 0
+              },
+              "endValue": {
+                "default": 1
+              },
+              "interpolation": "linear"
+            }
+          ],
+          "placement": {
+            "start": {
+              "relative": 0
+            },
+            "end": {
+              "relative": 0,
+              "offsetInSeconds":0.300
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": 10,
+    "name": "BM - Filter long out short in + delay",
+    "offset": {
+      "relative": 0
+    },
+    "instructions": {
+      "outgoing": [
+        {
+          "name": "TimeStretching",
+          "automations": [
+            {
+              "parameterId": "ts_rate",
+              "startTime": {
+                "default": {
+                  "relative": 0
+                }
+              },
+              "endTime": {
+                "default": {
+                  "relative": 1
+                }
+              },
+              "startValue": {
+                "default": 1
+              },
+              "endValue": {
+                "default": 2
+              },
+              "interpolation": "linear"
+            }
+          ],
+          "placement": {
+            "start": {
+              "relative": 0.75
+            },
+            "end": {
+              "relative": 1
+            }
+          }
+        },
+        {
+          "name": "AULowpass",
+          "automations": [
+            {
+              "parameterId": "lp_cutoff_freq",
+              "startTime": {
+                "default": {
+                  "relative": 0
+                }
+              },
+              "endTime": {
+                "default": {
+                  "relative": 1
+                }
+              },
+              "startValue": {
+                "default": 20000
+              },
+              "endValue": {
+                "default": 200
+              },
+              "interpolation": "ease-out-2"
+            }
+          ],
+          "placement": {
+            "start": {
+              "relative": 0
+            },
+            "end": {
+              "relative": 1
+            }
+          }
+        },
+        {
+          "name": "AUDelay",
+          "automations": [
+            {
+              "parameterId": "fx_delay_dry_wet",
+              "startTime": {
+                "default": {
+                  "relative": 0
+                }
+              },
+              "endTime": {
+                "default": {
+                  "relative": 0,
+                  "offsetInSeconds":1
+                }
+              },
+              "startValue": {
+                "default": 0
+              },
+              "endValue": {
+                "default": 100
+              },
+              "interpolation": "ease-out-2"
+            },
+            {
+              "parameterId": "fx_delay_delay_time",
+              "startTime": {
+                "default": {
+                  "relative": 0
+                }
+              },
+              "endTime": {
+                "default": {
+                  "relative": 0
+                }
+              },
+              "startValue": {
+                "parameterName": "beat_length"
+              },
+              "endValue": {
+                "parameterName": "beat_length"
+              },
+              "interpolation": "ease-out-2"
+            },
+            {
+               "parameterId":"send_mixer_gain",
+               "startTime":{
+                  "default":{
+                     "relative":0
+                  }
+               },
+               "endTime":{
+                "default": {
+                  "relative": 1
+                }
+               },
+               "startValue":{
+                  "default":0.5
+               },
+               "endValue":{
+                  "default":0
+               },
+               "interpolation":"linear"
+            },
+            {
+               "parameterId":"fx_mixer_wet",
+               "startTime":{
+                  "default":{
+                     "relative":0
+                  }
+               },
+               "endTime":{
+                  "default":{
+                     "relative":0
+                  }
+               },
+               "startValue":{
+                  "default":0
+               },
+               "endValue":{
+                  "default":1
+               },
+               "interpolation":"linear"
+            }
+          ],
+          "placement": {
+            "start": {
+              "relative": 0.75
+            },
+            "end": {
+              "relative": 1
+            }
+          }
+        },
+        {
+          "name": "GAIN",
+          "automations": [
+            {
+              "parameterId": "out_gain",
+              "startTime": {
+                "default": {
+                  "relative": 0
+                }
+              },
+              "endTime": {
+                "default": {
+                  "relative": 1
+                }
+              },
+              "startValue": {
+                "default": 1
+              },
+              "endValue": {
+                "default": 0
+              },
+              "interpolation": "linear"
+            }
+          ],
+          "placement": {
+            "start": {
+              "relative": 1,
+              "offsetInSeconds":-0.300
+            },
+            "end": {
+              "relative": 1
+            }
+          }
+        }
+      ],
+      "incoming": [
+        {
+          "name": "TimeStretching",
+          "automations": [
+            {
+              "parameterId": "ts_rate",
+              "startTime": {
+                "default": {
+                  "relative": 0
+                }
+              },
+              "endTime": {
+                "default": {
+                  "relative": 1
+                }
+              },
+              "startValue": {
+                "default": 2
+              },
+              "endValue": {
+                "default": 1
+              },
+              "interpolation": "linear"
+            }
+          ],
+          "placement": {
+            "start": {
+              "relative": 0.75
+            },
+            "end": {
+              "relative": 1
+            }
+          }
+        },
+        {
+          "name": "AUHipass",
+          "automations": [
+            {
+              "parameterId": "hp_cutoff_freq",
+              "startTime": {
+                "default": {
+                  "relative": 0
+                }
+              },
+              "endTime": {
+                "default": {
+                  "relative": 1
+                }
+              },
+              "startValue": {
+                "default": 20000
+              },
+              "endValue": {
+                "default": 200
+              },
+              "interpolation": "ease-out-2"
+            }
+          ],
+          "placement": {
+            "start": {
+              "relative": 0.75
+            },
+            "end": {
+              "relative": 1
+            }
+          }
+        },
+        {
+          "name": "GAIN",
+          "automations": [
+            {
+              "parameterId": "out_gain",
+              "startTime": {
+                "default": {
+                  "relative": 0
+                }
+              },
+              "endTime": {
+                "default": {
+                  "relative": 1
+                }
+              },
+              "startValue": {
+                "default": 0
+              },
+              "endValue": {
+                "default": 1
+              },
+              "interpolation": "linear"
+            }
+          ],
+          "placement": {
+            "start": {
+              "relative": 0.75
+            },
+            "end": {
+              "relative": 0.75,
+              "offsetInSeconds":0.300
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": 11,
+    "name": "BM - Filter long out short in + Reverb",
+    "offset": {
+      "relative": 0
+    },
+    "instructions": {
+      "outgoing": [
+        {
+          "name": "TimeStretching",
+          "automations": [
+            {
+              "parameterId": "ts_rate",
+              "startTime": {
+                "default": {
+                  "relative": 0
+                }
+              },
+              "endTime": {
+                "default": {
+                  "relative": 1
+                }
+              },
+              "startValue": {
+                "default": 1
+              },
+              "endValue": {
+                "default": 2
+              },
+              "interpolation": "linear"
+            }
+          ],
+          "placement": {
+            "start": {
+              "relative": 0.5
+            },
+            "end": {
+              "relative": 1
+            }
+          }
+        },
+        {
+          "name": "AULowpass",
+          "automations": [
+            {
+              "parameterId": "lp_cutoff_freq",
+              "startTime": {
+                "default": {
+                  "relative": 0
+                }
+              },
+              "endTime": {
+                "default": {
+                  "relative": 1
+                }
+              },
+              "startValue": {
+                "default": 20000
+              },
+              "endValue": {
+                "default": 80
+              },
+              "interpolation": "ease-out-2"
+            }
+          ],
+          "placement": {
+            "start": {
+              "relative": 0
+            },
+            "end": {
+              "relative": 1
+            }
+          }
+        },
+        {
+          "name": "AUHipass",
+          "automations": [
+            {
+              "parameterId": "hp_cutoff_freq",
+              "startTime": {
+                "default": {
+                  "relative": 0
+                }
+              },
+              "endTime": {
+                "default": {
+                  "relative": 1
+                }
+              },
+              "startValue": {
+                "default": 10
+              },
+              "endValue": {
+                "default": 200
+              },
+              "interpolation": "ease-in-4"
+            }
+          ],
+          "placement": {
+            "start": {
+              "relative": 0
+            },
+            "end": {
+              "relative": 1
+            }
+          }
+        },
+        {
+          "name": "AUReverb2",
+          "automations": [
+            {
+              "parameterId": "fx_reverb_high_frequency_decay_time",
+              "startTime": {
+                "default": {
+                  "relative": 0
+                }
+              },
+              "endTime": {
+                "default": {
+                  "relative": 0
+                }
+              },
+              "startValue": {
+                "default": 0.001
+              },
+              "endValue": {
+                "default": 4
+              },
+              "interpolation": "linear"
+            },
+            {
+              "parameterId": "fx_reverb_low_frequency_decay_time",
+              "startTime": {
+                "default": {
+                  "relative": 0
+                }
+              },
+              "endTime": {
+                "default": {
+                  "relative": 0
+                }
+              },
+              "startValue": {
+                "default": 0.001
+              },
+              "endValue": {
+                "default": 4
+              },
+              "interpolation": "linear"
+            },
+            {
+              "parameterId": "fx_reverb_min_delay_time",
+              "startTime": {
+                "default": {
+                  "relative": 0
+                }
+              },
+              "endTime": {
+                "default": {
+                  "relative": 0
+                }
+              },
+              "startValue": {
+                "default": 0.008
+              },
+              "endValue": {
+                "default": 0.052
+              },
+              "interpolation": "linear"
+            },
+            {
+              "parameterId": "fx_reverb_max_delay_time",
+              "startTime": {
+                "default": {
+                  "relative": 0
+                }
+              },
+              "endTime": {
+                "default": {
+                  "relative": 0
+                }
+              },
+              "startValue": {
+                "default": 0.106
+              },
+              "endValue": {
+                "default": 0.106
+              },
+              "interpolation": "linear"
+            },
+            {
+              "parameterId": "fx_reverb_randomize_reflections",
+              "startTime": {
+                "default": {
+                  "relative": 0
+                }
+              },
+              "endTime": {
+                "default": {
+                  "relative": 0
+                }
+              },
+              "startValue": {
+                "default": 333
+              },
+              "endValue": {
+                "default": 333
+              },
+              "interpolation": "linear"
+            },
+            {
+              "parameterId": "fx_reverb_dry_wet",
+              "startTime": {
+                "default": {
+                  "relative": 0
+                }
+              },
+              "endTime": {
+                "default": {
+                  "relative": 0
+                }
+              },
+              "startValue": {
+                "default": 0
+              },
+              "endValue": {
+                "default": 100
+              },
+              "interpolation": "linear"
+            },
+            {
+               "parameterId":"send_mixer_gain",
+               "startTime":{
+                  "default":{
+                     "relative":0
+                  }
+               },
+               "endTime":{
+                "default": {
+                  "relative": 0.25
+                }
+               },
+               "startValue":{
+                  "default":0
+               },
+               "endValue":{
+                  "default":1
+               },
+               "interpolation":"linear"
+            }
+          ],
+          "placement": {
+            "start": {
+              "relative": 0
+            },
+            "end": {
+              "relative": 1
+            }
+          }
+        }
+      ],
+      "incoming": [
+        {
+          "name": "TimeStretching",
+          "automations": [
+            {
+              "parameterId": "ts_rate",
+              "startTime": {
+                "default": {
+                  "relative": 0
+                }
+              },
+              "endTime": {
+                "default": {
+                  "relative": 1
+                }
+              },
+              "startValue": {
+                "default": 2
+              },
+              "endValue": {
+                "default": 1
+              },
+              "interpolation": "linear"
+            }
+          ],
+          "placement": {
+            "start": {
+              "relative": 0.5
+            },
+            "end": {
+              "relative": 1
+            }
+          }
+        },
+        {
+          "name": "AULowpass",
+          "automations": [
+            {
+              "parameterId": "lp_cutoff_freq",
+              "startTime": {
+                "default": {
+                  "relative": 0
+                }
+              },
+              "endTime": {
+                "default": {
+                  "relative": 1
+                }
+              },
+              "startValue": {
+                "default": 60
+              },
+              "endValue": {
+                "default": 21000
+              },
+              "interpolation": "ease-in-4"
+            }
+          ],
+          "placement": {
+            "start": {
+              "relative": 0.5
+            },
+            "end": {
+              "relative": 1
+            }
+          }
+        },
+        {
+          "name": "AUHipass",
+          "automations": [
+            {
+              "parameterId": "hp_cutoff_freq",
+              "startTime": {
+                "default": {
+                  "relative": 0
+                }
+              },
+              "endTime": {
+                "default": {
+                  "relative": 1
+                }
+              },
+              "startValue": {
+                "default": 3000
+              },
+              "endValue": {
+                "default": 10
+              },
+              "interpolation": "ease-out-4"
+            }
+          ],
+          "placement": {
+            "start": {
+              "relative": 0.5
+            },
+            "end": {
+              "relative": 1
+            }
+          }
+        },
+        {
+          "name": "GAIN",
+          "automations": [
+            {
+              "parameterId": "out_gain",
+              "startTime": {
+                "default": {
+                  "relative": 0.5
+                }
+              },
+              "endTime": {
+                "default": {
+                  "relative": 0.5
+                }
+              },
+              "startValue": {
+                "default": 0
+              },
+              "endValue": {
+                "default": 1
+              },
+              "interpolation": "linear"
+            }
+          ],
+          "placement": {
+            "start": {
+              "relative": 0
+            },
+            "end": {
+              "relative": 1
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": 12,
+    "name": "BM - Long filter high to low",
+    "offset": {
+      "relative": 0
+    },
+    "duration": 16,
+    "instructions": {
+      "outgoing": [
+        {
+          "name": "TimeStretching",
+          "automations": [
+            {
+              "parameterId": "ts_rate",
+              "startTime": {
+                "default": {
+                  "relative": 0
+                }
+              },
+              "endTime": {
+                "default": {
+                  "relative": 1
+                }
+              },
+              "startValue": {
+                "default": 1
+              },
+              "endValue": {
+                "default": 2
+              },
+              "interpolation": "linear"
+            }
+          ],
+          "placement": {
+            "start": {
+              "relative": 0
+            },
+            "end": {
+              "relative": 1
+            }
+          }
+        },
+        {
+          "name": "AULowpass",
+          "automations": [
+            {
+              "parameterId": "lp_cutoff_freq",
+              "startTime": {
+                "default": {
+                  "relative": 0
+                }
+              },
+              "endTime": {
+                "default": {
+                  "relative": 1
+                }
+              },
+              "startValue": {
+                "default": 20000
+              },
+              "endValue": {
+                "default": 200
+              },
+              "interpolation": "ease-out-2"
+            }
+          ],
+          "placement": {
+            "start": {
+              "relative": 0.25
+            },
+            "end": {
+              "relative": 0.75
+            }
+          }
+        },
+        {
+          "name": "GAIN",
+          "automations": [
+            {
+              "parameterId": "out_gain",
+              "startTime": {
+                "default": {
+                  "relative": 0
+                }
+              },
+              "endTime": {
+                "default": {
+                  "relative": 1
+                }
+              },
+              "startValue": {
+                "default": 1
+              },
+              "endValue": {
+                "default": 0
+              },
+              "interpolation": "linear"
+            }
+          ],
+          "placement": {
+            "start": {
+              "relative": 0.75,
+              "offsetInSeconds":-0.300
+            },
+            "end": {
+              "relative": 0.75
+            }
+          }
+        }
+      ],
+      "incoming": [
+        {
+          "name": "TimeStretching",
+          "automations": [
+            {
+              "parameterId": "ts_rate",
+              "startTime": {
+                "default": {
+                  "relative": 0
+                }
+              },
+              "endTime": {
+                "default": {
+                  "relative": 1
+                }
+              },
+              "startValue": {
+                "default": 2
+              },
+              "endValue": {
+                "default": 1
+              },
+              "interpolation": "linear"
+            }
+          ],
+          "placement": {
+            "start": {
+              "relative": 0
+            },
+            "end": {
+              "relative": 1
+            }
+          }
+        },
+        {
+          "name": "AUHipass",
+          "automations": [
+            {
+              "parameterId": "hp_cutoff_freq",
+              "startTime": {
+                "default": {
+                  "relative": 0
+                }
+              },
+              "endTime": {
+                "default": {
+                  "relative": 1
+                }
+              },
+              "startValue": {
+                "default": 20000
+              },
+              "endValue": {
+                "default": 10
+              },
+              "interpolation": "ease-out-2"
+            }
+          ],
+          "placement": {
+            "start": {
+              "relative": 0.25
+            },
+            "end": {
+              "relative": 0.75
+            }
+          }
+        },
+        {
+          "name": "AULowpass",
+          "automations": [
+            {
+              "parameterId": "lp_cutoff_freq",
+              "startTime": {
+                "default": {
+                  "relative": 0
+                }
+              },
+              "endTime": {
+                "default": {
+                  "relative": 1
+                }
+              },
+              "startValue": {
+                "default": 1200
+              },
+              "endValue": {
+                "default": 20000
+              },
+              "interpolation": "ease-in-4"
+            }
+          ],
+          "placement": {
+            "start": {
+              "relative": 0.25
+            },
+            "end": {
+              "relative": 0.75
+            }
+          }
+        },
+        {
+          "name": "GAIN",
+          "automations": [
+            {
+              "parameterId": "out_gain",
+              "startTime": {
+                "default": {
+                  "relative": 0
+                }
+              },
+              "endTime": {
+                "default": {
+                  "relative": 1
+                }
+              },
+              "startValue": {
+                "default": 0
+              },
+              "endValue": {
+                "default": 1
+              },
+              "interpolation": "linear"
+            }
+          ],
+          "placement": {
+            "start": {
+              "relative": 0.25
+            },
+            "end": {
+              "relative": 0.25,
+              "offsetInSeconds":0.300
+            }
+          }
+        }
+      ]
+    }
+  }
+]

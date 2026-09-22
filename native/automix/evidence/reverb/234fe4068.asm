@@ -1,0 +1,91 @@
+; Image: libEmbeddedSystemAUs.dylib iOS 23A341
+; Range: 0x234fe4068..0x234fe41c8
+; Code SHA256: 9b3ac3bb360ecf0c9d0f492db40d2bb579428de945175b18568b6b78a5c0df18
+0x234fe4068: 7f2303d5 pacibsp 
+0x234fe406c: ef3bb96d stp d15, d14, [sp, #-0x70]!
+0x234fe4070: ed33016d stp d13, d12, [sp, #0x10]
+0x234fe4074: eb2b026d stp d11, d10, [sp, #0x20]
+0x234fe4078: e923036d stp d9, d8, [sp, #0x30]
+0x234fe407c: f65704a9 stp x22, x21, [sp, #0x40]
+0x234fe4080: f44f05a9 stp x20, x19, [sp, #0x50]
+0x234fe4084: fd7b06a9 stp x29, x30, [sp, #0x60]
+0x234fe4088: fd830191 add x29, sp, #0x60
+0x234fe408c: f40301aa mov x20, x1
+0x234fe4090: 4840601e fmov d8, d2
+0x234fe4094: 2a40201e fmov s10, s1
+0x234fe4098: 0b40201e fmov s11, s0
+0x234fe409c: f30300aa mov x19, x0
+0x234fe40a0: 2018201e fdiv s0, s1, s0
+0x234fe40a4: 00c0221e fcvt d0, s0
+0x234fe40a8: c80000b0 adrp x8, #0x234ffd000
+0x234fe40ac: 016943fd ldr d1, [x8, #0x6d0]
+0x234fe40b0: c8867d94 bl #0x236f45bd0
+0x234fe40b4: 0940601e fmov d9, d0
+0x234fe40b8: 6bc1221e fcvt d11, s11
+0x234fe40bc: 0c106c1e fmov d12, #0.50000000
+0x234fe40c0: 00314b1f fmadd d0, d8, d11, d12
+0x234fe40c4: 0100711e fcvtmu w1, d0
+0x234fe40c8: 60c20191 add x0, x19, #0x70
+0x234fe40cc: 0041601e fmov d0, d8
+0x234fe40d0: bf020094 bl #0x234fe4bcc
+0x234fe40d4: 40c1221e fcvt d0, s10
+0x234fe40d8: 0031401f fmadd d0, d8, d0, d12
+0x234fe40dc: 0100711e fcvtmu w1, d0
+0x234fe40e0: 60a21291 add x0, x19, #0x4a8
+0x234fe40e4: 0041601e fmov d0, d8
+0x234fe40e8: b9020094 bl #0x234fe4bcc
+0x234fe40ec: e00314aa mov x0, x20
+0x234fe40f0: f8867d94 bl #0x236f45cd0
+0x234fe40f4: 74e20291 add x20, x19, #0xb8
+0x234fe40f8: d5018052 mov w21, #0xe
+0x234fe40fc: c80000b0 adrp x8, #0x234ffd000
+0x234fe4100: 0a6d43fd ldr d10, [x8, #0x6d8]
+0x234fe4104: 0c107c1e fmov d12, #-0.50000000
+0x234fe4108: c8000090 adrp x8, #0x234ffc000
+0x234fe410c: 0dfd46fd ldr d13, [x8, #0xdf8]
+0x234fe4110: 0e106c1e fmov d14, #0.50000000
+0x234fe4114: cf867d94 bl #0x236f45c50
+0x234fe4118: 2b096b1e fmul d11, d9, d11
+0x234fe411c: 0000629e scvtf d0, x0
+0x234fe4120: 00186a1e fdiv d0, d0, d10
+0x234fe4124: 00286c1e fadd d0, d0, d12
+0x234fe4128: 01086d1e fmul d1, d0, d13
+0x234fe412c: 2041601e fmov d0, d9
+0x234fe4130: a8867d94 bl #0x236f45bd0
+0x234fe4134: 6009601e fmul d0, d11, d0
+0x234fe4138: 0040621e fcvt s0, d0
+0x234fe413c: 00c0221e fcvt d0, s0
+0x234fe4140: 0039401f fmadd d0, d8, d0, d14
+0x234fe4144: 0100711e fcvtmu w1, d0
+0x234fe4148: e00314aa mov x0, x20
+0x234fe414c: 0041601e fmov d0, d8
+0x234fe4150: 9f020094 bl #0x234fe4bcc
+0x234fe4154: 94220191 add x20, x20, #0x48
+0x234fe4158: b50600f1 subs x21, x21, #1
+0x234fe415c: c1fdff54 b.ne #0x234fe4114
+0x234fe4160: 74920291 add x20, x19, #0xa4
+0x234fe4164: f5018052 mov w21, #0xf
+0x234fe4168: f30314aa mov x19, x20
+0x234fe416c: 694641b8 ldr w9, [x19], #0x14
+0x234fe4170: 888e44b8 ldr w8, [x20, #0x48]!
+0x234fe4174: 1f01096b cmp w8, w9
+0x234fe4178: e1000054 b.ne #0x234fe4194
+0x234fe417c: 00050011 add w0, w8, #1
+0x234fe4180: 50c2ff97 bl #0x234fd4ac0
+0x234fe4184: e10300aa mov x1, x0
+0x234fe4188: e00313aa mov x0, x19
+0x234fe418c: 0041601e fmov d0, d8
+0x234fe4190: 8f020094 bl #0x234fe4bcc
+0x234fe4194: b50600f1 subs x21, x21, #1
+0x234fe4198: 81feff54 b.ne #0x234fe4168
+0x234fe419c: fd7b46a9 ldp x29, x30, [sp, #0x60]
+0x234fe41a0: f44f45a9 ldp x20, x19, [sp, #0x50]
+0x234fe41a4: f65744a9 ldp x22, x21, [sp, #0x40]
+0x234fe41a8: e923436d ldp d9, d8, [sp, #0x30]
+0x234fe41ac: eb2b426d ldp d11, d10, [sp, #0x20]
+0x234fe41b0: ed33416d ldp d13, d12, [sp, #0x10]
+0x234fe41b4: ef3bc76c ldp d15, d14, [sp], #0x70
+0x234fe41b8: ff0f5fd6 retab 
+0x234fe41bc: 8455fd97 bl #0x234f397cc
+0x234fe41c0: 8355fd97 bl #0x234f397cc
+0x234fe41c4: 8255fd97 bl #0x234f397cc

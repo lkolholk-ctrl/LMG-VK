@@ -1,0 +1,27 @@
+{
+  "source_sha256": "e843a9a94838f49c9c1e9b11f57fca70c6eebde59d7a3fd8d43917ee65607b4d",
+  "minimum_step": {
+    "address": "0x27229b338",
+    "value": 0.0001
+  },
+  "default_step": {
+    "address": "0x2722a1010",
+    "value": 0.2
+  },
+  "stepped_case": {
+    "address": "0x27229b3ec",
+    "value": 0
+  },
+  "continuous_case": {
+    "address": "0x27229b3f0",
+    "value": 1
+  },
+  "maximum_step": {
+    "instruction": "0x272283f48: fmov d1, #1.0",
+    "value": 1.0
+  },
+  "default_policy": {
+    "instruction": "0x2722549d0: mov w9, #1",
+    "case": "continuous"
+  }
+}

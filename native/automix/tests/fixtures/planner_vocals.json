@@ -1,0 +1,16 @@
+{
+  "binary_sha256": "e843a9a94838f49c9c1e9b11f57fca70c6eebde59d7a3fd8d43917ee65607b4d",
+  "function_sha256": {
+    "0x27221f218": "d85249100c5d77de334b69c345dd896b8cc94faba43988890ce272c46d3f0c07",
+    "0x27221f4e4": "b947cb498e77aa1edd71ff8deba3153c58bea29fa3236c24dc3e490e1b1b128d",
+    "0x272235198": "6d91e5408d8ac066eb527e47a35f060d90d1a8153e952014d4fe072dcffdcc8e"
+  },
+  "overlap_cases": 256,
+  "leading_predicate_cases": 768,
+  "hooks": [
+    "Swift arrays/refcounts",
+    "logging disabled",
+    "caller-supplied resolved leading window"
+  ],
+  "scope": "Original interval filter, max strength, full leading significance predicate; excludes beat-window selection and cloud enum decoding."
+}

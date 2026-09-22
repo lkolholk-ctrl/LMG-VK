@@ -1,0 +1,21 @@
+{
+  "binary_sha256": "e843a9a94838f49c9c1e9b11f57fca70c6eebde59d7a3fd8d43917ee65607b4d",
+  "function_sha256": {
+    "0x272219ff0": "aecea7562b88e2fa7c0c60e70e4ae81772d062987ffb639f09131d6590842caf",
+    "0x27221a300": "e6afc12b49fa26d84fb5decfc6b3adb0d56fc0b18a1b17551798ad7b0d6d6b51",
+    "0x27221a79c": "7f28bac4f5d172a67ca9e49a56f0d32aead46518b433c117df10d7e4f0df56c3",
+    "0x27222d644": "70ddb1cfe7626326ff068a53f5de38fec88c35309357f8f4d9b6dd3b36bed41d"
+  },
+  "tempo_cases": 3240,
+  "score_cases": 306,
+  "hooks": [
+    "Swift array allocation (capacity 8)",
+    "Swift refcounts",
+    "host libm log"
+  ],
+  "patched": [
+    "pacibsp->nop",
+    "retab->ret"
+  ],
+  "note": "Tempo source tags are representation tags, not optional-presence flags."
+}

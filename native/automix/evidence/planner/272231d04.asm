@@ -1,0 +1,83 @@
+; Binary: _SonicKit_MusicKit_Packages
+; Address: 0x272231d04
+; Symbol: FUN_272231d04
+; Signature: undefined FUN_272231d04()
+272231d04: pacibsp
+272231d08: stp x24,x23,[sp, #-0x40]!
+272231d0c: stp x22,x21,[sp, #0x10]
+272231d10: stp x20,x19,[sp, #0x20]
+272231d14: stp x29,x30,[sp, #0x30]
+272231d18: add x29,sp,#0x30
+272231d1c: mov x19,x1
+272231d20: mov x21,x0
+272231d24: bl 0x272233fac
+272231d28: and w8,w0,#0xff
+272231d2c: cmp w8,#0x3
+272231d30: b.ne 0x272231dd8
+272231d34: adrp x8,0x280c99000
+272231d38: ldr x8,[x8, #0x320]
+272231d3c: cmn x8,#0x1
+272231d40: b.ne 0x272231e1c
+272231d44: mov x0,#0x0
+272231d48: bl 0x2743dd380
+272231d4c: adrp x1,0x280cb2000
+272231d50: add x1,x1,#0x270
+272231d54: bl 0x272213280
+272231d58: mov x20,x0
+272231d5c: bl 0x2743dd360
+272231d60: mov x20,x0
+272231d64: bl 0x2743dd680
+272231d68: mov x22,x0
+272231d6c: and w1,w0,#0xff
+272231d70: mov x0,x20
+272231d74: bl 0x2743ddc40
+272231d78: cbz w0,0x272231dc4
+272231d7c: mov w0,#0x2
+272231d80: mov x1,#-0x1
+272231d84: bl 0x2743dded0
+272231d88: mov x23,x0
+272231d8c: strh wzr,[x0]
+272231d90: adrp x0,0x27220e000
+272231d94: add x0,x0,#0x0
+272231d98: adrp x3,0x2722aa000
+272231d9c: add x3,x3,#0xde0
+272231da0: and w2,w22,#0xff
+272231da4: mov x1,x20
+272231da8: mov x4,x23
+272231dac: mov w5,#0x2
+272231db0: bl 0x2743ddae0
+272231db4: mov x0,x23
+272231db8: mov x1,#-0x1
+272231dbc: mov x2,#-0x1
+272231dc0: bl 0x2743ddee0
+272231dc4: bl 0x2743ddba0
+272231dc8: mov x0,x21
+272231dcc: mov x1,x19
+272231dd0: bl 0x2722341d4
+272231dd4: tbz w0,#0x0,0x272231df0
+272231dd8: mov w0,#0x1
+272231ddc: ldp x29,x30,[sp, #0x30]
+272231de0: ldp x20,x19,[sp, #0x20]
+272231de4: ldp x22,x21,[sp, #0x10]
+272231de8: ldp x24,x23,[sp], #0x40
+272231dec: retab
+272231df0: add x0,x21,#0x28
+272231df4: mov x1,x19
+272231df8: ldp x29,x30,[sp, #0x30]
+272231dfc: ldp x20,x19,[sp, #0x20]
+272231e00: ldp x22,x21,[sp, #0x10]
+272231e04: ldp x24,x23,[sp], #0x40
+272231e08: autibsp
+272231e0c: eor x16,x30,x30, LSL #0x1
+272231e10: tbz x16,#0x3e,0x272231e18
+272231e14: brk #0xc471
+272231e18: b 0x2722341d4
+272231e1c: adrp x0,0x280c99000
+272231e20: add x0,x0,#0x320
+272231e24: adrp x16,0x272254000
+272231e28: add x16,x16,#0x72c
+272231e2c: paciza x16
+272231e30: mov x1,x16
+272231e34: bl 0x2743dde90
+272231e38: b 0x272231d44
+

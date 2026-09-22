@@ -1,0 +1,53 @@
+; Image: libEmbeddedSystemAUs.dylib iOS 23A341
+; Range: 0x234f43868..0x234f43930
+; Code SHA256: d2a5cf33bcf1b3cbaee2ff8e912d80cd32d05aaa342fc9488922b188adb73335
+0x234f43868: 7f2303d5 pacibsp 
+0x234f4386c: f657bda9 stp x22, x21, [sp, #-0x30]!
+0x234f43870: f44f01a9 stp x20, x19, [sp, #0x10]
+0x234f43874: fd7b02a9 stp x29, x30, [sp, #0x20]
+0x234f43878: fd830091 add x29, sp, #0x20
+0x234f4387c: 140040f9 ldr x20, [x0]
+0x234f43880: 950240f9 ldr x21, [x20]
+0x234f43884: f50400b4 cbz x21, #0x234f43920
+0x234f43888: f30300aa mov x19, x0
+0x234f4388c: 960640f9 ldr x22, [x20, #8]
+0x234f43890: e00315aa mov x0, x21
+0x234f43894: df0215eb cmp x22, x21
+0x234f43898: 20030054 b.eq #0x234f438fc
+0x234f4389c: c0025ff8 ldur x0, [x22, #-0x10]
+0x234f438a0: 600000b4 cbz x0, #0x234f438ac
+0x234f438a4: 82e20294 bl #0x234ffc2ac
+0x234f438a8: df021ff8 stur xzr, [x22, #-0x10]
+0x234f438ac: c0825ef8 ldur x0, [x22, #-0x18]
+0x234f438b0: 600000b4 cbz x0, #0x234f438bc
+0x234f438b4: 7ee20294 bl #0x234ffc2ac
+0x234f438b8: df821ef8 stur xzr, [x22, #-0x18]
+0x234f438bc: c0025ef8 ldur x0, [x22, #-0x20]
+0x234f438c0: 600000b4 cbz x0, #0x234f438cc
+0x234f438c4: 7ae20294 bl #0x234ffc2ac
+0x234f438c8: df021ef8 stur xzr, [x22, #-0x20]
+0x234f438cc: c0825df8 ldur x0, [x22, #-0x28]
+0x234f438d0: 600000b4 cbz x0, #0x234f438dc
+0x234f438d4: 76e20294 bl #0x234ffc2ac
+0x234f438d8: df821df8 stur xzr, [x22, #-0x28]
+0x234f438dc: c00e5df8 ldr x0, [x22, #-0x30]!
+0x234f438e0: 600000b4 cbz x0, #0x234f438ec
+0x234f438e4: 72e20294 bl #0x234ffc2ac
+0x234f438e8: df0200f9 str xzr, [x22]
+0x234f438ec: df0215eb cmp x22, x21
+0x234f438f0: 61fdff54 b.ne #0x234f4389c
+0x234f438f4: 680240f9 ldr x8, [x19]
+0x234f438f8: 000140f9 ldr x0, [x8]
+0x234f438fc: 950600f9 str x21, [x20, #8]
+0x234f43900: fd7b42a9 ldp x29, x30, [sp, #0x20]
+0x234f43904: f44f41a9 ldp x20, x19, [sp, #0x10]
+0x234f43908: f657c3a8 ldp x22, x21, [sp], #0x30
+0x234f4390c: ff2303d5 autibsp 
+0x234f43910: d0071eca eor x16, x30, x30, lsl #1
+0x234f43914: 5000f0b6 tbz x16, #0x3e, #0x234f4391c
+0x234f43918: 208e38d4 brk #0xc471
+0x234f4391c: 2ce10214 b #0x234ffbdcc
+0x234f43920: fd7b42a9 ldp x29, x30, [sp, #0x20]
+0x234f43924: f44f41a9 ldp x20, x19, [sp, #0x10]
+0x234f43928: f657c3a8 ldp x22, x21, [sp], #0x30
+0x234f4392c: ff0f5fd6 retab 

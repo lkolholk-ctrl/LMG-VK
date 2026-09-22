@@ -1,0 +1,103 @@
+{
+  "code_sha256": {
+    "0x234ff5d3c": "c32b730def3303604a26915b56215ae3f5d182807cd505186fcc6e65ef82a2d7",
+    "0x234f39214": "5b613d13ea9bc10fbb4d57b00d4fc5e3dbe3adfd028e89d84a11ef857f55008c",
+    "0x234f684f0": "12c91771bab27a04aa7103065fafb8ca01fee67a4588d3f72365bc0d5ea3d066",
+    "0x234fc5788": "12c91771bab27a04aa7103065fafb8ca01fee67a4588d3f72365bc0d5ea3d066",
+    "0x234fded20": "8c775eb841f0bed0aad44415d843c590e65f35aebc2f47dd08986b93cc66c81d",
+    "0x234f39724": "8be0ceb580035c6e578c3dc88c05d7c6c83bce9abcd472bc0d6a46f8d203a64b"
+  },
+  "setter_cases": [
+    {
+      "initialized": 0,
+      "previous": false,
+      "value": 0,
+      "reset": false
+    },
+    {
+      "initialized": 0,
+      "previous": false,
+      "value": 1,
+      "reset": false
+    },
+    {
+      "initialized": 0,
+      "previous": true,
+      "value": 1,
+      "reset": false
+    },
+    {
+      "initialized": 0,
+      "previous": true,
+      "value": 0,
+      "reset": false
+    },
+    {
+      "initialized": 0,
+      "previous": false,
+      "value": 0,
+      "reset": false
+    },
+    {
+      "initialized": 0,
+      "previous": false,
+      "value": 7,
+      "reset": false
+    },
+    {
+      "initialized": 0,
+      "previous": true,
+      "value": 0,
+      "reset": false
+    },
+    {
+      "initialized": 1,
+      "previous": false,
+      "value": 0,
+      "reset": false
+    },
+    {
+      "initialized": 1,
+      "previous": false,
+      "value": 1,
+      "reset": false
+    },
+    {
+      "initialized": 1,
+      "previous": true,
+      "value": 1,
+      "reset": false
+    },
+    {
+      "initialized": 1,
+      "previous": true,
+      "value": 0,
+      "reset": true
+    },
+    {
+      "initialized": 1,
+      "previous": false,
+      "value": 0,
+      "reset": false
+    },
+    {
+      "initialized": 1,
+      "previous": false,
+      "value": 7,
+      "reset": false
+    },
+    {
+      "initialized": 1,
+      "previous": true,
+      "value": 0,
+      "reset": true
+    }
+  ],
+  "kernel_resets": [
+    "lowpass",
+    "highpass",
+    "filter",
+    "delay"
+  ],
+  "scope": "Original setter and reset instructions; virtual reset callback recorded"
+}

@@ -1,0 +1,31 @@
+; Image: libEmbeddedSystemAUs.dylib iOS 23A341
+; Range: 0x234f9d3dc..0x234f9d44c
+; Code SHA256: 0620099fe58a5d6c47cf97d244a6dde665fb4ac11de761baa7f9eca94da40faa
+0x234f9d3dc: 7f2303d5 pacibsp 
+0x234f9d3e0: f44fbea9 stp x20, x19, [sp, #-0x20]!
+0x234f9d3e4: fd7b01a9 stp x29, x30, [sp, #0x10]
+0x234f9d3e8: fd430091 add x29, sp, #0x10
+0x234f9d3ec: 28008052 mov w8, #1
+0x234f9d3f0: 88000039 strb w8, [x4]
+0x234f9d3f4: 089841f9 ldr x8, [x0, #0x330]
+0x234f9d3f8: 080200b4 cbz x8, #0x234f9d438
+0x234f9d3fc: f40303aa mov x20, x3
+0x234f9d400: f30300aa mov x19, x0
+0x234f9d404: 00410091 add x0, x8, #0x10
+0x234f9d408: 469d7e94 bl #0x236f44920
+0x234f9d40c: 60010034 cbz w0, #0x234f9d438
+0x234f9d410: 689a41f9 ldr x8, [x19, #0x330]
+0x234f9d414: 280100b4 cbz x8, #0x234f9d438
+0x234f9d418: 130d40b9 ldr w19, [x8, #0xc]
+0x234f9d41c: 140100b4 cbz x20, #0x234f9d43c
+0x234f9d420: f3000034 cbz w19, #0x234f9d43c
+0x234f9d424: 01410091 add x1, x8, #0x10
+0x234f9d428: e00314aa mov x0, x20
+0x234f9d42c: e20313aa mov x2, x19
+0x234f9d430: 337c0194 bl #0x234ffc4fc
+0x234f9d434: 02000014 b #0x234f9d43c
+0x234f9d438: 13008052 mov w19, #0
+0x234f9d43c: e00313aa mov x0, x19
+0x234f9d440: fd7b41a9 ldp x29, x30, [sp, #0x10]
+0x234f9d444: f44fc2a8 ldp x20, x19, [sp], #0x20
+0x234f9d448: ff0f5fd6 retab 

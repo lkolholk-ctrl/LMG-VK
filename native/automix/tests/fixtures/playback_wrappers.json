@@ -1,0 +1,18 @@
+{
+  "binary_sha256": "e843a9a94838f49c9c1e9b11f57fca70c6eebde59d7a3fd8d43917ee65607b4d",
+  "code_sha256": {
+    "0x27224fb08": "e7290199d09d2ebf22403526e4f0e76ac336454e2bdc82caaadd6edb2990bc18",
+    "0x272250300": "ea695ca61a2a2741d8480c173488ce8b04b80f7d570d646ae613ac877596c95e",
+    "0x2722509cc": "907e8687990e64d1e913e0768efa74abb80b521629d93b77c100155dc8139b9c",
+    "0x27225157c": "cb8cb448d4a487dc227c39dbc9e77a1cd9606577e786e07f8535d16a12337e73",
+    "0x27220f754": "58c1c0866006ebf4fdfbee5360473a81f8ff9b74d37af0e1c00d50e54737b2b0",
+    "0x27227965c": "e3ebea00578109bee6af215a2d4ed022431a1bb5f2054e33d3d52b52730f4e88"
+  },
+  "cases": 64,
+  "fixture_sha256": "098d0545cbd1ae22183db93fc6281dceb3de743f9b82ed44803353f04617ae85",
+  "hooks": [
+    "PAC instructions only",
+    "log and exp imported functions use host libm"
+  ],
+  "scope": "Transition-time wrapper and signed stretched-duration wrapper; with/without ramp, before/crossing/after anchor"
+}

@@ -1,0 +1,59 @@
+; iOS 23A341 range 0x18e6f2804..0x18e6f28e8
+; SHA256 3326f482966d45321535aaccf4a788c055f262ddc0de629405dfbf97e1307f4e
+0x18e6f2804: 7f2303d5 pacibsp 
+0x18e6f2808: f44fbea9 stp x20, x19, [sp, #-0x20]!
+0x18e6f280c: fd7b01a9 stp x29, x30, [sp, #0x10]
+0x18e6f2810: fd430091 add x29, sp, #0x10
+0x18e6f2814: 683d2eb0 adrp x8, #0x1eae9f000
+0x18e6f2818: 080942f9 ldr x8, [x8, #0x410]
+0x18e6f281c: 000100b9 str w0, [x8]
+0x18e6f2820: 693d2eb0 adrp x9, #0x1eae9f000
+0x18e6f2824: 291944b9 ldr w9, [x9, #0x418]
+0x18e6f2828: 29050034 cbz w9, #0x18e6f28cc
+0x18e6f282c: 693d2eb0 adrp x9, #0x1eae9f000
+0x18e6f2830: 291d44b9 ldr w9, [x9, #0x41c]
+0x18e6f2834: 3f050071 cmp w9, #1
+0x18e6f2838: 2d030054 b.le #0x18e6f289c
+0x18e6f283c: ea0308aa mov x10, x8
+0x18e6f2840: 504540b8 ldr w16, [x10], #4
+0x18e6f2844: 2b0500d1 sub x11, x9, #1
+0x18e6f2848: 8c249b52 mov w12, #0xd924
+0x18e6f284c: 6ceba072 movk w12, #0x75b, lsl #16
+0x18e6f2850: ed6b8152 mov w13, #0xb5f
+0x18e6f2854: cd69b072 movk w13, #0x834e, lsl #16
+0x18e6f2858: ee348852 mov w14, #0x41a7
+0x18e6f285c: 0f00b012 mov w15, #0x7fffffff
+0x18e6f2860: 1f020071 cmp w16, #0
+0x18e6f2864: 9001901a csel w16, w12, w16, eq
+0x18e6f2868: 117e2d9b smull x17, w16, w13
+0x18e6f286c: 31fe60d3 lsr x17, x17, #0x20
+0x18e6f2870: 3102100b add w17, w17, w16
+0x18e6f2874: 207e1013 asr w0, w17, #0x10
+0x18e6f2878: 117c510b add w17, w0, w17, lsr #31
+0x18e6f287c: 317e110b add w17, w17, w17, lsl #31
+0x18e6f2880: 10460e1b madd w16, w16, w14, w17
+0x18e6f2884: 11020f0b add w17, w16, w15
+0x18e6f2888: 1f020071 cmp w16, #0
+0x18e6f288c: 30b2901a csel w16, w17, w16, lt
+0x18e6f2890: 504500b8 str w16, [x10], #4
+0x18e6f2894: 6b0500f1 subs x11, x11, #1
+0x18e6f2898: 41feff54 b.ne #0x18e6f2860
+0x18e6f289c: 6a3d2eb0 adrp x10, #0x1eae9f000
+0x18e6f28a0: 4a2184b9 ldrsw x10, [x10, #0x420]
+0x18e6f28a4: 0a090a8b add x10, x8, x10, lsl #2
+0x18e6f28a8: 6b3d2eb0 adrp x11, #0x1eae9f000
+0x18e6f28ac: 6af100f9 str x10, [x11, #0x1e0]
+0x18e6f28b0: 6a3d2eb0 adrp x10, #0x1eae9f000
+0x18e6f28b4: 48ed00f9 str x8, [x10, #0x1d8]
+0x18e6f28b8: 3f050071 cmp w9, #1
+0x18e6f28bc: 0b010054 b.lt #0x18e6f28dc
+0x18e6f28c0: 2809090b add w8, w9, w9, lsl #2
+0x18e6f28c4: 13791f53 lsl w19, w8, #1
+0x18e6f28c8: 02000014 b #0x18e6f28d0
+0x18e6f28cc: 53068052 mov w19, #0x32
+0x18e6f28d0: c1cffe97 bl #0x18e6a67d4
+0x18e6f28d4: 73060071 subs w19, w19, #1
+0x18e6f28d8: c1ffff54 b.ne #0x18e6f28d0
+0x18e6f28dc: fd7b41a9 ldp x29, x30, [sp, #0x10]
+0x18e6f28e0: f44fc2a8 ldp x20, x19, [sp], #0x20
+0x18e6f28e4: ff0f5fd6 retab 

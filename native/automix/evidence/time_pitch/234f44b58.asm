@@ -1,0 +1,130 @@
+; Image: libEmbeddedSystemAUs.dylib iOS 23A341
+; Range: 0x234f44b58..0x234f44d54
+; Code SHA256: 9594af60a7ada47e11f416092effc311ccaefcddc3ac9010a863ae9859d5cf64
+0x234f44b58: 089448b9 ldr w8, [x0, #0x894]
+0x234f44b5c: 0edc44f9 ldr x14, [x0, #0x9b8]
+0x234f44b60: 091845f9 ldr x9, [x0, #0xa30]
+0x234f44b64: 0a1c45f9 ldr x10, [x0, #0xa38]
+0x234f44b68: 0b2045f9 ldr x11, [x0, #0xa40]
+0x234f44b6c: f0030eaa mov x16, x14
+0x234f44b70: 0f090071 subs w15, w8, #2
+0x234f44b74: c3010054 b.lo #0x234f44bac
+0x234f44b78: 0cf57ed3 lsl x12, x8, #2
+0x234f44b7c: ed030eaa mov x13, x14
+0x234f44b80: a04540bc ldr s0, [x13], #4
+0x234f44b84: 8c1100d1 sub x12, x12, #4
+0x234f44b88: f0030eaa mov x16, x14
+0x234f44b8c: f1030daa mov x17, x13
+0x234f44b90: 214640bc ldr s1, [x17], #4
+0x234f44b94: 0020211e fcmp s0, s1
+0x234f44b98: 204c201e fcsel s0, s1, s0, mi
+0x234f44b9c: b041909a csel x16, x13, x16, mi
+0x234f44ba0: ed0311aa mov x13, x17
+0x234f44ba4: 8c1100f1 subs x12, x12, #4
+0x234f44ba8: 41ffff54 b.ne #0x234f44b90
+0x234f44bac: 0cf444f9 ldr x12, [x0, #0x9e8]
+0x234f44bb0: 0d1045f9 ldr x13, [x0, #0xa20]
+0x234f44bb4: 008848bd ldr s0, [x0, #0x888]
+0x234f44bb8: 11020ecb sub x17, x16, x14
+0x234f44bbc: 30fe42d3 lsr x16, x17, #2
+0x234f44bc0: 10e808b9 str w16, [x0, #0x8e8]
+0x234f44bc4: ff0d0071 cmp w15, #3
+0x234f44bc8: 03080054 b.lo #0x234f44cc8
+0x234f44bcc: 10008052 mov w16, #0
+0x234f44bd0: 02008052 mov w2, #0
+0x234f44bd4: 317e7e92 and x17, x17, #0x3fffffffc
+0x234f44bd8: c16971bc ldr s1, [x14, x17]
+0x234f44bdc: 21c0221e fcvt d1, s1
+0x234f44be0: d1050090 adrp x17, #0x234ffc000
+0x234f44be4: 22c645fd ldr d2, [x17, #0xb88]
+0x234f44be8: 2108621e fmul d1, d1, d2
+0x234f44bec: 2140621e fcvt s1, d1
+0x234f44bf0: 711100d1 sub x17, x11, #4
+0x234f44bf4: 43008052 mov w3, #2
+0x234f44bf8: c40500b0 adrp x4, #0x234ffd000
+0x234f44bfc: 82e047bd ldr s2, [x4, #0x7e0]
+0x234f44c00: c449238b add x4, x14, w3, uxtw #2
+0x234f44c04: 840040bd ldr s4, [x4]
+0x234f44c08: 8020221e fcmp s4, s2
+0x234f44c0c: a5000054 b.pl #0x234f44c20
+0x234f44c10: 24008052 mov w4, #1
+0x234f44c14: e20303aa mov x2, x3
+0x234f44c18: 8340201e fmov s3, s4
+0x234f44c1c: 1a000014 b #0x234f44c84
+0x234f44c20: 8020211e fcmp s4, s1
+0x234f44c24: cd020054 b.le #0x234f44c7c
+0x234f44c28: 83c05fbc ldur s3, [x4, #-4]
+0x234f44c2c: 8020231e fcmp s4, s3
+0x234f44c30: 6b020054 b.lt #0x234f44c7c
+0x234f44c34: 830440bd ldr s3, [x4, #4]
+0x234f44c38: 8020231e fcmp s4, s3
+0x234f44c3c: 0b020054 b.lt #0x234f44c7c
+0x234f44c40: 83805fbc ldur s3, [x4, #-8]
+0x234f44c44: 8020231e fcmp s4, s3
+0x234f44c48: ad010054 b.le #0x234f44c7c
+0x234f44c4c: 830840bd ldr s3, [x4, #8]
+0x234f44c50: 8020231e fcmp s4, s3
+0x234f44c54: 4d010054 b.le #0x234f44c7c
+0x234f44c58: 23d930b8 str w3, [x9, w16, sxtw #2]
+0x234f44c5c: 42d930b8 str w2, [x10, w16, sxtw #2]
+0x234f44c60: 70000034 cbz w16, #0x234f44c6c
+0x234f44c64: 42040051 sub w2, w2, #1
+0x234f44c68: 22da30b8 str w2, [x17, w16, sxtw #2]
+0x234f44c6c: 62080011 add w2, w3, #2
+0x234f44c70: 10060011 add w16, w16, #1
+0x234f44c74: 64008052 mov w4, #3
+0x234f44c78: 03000014 b #0x234f44c84
+0x234f44c7c: 24008052 mov w4, #1
+0x234f44c80: 4340201e fmov s3, s2
+0x234f44c84: 6300040b add w3, w3, w4
+0x234f44c88: 6240201e fmov s2, s3
+0x234f44c8c: 7f000f6b cmp w3, w15
+0x234f44c90: 83fbff54 b.lo #0x234f44c00
+0x234f44c94: b0010034 cbz w16, #0x234f44cc8
+0x234f44c98: 0e9448b9 ldr w14, [x0, #0x894]
+0x234f44c9c: ce050051 sub w14, w14, #1
+0x234f44ca0: 6fc9308b add x15, x11, w16, sxtw #2
+0x234f44ca4: eec11fb8 stur w14, [x15, #-4]
+0x234f44ca8: 5f0100b9 str wzr, [x10]
+0x234f44cac: 0e2845f9 ldr x14, [x0, #0xa50]
+0x234f44cb0: 0f068052 mov w15, #0x30
+0x234f44cb4: 2e38af9b umaddl x14, w1, w15, x14
+0x234f44cb8: d02900b9 str w16, [x14, #0x28]
+0x234f44cbc: 1f060071 cmp w16, #1
+0x234f44cc0: 8a010054 b.ge #0x234f44cf0
+0x234f44cc4: 23000014 b #0x234f44d50
+0x234f44cc8: 30008052 mov w16, #1
+0x234f44ccc: 300100b9 str w16, [x9]
+0x234f44cd0: 5f0100b9 str wzr, [x10]
+0x234f44cd4: 0e9448b9 ldr w14, [x0, #0x894]
+0x234f44cd8: ce050051 sub w14, w14, #1
+0x234f44cdc: 6e0100b9 str w14, [x11]
+0x234f44ce0: 0e2845f9 ldr x14, [x0, #0xa50]
+0x234f44ce4: 0f068052 mov w15, #0x30
+0x234f44ce8: 2e38af9b umaddl x14, w1, w15, x14
+0x234f44cec: d02900b9 str w16, [x14, #0x28]
+0x234f44cf0: 0e0080d2 mov x14, #0
+0x234f44cf4: ef03102a mov w15, w16
+0x234f44cf8: 01102c1e fmov s1, #0.50000000
+0x234f44cfc: 50796eb8 ldr w16, [x10, x14, lsl #2]
+0x234f44d00: 71796eb8 ldr w17, [x11, x14, lsl #2]
+0x234f44d04: 1f02116b cmp w16, w17
+0x234f44d08: e8010054 b.hi #0x234f44d44
+0x234f44d0c: 21796eb8 ldr w1, [x9, x14, lsl #2]
+0x234f44d10: 2200231e ucvtf s2, w1
+0x234f44d14: 0204021f fmadd s2, s0, s2, s1
+0x234f44d18: 4000381e fcvtzs w0, s2
+0x234f44d1c: 0000014b sub w0, w0, w1
+0x234f44d20: a27961bc ldr s2, [x13, x1, lsl #2]
+0x234f44d24: 0100100b add w1, w0, w16
+0x234f44d28: 3f00086b cmp w1, w8
+0x234f44d2c: 21309f1a csel w1, w1, wzr, lo
+0x234f44d30: 815930b8 str w1, [x12, w16, uxtw #2]
+0x234f44d34: a25930bc str s2, [x13, w16, uxtw #2]
+0x234f44d38: 10060011 add w16, w16, #1
+0x234f44d3c: 1f02116b cmp w16, w17
+0x234f44d40: 29ffff54 b.ls #0x234f44d24
+0x234f44d44: ce050091 add x14, x14, #1
+0x234f44d48: df010feb cmp x14, x15
+0x234f44d4c: 81fdff54 b.ne #0x234f44cfc
+0x234f44d50: c0035fd6 ret 

@@ -1,0 +1,11 @@
+{
+  "binary_sha256": "e843a9a94838f49c9c1e9b11f57fca70c6eebde59d7a3fd8d43917ee65607b4d",
+  "code_sha256": {
+    "0x2722106fc": "445047624059bbf916150b80fa02882e4d896a43af570d8e9b890f232e0a517c",
+    "0x2722108bc": "2c2c996b7d30997991fe423bf8c588105816ae37ec2620837fd1f413098d05a6"
+  },
+  "cases": 126,
+  "fixture_sha256": "151949770a91a5d1b462098af34b5fc8657aa54f98b3f14777fd986035d79c88",
+  "hooks": [],
+  "scope": "Two original arithmetic blocks; parent and normalized times supplied, no full planner execution"
+}

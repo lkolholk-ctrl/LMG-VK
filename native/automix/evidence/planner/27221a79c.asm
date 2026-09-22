@@ -1,0 +1,9 @@
+; Original iOS 23A341, SHA256 7f28bac4f5d172a67ca9e49a56f0d32aead46518b433c117df10d7e4f0df56c3
+27221a79c: e80f00f9 str x8, [sp, #0x18]
+27221a7a0: f4630091 add x20, sp, #0x18
+27221a7a4: 00008052 mov w0, #0
+27221a7a8: c0035fd6 ret 
+27221a7ac: 1f0500f1 cmp x8, #1
+27221a7b0: e0979f1a cset w0, hi
+27221a7b4: f4630091 add x20, sp, #0x18
+27221a7b8: c0035fd6 ret 

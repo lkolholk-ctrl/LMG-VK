@@ -1,0 +1,90 @@
+; Binary: _SonicKit_MusicKit_Packages
+; Address: 0x27221c864
+; Symbol: FUN_27221c864
+; Signature: undefined FUN_27221c864()
+27221c864: pacibsp
+27221c868: sub sp,sp,#0xa0
+27221c86c: stp x26,x25,[sp, #0x50]
+27221c870: stp x24,x23,[sp, #0x60]
+27221c874: stp x22,x21,[sp, #0x70]
+27221c878: stp x20,x19,[sp, #0x80]
+27221c87c: stp x29,x30,[sp, #0x90]
+27221c880: add x29,sp,#0x90
+27221c884: mov x21,x20
+27221c888: mov x19,x8
+27221c88c: mov x8,sp
+27221c890: bl 0x27221c9b8
+27221c894: ldr x8,[sp, #0x18]
+27221c898: cbz x8,0x27221c958
+27221c89c: mov x0,sp
+27221c8a0: add x1,sp,#0x28
+27221c8a4: bl 0x2722136e0
+27221c8a8: ldp x22,x20,[sp, #0x40]
+27221c8ac: add x0,sp,#0x28
+27221c8b0: mov x1,x22
+27221c8b4: bl 0x27220ff94
+27221c8b8: ldr x8,[x20, #0x8]
+27221c8bc: ldr x1,[x8, #0x8]
+27221c8c0: mov x8,x1
+27221c8c4: bl 0x27220ffd8
+27221c8c8: mov x0,x22
+27221c8cc: mov x17,x8
+27221c8d0: movk x17,#0xbc30, LSL #48
+27221c8d4: blraa x9,x17
+27221c8d8: mov w8,#0x4
+27221c8dc: sdiv x8,x0,x8
+27221c8e0: sub x24,x0,x8, LSL #0x2
+27221c8e4: ldr x8,[x21, #0x10]
+27221c8e8: ldr x25,[x8, #0x10]
+27221c8ec: add x21,x8,#0x20
+27221c8f0: cbz x25,0x27221c948
+27221c8f4: mov x1,sp
+27221c8f8: mov x0,x21
+27221c8fc: bl 0x27221361c
+27221c900: ldp x22,x23,[sp, #0x18]
+27221c904: mov x0,sp
+27221c908: mov x1,x22
+27221c90c: bl 0x27220ff94
+27221c910: mov x8,x23
+27221c914: bl 0x27220ffd8
+27221c918: mov x0,x22
+27221c91c: mov x1,x23
+27221c920: mov x17,x8
+27221c924: movk x17,#0xbc30, LSL #48
+27221c928: blraa x9,x17
+27221c92c: cmp x0,x24
+27221c930: b.eq 0x27221c988
+27221c934: mov x0,sp
+27221c938: bl 0x272210e78
+27221c93c: add x21,x21,#0x28
+27221c940: sub x25,x25,#0x1
+27221c944: cbnz x25,0x27221c8f4
+27221c948: str xzr,[x19, #0x20]
+27221c94c: movi v0.2D,#0x0
+27221c950: stp q0,q0,[x19]
+27221c954: b 0x27221c994
+27221c958: adrp x1,0x280c99000
+27221c95c: add x1,x1,#0x558
+27221c960: adrp x2,0x280c99000
+27221c964: add x2,x2,#0x560
+27221c968: adrp x3,0x2722a3000
+27221c96c: add x3,x3,#0x4d0
+27221c970: mov x0,sp
+27221c974: bl 0x27221e520
+27221c978: str xzr,[x19, #0x20]
+27221c97c: movi v0.2D,#0x0
+27221c980: stp q0,q0,[x19]
+27221c984: b 0x27221c99c
+27221c988: mov x0,sp
+27221c98c: mov x1,x19
+27221c990: bl 0x2722136e0
+27221c994: add x0,sp,#0x28
+27221c998: bl 0x272210e78
+27221c99c: ldp x29,x30,[sp, #0x90]
+27221c9a0: ldp x20,x19,[sp, #0x80]
+27221c9a4: ldp x22,x21,[sp, #0x70]
+27221c9a8: ldp x24,x23,[sp, #0x60]
+27221c9ac: ldp x26,x25,[sp, #0x50]
+27221c9b0: add sp,sp,#0xa0
+27221c9b4: retab
+

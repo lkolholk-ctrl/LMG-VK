@@ -1,0 +1,15 @@
+{
+  "geometry_cases": 375,
+  "window_sizes": [
+    256,
+    512,
+    1024,
+    2048,
+    4096,
+    8192
+  ],
+  "latency_cases": 540,
+  "cosine": "host libm, original call address 0x236f45690",
+  "code_sha256": "337d610d6384805575af1b45d6e9ca2952d769ec0ae19e6ce71c1e60e32eef4d",
+  "source": "libEmbeddedSystemAUs iOS 23A341"
+}

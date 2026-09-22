@@ -1,0 +1,50 @@
+; Image: libEmbeddedSystemAUs.dylib iOS 23A341
+; Range: 0x234fc56cc..0x234fc5788
+; Code SHA256: 3433c18ddb3a0379aad0c3c66b216f6a001b8845fc0c67a7f29c67afa16b2e83
+0x234fc56cc: 7f2303d5 pacibsp 
+0x234fc56d0: e923bd6d stp d9, d8, [sp, #-0x30]!
+0x234fc56d4: f44f01a9 stp x20, x19, [sp, #0x10]
+0x234fc56d8: fd7b02a9 stp x29, x30, [sp, #0x20]
+0x234fc56dc: fd830091 add x29, sp, #0x20
+0x234fc56e0: f30301aa mov x19, x1
+0x234fc56e4: f40300aa mov x20, x0
+0x234fc56e8: 000440f9 ldr x0, [x0, #8]
+0x234fc56ec: 01008052 mov w1, #0
+0x234fc56f0: accffd97 bl #0x234f395a0
+0x234fc56f4: 0190241e fmov s1, #10.00000000
+0x234fc56f8: 0020211e fcmp s0, s1
+0x234fc56fc: 209c201e fcsel s0, s1, s0, ls
+0x234fc5700: 08c0221e fcvt d8, s0
+0x234fc5704: 800640f9 ldr x0, [x20, #8]
+0x234fc5708: 9bcffd97 bl #0x234f39574
+0x234fc570c: 0040621e fcvt s0, d0
+0x234fc5710: 0129681e fadd d1, d8, d8
+0x234fc5714: 00c0221e fcvt d0, s0
+0x234fc5718: 2018601e fdiv d0, d1, d0
+0x234fc571c: a80100f0 adrp x8, #0x234ffc000
+0x234fc5720: 01b945fd ldr d1, [x8, #0xb70]
+0x234fc5724: 0020611e fcmp d0, d1
+0x234fc5728: 28cc601e fcsel d8, d1, d0, gt
+0x234fc572c: 800640f9 ldr x0, [x20, #8]
+0x234fc5730: 21008052 mov w1, #1
+0x234fc5734: 9bcffd97 bl #0x234f395a0
+0x234fc5738: 00c0221e fcvt d0, s0
+0x234fc573c: a80100f0 adrp x8, #0x234ffc000
+0x234fc5740: 01b145fd ldr d1, [x8, #0xb60]
+0x234fc5744: 0008611e fmul d0, d0, d1
+0x234fc5748: 6aff7d94 bl #0x236f454f0
+0x234fc574c: 0140601e fmov d1, d0
+0x234fc5750: a80100f0 adrp x8, #0x234ffc000
+0x234fc5754: 00b545fd ldr d0, [x8, #0xb68]
+0x234fc5758: 0009601e fmul d0, d8, d0
+0x234fc575c: 02e4002f movi d2, #0000000000000000
+0x234fc5760: e00313aa mov x0, x19
+0x234fc5764: 41008052 mov w1, #2
+0x234fc5768: fd7b42a9 ldp x29, x30, [sp, #0x20]
+0x234fc576c: f44f41a9 ldp x20, x19, [sp, #0x10]
+0x234fc5770: e923c36c ldp d9, d8, [sp], #0x30
+0x234fc5774: ff2303d5 autibsp 
+0x234fc5778: d0071eca eor x16, x30, x30, lsl #1
+0x234fc577c: 5000f0b6 tbz x16, #0x3e, #0x234fc5784
+0x234fc5780: 208e38d4 brk #0xc471
+0x234fc5784: 6da30014 b #0x234fee538

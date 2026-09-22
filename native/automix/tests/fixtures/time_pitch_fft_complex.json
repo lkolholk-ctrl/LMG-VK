@@ -1,0 +1,19 @@
+{
+  "vdsp_text_sha256": "d8885879fba251698928bab56fb29d6710b8afdcbbbe6018ed32d061d713c628",
+  "complex_cases": 72,
+  "complex_sizes": [
+    128,
+    256,
+    512,
+    1024,
+    2048,
+    4096
+  ],
+  "fixture_sha256": "8ddafff8e6c830ed37fc072c836a0171fdf3eb60d155ba8fcc593b9960891039",
+  "original_entry": "0x234b224ac",
+  "hooks": [
+    "malloc/calloc/realloc/bzero",
+    "host libm sin/cos/cosf and sincos"
+  ],
+  "scope": "Original split-complex radix dispatch, all stages, permutation and twiddle constructors; no real pre/post in this fixture."
+}

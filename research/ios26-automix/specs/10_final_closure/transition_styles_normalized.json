@@ -1,0 +1,4631 @@
+{
+  "metadata": {
+    "artifact": "transition_styles_normalized.json",
+    "title": "TransitionStyles.json (iOS 26.0) normalized - proven values only",
+    "generated": "2026-09-13",
+    "generator": "machine extraction from raw JSON resource (script under /tmp/opencode, research-only)",
+    "source": {
+      "path": "appos/extracted/System/Library/PrivateFrameworks/_SonicKit_MusicKit_Packages.framework/TransitionStyles.json",
+      "absolute_path": "/srv/research/apple-music-ios26/appos/extracted/System/Library/PrivateFrameworks/_SonicKit_MusicKit_Packages.framework/TransitionStyles.json",
+      "sha256": "fe3d0a36625ccb043c519bcc5119c98190893a9911cfa58412ad60cbab04d120",
+      "size_bytes": 55905,
+      "framework": "_SonicKit_MusicKit_Packages",
+      "bundle_id": "com.apple.SonicKit.MusicKit.Packages",
+      "bundle_version": "25110.25.31.601",
+      "dtsdk": "iphoneos26.0.internal",
+      "minimum_os": "26.0",
+      "extracted_from": "iOS 26 AppOS volume (090-89642-625.dmg)"
+    },
+    "root_type": "array [TransitionStyle]",
+    "style_count": 14,
+    "style_ids": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      33,
+      44
+    ],
+    "missing_ids": [
+      5,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23,
+      24,
+      25,
+      26,
+      27,
+      28,
+      29,
+      30,
+      31,
+      32,
+      34,
+      35,
+      36,
+      37,
+      38,
+      39,
+      40,
+      41,
+      42,
+      43
+    ],
+    "counts": {
+      "styles": 14,
+      "instructions": 55,
+      "automations": 74,
+      "outgoing_instructions": 31,
+      "incoming_instructions": 24,
+      "outgoing_automations": 46,
+      "incoming_automations": 28
+    },
+    "statuses_legend": {
+      "EXACT": "directly confirmed by resource bytes / disassembly / symbols",
+      "STRONG_INFERENCE": "follows from several independent confirmed artifacts",
+      "PARTIAL": "partially proven; gaps stated in notes",
+      "UNKNOWN": "not proven; value null"
+    },
+    "planner_evidence": {
+      "catalog_loader": {
+        "function": "FUN_27224e480",
+        "called_from": "TransitionPlanner.init(configuration:) @0x2722673e4, call site 0x272267594",
+        "resource_name": "TransitionStyles (16 chars) @__TEXT,__cstring 0x272291600, extension json; Bundle(for: _SonicKit_MusicKit_Packages_Locator)",
+        "status": "EXACT",
+        "source": "P1_AUTOMIX_CLOSURE §3.1; KEY_SYMBOLS_01 rows 75-78"
+      },
+      "style_id_lookup": {
+        "function": "FUN_27223e92c",
+        "role": "[TransitionStyle.ID] -> [TransitionStyle]; sole caller FUN_2722307ec (call 0x27223119c)",
+        "status": "EXACT"
+      },
+      "style_iteration": {
+        "function": "FUN_27223e008",
+        "role": "per-style iteration over catalog, stride 0x38; called from FUN_2722307ec (call 0x2722312f0) via closure 0x27223738c -> FUN_272234310 -> FUN_272234380",
+        "status": "EXACT"
+      },
+      "style_id_dispatch": {
+        "function": "FUN_272234380",
+        "selectors": {
+          "8": "0x2722344e4-0x2722344ec -> 4 factors, base 10.0",
+          "9": "0x2722344dc-0x2722344e0 -> 6 factors, base 15.0",
+          "12": "0x2722344d4-0x2722344d8 -> expanded tempo, base 10.0"
+        },
+        "other_ids": "b.ne 0x2722348a4 -> FUN_2722133ec + memset(candidate,0,0x100) @0x2722348b0",
+        "status": "EXACT"
+      },
+      "conclusion": "styles 8/9/12 are the only reachable BeatMatched variants in iOS 26 planner; styles 6/7/10/11 have BM names but no branch; other ids have no consumer path found"
+    },
+    "curve_engine": {
+      "evaluator": "FUN_272275f84 (Automation.value(at:)) - value = startValue + y(p)*(endValue-startValue); y per curveByte",
+      "status": "EXACT",
+      "table": {
+        "linear": {
+          "curve_byte": "0x80",
+          "formula": "p",
+          "status": "EXACT",
+          "note": "DSP_AUTOMATION.md §3: 0x80 -> \"linear\", y=p"
+        },
+        "ease-in-0.5": {
+          "curve_byte": "0x00",
+          "formula": "1 - sqrt(1 - p)",
+          "status": "EXACT"
+        },
+        "ease-out-0.5": {
+          "curve_byte": "0x40",
+          "formula": "sqrt(p)",
+          "status": "EXACT"
+        },
+        "ease-out-2": {
+          "curve_byte": "0x41",
+          "formula": "1 - (1 - p)^2",
+          "status": "EXACT"
+        },
+        "ease-in-4": {
+          "curve_byte": "0x02..0x3f",
+          "formula": "pow(p, 4.0)",
+          "status": "STRONG_INFERENCE",
+          "note": "byte class EXACT; exact byte inside class not distinguished"
+        },
+        "ease-out-4": {
+          "curve_byte": "0x42..0x7f",
+          "formula": "1 - pow(1 - p, 4.0)",
+          "status": "STRONG_INFERENCE",
+          "note": "byte class EXACT; exact byte inside class not distinguished"
+        }
+      },
+      "source": "02_dsp/DSP_AUTOMATION.md §3; APPOS_TRANSITION_STYLES.md §4",
+      "logarithmic_used_in_catalog": false
+    },
+    "constant_power": {
+      "styles": [
+        1,
+        2
+      ],
+      "provable_from_resource": "GAIN ramps only: outgoing out_gain 1->0 with easing \"ease-in-0.5\", incoming out_gain 0->1 with easing \"ease-out-0.5\" (style 2: incoming placement starts at relative 0.75, style offset relative=1 offsetInSeconds=-0.3)",
+      "derivation": "IF curveByte 0x00 y=1-sqrt(1-p) and 0x40 y=sqrt(p) are applied (STRONG_INFERENCE join), outgoing gain=sqrt(1-t), incoming gain=sqrt(t), sum of squares = 1",
+      "derivation_status": "INFERRED / NOT FOUND as an explicit encoded equal-power formula",
+      "equal_power_cos_sin": "REJECTED: no pi/pi2/0.7071/1/sqrt2 (float64 or float32) in _SonicKit_MusicKit_Packages, _SonicKit_MusicKit, SonicKit (independent byte scan) and prior RED_TEAM_AUDIT §4.2"
+    },
+    "units_note": "per-parameter units below; EXACT = API semantics/range from binary; STRONG_INFERENCE = AU public-header semantics",
+    "parameter_registry": {
+      "player_gain": {
+        "swift": "inputMixerVolume",
+        "dspg": "Ga1g",
+        "range": [
+          0.0,
+          1.0
+        ],
+        "default": 1.0,
+        "target": "Gain1[0]",
+        "delivery": "DSPGraph gain box",
+        "unit": "linear gain (0..1)",
+        "unit_status": "EXACT"
+      },
+      "aufilter_center_bandwidth": {
+        "swift": "multibandFilterCenterBandwidth",
+        "dspg": "Fbw1",
+        "range": [
+          0.05,
+          3.0
+        ],
+        "default": 2.0,
+        "target": "AUFilter[5]",
+        "delivery": "DSPGraph AUFilter",
+        "unit": "AUMultibandFilter bandwidth",
+        "unit_status": "UNKNOWN"
+      },
+      "aufilter_center_gain": {
+        "swift": "multibandFilterCenterGain",
+        "dspg": "Fcg1",
+        "range": [
+          -18.0,
+          18.0
+        ],
+        "default": 0.0,
+        "target": "AUFilter[4]",
+        "delivery": "DSPGraph AUFilter",
+        "unit": "dB (gain)",
+        "unit_status": "STRONG_INFERENCE"
+      },
+      "aufilter_center_freq": {
+        "swift": "multibandFilterCenterFrequency",
+        "dspg": "Fcf1",
+        "range": [
+          10.0,
+          21829.5
+        ],
+        "default": 2500.0,
+        "target": "AUFilter[3]",
+        "delivery": "DSPGraph AUFilter",
+        "unit": "Hz",
+        "unit_status": "STRONG_INFERENCE"
+      },
+      "hp_cutoff_freq": {
+        "swift": "highPassFilterCutoffFrequency",
+        "dspg": "HP1f",
+        "range": [
+          10.0,
+          22050.0
+        ],
+        "default": 10.0,
+        "target": "AUHipass1[0]",
+        "delivery": "DSPGraph AUHipass",
+        "unit": "Hz",
+        "unit_status": "STRONG_INFERENCE"
+      },
+      "hp_reso": {
+        "swift": "highPassFilterResonance",
+        "dspg": "HP1r",
+        "range": [
+          -20.0,
+          40.01
+        ],
+        "default": 0.0,
+        "target": "AUHipass1[1]",
+        "delivery": "DSPGraph AUHipass",
+        "unit": "dB (resonance)",
+        "unit_status": "STRONG_INFERENCE"
+      },
+      "lp_cutoff_freq": {
+        "swift": "lowPassFilterCutoffFrequency",
+        "dspg": "LP1f",
+        "range": [
+          10.0,
+          21829.5
+        ],
+        "default": 22000.0,
+        "target": "AULowpass1[0]",
+        "delivery": "DSPGraph AULowpass",
+        "unit": "Hz",
+        "unit_status": "STRONG_INFERENCE"
+      },
+      "lp_reso": {
+        "swift": "lowPassFilterResonance",
+        "dspg": "LP1r",
+        "range": [
+          -20.0,
+          40.01
+        ],
+        "default": 0.0,
+        "target": "AULowpass1[1]",
+        "delivery": "DSPGraph AULowpass",
+        "unit": "dB (resonance)",
+        "unit_status": "STRONG_INFERENCE"
+      },
+      "send_mixer_gain": {
+        "swift": "auxEffectsBusSendMixerVolume",
+        "dspg": "Ga2g",
+        "range": [
+          0.0,
+          1.0
+        ],
+        "default": 1.0,
+        "target": "Gain2[0]",
+        "delivery": "DSPGraph gain box (aux send)",
+        "unit": "linear gain (0..1)",
+        "unit_status": "EXACT"
+      },
+      "fx_delay_delay_time": {
+        "swift": "delayDelayTime",
+        "dspg": "DLdt",
+        "range": [
+          0.0001,
+          2.01
+        ],
+        "default": 1.0,
+        "target": "AUDelay[1]",
+        "delivery": "DSPGraph AUDelay",
+        "unit": "seconds",
+        "unit_status": "STRONG_INFERENCE"
+      },
+      "fx_delay_lp_cutoff_frequency": {
+        "swift": "delayLowPassFilterCutoffFrequency",
+        "dspg": "DLlf",
+        "range": [
+          10.0,
+          22050.0
+        ],
+        "default": 2500.0,
+        "target": "AUDelay[3]",
+        "delivery": "DSPGraph AUDelay",
+        "unit": "Hz",
+        "unit_status": "STRONG_INFERENCE"
+      },
+      "fx_delay_dry_wet": {
+        "swift": "delayDryWetBalance",
+        "dspg": "DLdw",
+        "range": [
+          0.0,
+          100.0
+        ],
+        "default": 0.0,
+        "target": "AUDelay[0]",
+        "delivery": "DSPGraph AUDelay",
+        "unit": "percent (0..100)",
+        "unit_status": "STRONG_INFERENCE"
+      },
+      "fx_delay_feedback": {
+        "swift": "delayFeedback",
+        "dspg": "DLfb",
+        "range": [
+          -99.9,
+          99.9
+        ],
+        "default": 50.0,
+        "target": "AUDelay[2]",
+        "delivery": "DSPGraph AUDelay",
+        "unit": "percent",
+        "unit_status": "STRONG_INFERENCE"
+      },
+      "fx_reverb_gain": {
+        "swift": "reverbGain",
+        "dspg": "RVga",
+        "range": [
+          -20.0,
+          20.01
+        ],
+        "default": 1.0,
+        "target": "AUReverb[1]",
+        "delivery": "DSPGraph AUReverb2",
+        "unit": "dB",
+        "unit_status": "STRONG_INFERENCE"
+      },
+      "fx_reverb_dry_wet": {
+        "swift": "reverbDryWetBalance",
+        "dspg": "RVdw",
+        "range": [
+          0.0,
+          100.0
+        ],
+        "default": 0.0,
+        "target": "AUReverb[0]",
+        "delivery": "DSPGraph AUReverb2",
+        "unit": "percent (0..100)",
+        "unit_status": "STRONG_INFERENCE"
+      },
+      "fx_reverb_min_delay_time": {
+        "swift": "reverbMinimumDelayTime",
+        "dspg": "RVmi",
+        "range": [
+          0.0001,
+          1.0
+        ],
+        "default": 0.008,
+        "target": "AUReverb[2]",
+        "delivery": "DSPGraph AUReverb2",
+        "unit": "seconds",
+        "unit_status": "STRONG_INFERENCE"
+      },
+      "fx_reverb_max_delay_time": {
+        "swift": "reverbMaximumDelayTime",
+        "dspg": "RVma",
+        "range": [
+          0.0001,
+          1.0
+        ],
+        "default": 0.05,
+        "target": "AUReverb[3]",
+        "delivery": "DSPGraph AUReverb2",
+        "unit": "seconds",
+        "unit_status": "STRONG_INFERENCE"
+      },
+      "fx_reverb_low_frequency_decay_time": {
+        "swift": "reverbLowFrequencyDecayTime",
+        "dspg": "RVlf",
+        "range": [
+          0.001,
+          20.0
+        ],
+        "default": 1.0,
+        "target": "AUReverb[4]",
+        "delivery": "DSPGraph AUReverb2",
+        "unit": "seconds",
+        "unit_status": "STRONG_INFERENCE"
+      },
+      "fx_reverb_high_frequency_decay_time": {
+        "swift": "reverbHighFrequencyDecayTime",
+        "dspg": "RVhf",
+        "range": [
+          0.001,
+          20.0
+        ],
+        "default": 0.5,
+        "target": "AUReverb[5]",
+        "delivery": "DSPGraph AUReverb2",
+        "unit": "seconds",
+        "unit_status": "STRONG_INFERENCE"
+      },
+      "fx_reverb_randomize_reflections": {
+        "swift": "reverbReflectionsRandomization",
+        "dspg": "RVrr",
+        "range": [
+          1.0,
+          1000.0
+        ],
+        "default": 1.0,
+        "target": "AUReverb[6]",
+        "delivery": "DSPGraph AUReverb2",
+        "unit": "unitless integer-like (1..1000)",
+        "unit_status": "STRONG_INFERENCE"
+      },
+      "fx_hp_cutoff_freq": {
+        "swift": "auxEffectsBusHighPassFilterCutoffFrequency",
+        "dspg": "HP2f",
+        "range": [
+          10.0,
+          22050.0
+        ],
+        "default": 10.0,
+        "target": "AUHipass2[0]",
+        "delivery": "DSPGraph AUHipass",
+        "unit": "Hz",
+        "unit_status": "STRONG_INFERENCE"
+      },
+      "fx_hp_reso": {
+        "swift": "auxEffectsBusHighPassFilterResonance",
+        "dspg": "HP2r",
+        "range": [
+          -20.0,
+          40.0
+        ],
+        "default": 0.0,
+        "target": "AUHipass2[1]",
+        "delivery": "DSPGraph AUHipass",
+        "unit": "dB (resonance)",
+        "unit_status": "STRONG_INFERENCE"
+      },
+      "fx_lp_cutoff_freq": {
+        "swift": "auxEffectsBusLowPassFilterCutoffFrequency",
+        "dspg": "LP2f",
+        "range": [
+          10.0,
+          21829.5
+        ],
+        "default": 22000.0,
+        "target": "AULowpass2[0]",
+        "delivery": "DSPGraph AULowpass",
+        "unit": "Hz",
+        "unit_status": "STRONG_INFERENCE"
+      },
+      "fx_lp_reso": {
+        "swift": "auxEffectsBusLowPassFilterResonance",
+        "dspg": "LP2r",
+        "range": [
+          -20.0,
+          40.0
+        ],
+        "default": 0.0,
+        "target": "AULowpass2[1]",
+        "delivery": "DSPGraph AULowpass",
+        "unit": "dB (resonance)",
+        "unit_status": "STRONG_INFERENCE"
+      },
+      "fx_mixer_dry": {
+        "swift": "auxEffectsBusReturnMixerDryVolume",
+        "dspg": "Ga3g",
+        "range": [
+          0.0,
+          1.0
+        ],
+        "default": 1.0,
+        "target": "Gain3[0]",
+        "delivery": "DSPGraph gain box (dry return)",
+        "unit": "linear gain (0..1)",
+        "unit_status": "EXACT"
+      },
+      "fx_mixer_wet": {
+        "swift": "auxEffectsBusReturnMixerWetVolume",
+        "dspg": "Ga4g",
+        "range": [
+          0.0,
+          1.0
+        ],
+        "default": 0.0,
+        "target": "Gain4[0]",
+        "delivery": "DSPGraph gain box (wet return)",
+        "unit": "linear gain (0..1)",
+        "unit_status": "EXACT"
+      },
+      "ts_rate": {
+        "swift": "timeStretchingRate",
+        "dspg": null,
+        "range": [
+          0.03125,
+          32.0
+        ],
+        "default": 1.0,
+        "target": "NOT IN DSPGraph",
+        "delivery": "AVFoundation: AVPlayerItem.speedRamp / ME TimePitch (Spectral)",
+        "unit": "playback rate ratio (1.0 = original)",
+        "unit_status": "EXACT"
+      },
+      "out_gain": {
+        "swift": "outputMixerVolume",
+        "dspg": null,
+        "range": [
+          0.0,
+          1.0
+        ],
+        "default": 0.0,
+        "target": "NOT IN DSPGraph",
+        "delivery": "AVFoundation: AVMutableAudioMixInputParameters volume ramp",
+        "unit": "linear volume (0..1)",
+        "unit_status": "EXACT"
+      },
+      "bypa": {
+        "swift": "effectBypassingState",
+        "dspg": "bypa",
+        "range": [
+          0.0,
+          1.0
+        ],
+        "default": 1.0,
+        "target": "BypassProperty[0]",
+        "delivery": "DSPGraph property_cast -> kAudioUnitProperty_BypassEffect (21)",
+        "unit": "0=active, 1=bypassed",
+        "unit_status": "EXACT"
+      }
+    },
+    "parameter_use_counts": {
+      "player_gain": 0,
+      "aufilter_center_bandwidth": 0,
+      "aufilter_center_gain": 0,
+      "aufilter_center_freq": 0,
+      "hp_cutoff_freq": 7,
+      "hp_reso": 0,
+      "lp_cutoff_freq": 9,
+      "lp_reso": 0,
+      "send_mixer_gain": 4,
+      "fx_delay_delay_time": 1,
+      "fx_delay_lp_cutoff_frequency": 0,
+      "fx_delay_dry_wet": 1,
+      "fx_delay_feedback": 0,
+      "fx_reverb_gain": 0,
+      "fx_reverb_dry_wet": 3,
+      "fx_reverb_min_delay_time": 3,
+      "fx_reverb_max_delay_time": 1,
+      "fx_reverb_low_frequency_decay_time": 3,
+      "fx_reverb_high_frequency_decay_time": 3,
+      "fx_reverb_randomize_reflections": 1,
+      "fx_hp_cutoff_freq": 0,
+      "fx_hp_reso": 0,
+      "fx_lp_cutoff_freq": 0,
+      "fx_lp_reso": 0,
+      "fx_mixer_dry": 0,
+      "fx_mixer_wet": 3,
+      "ts_rate": 14,
+      "out_gain": 21,
+      "bypa": 0
+    },
+    "fallback_behavior": {
+      "catalog_style_named_fallback": null,
+      "fallback_cross_fade_duration_seconds": 2.0,
+      "status": "EXACT",
+      "evidence": "FUN_272239248 @0x2722394ec fmov d0,#0x4000000000000000 (2.0); P1_AUTOMIX_CLOSURE #5",
+      "mapped_value_missing": "beat_length -> parameter default (error string \"ID and/or default value missing.\"), STRONG_INFERENCE",
+      "unknown_style_id_in_dispatch": "zero-fill / no candidate (FUN_272234380 @0x2722348a4-0x2722348b4), EXACT",
+      "resource_missing": "SmartTransitionsError tag 0xd (internalError, STRONG_INFERENCE), log \"Transition style catalog JSON resource missing...\"",
+      "fallback_style_binding": "NOT FOUND; association fallback -> style 4 (Ease-in Ring-out) is INFERRED only, do not hardcode"
+    },
+    "notes": [
+      "All numeric values are copied verbatim from the resource; no interpolation or unit conversion was invented.",
+      "style 0 (Gapless): incoming out_gain ramp is 1->1 (input already open); outgoing ramp placement starts at relative 1 with offsetInSeconds -0.3.",
+      "style 3 (overlap) has empty outgoing/incoming instruction arrays and no offset/duration.",
+      "style 33 (overlap + Reverb) and 44 (Ease-in Ring-out + Reverb) share identical outgoing AUReverb2 ramp blocks.",
+      "style 10 contains the only mapped values in the whole catalog: parameterName \"beat_length\" (2 occurrences, start/end of fx_delay_delay_time).",
+      "duration key present only for styles 8 (8), 9 (8), 12 (16); Swift field is maximumBarCount (Int?) - key<->field mapping STRONG_INFERENCE, unit NOT FOUND.",
+      "offset key present for 12 styles; absent for id 3 and id 33. offsetInSeconds nonzero only for style 0 (0) and style 2 (-0.3).",
+      "The equal-power cos/sin formula is not present in the resource or the AutoMix binaries; see constant_power."
+    ]
+  },
+  "styles": [
+    {
+      "id": 0,
+      "name": "Gapless",
+      "name_status": "EXACT",
+      "reachability": {
+        "planner_reachable": null,
+        "cls": "no_consumer_found_in_ios26_planner",
+        "status": "PARTIAL",
+        "evidence": [
+          "id not handled in FUN_272234380 (zero-fill/no candidate if reached via BeatMatched)",
+          "style-ID -> [TransitionStyle] lookup FUN_27223e92c has the sole caller FUN_2722307ec (BeatMatched path); no other consumer of the loaded catalog found",
+          "no other style-ID xref/dispatch found in automix corpus (corpus-negative)"
+        ]
+      },
+      "offset": {
+        "present": true,
+        "relative": 0,
+        "offsetInSeconds": 0,
+        "status": "EXACT",
+        "semantics": {
+          "maps_to_swift_field": "TransitionStyle.startTime",
+          "status": "STRONG_INFERENCE",
+          "evidence": "P1_AUTOMIX_CLOSURE §3.2 fieldmd + CodingKeys id/startTime; raw key is \"offset\", exact key<->field binding not traced"
+        }
+      },
+      "duration": {
+        "present": false,
+        "value": null,
+        "status": "EXACT",
+        "semantics": {
+          "swift_field": "maximumBarCount",
+          "status": "STRONG_INFERENCE",
+          "evidence": [
+            "P1_AUTOMIX_CLOSURE §3.2 fieldmd: TransitionStyle.maximumBarCount: Int?",
+            "raw key is \"duration\"; no decoder xref tying key to field was found; unit (bars vs seconds) NOT FOUND"
+          ],
+          "note": "duration key absent in resource -> maximumBarCount nil; no duration-limited behavior defined by this style"
+        }
+      },
+      "instructions": {
+        "outgoing": [
+          {
+            "index": 0,
+            "name": "GAIN",
+            "name_status": "EXACT",
+            "placement": {
+              "start": {
+                "kind": "placement",
+                "relative": 1,
+                "offsetInSeconds": -0.3
+              },
+              "end": {
+                "kind": "placement",
+                "relative": 1,
+                "offsetInSeconds": null
+              },
+              "status": "EXACT"
+            },
+            "automations": [
+              {
+                "index": 0,
+                "parameterId": "out_gain",
+                "parameterId_status": "EXACT",
+                "parameter_ref": "out_gain",
+                "startTime": {
+                  "kind": "default",
+                  "relative": 0,
+                  "offsetInSeconds": null
+                },
+                "endTime": {
+                  "kind": "default",
+                  "relative": 1,
+                  "offsetInSeconds": null
+                },
+                "startValue": {
+                  "kind": "default",
+                  "value": 1
+                },
+                "endValue": {
+                  "kind": "default",
+                  "value": 0
+                },
+                "interpolation": "ease-in-0.5",
+                "interpolation_status": "EXACT",
+                "curve_byte": "0x00",
+                "curve_formula": "1 - sqrt(1 - p)",
+                "curve_status": "EXACT",
+                "time_semantics": "normalized relative time 0..1; all ramp times are {relative, optional offsetInSeconds}; no absolute times encoded",
+                "value_semantics": "absolute parameter value (not a delta)"
+              }
+            ]
+          }
+        ],
+        "incoming": [
+          {
+            "index": 0,
+            "name": "GAIN",
+            "name_status": "EXACT",
+            "placement": {
+              "start": {
+                "kind": "placement",
+                "relative": 0,
+                "offsetInSeconds": null
+              },
+              "end": {
+                "kind": "placement",
+                "relative": 0,
+                "offsetInSeconds": 0.3
+              },
+              "status": "EXACT"
+            },
+            "automations": [
+              {
+                "index": 0,
+                "parameterId": "out_gain",
+                "parameterId_status": "EXACT",
+                "parameter_ref": "out_gain",
+                "startTime": {
+                  "kind": "default",
+                  "relative": 0,
+                  "offsetInSeconds": null
+                },
+                "endTime": {
+                  "kind": "default",
+                  "relative": 1,
+                  "offsetInSeconds": null
+                },
+                "startValue": {
+                  "kind": "default",
+                  "value": 1
+                },
+                "endValue": {
+                  "kind": "default",
+                  "value": 1
+                },
+                "interpolation": "ease-out-0.5",
+                "interpolation_status": "EXACT",
+                "curve_byte": "0x40",
+                "curve_formula": "sqrt(p)",
+                "curve_status": "EXACT",
+                "time_semantics": "normalized relative time 0..1; all ramp times are {relative, optional offsetInSeconds}; no absolute times encoded",
+                "value_semantics": "absolute parameter value (not a delta)"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 1,
+      "name": "constant-power cross-fade",
+      "name_status": "EXACT",
+      "reachability": {
+        "planner_reachable": null,
+        "cls": "no_consumer_found_in_ios26_planner",
+        "status": "PARTIAL",
+        "evidence": [
+          "id not handled in FUN_272234380 (zero-fill/no candidate if reached via BeatMatched)",
+          "style-ID -> [TransitionStyle] lookup FUN_27223e92c has the sole caller FUN_2722307ec (BeatMatched path); no other consumer of the loaded catalog found",
+          "no other style-ID xref/dispatch found in automix corpus (corpus-negative)"
+        ]
+      },
+      "offset": {
+        "present": true,
+        "relative": 0,
+        "offsetInSeconds": null,
+        "status": "EXACT",
+        "semantics": {
+          "maps_to_swift_field": "TransitionStyle.startTime",
+          "status": "STRONG_INFERENCE",
+          "evidence": "P1_AUTOMIX_CLOSURE §3.2 fieldmd + CodingKeys id/startTime; raw key is \"offset\", exact key<->field binding not traced"
+        }
+      },
+      "duration": {
+        "present": false,
+        "value": null,
+        "status": "EXACT",
+        "semantics": {
+          "swift_field": "maximumBarCount",
+          "status": "STRONG_INFERENCE",
+          "evidence": [
+            "P1_AUTOMIX_CLOSURE §3.2 fieldmd: TransitionStyle.maximumBarCount: Int?",
+            "raw key is \"duration\"; no decoder xref tying key to field was found; unit (bars vs seconds) NOT FOUND"
+          ],
+          "note": "duration key absent in resource -> maximumBarCount nil; no duration-limited behavior defined by this style"
+        }
+      },
+      "instructions": {
+        "outgoing": [
+          {
+            "index": 0,
+            "name": "GAIN",
+            "name_status": "EXACT",
+            "placement": {
+              "start": {
+                "kind": "placement",
+                "relative": 0,
+                "offsetInSeconds": null
+              },
+              "end": {
+                "kind": "placement",
+                "relative": 1,
+                "offsetInSeconds": null
+              },
+              "status": "EXACT"
+            },
+            "automations": [
+              {
+                "index": 0,
+                "parameterId": "out_gain",
+                "parameterId_status": "EXACT",
+                "parameter_ref": "out_gain",
+                "startTime": {
+                  "kind": "default",
+                  "relative": 0,
+                  "offsetInSeconds": null
+                },
+                "endTime": {
+                  "kind": "default",
+                  "relative": 1,
+                  "offsetInSeconds": null
+                },
+                "startValue": {
+                  "kind": "default",
+                  "value": 1
+                },
+                "endValue": {
+                  "kind": "default",
+                  "value": 0
+                },
+                "interpolation": "ease-in-0.5",
+                "interpolation_status": "EXACT",
+                "curve_byte": "0x00",
+                "curve_formula": "1 - sqrt(1 - p)",
+                "curve_status": "EXACT",
+                "time_semantics": "normalized relative time 0..1; all ramp times are {relative, optional offsetInSeconds}; no absolute times encoded",
+                "value_semantics": "absolute parameter value (not a delta)"
+              }
+            ]
+          }
+        ],
+        "incoming": [
+          {
+            "index": 0,
+            "name": "GAIN",
+            "name_status": "EXACT",
+            "placement": {
+              "start": {
+                "kind": "placement",
+                "relative": 0,
+                "offsetInSeconds": null
+              },
+              "end": {
+                "kind": "placement",
+                "relative": 1,
+                "offsetInSeconds": null
+              },
+              "status": "EXACT"
+            },
+            "automations": [
+              {
+                "index": 0,
+                "parameterId": "out_gain",
+                "parameterId_status": "EXACT",
+                "parameter_ref": "out_gain",
+                "startTime": {
+                  "kind": "default",
+                  "relative": 0,
+                  "offsetInSeconds": null
+                },
+                "endTime": {
+                  "kind": "default",
+                  "relative": 1,
+                  "offsetInSeconds": null
+                },
+                "startValue": {
+                  "kind": "default",
+                  "value": 0
+                },
+                "endValue": {
+                  "kind": "default",
+                  "value": 1
+                },
+                "interpolation": "ease-out-0.5",
+                "interpolation_status": "EXACT",
+                "curve_byte": "0x40",
+                "curve_formula": "sqrt(p)",
+                "curve_status": "EXACT",
+                "time_semantics": "normalized relative time 0..1; all ramp times are {relative, optional offsetInSeconds}; no absolute times encoded",
+                "value_semantics": "absolute parameter value (not a delta)"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 2,
+      "name": "constant-power long fade-out short fade-in",
+      "name_status": "EXACT",
+      "reachability": {
+        "planner_reachable": null,
+        "cls": "no_consumer_found_in_ios26_planner",
+        "status": "PARTIAL",
+        "evidence": [
+          "id not handled in FUN_272234380 (zero-fill/no candidate if reached via BeatMatched)",
+          "style-ID -> [TransitionStyle] lookup FUN_27223e92c has the sole caller FUN_2722307ec (BeatMatched path); no other consumer of the loaded catalog found",
+          "no other style-ID xref/dispatch found in automix corpus (corpus-negative)"
+        ]
+      },
+      "offset": {
+        "present": true,
+        "relative": 1,
+        "offsetInSeconds": -0.3,
+        "status": "EXACT",
+        "semantics": {
+          "maps_to_swift_field": "TransitionStyle.startTime",
+          "status": "STRONG_INFERENCE",
+          "evidence": "P1_AUTOMIX_CLOSURE §3.2 fieldmd + CodingKeys id/startTime; raw key is \"offset\", exact key<->field binding not traced"
+        }
+      },
+      "duration": {
+        "present": false,
+        "value": null,
+        "status": "EXACT",
+        "semantics": {
+          "swift_field": "maximumBarCount",
+          "status": "STRONG_INFERENCE",
+          "evidence": [
+            "P1_AUTOMIX_CLOSURE §3.2 fieldmd: TransitionStyle.maximumBarCount: Int?",
+            "raw key is \"duration\"; no decoder xref tying key to field was found; unit (bars vs seconds) NOT FOUND"
+          ],
+          "note": "duration key absent in resource -> maximumBarCount nil; no duration-limited behavior defined by this style"
+        }
+      },
+      "instructions": {
+        "outgoing": [
+          {
+            "index": 0,
+            "name": "GAIN",
+            "name_status": "EXACT",
+            "placement": {
+              "start": {
+                "kind": "placement",
+                "relative": 0,
+                "offsetInSeconds": null
+              },
+              "end": {
+                "kind": "placement",
+                "relative": 1,
+                "offsetInSeconds": null
+              },
+              "status": "EXACT"
+            },
+            "automations": [
+              {
+                "index": 0,
+                "parameterId": "out_gain",
+                "parameterId_status": "EXACT",
+                "parameter_ref": "out_gain",
+                "startTime": {
+                  "kind": "default",
+                  "relative": 0,
+                  "offsetInSeconds": null
+                },
+                "endTime": {
+                  "kind": "default",
+                  "relative": 1,
+                  "offsetInSeconds": null
+                },
+                "startValue": {
+                  "kind": "default",
+                  "value": 1
+                },
+                "endValue": {
+                  "kind": "default",
+                  "value": 0
+                },
+                "interpolation": "ease-in-0.5",
+                "interpolation_status": "EXACT",
+                "curve_byte": "0x00",
+                "curve_formula": "1 - sqrt(1 - p)",
+                "curve_status": "EXACT",
+                "time_semantics": "normalized relative time 0..1; all ramp times are {relative, optional offsetInSeconds}; no absolute times encoded",
+                "value_semantics": "absolute parameter value (not a delta)"
+              }
+            ]
+          }
+        ],
+        "incoming": [
+          {
+            "index": 0,
+            "name": "GAIN",
+            "name_status": "EXACT",
+            "placement": {
+              "start": {
+                "kind": "placement",
+                "relative": 0.75,
+                "offsetInSeconds": null
+              },
+              "end": {
+                "kind": "placement",
+                "relative": 1,
+                "offsetInSeconds": null
+              },
+              "status": "EXACT"
+            },
+            "automations": [
+              {
+                "index": 0,
+                "parameterId": "out_gain",
+                "parameterId_status": "EXACT",
+                "parameter_ref": "out_gain",
+                "startTime": {
+                  "kind": "default",
+                  "relative": 0,
+                  "offsetInSeconds": null
+                },
+                "endTime": {
+                  "kind": "default",
+                  "relative": 1,
+                  "offsetInSeconds": null
+                },
+                "startValue": {
+                  "kind": "default",
+                  "value": 0
+                },
+                "endValue": {
+                  "kind": "default",
+                  "value": 1
+                },
+                "interpolation": "ease-out-0.5",
+                "interpolation_status": "EXACT",
+                "curve_byte": "0x40",
+                "curve_formula": "sqrt(p)",
+                "curve_status": "EXACT",
+                "time_semantics": "normalized relative time 0..1; all ramp times are {relative, optional offsetInSeconds}; no absolute times encoded",
+                "value_semantics": "absolute parameter value (not a delta)"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 3,
+      "name": "overlap",
+      "name_status": "EXACT",
+      "reachability": {
+        "planner_reachable": null,
+        "cls": "no_consumer_found_in_ios26_planner",
+        "status": "PARTIAL",
+        "evidence": [
+          "id not handled in FUN_272234380 (zero-fill/no candidate if reached via BeatMatched)",
+          "style-ID -> [TransitionStyle] lookup FUN_27223e92c has the sole caller FUN_2722307ec (BeatMatched path); no other consumer of the loaded catalog found",
+          "no other style-ID xref/dispatch found in automix corpus (corpus-negative)"
+        ]
+      },
+      "offset": {
+        "present": false,
+        "relative": null,
+        "offsetInSeconds": null,
+        "status": "EXACT",
+        "semantics": {
+          "maps_to_swift_field": "TransitionStyle.startTime",
+          "status": "STRONG_INFERENCE"
+        }
+      },
+      "duration": {
+        "present": false,
+        "value": null,
+        "status": "EXACT",
+        "semantics": {
+          "swift_field": "maximumBarCount",
+          "status": "STRONG_INFERENCE",
+          "evidence": [
+            "P1_AUTOMIX_CLOSURE §3.2 fieldmd: TransitionStyle.maximumBarCount: Int?",
+            "raw key is \"duration\"; no decoder xref tying key to field was found; unit (bars vs seconds) NOT FOUND"
+          ],
+          "note": "duration key absent in resource -> maximumBarCount nil; no duration-limited behavior defined by this style"
+        }
+      },
+      "instructions": {
+        "outgoing": [],
+        "incoming": []
+      }
+    },
+    {
+      "id": 4,
+      "name": "Ease-in Ring-out",
+      "name_status": "EXACT",
+      "reachability": {
+        "planner_reachable": null,
+        "cls": "no_consumer_found_in_ios26_planner",
+        "status": "PARTIAL",
+        "evidence": [
+          "id not handled in FUN_272234380 (zero-fill/no candidate if reached via BeatMatched)",
+          "style-ID -> [TransitionStyle] lookup FUN_27223e92c has the sole caller FUN_2722307ec (BeatMatched path); no other consumer of the loaded catalog found",
+          "no other style-ID xref/dispatch found in automix corpus (corpus-negative)"
+        ]
+      },
+      "offset": {
+        "present": true,
+        "relative": 0,
+        "offsetInSeconds": null,
+        "status": "EXACT",
+        "semantics": {
+          "maps_to_swift_field": "TransitionStyle.startTime",
+          "status": "STRONG_INFERENCE",
+          "evidence": "P1_AUTOMIX_CLOSURE §3.2 fieldmd + CodingKeys id/startTime; raw key is \"offset\", exact key<->field binding not traced"
+        }
+      },
+      "duration": {
+        "present": false,
+        "value": null,
+        "status": "EXACT",
+        "semantics": {
+          "swift_field": "maximumBarCount",
+          "status": "STRONG_INFERENCE",
+          "evidence": [
+            "P1_AUTOMIX_CLOSURE §3.2 fieldmd: TransitionStyle.maximumBarCount: Int?",
+            "raw key is \"duration\"; no decoder xref tying key to field was found; unit (bars vs seconds) NOT FOUND"
+          ],
+          "note": "duration key absent in resource -> maximumBarCount nil; no duration-limited behavior defined by this style"
+        }
+      },
+      "instructions": {
+        "outgoing": [],
+        "incoming": [
+          {
+            "index": 0,
+            "name": "GAIN",
+            "name_status": "EXACT",
+            "placement": {
+              "start": {
+                "kind": "placement",
+                "relative": 0,
+                "offsetInSeconds": null
+              },
+              "end": {
+                "kind": "placement",
+                "relative": 0,
+                "offsetInSeconds": 2
+              },
+              "status": "EXACT"
+            },
+            "automations": [
+              {
+                "index": 0,
+                "parameterId": "out_gain",
+                "parameterId_status": "EXACT",
+                "parameter_ref": "out_gain",
+                "startTime": {
+                  "kind": "default",
+                  "relative": 0,
+                  "offsetInSeconds": null
+                },
+                "endTime": {
+                  "kind": "default",
+                  "relative": 1,
+                  "offsetInSeconds": null
+                },
+                "startValue": {
+                  "kind": "default",
+                  "value": 0
+                },
+                "endValue": {
+                  "kind": "default",
+                  "value": 1
+                },
+                "interpolation": "ease-out-0.5",
+                "interpolation_status": "EXACT",
+                "curve_byte": "0x40",
+                "curve_formula": "sqrt(p)",
+                "curve_status": "EXACT",
+                "time_semantics": "normalized relative time 0..1; all ramp times are {relative, optional offsetInSeconds}; no absolute times encoded",
+                "value_semantics": "absolute parameter value (not a delta)"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 6,
+      "name": "Beat-matched long fade-out short fade-in - Same Bar num",
+      "name_status": "EXACT",
+      "reachability": {
+        "planner_reachable": false,
+        "cls": "legacy_beat_matched_named",
+        "status": "STRONG_INFERENCE",
+        "evidence": [
+          "name starts with \"Beat-matched\" but id 6 is not compared in FUN_272234380: falls through b.ne 0x2722348a4 -> zero-fill of 0x100-byte candidate (memset w1=0x100 @0x2722348b0-0x2722348b4)",
+          "no other style-ID dispatch found in automix corpus; P1_AUTOMIX_CLOSURE §1.5"
+        ]
+      },
+      "offset": {
+        "present": true,
+        "relative": 0,
+        "offsetInSeconds": null,
+        "status": "EXACT",
+        "semantics": {
+          "maps_to_swift_field": "TransitionStyle.startTime",
+          "status": "STRONG_INFERENCE",
+          "evidence": "P1_AUTOMIX_CLOSURE §3.2 fieldmd + CodingKeys id/startTime; raw key is \"offset\", exact key<->field binding not traced"
+        }
+      },
+      "duration": {
+        "present": false,
+        "value": null,
+        "status": "EXACT",
+        "semantics": {
+          "swift_field": "maximumBarCount",
+          "status": "STRONG_INFERENCE",
+          "evidence": [
+            "P1_AUTOMIX_CLOSURE §3.2 fieldmd: TransitionStyle.maximumBarCount: Int?",
+            "raw key is \"duration\"; no decoder xref tying key to field was found; unit (bars vs seconds) NOT FOUND"
+          ],
+          "note": "duration key absent in resource -> maximumBarCount nil; no duration-limited behavior defined by this style"
+        }
+      },
+      "instructions": {
+        "outgoing": [
+          {
+            "index": 0,
+            "name": "TimeStretching",
+            "name_status": "EXACT",
+            "placement": {
+              "start": {
+                "kind": "placement",
+                "relative": 0,
+                "offsetInSeconds": null
+              },
+              "end": {
+                "kind": "placement",
+                "relative": 1,
+                "offsetInSeconds": null
+              },
+              "status": "EXACT"
+            },
+            "automations": [
+              {
+                "index": 0,
+                "parameterId": "ts_rate",
+                "parameterId_status": "EXACT",
+                "parameter_ref": "ts_rate",
+                "startTime": {
+                  "kind": "default",
+                  "relative": 0,
+                  "offsetInSeconds": null
+                },
+                "endTime": {
+                  "kind": "default",
+                  "relative": 1,
+                  "offsetInSeconds": null
+                },
+                "startValue": {
+                  "kind": "default",
+                  "value": 1
+                },
+                "endValue": {
+                  "kind": "default",
+                  "value": 1
+                },
+                "interpolation": "linear",
+                "interpolation_status": "EXACT",
+                "curve_byte": "0x80",
+                "curve_formula": "p",
+                "curve_status": "EXACT",
+                "time_semantics": "normalized relative time 0..1; all ramp times are {relative, optional offsetInSeconds}; no absolute times encoded",
+                "value_semantics": "absolute parameter value (not a delta)"
+              }
+            ]
+          },
+          {
+            "index": 1,
+            "name": "GAIN",
+            "name_status": "EXACT",
+            "placement": {
+              "start": {
+                "kind": "placement",
+                "relative": 0,
+                "offsetInSeconds": null
+              },
+              "end": {
+                "kind": "placement",
+                "relative": 1,
+                "offsetInSeconds": null
+              },
+              "status": "EXACT"
+            },
+            "automations": [
+              {
+                "index": 0,
+                "parameterId": "out_gain",
+                "parameterId_status": "EXACT",
+                "parameter_ref": "out_gain",
+                "startTime": {
+                  "kind": "default",
+                  "relative": 0,
+                  "offsetInSeconds": null
+                },
+                "endTime": {
+                  "kind": "default",
+                  "relative": 1,
+                  "offsetInSeconds": null
+                },
+                "startValue": {
+                  "kind": "default",
+                  "value": 1
+                },
+                "endValue": {
+                  "kind": "default",
+                  "value": 0
+                },
+                "interpolation": "ease-in-0.5",
+                "interpolation_status": "EXACT",
+                "curve_byte": "0x00",
+                "curve_formula": "1 - sqrt(1 - p)",
+                "curve_status": "EXACT",
+                "time_semantics": "normalized relative time 0..1; all ramp times are {relative, optional offsetInSeconds}; no absolute times encoded",
+                "value_semantics": "absolute parameter value (not a delta)"
+              }
+            ]
+          }
+        ],
+        "incoming": [
+          {
+            "index": 0,
+            "name": "TimeStretching",
+            "name_status": "EXACT",
+            "placement": {
+              "start": {
+                "kind": "placement",
+                "relative": 0,
+                "offsetInSeconds": null
+              },
+              "end": {
+                "kind": "placement",
+                "relative": 1,
+                "offsetInSeconds": null
+              },
+              "status": "EXACT"
+            },
+            "automations": [
+              {
+                "index": 0,
+                "parameterId": "ts_rate",
+                "parameterId_status": "EXACT",
+                "parameter_ref": "ts_rate",
+                "startTime": {
+                  "kind": "default",
+                  "relative": 0,
+                  "offsetInSeconds": null
+                },
+                "endTime": {
+                  "kind": "default",
+                  "relative": 1,
+                  "offsetInSeconds": null
+                },
+                "startValue": {
+                  "kind": "default",
+                  "value": 1
+                },
+                "endValue": {
+                  "kind": "default",
+                  "value": 1
+                },
+                "interpolation": "linear",
+                "interpolation_status": "EXACT",
+                "curve_byte": "0x80",
+                "curve_formula": "p",
+                "curve_status": "EXACT",
+                "time_semantics": "normalized relative time 0..1; all ramp times are {relative, optional offsetInSeconds}; no absolute times encoded",
+                "value_semantics": "absolute parameter value (not a delta)"
+              }
+            ]
+          },
+          {
+            "index": 1,
+            "name": "GAIN",
+            "name_status": "EXACT",
+            "placement": {
+              "start": {
+                "kind": "placement",
+                "relative": 0.75,
+                "offsetInSeconds": null
+              },
+              "end": {
+                "kind": "placement",
+                "relative": 1,
+                "offsetInSeconds": null
+              },
+              "status": "EXACT"
+            },
+            "automations": [
+              {
+                "index": 0,
+                "parameterId": "out_gain",
+                "parameterId_status": "EXACT",
+                "parameter_ref": "out_gain",
+                "startTime": {
+                  "kind": "default",
+                  "relative": 0,
+                  "offsetInSeconds": null
+                },
+                "endTime": {
+                  "kind": "default",
+                  "relative": 1,
+                  "offsetInSeconds": null
+                },
+                "startValue": {
+                  "kind": "default",
+                  "value": 0
+                },
+                "endValue": {
+                  "kind": "default",
+                  "value": 1
+                },
+                "interpolation": "ease-out-0.5",
+                "interpolation_status": "EXACT",
+                "curve_byte": "0x40",
+                "curve_formula": "sqrt(p)",
+                "curve_status": "EXACT",
+                "time_semantics": "normalized relative time 0..1; all ramp times are {relative, optional offsetInSeconds}; no absolute times encoded",
+                "value_semantics": "absolute parameter value (not a delta)"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 7,
+      "name": "Beat-matched long fade-out dynamic fade-in",
+      "name_status": "EXACT",
+      "reachability": {
+        "planner_reachable": false,
+        "cls": "legacy_beat_matched_named",
+        "status": "STRONG_INFERENCE",
+        "evidence": [
+          "same zero-fill path as id 6 in FUN_272234380; no branch",
+          "P1_AUTOMIX_CLOSURE §1.4/1.5"
+        ]
+      },
+      "offset": {
+        "present": true,
+        "relative": 0,
+        "offsetInSeconds": null,
+        "status": "EXACT",
+        "semantics": {
+          "maps_to_swift_field": "TransitionStyle.startTime",
+          "status": "STRONG_INFERENCE",
+          "evidence": "P1_AUTOMIX_CLOSURE §3.2 fieldmd + CodingKeys id/startTime; raw key is \"offset\", exact key<->field binding not traced"
+        }
+      },
+      "duration": {
+        "present": false,
+        "value": null,
+        "status": "EXACT",
+        "semantics": {
+          "swift_field": "maximumBarCount",
+          "status": "STRONG_INFERENCE",
+          "evidence": [
+            "P1_AUTOMIX_CLOSURE §3.2 fieldmd: TransitionStyle.maximumBarCount: Int?",
+            "raw key is \"duration\"; no decoder xref tying key to field was found; unit (bars vs seconds) NOT FOUND"
+          ],
+          "note": "duration key absent in resource -> maximumBarCount nil; no duration-limited behavior defined by this style"
+        }
+      },
+      "instructions": {
+        "outgoing": [
+          {
+            "index": 0,
+            "name": "TimeStretching",
+            "name_status": "EXACT",
+            "placement": {
+              "start": {
+                "kind": "placement",
+                "relative": 0,
+                "offsetInSeconds": null
+              },
+              "end": {
+                "kind": "placement",
+                "relative": 1,
+                "offsetInSeconds": null
+              },
+              "status": "EXACT"
+            },
+            "automations": [
+              {
+                "index": 0,
+                "parameterId": "ts_rate",
+                "parameterId_status": "EXACT",
+                "parameter_ref": "ts_rate",
+                "startTime": {
+                  "kind": "default",
+                  "relative": 0,
+                  "offsetInSeconds": null
+                },
+                "endTime": {
+                  "kind": "default",
+                  "relative": 1,
+                  "offsetInSeconds": null
+                },
+                "startValue": {
+                  "kind": "default",
+                  "value": 1
+                },
+                "endValue": {
+                  "kind": "default",
+                  "value": 2
+                },
+                "interpolation": "linear",
+                "interpolation_status": "EXACT",
+                "curve_byte": "0x80",
+                "curve_formula": "p",
+                "curve_status": "EXACT",
+                "time_semantics": "normalized relative time 0..1; all ramp times are {relative, optional offsetInSeconds}; no absolute times encoded",
+                "value_semantics": "absolute parameter value (not a delta)"
+              }
+            ]
+          },
+          {
+            "index": 1,
+            "name": "GAIN",
+            "name_status": "EXACT",
+            "placement": {
+              "start": {
+                "kind": "placement",
+                "relative": 0,
+                "offsetInSeconds": null
+              },
+              "end": {
+                "kind": "placement",
+                "relative": 1,
+                "offsetInSeconds": null
+              },
+              "status": "EXACT"
+            },
+            "automations": [
+              {
+                "index": 0,
+                "parameterId": "out_gain",
+                "parameterId_status": "EXACT",
+                "parameter_ref": "out_gain",
+                "startTime": {
+                  "kind": "default",
+                  "relative": 0,
+                  "offsetInSeconds": null
+                },
+                "endTime": {
+                  "kind": "default",
+                  "relative": 1,
+                  "offsetInSeconds": null
+                },
+                "startValue": {
+                  "kind": "default",
+                  "value": 1
+                },
+                "endValue": {
+                  "kind": "default",
+                  "value": 0
+                },
+                "interpolation": "ease-in-0.5",
+                "interpolation_status": "EXACT",
+                "curve_byte": "0x00",
+                "curve_formula": "1 - sqrt(1 - p)",
+                "curve_status": "EXACT",
+                "time_semantics": "normalized relative time 0..1; all ramp times are {relative, optional offsetInSeconds}; no absolute times encoded",
+                "value_semantics": "absolute parameter value (not a delta)"
+              }
+            ]
+          }
+        ],
+        "incoming": [
+          {
+            "index": 0,
+            "name": "TimeStretching",
+            "name_status": "EXACT",
+            "placement": {
+              "start": {
+                "kind": "placement",
+                "relative": 0,
+                "offsetInSeconds": null
+              },
+              "end": {
+                "kind": "placement",
+                "relative": 1,
+                "offsetInSeconds": null
+              },
+              "status": "EXACT"
+            },
+            "automations": [
+              {
+                "index": 0,
+                "parameterId": "ts_rate",
+                "parameterId_status": "EXACT",
+                "parameter_ref": "ts_rate",
+                "startTime": {
+                  "kind": "default",
+                  "relative": 0,
+                  "offsetInSeconds": null
+                },
+                "endTime": {
+                  "kind": "default",
+                  "relative": 1,
+                  "offsetInSeconds": null
+                },
+                "startValue": {
+                  "kind": "default",
+                  "value": 2
+                },
+                "endValue": {
+                  "kind": "default",
+                  "value": 1
+                },
+                "interpolation": "linear",
+                "interpolation_status": "EXACT",
+                "curve_byte": "0x80",
+                "curve_formula": "p",
+                "curve_status": "EXACT",
+                "time_semantics": "normalized relative time 0..1; all ramp times are {relative, optional offsetInSeconds}; no absolute times encoded",
+                "value_semantics": "absolute parameter value (not a delta)"
+              }
+            ]
+          },
+          {
+            "index": 1,
+            "name": "GAIN",
+            "name_status": "EXACT",
+            "placement": {
+              "start": {
+                "kind": "placement",
+                "relative": 0,
+                "offsetInSeconds": null
+              },
+              "end": {
+                "kind": "placement",
+                "relative": 1,
+                "offsetInSeconds": null
+              },
+              "status": "EXACT"
+            },
+            "automations": [
+              {
+                "index": 0,
+                "parameterId": "out_gain",
+                "parameterId_status": "EXACT",
+                "parameter_ref": "out_gain",
+                "startTime": {
+                  "kind": "default",
+                  "relative": 0,
+                  "offsetInSeconds": null
+                },
+                "endTime": {
+                  "kind": "default",
+                  "relative": 1,
+                  "offsetInSeconds": null
+                },
+                "startValue": {
+                  "kind": "default",
+                  "value": 0
+                },
+                "endValue": {
+                  "kind": "default",
+                  "value": 1
+                },
+                "interpolation": "ease-out-0.5",
+                "interpolation_status": "EXACT",
+                "curve_byte": "0x40",
+                "curve_formula": "sqrt(p)",
+                "curve_status": "EXACT",
+                "time_semantics": "normalized relative time 0..1; all ramp times are {relative, optional offsetInSeconds}; no absolute times encoded",
+                "value_semantics": "absolute parameter value (not a delta)"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 8,
+      "name": "BM - Filter high to low",
+      "name_status": "EXACT",
+      "reachability": {
+        "planner_reachable": true,
+        "cls": "reachable_beat_matched",
+        "status": "EXACT",
+        "evidence": [
+          "FUN_272234380 @0x2722344d4-0x2722344e8: cmp x8,#0xc / #0x9 / #0x8; x8 = style.id (FUN_272234310 copies 0x38 B of TransitionStyle, field 0 = id)",
+          "P1_AUTOMIX_CLOSURE #1: all three branches belong to BeatMatchedFilteredCrossFadeCandidateGenerationStrategy (chain FUN_27222e528 -> FUN_27223e174 -> FUN_2722307ec -> FUN_272234380)",
+          "FUN_27223e92c style-ID lookup sole caller FUN_2722307ec (call site 0x27223119c) = BeatMatched candidate driver"
+        ]
+      },
+      "offset": {
+        "present": true,
+        "relative": 0,
+        "offsetInSeconds": null,
+        "status": "EXACT",
+        "semantics": {
+          "maps_to_swift_field": "TransitionStyle.startTime",
+          "status": "STRONG_INFERENCE",
+          "evidence": "P1_AUTOMIX_CLOSURE §3.2 fieldmd + CodingKeys id/startTime; raw key is \"offset\", exact key<->field binding not traced"
+        }
+      },
+      "duration": {
+        "present": true,
+        "value": 8,
+        "status": "EXACT",
+        "semantics": {
+          "swift_field": "maximumBarCount",
+          "status": "STRONG_INFERENCE",
+          "evidence": [
+            "P1_AUTOMIX_CLOSURE §3.2 fieldmd: TransitionStyle.maximumBarCount: Int?",
+            "raw key is \"duration\"; no decoder xref tying key to field was found; unit (bars vs seconds) NOT FOUND"
+          ]
+        }
+      },
+      "instructions": {
+        "outgoing": [
+          {
+            "index": 0,
+            "name": "TimeStretching",
+            "name_status": "EXACT",
+            "placement": {
+              "start": {
+                "kind": "placement",
+                "relative": 0,
+                "offsetInSeconds": null
+              },
+              "end": {
+                "kind": "placement",
+                "relative": 1,
+                "offsetInSeconds": null
+              },
+              "status": "EXACT"
+            },
+            "automations": [
+              {
+                "index": 0,
+                "parameterId": "ts_rate",
+                "parameterId_status": "EXACT",
+                "parameter_ref": "ts_rate",
+                "startTime": {
+                  "kind": "default",
+                  "relative": 0,
+                  "offsetInSeconds": null
+                },
+                "endTime": {
+                  "kind": "default",
+                  "relative": 1,
+                  "offsetInSeconds": null
+                },
+                "startValue": {
+                  "kind": "default",
+                  "value": 1
+                },
+                "endValue": {
+                  "kind": "default",
+                  "value": 2
+                },
+                "interpolation": "linear",
+                "interpolation_status": "EXACT",
+                "curve_byte": "0x80",
+                "curve_formula": "p",
+                "curve_status": "EXACT",
+                "time_semantics": "normalized relative time 0..1; all ramp times are {relative, optional offsetInSeconds}; no absolute times encoded",
+                "value_semantics": "absolute parameter value (not a delta)"
+              }
+            ]
+          },
+          {
+            "index": 1,
+            "name": "AULowpass",
+            "name_status": "EXACT",
+            "placement": {
+              "start": {
+                "kind": "placement",
+                "relative": 0,
+                "offsetInSeconds": null
+              },
+              "end": {
+                "kind": "placement",
+                "relative": 1,
+                "offsetInSeconds": null
+              },
+              "status": "EXACT"
+            },
+            "automations": [
+              {
+                "index": 0,
+                "parameterId": "lp_cutoff_freq",
+                "parameterId_status": "EXACT",
+                "parameter_ref": "lp_cutoff_freq",
+                "startTime": {
+                  "kind": "default",
+                  "relative": 0,
+                  "offsetInSeconds": null
+                },
+                "endTime": {
+                  "kind": "default",
+                  "relative": 1,
+                  "offsetInSeconds": null
+                },
+                "startValue": {
+                  "kind": "default",
+                  "value": 20000
+                },
+                "endValue": {
+                  "kind": "default",
+                  "value": 200
+                },
+                "interpolation": "ease-out-2",
+                "interpolation_status": "EXACT",
+                "curve_byte": "0x41",
+                "curve_formula": "1 - (1 - p)^2",
+                "curve_status": "EXACT",
+                "time_semantics": "normalized relative time 0..1; all ramp times are {relative, optional offsetInSeconds}; no absolute times encoded",
+                "value_semantics": "absolute parameter value (not a delta)"
+              }
+            ]
+          },
+          {
+            "index": 2,
+            "name": "GAIN",
+            "name_status": "EXACT",
+            "placement": {
+              "start": {
+                "kind": "placement",
+                "relative": 1,
+                "offsetInSeconds": -0.3
+              },
+              "end": {
+                "kind": "placement",
+                "relative": 1,
+                "offsetInSeconds": null
+              },
+              "status": "EXACT"
+            },
+            "automations": [
+              {
+                "index": 0,
+                "parameterId": "out_gain",
+                "parameterId_status": "EXACT",
+                "parameter_ref": "out_gain",
+                "startTime": {
+                  "kind": "default",
+                  "relative": 0,
+                  "offsetInSeconds": null
+                },
+                "endTime": {
+                  "kind": "default",
+                  "relative": 1,
+                  "offsetInSeconds": null
+                },
+                "startValue": {
+                  "kind": "default",
+                  "value": 1
+                },
+                "endValue": {
+                  "kind": "default",
+                  "value": 0
+                },
+                "interpolation": "linear",
+                "interpolation_status": "EXACT",
+                "curve_byte": "0x80",
+                "curve_formula": "p",
+                "curve_status": "EXACT",
+                "time_semantics": "normalized relative time 0..1; all ramp times are {relative, optional offsetInSeconds}; no absolute times encoded",
+                "value_semantics": "absolute parameter value (not a delta)"
+              }
+            ]
+          }
+        ],
+        "incoming": [
+          {
+            "index": 0,
+            "name": "TimeStretching",
+            "name_status": "EXACT",
+            "placement": {
+              "start": {
+                "kind": "placement",
+                "relative": 0,
+                "offsetInSeconds": null
+              },
+              "end": {
+                "kind": "placement",
+                "relative": 1,
+                "offsetInSeconds": null
+              },
+              "status": "EXACT"
+            },
+            "automations": [
+              {
+                "index": 0,
+                "parameterId": "ts_rate",
+                "parameterId_status": "EXACT",
+                "parameter_ref": "ts_rate",
+                "startTime": {
+                  "kind": "default",
+                  "relative": 0,
+                  "offsetInSeconds": null
+                },
+                "endTime": {
+                  "kind": "default",
+                  "relative": 1,
+                  "offsetInSeconds": null
+                },
+                "startValue": {
+                  "kind": "default",
+                  "value": 2
+                },
+                "endValue": {
+                  "kind": "default",
+                  "value": 1
+                },
+                "interpolation": "linear",
+                "interpolation_status": "EXACT",
+                "curve_byte": "0x80",
+                "curve_formula": "p",
+                "curve_status": "EXACT",
+                "time_semantics": "normalized relative time 0..1; all ramp times are {relative, optional offsetInSeconds}; no absolute times encoded",
+                "value_semantics": "absolute parameter value (not a delta)"
+              }
+            ]
+          },
+          {
+            "index": 1,
+            "name": "AUHipass",
+            "name_status": "EXACT",
+            "placement": {
+              "start": {
+                "kind": "placement",
+                "relative": 0,
+                "offsetInSeconds": null
+              },
+              "end": {
+                "kind": "placement",
+                "relative": 1,
+                "offsetInSeconds": null
+              },
+              "status": "EXACT"
+            },
+            "automations": [
+              {
+                "index": 0,
+                "parameterId": "hp_cutoff_freq",
+                "parameterId_status": "EXACT",
+                "parameter_ref": "hp_cutoff_freq",
+                "startTime": {
+                  "kind": "default",
+                  "relative": 0,
+                  "offsetInSeconds": null
+                },
+                "endTime": {
+                  "kind": "default",
+                  "relative": 1,
+                  "offsetInSeconds": null
+                },
+                "startValue": {
+                  "kind": "default",
+                  "value": 20000
+                },
+                "endValue": {
+                  "kind": "default",
+                  "value": 10
+                },
+                "interpolation": "ease-out-2",
+                "interpolation_status": "EXACT",
+                "curve_byte": "0x41",
+                "curve_formula": "1 - (1 - p)^2",
+                "curve_status": "EXACT",
+                "time_semantics": "normalized relative time 0..1; all ramp times are {relative, optional offsetInSeconds}; no absolute times encoded",
+                "value_semantics": "absolute parameter value (not a delta)"
+              }
+            ]
+          },
+          {
+            "index": 2,
+            "name": "AULowpass",
+            "name_status": "EXACT",
+            "placement": {
+              "start": {
+                "kind": "placement",
+                "relative": 0,
+                "offsetInSeconds": null
+              },
+              "end": {
+                "kind": "placement",
+                "relative": 1,
+                "offsetInSeconds": null
+              },
+              "status": "EXACT"
+            },
+            "automations": [
+              {
+                "index": 0,
+                "parameterId": "lp_cutoff_freq",
+                "parameterId_status": "EXACT",
+                "parameter_ref": "lp_cutoff_freq",
+                "startTime": {
+                  "kind": "default",
+                  "relative": 0,
+                  "offsetInSeconds": null
+                },
+                "endTime": {
+                  "kind": "default",
+                  "relative": 1,
+                  "offsetInSeconds": null
+                },
+                "startValue": {
+                  "kind": "default",
+                  "value": 1200
+                },
+                "endValue": {
+                  "kind": "default",
+                  "value": 20000
+                },
+                "interpolation": "ease-in-4",
+                "interpolation_status": "EXACT",
+                "curve_byte": "0x02..0x3f",
+                "curve_formula": "pow(p, 4.0)",
+                "curve_status": "STRONG_INFERENCE",
+                "time_semantics": "normalized relative time 0..1; all ramp times are {relative, optional offsetInSeconds}; no absolute times encoded",
+                "value_semantics": "absolute parameter value (not a delta)",
+                "curve_note": "byte class EXACT; exact byte inside class not distinguished"
+              }
+            ]
+          },
+          {
+            "index": 3,
+            "name": "GAIN",
+            "name_status": "EXACT",
+            "placement": {
+              "start": {
+                "kind": "placement",
+                "relative": 0,
+                "offsetInSeconds": null
+              },
+              "end": {
+                "kind": "placement",
+                "relative": 0,
+                "offsetInSeconds": 0.3
+              },
+              "status": "EXACT"
+            },
+            "automations": [
+              {
+                "index": 0,
+                "parameterId": "out_gain",
+                "parameterId_status": "EXACT",
+                "parameter_ref": "out_gain",
+                "startTime": {
+                  "kind": "default",
+                  "relative": 0,
+                  "offsetInSeconds": null
+                },
+                "endTime": {
+                  "kind": "default",
+                  "relative": 1,
+                  "offsetInSeconds": null
+                },
+                "startValue": {
+                  "kind": "default",
+                  "value": 0
+                },
+                "endValue": {
+                  "kind": "default",
+                  "value": 1
+                },
+                "interpolation": "linear",
+                "interpolation_status": "EXACT",
+                "curve_byte": "0x80",
+                "curve_formula": "p",
+                "curve_status": "EXACT",
+                "time_semantics": "normalized relative time 0..1; all ramp times are {relative, optional offsetInSeconds}; no absolute times encoded",
+                "value_semantics": "absolute parameter value (not a delta)"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 9,
+      "name": "BM - Filter expansion",
+      "name_status": "EXACT",
+      "reachability": {
+        "planner_reachable": true,
+        "cls": "reachable_beat_matched",
+        "status": "EXACT",
+        "evidence": [
+          "FUN_272234380 @0x2722344dc-0x2722344e0: cmp x8,#0x9 -> branch 0x2722345f4 (base score 15.0 @0x27223472c, 6 factors)",
+          "P1_AUTOMIX_CLOSURE #1; FUN_27223e92c sole caller FUN_2722307ec"
+        ]
+      },
+      "offset": {
+        "present": true,
+        "relative": 0,
+        "offsetInSeconds": null,
+        "status": "EXACT",
+        "semantics": {
+          "maps_to_swift_field": "TransitionStyle.startTime",
+          "status": "STRONG_INFERENCE",
+          "evidence": "P1_AUTOMIX_CLOSURE §3.2 fieldmd + CodingKeys id/startTime; raw key is \"offset\", exact key<->field binding not traced"
+        }
+      },
+      "duration": {
+        "present": true,
+        "value": 8,
+        "status": "EXACT",
+        "semantics": {
+          "swift_field": "maximumBarCount",
+          "status": "STRONG_INFERENCE",
+          "evidence": [
+            "P1_AUTOMIX_CLOSURE §3.2 fieldmd: TransitionStyle.maximumBarCount: Int?",
+            "raw key is \"duration\"; no decoder xref tying key to field was found; unit (bars vs seconds) NOT FOUND"
+          ]
+        }
+      },
+      "instructions": {
+        "outgoing": [
+          {
+            "index": 0,
+            "name": "TimeStretching",
+            "name_status": "EXACT",
+            "placement": {
+              "start": {
+                "kind": "placement",
+                "relative": 0,
+                "offsetInSeconds": null
+              },
+              "end": {
+                "kind": "placement",
+                "relative": 1,
+                "offsetInSeconds": null
+              },
+              "status": "EXACT"
+            },
+            "automations": [
+              {
+                "index": 0,
+                "parameterId": "ts_rate",
+                "parameterId_status": "EXACT",
+                "parameter_ref": "ts_rate",
+                "startTime": {
+                  "kind": "default",
+                  "relative": 0,
+                  "offsetInSeconds": null
+                },
+                "endTime": {
+                  "kind": "default",
+                  "relative": 1,
+                  "offsetInSeconds": null
+                },
+                "startValue": {
+                  "kind": "default",
+                  "value": 1
+                },
+                "endValue": {
+                  "kind": "default",
+                  "value": 2
+                },
+                "interpolation": "linear",
+                "interpolation_status": "EXACT",
+                "curve_byte": "0x80",
+                "curve_formula": "p",
+                "curve_status": "EXACT",
+                "time_semantics": "normalized relative time 0..1; all ramp times are {relative, optional offsetInSeconds}; no absolute times encoded",
+                "value_semantics": "absolute parameter value (not a delta)"
+              }
+            ]
+          },
+          {
+            "index": 1,
+            "name": "AULowpass",
+            "name_status": "EXACT",
+            "placement": {
+              "start": {
+                "kind": "placement",
+                "relative": 0,
+                "offsetInSeconds": null
+              },
+              "end": {
+                "kind": "placement",
+                "relative": 1,
+                "offsetInSeconds": null
+              },
+              "status": "EXACT"
+            },
+            "automations": [
+              {
+                "index": 0,
+                "parameterId": "lp_cutoff_freq",
+                "parameterId_status": "EXACT",
+                "parameter_ref": "lp_cutoff_freq",
+                "startTime": {
+                  "kind": "default",
+                  "relative": 0.5,
+                  "offsetInSeconds": null
+                },
+                "endTime": {
+                  "kind": "default",
+                  "relative": 1,
+                  "offsetInSeconds": null
+                },
+                "startValue": {
+                  "kind": "default",
+                  "value": 20000
+                },
+                "endValue": {
+                  "kind": "default",
+                  "value": 20
+                },
+                "interpolation": "ease-out-2",
+                "interpolation_status": "EXACT",
+                "curve_byte": "0x41",
+                "curve_formula": "1 - (1 - p)^2",
+                "curve_status": "EXACT",
+                "time_semantics": "normalized relative time 0..1; all ramp times are {relative, optional offsetInSeconds}; no absolute times encoded",
+                "value_semantics": "absolute parameter value (not a delta)"
+              }
+            ]
+          },
+          {
+            "index": 2,
+            "name": "AUHipass",
+            "name_status": "EXACT",
+            "placement": {
+              "start": {
+                "kind": "placement",
+                "relative": 0,
+                "offsetInSeconds": null
+              },
+              "end": {
+                "kind": "placement",
+                "relative": 1,
+                "offsetInSeconds": null
+              },
+              "status": "EXACT"
+            },
+            "automations": [
+              {
+                "index": 0,
+                "parameterId": "hp_cutoff_freq",
+                "parameterId_status": "EXACT",
+                "parameter_ref": "hp_cutoff_freq",
+                "startTime": {
+                  "kind": "default",
+                  "relative": 0.5,
+                  "offsetInSeconds": null
+                },
+                "endTime": {
+                  "kind": "default",
+                  "relative": 0.75,
+                  "offsetInSeconds": null
+                },
+                "startValue": {
+                  "kind": "default",
+                  "value": 20
+                },
+                "endValue": {
+                  "kind": "default",
+                  "value": 200
+                },
+                "interpolation": "ease-out-0.5",
+                "interpolation_status": "EXACT",
+                "curve_byte": "0x40",
+                "curve_formula": "sqrt(p)",
+                "curve_status": "EXACT",
+                "time_semantics": "normalized relative time 0..1; all ramp times are {relative, optional offsetInSeconds}; no absolute times encoded",
+                "value_semantics": "absolute parameter value (not a delta)"
+              }
+            ]
+          },
+          {
+            "index": 3,
+            "name": "GAIN",
+            "name_status": "EXACT",
+            "placement": {
+              "start": {
+                "kind": "placement",
+                "relative": 1,
+                "offsetInSeconds": -0.3
+              },
+              "end": {
+                "kind": "placement",
+                "relative": 1,
+                "offsetInSeconds": null
+              },
+              "status": "EXACT"
+            },
+            "automations": [
+              {
+                "index": 0,
+                "parameterId": "out_gain",
+                "parameterId_status": "EXACT",
+                "parameter_ref": "out_gain",
+                "startTime": {
+                  "kind": "default",
+                  "relative": 0,
+                  "offsetInSeconds": null
+                },
+                "endTime": {
+                  "kind": "default",
+                  "relative": 1,
+                  "offsetInSeconds": null
+                },
+                "startValue": {
+                  "kind": "default",
+                  "value": 1
+                },
+                "endValue": {
+                  "kind": "default",
+                  "value": 0
+                },
+                "interpolation": "linear",
+                "interpolation_status": "EXACT",
+                "curve_byte": "0x80",
+                "curve_formula": "p",
+                "curve_status": "EXACT",
+                "time_semantics": "normalized relative time 0..1; all ramp times are {relative, optional offsetInSeconds}; no absolute times encoded",
+                "value_semantics": "absolute parameter value (not a delta)"
+              }
+            ]
+          }
+        ],
+        "incoming": [
+          {
+            "index": 0,
+            "name": "TimeStretching",
+            "name_status": "EXACT",
+            "placement": {
+              "start": {
+                "kind": "placement",
+                "relative": 0,
+                "offsetInSeconds": null
+              },
+              "end": {
+                "kind": "placement",
+                "relative": 1,
+                "offsetInSeconds": null
+              },
+              "status": "EXACT"
+            },
+            "automations": [
+              {
+                "index": 0,
+                "parameterId": "ts_rate",
+                "parameterId_status": "EXACT",
+                "parameter_ref": "ts_rate",
+                "startTime": {
+                  "kind": "default",
+                  "relative": 0,
+                  "offsetInSeconds": null
+                },
+                "endTime": {
+                  "kind": "default",
+                  "relative": 1,
+                  "offsetInSeconds": null
+                },
+                "startValue": {
+                  "kind": "default",
+                  "value": 2
+                },
+                "endValue": {
+                  "kind": "default",
+                  "value": 1
+                },
+                "interpolation": "linear",
+                "interpolation_status": "EXACT",
+                "curve_byte": "0x80",
+                "curve_formula": "p",
+                "curve_status": "EXACT",
+                "time_semantics": "normalized relative time 0..1; all ramp times are {relative, optional offsetInSeconds}; no absolute times encoded",
+                "value_semantics": "absolute parameter value (not a delta)"
+              }
+            ]
+          },
+          {
+            "index": 1,
+            "name": "AULowpass",
+            "name_status": "EXACT",
+            "placement": {
+              "start": {
+                "kind": "placement",
+                "relative": 0,
+                "offsetInSeconds": null
+              },
+              "end": {
+                "kind": "placement",
+                "relative": 1,
+                "offsetInSeconds": null
+              },
+              "status": "EXACT"
+            },
+            "automations": [
+              {
+                "index": 0,
+                "parameterId": "lp_cutoff_freq",
+                "parameterId_status": "EXACT",
+                "parameter_ref": "lp_cutoff_freq",
+                "startTime": {
+                  "kind": "default",
+                  "relative": 0,
+                  "offsetInSeconds": null
+                },
+                "endTime": {
+                  "kind": "default",
+                  "relative": 0.75,
+                  "offsetInSeconds": null
+                },
+                "startValue": {
+                  "kind": "default",
+                  "value": 1000
+                },
+                "endValue": {
+                  "kind": "default",
+                  "value": 20000
+                },
+                "interpolation": "ease-out-0.5",
+                "interpolation_status": "EXACT",
+                "curve_byte": "0x40",
+                "curve_formula": "sqrt(p)",
+                "curve_status": "EXACT",
+                "time_semantics": "normalized relative time 0..1; all ramp times are {relative, optional offsetInSeconds}; no absolute times encoded",
+                "value_semantics": "absolute parameter value (not a delta)"
+              }
+            ]
+          },
+          {
+            "index": 2,
+            "name": "AUHipass",
+            "name_status": "EXACT",
+            "placement": {
+              "start": {
+                "kind": "placement",
+                "relative": 0,
+                "offsetInSeconds": null
+              },
+              "end": {
+                "kind": "placement",
+                "relative": 1,
+                "offsetInSeconds": null
+              },
+              "status": "EXACT"
+            },
+            "automations": [
+              {
+                "index": 0,
+                "parameterId": "hp_cutoff_freq",
+                "parameterId_status": "EXACT",
+                "parameter_ref": "hp_cutoff_freq",
+                "startTime": {
+                  "kind": "default",
+                  "relative": 0.5,
+                  "offsetInSeconds": null
+                },
+                "endTime": {
+                  "kind": "default",
+                  "relative": 0.75,
+                  "offsetInSeconds": null
+                },
+                "startValue": {
+                  "kind": "default",
+                  "value": 1000
+                },
+                "endValue": {
+                  "kind": "default",
+                  "value": 20
+                },
+                "interpolation": "ease-out-2",
+                "interpolation_status": "EXACT",
+                "curve_byte": "0x41",
+                "curve_formula": "1 - (1 - p)^2",
+                "curve_status": "EXACT",
+                "time_semantics": "normalized relative time 0..1; all ramp times are {relative, optional offsetInSeconds}; no absolute times encoded",
+                "value_semantics": "absolute parameter value (not a delta)"
+              }
+            ]
+          },
+          {
+            "index": 3,
+            "name": "GAIN",
+            "name_status": "EXACT",
+            "placement": {
+              "start": {
+                "kind": "placement",
+                "relative": 0,
+                "offsetInSeconds": null
+              },
+              "end": {
+                "kind": "placement",
+                "relative": 0,
+                "offsetInSeconds": 0.3
+              },
+              "status": "EXACT"
+            },
+            "automations": [
+              {
+                "index": 0,
+                "parameterId": "out_gain",
+                "parameterId_status": "EXACT",
+                "parameter_ref": "out_gain",
+                "startTime": {
+                  "kind": "default",
+                  "relative": 0,
+                  "offsetInSeconds": null
+                },
+                "endTime": {
+                  "kind": "default",
+                  "relative": 1,
+                  "offsetInSeconds": null
+                },
+                "startValue": {
+                  "kind": "default",
+                  "value": 0
+                },
+                "endValue": {
+                  "kind": "default",
+                  "value": 1
+                },
+                "interpolation": "linear",
+                "interpolation_status": "EXACT",
+                "curve_byte": "0x80",
+                "curve_formula": "p",
+                "curve_status": "EXACT",
+                "time_semantics": "normalized relative time 0..1; all ramp times are {relative, optional offsetInSeconds}; no absolute times encoded",
+                "value_semantics": "absolute parameter value (not a delta)"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 10,
+      "name": "BM - Filter long out short in + delay",
+      "name_status": "EXACT",
+      "reachability": {
+        "planner_reachable": false,
+        "cls": "legacy_beat_matched_named",
+        "status": "STRONG_INFERENCE",
+        "evidence": [
+          "name starts with \"BM - \" but id 10 has no branch in FUN_272234380 (zero-fill path)",
+          "no other style-ID dispatch found in automix corpus"
+        ]
+      },
+      "offset": {
+        "present": true,
+        "relative": 0,
+        "offsetInSeconds": null,
+        "status": "EXACT",
+        "semantics": {
+          "maps_to_swift_field": "TransitionStyle.startTime",
+          "status": "STRONG_INFERENCE",
+          "evidence": "P1_AUTOMIX_CLOSURE §3.2 fieldmd + CodingKeys id/startTime; raw key is \"offset\", exact key<->field binding not traced"
+        }
+      },
+      "duration": {
+        "present": false,
+        "value": null,
+        "status": "EXACT",
+        "semantics": {
+          "swift_field": "maximumBarCount",
+          "status": "STRONG_INFERENCE",
+          "evidence": [
+            "P1_AUTOMIX_CLOSURE §3.2 fieldmd: TransitionStyle.maximumBarCount: Int?",
+            "raw key is \"duration\"; no decoder xref tying key to field was found; unit (bars vs seconds) NOT FOUND"
+          ],
+          "note": "duration key absent in resource -> maximumBarCount nil; no duration-limited behavior defined by this style"
+        }
+      },
+      "instructions": {
+        "outgoing": [
+          {
+            "index": 0,
+            "name": "TimeStretching",
+            "name_status": "EXACT",
+            "placement": {
+              "start": {
+                "kind": "placement",
+                "relative": 0.75,
+                "offsetInSeconds": null
+              },
+              "end": {
+                "kind": "placement",
+                "relative": 1,
+                "offsetInSeconds": null
+              },
+              "status": "EXACT"
+            },
+            "automations": [
+              {
+                "index": 0,
+                "parameterId": "ts_rate",
+                "parameterId_status": "EXACT",
+                "parameter_ref": "ts_rate",
+                "startTime": {
+                  "kind": "default",
+                  "relative": 0,
+                  "offsetInSeconds": null
+                },
+                "endTime": {
+                  "kind": "default",
+                  "relative": 1,
+                  "offsetInSeconds": null
+                },
+                "startValue": {
+                  "kind": "default",
+                  "value": 1
+                },
+                "endValue": {
+                  "kind": "default",
+                  "value": 2
+                },
+                "interpolation": "linear",
+                "interpolation_status": "EXACT",
+                "curve_byte": "0x80",
+                "curve_formula": "p",
+                "curve_status": "EXACT",
+                "time_semantics": "normalized relative time 0..1; all ramp times are {relative, optional offsetInSeconds}; no absolute times encoded",
+                "value_semantics": "absolute parameter value (not a delta)"
+              }
+            ]
+          },
+          {
+            "index": 1,
+            "name": "AULowpass",
+            "name_status": "EXACT",
+            "placement": {
+              "start": {
+                "kind": "placement",
+                "relative": 0,
+                "offsetInSeconds": null
+              },
+              "end": {
+                "kind": "placement",
+                "relative": 1,
+                "offsetInSeconds": null
+              },
+              "status": "EXACT"
+            },
+            "automations": [
+              {
+                "index": 0,
+                "parameterId": "lp_cutoff_freq",
+                "parameterId_status": "EXACT",
+                "parameter_ref": "lp_cutoff_freq",
+                "startTime": {
+                  "kind": "default",
+                  "relative": 0,
+                  "offsetInSeconds": null
+                },
+                "endTime": {
+                  "kind": "default",
+                  "relative": 1,
+                  "offsetInSeconds": null
+                },
+                "startValue": {
+                  "kind": "default",
+                  "value": 20000
+                },
+                "endValue": {
+                  "kind": "default",
+                  "value": 200
+                },
+                "interpolation": "ease-out-2",
+                "interpolation_status": "EXACT",
+                "curve_byte": "0x41",
+                "curve_formula": "1 - (1 - p)^2",
+                "curve_status": "EXACT",
+                "time_semantics": "normalized relative time 0..1; all ramp times are {relative, optional offsetInSeconds}; no absolute times encoded",
+                "value_semantics": "absolute parameter value (not a delta)"
+              }
+            ]
+          },
+          {
+            "index": 2,
+            "name": "AUDelay",
+            "name_status": "EXACT",
+            "placement": {
+              "start": {
+                "kind": "placement",
+                "relative": 0.75,
+                "offsetInSeconds": null
+              },
+              "end": {
+                "kind": "placement",
+                "relative": 1,
+                "offsetInSeconds": null
+              },
+              "status": "EXACT"
+            },
+            "automations": [
+              {
+                "index": 0,
+                "parameterId": "fx_delay_dry_wet",
+                "parameterId_status": "EXACT",
+                "parameter_ref": "fx_delay_dry_wet",
+                "startTime": {
+                  "kind": "default",
+                  "relative": 0,
+                  "offsetInSeconds": null
+                },
+                "endTime": {
+                  "kind": "default",
+                  "relative": 0,
+                  "offsetInSeconds": 1
+                },
+                "startValue": {
+                  "kind": "default",
+                  "value": 0
+                },
+                "endValue": {
+                  "kind": "default",
+                  "value": 100
+                },
+                "interpolation": "ease-out-2",
+                "interpolation_status": "EXACT",
+                "curve_byte": "0x41",
+                "curve_formula": "1 - (1 - p)^2",
+                "curve_status": "EXACT",
+                "time_semantics": "normalized relative time 0..1; all ramp times are {relative, optional offsetInSeconds}; no absolute times encoded",
+                "value_semantics": "absolute parameter value (not a delta)"
+              },
+              {
+                "index": 1,
+                "parameterId": "fx_delay_delay_time",
+                "parameterId_status": "EXACT",
+                "parameter_ref": "fx_delay_delay_time",
+                "startTime": {
+                  "kind": "default",
+                  "relative": 0,
+                  "offsetInSeconds": null
+                },
+                "endTime": {
+                  "kind": "default",
+                  "relative": 0,
+                  "offsetInSeconds": null
+                },
+                "startValue": {
+                  "kind": "parameterName",
+                  "value": null,
+                  "parameterName": "beat_length"
+                },
+                "endValue": {
+                  "kind": "parameterName",
+                  "value": null,
+                  "parameterName": "beat_length"
+                },
+                "interpolation": "ease-out-2",
+                "interpolation_status": "EXACT",
+                "curve_byte": "0x41",
+                "curve_formula": "1 - (1 - p)^2",
+                "curve_status": "EXACT",
+                "time_semantics": "normalized relative time 0..1; all ramp times are {relative, optional offsetInSeconds}; no absolute times encoded",
+                "value_semantics": "absolute parameter value (not a delta)",
+                "mapped_value_note": "beat_length resolved at runtime from Dictionary<MappedAutomationValue.ID, Double>; if missing, parameter default is used (SmartTransitionsError \"ID and/or default value missing.\") - STRONG_INFERENCE"
+              },
+              {
+                "index": 2,
+                "parameterId": "send_mixer_gain",
+                "parameterId_status": "EXACT",
+                "parameter_ref": "send_mixer_gain",
+                "startTime": {
+                  "kind": "default",
+                  "relative": 0,
+                  "offsetInSeconds": null
+                },
+                "endTime": {
+                  "kind": "default",
+                  "relative": 1,
+                  "offsetInSeconds": null
+                },
+                "startValue": {
+                  "kind": "default",
+                  "value": 0.5
+                },
+                "endValue": {
+                  "kind": "default",
+                  "value": 0
+                },
+                "interpolation": "linear",
+                "interpolation_status": "EXACT",
+                "curve_byte": "0x80",
+                "curve_formula": "p",
+                "curve_status": "EXACT",
+                "time_semantics": "normalized relative time 0..1; all ramp times are {relative, optional offsetInSeconds}; no absolute times encoded",
+                "value_semantics": "absolute parameter value (not a delta)"
+              },
+              {
+                "index": 3,
+                "parameterId": "fx_mixer_wet",
+                "parameterId_status": "EXACT",
+                "parameter_ref": "fx_mixer_wet",
+                "startTime": {
+                  "kind": "default",
+                  "relative": 0,
+                  "offsetInSeconds": null
+                },
+                "endTime": {
+                  "kind": "default",
+                  "relative": 0,
+                  "offsetInSeconds": null
+                },
+                "startValue": {
+                  "kind": "default",
+                  "value": 0
+                },
+                "endValue": {
+                  "kind": "default",
+                  "value": 1
+                },
+                "interpolation": "linear",
+                "interpolation_status": "EXACT",
+                "curve_byte": "0x80",
+                "curve_formula": "p",
+                "curve_status": "EXACT",
+                "time_semantics": "normalized relative time 0..1; all ramp times are {relative, optional offsetInSeconds}; no absolute times encoded",
+                "value_semantics": "absolute parameter value (not a delta)"
+              }
+            ]
+          },
+          {
+            "index": 3,
+            "name": "GAIN",
+            "name_status": "EXACT",
+            "placement": {
+              "start": {
+                "kind": "placement",
+                "relative": 1,
+                "offsetInSeconds": -0.3
+              },
+              "end": {
+                "kind": "placement",
+                "relative": 1,
+                "offsetInSeconds": null
+              },
+              "status": "EXACT"
+            },
+            "automations": [
+              {
+                "index": 0,
+                "parameterId": "out_gain",
+                "parameterId_status": "EXACT",
+                "parameter_ref": "out_gain",
+                "startTime": {
+                  "kind": "default",
+                  "relative": 0,
+                  "offsetInSeconds": null
+                },
+                "endTime": {
+                  "kind": "default",
+                  "relative": 1,
+                  "offsetInSeconds": null
+                },
+                "startValue": {
+                  "kind": "default",
+                  "value": 1
+                },
+                "endValue": {
+                  "kind": "default",
+                  "value": 0
+                },
+                "interpolation": "linear",
+                "interpolation_status": "EXACT",
+                "curve_byte": "0x80",
+                "curve_formula": "p",
+                "curve_status": "EXACT",
+                "time_semantics": "normalized relative time 0..1; all ramp times are {relative, optional offsetInSeconds}; no absolute times encoded",
+                "value_semantics": "absolute parameter value (not a delta)"
+              }
+            ]
+          }
+        ],
+        "incoming": [
+          {
+            "index": 0,
+            "name": "TimeStretching",
+            "name_status": "EXACT",
+            "placement": {
+              "start": {
+                "kind": "placement",
+                "relative": 0.75,
+                "offsetInSeconds": null
+              },
+              "end": {
+                "kind": "placement",
+                "relative": 1,
+                "offsetInSeconds": null
+              },
+              "status": "EXACT"
+            },
+            "automations": [
+              {
+                "index": 0,
+                "parameterId": "ts_rate",
+                "parameterId_status": "EXACT",
+                "parameter_ref": "ts_rate",
+                "startTime": {
+                  "kind": "default",
+                  "relative": 0,
+                  "offsetInSeconds": null
+                },
+                "endTime": {
+                  "kind": "default",
+                  "relative": 1,
+                  "offsetInSeconds": null
+                },
+                "startValue": {
+                  "kind": "default",
+                  "value": 2
+                },
+                "endValue": {
+                  "kind": "default",
+                  "value": 1
+                },
+                "interpolation": "linear",
+                "interpolation_status": "EXACT",
+                "curve_byte": "0x80",
+                "curve_formula": "p",
+                "curve_status": "EXACT",
+                "time_semantics": "normalized relative time 0..1; all ramp times are {relative, optional offsetInSeconds}; no absolute times encoded",
+                "value_semantics": "absolute parameter value (not a delta)"
+              }
+            ]
+          },
+          {
+            "index": 1,
+            "name": "AUHipass",
+            "name_status": "EXACT",
+            "placement": {
+              "start": {
+                "kind": "placement",
+                "relative": 0.75,
+                "offsetInSeconds": null
+              },
+              "end": {
+                "kind": "placement",
+                "relative": 1,
+                "offsetInSeconds": null
+              },
+              "status": "EXACT"
+            },
+            "automations": [
+              {
+                "index": 0,
+                "parameterId": "hp_cutoff_freq",
+                "parameterId_status": "EXACT",
+                "parameter_ref": "hp_cutoff_freq",
+                "startTime": {
+                  "kind": "default",
+                  "relative": 0,
+                  "offsetInSeconds": null
+                },
+                "endTime": {
+                  "kind": "default",
+                  "relative": 1,
+                  "offsetInSeconds": null
+                },
+                "startValue": {
+                  "kind": "default",
+                  "value": 20000
+                },
+                "endValue": {
+                  "kind": "default",
+                  "value": 200
+                },
+                "interpolation": "ease-out-2",
+                "interpolation_status": "EXACT",
+                "curve_byte": "0x41",
+                "curve_formula": "1 - (1 - p)^2",
+                "curve_status": "EXACT",
+                "time_semantics": "normalized relative time 0..1; all ramp times are {relative, optional offsetInSeconds}; no absolute times encoded",
+                "value_semantics": "absolute parameter value (not a delta)"
+              }
+            ]
+          },
+          {
+            "index": 2,
+            "name": "GAIN",
+            "name_status": "EXACT",
+            "placement": {
+              "start": {
+                "kind": "placement",
+                "relative": 0.75,
+                "offsetInSeconds": null
+              },
+              "end": {
+                "kind": "placement",
+                "relative": 0.75,
+                "offsetInSeconds": 0.3
+              },
+              "status": "EXACT"
+            },
+            "automations": [
+              {
+                "index": 0,
+                "parameterId": "out_gain",
+                "parameterId_status": "EXACT",
+                "parameter_ref": "out_gain",
+                "startTime": {
+                  "kind": "default",
+                  "relative": 0,
+                  "offsetInSeconds": null
+                },
+                "endTime": {
+                  "kind": "default",
+                  "relative": 1,
+                  "offsetInSeconds": null
+                },
+                "startValue": {
+                  "kind": "default",
+                  "value": 0
+                },
+                "endValue": {
+                  "kind": "default",
+                  "value": 1
+                },
+                "interpolation": "linear",
+                "interpolation_status": "EXACT",
+                "curve_byte": "0x80",
+                "curve_formula": "p",
+                "curve_status": "EXACT",
+                "time_semantics": "normalized relative time 0..1; all ramp times are {relative, optional offsetInSeconds}; no absolute times encoded",
+                "value_semantics": "absolute parameter value (not a delta)"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 11,
+      "name": "BM - Filter long out short in + Reverb",
+      "name_status": "EXACT",
+      "reachability": {
+        "planner_reachable": false,
+        "cls": "legacy_beat_matched_named",
+        "status": "STRONG_INFERENCE",
+        "evidence": [
+          "name starts with \"BM - \" but id 11 has no branch in FUN_272234380 (zero-fill path)",
+          "no other style-ID dispatch found in automix corpus"
+        ]
+      },
+      "offset": {
+        "present": true,
+        "relative": 0,
+        "offsetInSeconds": null,
+        "status": "EXACT",
+        "semantics": {
+          "maps_to_swift_field": "TransitionStyle.startTime",
+          "status": "STRONG_INFERENCE",
+          "evidence": "P1_AUTOMIX_CLOSURE §3.2 fieldmd + CodingKeys id/startTime; raw key is \"offset\", exact key<->field binding not traced"
+        }
+      },
+      "duration": {
+        "present": false,
+        "value": null,
+        "status": "EXACT",
+        "semantics": {
+          "swift_field": "maximumBarCount",
+          "status": "STRONG_INFERENCE",
+          "evidence": [
+            "P1_AUTOMIX_CLOSURE §3.2 fieldmd: TransitionStyle.maximumBarCount: Int?",
+            "raw key is \"duration\"; no decoder xref tying key to field was found; unit (bars vs seconds) NOT FOUND"
+          ],
+          "note": "duration key absent in resource -> maximumBarCount nil; no duration-limited behavior defined by this style"
+        }
+      },
+      "instructions": {
+        "outgoing": [
+          {
+            "index": 0,
+            "name": "TimeStretching",
+            "name_status": "EXACT",
+            "placement": {
+              "start": {
+                "kind": "placement",
+                "relative": 0.5,
+                "offsetInSeconds": null
+              },
+              "end": {
+                "kind": "placement",
+                "relative": 1,
+                "offsetInSeconds": null
+              },
+              "status": "EXACT"
+            },
+            "automations": [
+              {
+                "index": 0,
+                "parameterId": "ts_rate",
+                "parameterId_status": "EXACT",
+                "parameter_ref": "ts_rate",
+                "startTime": {
+                  "kind": "default",
+                  "relative": 0,
+                  "offsetInSeconds": null
+                },
+                "endTime": {
+                  "kind": "default",
+                  "relative": 1,
+                  "offsetInSeconds": null
+                },
+                "startValue": {
+                  "kind": "default",
+                  "value": 1
+                },
+                "endValue": {
+                  "kind": "default",
+                  "value": 2
+                },
+                "interpolation": "linear",
+                "interpolation_status": "EXACT",
+                "curve_byte": "0x80",
+                "curve_formula": "p",
+                "curve_status": "EXACT",
+                "time_semantics": "normalized relative time 0..1; all ramp times are {relative, optional offsetInSeconds}; no absolute times encoded",
+                "value_semantics": "absolute parameter value (not a delta)"
+              }
+            ]
+          },
+          {
+            "index": 1,
+            "name": "AULowpass",
+            "name_status": "EXACT",
+            "placement": {
+              "start": {
+                "kind": "placement",
+                "relative": 0,
+                "offsetInSeconds": null
+              },
+              "end": {
+                "kind": "placement",
+                "relative": 1,
+                "offsetInSeconds": null
+              },
+              "status": "EXACT"
+            },
+            "automations": [
+              {
+                "index": 0,
+                "parameterId": "lp_cutoff_freq",
+                "parameterId_status": "EXACT",
+                "parameter_ref": "lp_cutoff_freq",
+                "startTime": {
+                  "kind": "default",
+                  "relative": 0,
+                  "offsetInSeconds": null
+                },
+                "endTime": {
+                  "kind": "default",
+                  "relative": 1,
+                  "offsetInSeconds": null
+                },
+                "startValue": {
+                  "kind": "default",
+                  "value": 20000
+                },
+                "endValue": {
+                  "kind": "default",
+                  "value": 80
+                },
+                "interpolation": "ease-out-2",
+                "interpolation_status": "EXACT",
+                "curve_byte": "0x41",
+                "curve_formula": "1 - (1 - p)^2",
+                "curve_status": "EXACT",
+                "time_semantics": "normalized relative time 0..1; all ramp times are {relative, optional offsetInSeconds}; no absolute times encoded",
+                "value_semantics": "absolute parameter value (not a delta)"
+              }
+            ]
+          },
+          {
+            "index": 2,
+            "name": "AUHipass",
+            "name_status": "EXACT",
+            "placement": {
+              "start": {
+                "kind": "placement",
+                "relative": 0,
+                "offsetInSeconds": null
+              },
+              "end": {
+                "kind": "placement",
+                "relative": 1,
+                "offsetInSeconds": null
+              },
+              "status": "EXACT"
+            },
+            "automations": [
+              {
+                "index": 0,
+                "parameterId": "hp_cutoff_freq",
+                "parameterId_status": "EXACT",
+                "parameter_ref": "hp_cutoff_freq",
+                "startTime": {
+                  "kind": "default",
+                  "relative": 0,
+                  "offsetInSeconds": null
+                },
+                "endTime": {
+                  "kind": "default",
+                  "relative": 1,
+                  "offsetInSeconds": null
+                },
+                "startValue": {
+                  "kind": "default",
+                  "value": 10
+                },
+                "endValue": {
+                  "kind": "default",
+                  "value": 200
+                },
+                "interpolation": "ease-in-4",
+                "interpolation_status": "EXACT",
+                "curve_byte": "0x02..0x3f",
+                "curve_formula": "pow(p, 4.0)",
+                "curve_status": "STRONG_INFERENCE",
+                "time_semantics": "normalized relative time 0..1; all ramp times are {relative, optional offsetInSeconds}; no absolute times encoded",
+                "value_semantics": "absolute parameter value (not a delta)",
+                "curve_note": "byte class EXACT; exact byte inside class not distinguished"
+              }
+            ]
+          },
+          {
+            "index": 3,
+            "name": "AUReverb2",
+            "name_status": "EXACT",
+            "placement": {
+              "start": {
+                "kind": "placement",
+                "relative": 0,
+                "offsetInSeconds": null
+              },
+              "end": {
+                "kind": "placement",
+                "relative": 1,
+                "offsetInSeconds": null
+              },
+              "status": "EXACT"
+            },
+            "automations": [
+              {
+                "index": 0,
+                "parameterId": "fx_reverb_high_frequency_decay_time",
+                "parameterId_status": "EXACT",
+                "parameter_ref": "fx_reverb_high_frequency_decay_time",
+                "startTime": {
+                  "kind": "default",
+                  "relative": 0,
+                  "offsetInSeconds": null
+                },
+                "endTime": {
+                  "kind": "default",
+                  "relative": 0,
+                  "offsetInSeconds": null
+                },
+                "startValue": {
+                  "kind": "default",
+                  "value": 0.001
+                },
+                "endValue": {
+                  "kind": "default",
+                  "value": 4
+                },
+                "interpolation": "linear",
+                "interpolation_status": "EXACT",
+                "curve_byte": "0x80",
+                "curve_formula": "p",
+                "curve_status": "EXACT",
+                "time_semantics": "normalized relative time 0..1; all ramp times are {relative, optional offsetInSeconds}; no absolute times encoded",
+                "value_semantics": "absolute parameter value (not a delta)"
+              },
+              {
+                "index": 1,
+                "parameterId": "fx_reverb_low_frequency_decay_time",
+                "parameterId_status": "EXACT",
+                "parameter_ref": "fx_reverb_low_frequency_decay_time",
+                "startTime": {
+                  "kind": "default",
+                  "relative": 0,
+                  "offsetInSeconds": null
+                },
+                "endTime": {
+                  "kind": "default",
+                  "relative": 0,
+                  "offsetInSeconds": null
+                },
+                "startValue": {
+                  "kind": "default",
+                  "value": 0.001
+                },
+                "endValue": {
+                  "kind": "default",
+                  "value": 4
+                },
+                "interpolation": "linear",
+                "interpolation_status": "EXACT",
+                "curve_byte": "0x80",
+                "curve_formula": "p",
+                "curve_status": "EXACT",
+                "time_semantics": "normalized relative time 0..1; all ramp times are {relative, optional offsetInSeconds}; no absolute times encoded",
+                "value_semantics": "absolute parameter value (not a delta)"
+              },
+              {
+                "index": 2,
+                "parameterId": "fx_reverb_min_delay_time",
+                "parameterId_status": "EXACT",
+                "parameter_ref": "fx_reverb_min_delay_time",
+                "startTime": {
+                  "kind": "default",
+                  "relative": 0,
+                  "offsetInSeconds": null
+                },
+                "endTime": {
+                  "kind": "default",
+                  "relative": 0,
+                  "offsetInSeconds": null
+                },
+                "startValue": {
+                  "kind": "default",
+                  "value": 0.008
+                },
+                "endValue": {
+                  "kind": "default",
+                  "value": 0.052
+                },
+                "interpolation": "linear",
+                "interpolation_status": "EXACT",
+                "curve_byte": "0x80",
+                "curve_formula": "p",
+                "curve_status": "EXACT",
+                "time_semantics": "normalized relative time 0..1; all ramp times are {relative, optional offsetInSeconds}; no absolute times encoded",
+                "value_semantics": "absolute parameter value (not a delta)"
+              },
+              {
+                "index": 3,
+                "parameterId": "fx_reverb_max_delay_time",
+                "parameterId_status": "EXACT",
+                "parameter_ref": "fx_reverb_max_delay_time",
+                "startTime": {
+                  "kind": "default",
+                  "relative": 0,
+                  "offsetInSeconds": null
+                },
+                "endTime": {
+                  "kind": "default",
+                  "relative": 0,
+                  "offsetInSeconds": null
+                },
+                "startValue": {
+                  "kind": "default",
+                  "value": 0.106
+                },
+                "endValue": {
+                  "kind": "default",
+                  "value": 0.106
+                },
+                "interpolation": "linear",
+                "interpolation_status": "EXACT",
+                "curve_byte": "0x80",
+                "curve_formula": "p",
+                "curve_status": "EXACT",
+                "time_semantics": "normalized relative time 0..1; all ramp times are {relative, optional offsetInSeconds}; no absolute times encoded",
+                "value_semantics": "absolute parameter value (not a delta)"
+              },
+              {
+                "index": 4,
+                "parameterId": "fx_reverb_randomize_reflections",
+                "parameterId_status": "EXACT",
+                "parameter_ref": "fx_reverb_randomize_reflections",
+                "startTime": {
+                  "kind": "default",
+                  "relative": 0,
+                  "offsetInSeconds": null
+                },
+                "endTime": {
+                  "kind": "default",
+                  "relative": 0,
+                  "offsetInSeconds": null
+                },
+                "startValue": {
+                  "kind": "default",
+                  "value": 333
+                },
+                "endValue": {
+                  "kind": "default",
+                  "value": 333
+                },
+                "interpolation": "linear",
+                "interpolation_status": "EXACT",
+                "curve_byte": "0x80",
+                "curve_formula": "p",
+                "curve_status": "EXACT",
+                "time_semantics": "normalized relative time 0..1; all ramp times are {relative, optional offsetInSeconds}; no absolute times encoded",
+                "value_semantics": "absolute parameter value (not a delta)"
+              },
+              {
+                "index": 5,
+                "parameterId": "fx_reverb_dry_wet",
+                "parameterId_status": "EXACT",
+                "parameter_ref": "fx_reverb_dry_wet",
+                "startTime": {
+                  "kind": "default",
+                  "relative": 0,
+                  "offsetInSeconds": null
+                },
+                "endTime": {
+                  "kind": "default",
+                  "relative": 0,
+                  "offsetInSeconds": null
+                },
+                "startValue": {
+                  "kind": "default",
+                  "value": 0
+                },
+                "endValue": {
+                  "kind": "default",
+                  "value": 100
+                },
+                "interpolation": "linear",
+                "interpolation_status": "EXACT",
+                "curve_byte": "0x80",
+                "curve_formula": "p",
+                "curve_status": "EXACT",
+                "time_semantics": "normalized relative time 0..1; all ramp times are {relative, optional offsetInSeconds}; no absolute times encoded",
+                "value_semantics": "absolute parameter value (not a delta)"
+              },
+              {
+                "index": 6,
+                "parameterId": "send_mixer_gain",
+                "parameterId_status": "EXACT",
+                "parameter_ref": "send_mixer_gain",
+                "startTime": {
+                  "kind": "default",
+                  "relative": 0,
+                  "offsetInSeconds": null
+                },
+                "endTime": {
+                  "kind": "default",
+                  "relative": 0.25,
+                  "offsetInSeconds": null
+                },
+                "startValue": {
+                  "kind": "default",
+                  "value": 0
+                },
+                "endValue": {
+                  "kind": "default",
+                  "value": 1
+                },
+                "interpolation": "linear",
+                "interpolation_status": "EXACT",
+                "curve_byte": "0x80",
+                "curve_formula": "p",
+                "curve_status": "EXACT",
+                "time_semantics": "normalized relative time 0..1; all ramp times are {relative, optional offsetInSeconds}; no absolute times encoded",
+                "value_semantics": "absolute parameter value (not a delta)"
+              }
+            ]
+          }
+        ],
+        "incoming": [
+          {
+            "index": 0,
+            "name": "TimeStretching",
+            "name_status": "EXACT",
+            "placement": {
+              "start": {
+                "kind": "placement",
+                "relative": 0.5,
+                "offsetInSeconds": null
+              },
+              "end": {
+                "kind": "placement",
+                "relative": 1,
+                "offsetInSeconds": null
+              },
+              "status": "EXACT"
+            },
+            "automations": [
+              {
+                "index": 0,
+                "parameterId": "ts_rate",
+                "parameterId_status": "EXACT",
+                "parameter_ref": "ts_rate",
+                "startTime": {
+                  "kind": "default",
+                  "relative": 0,
+                  "offsetInSeconds": null
+                },
+                "endTime": {
+                  "kind": "default",
+                  "relative": 1,
+                  "offsetInSeconds": null
+                },
+                "startValue": {
+                  "kind": "default",
+                  "value": 2
+                },
+                "endValue": {
+                  "kind": "default",
+                  "value": 1
+                },
+                "interpolation": "linear",
+                "interpolation_status": "EXACT",
+                "curve_byte": "0x80",
+                "curve_formula": "p",
+                "curve_status": "EXACT",
+                "time_semantics": "normalized relative time 0..1; all ramp times are {relative, optional offsetInSeconds}; no absolute times encoded",
+                "value_semantics": "absolute parameter value (not a delta)"
+              }
+            ]
+          },
+          {
+            "index": 1,
+            "name": "AULowpass",
+            "name_status": "EXACT",
+            "placement": {
+              "start": {
+                "kind": "placement",
+                "relative": 0.5,
+                "offsetInSeconds": null
+              },
+              "end": {
+                "kind": "placement",
+                "relative": 1,
+                "offsetInSeconds": null
+              },
+              "status": "EXACT"
+            },
+            "automations": [
+              {
+                "index": 0,
+                "parameterId": "lp_cutoff_freq",
+                "parameterId_status": "EXACT",
+                "parameter_ref": "lp_cutoff_freq",
+                "startTime": {
+                  "kind": "default",
+                  "relative": 0,
+                  "offsetInSeconds": null
+                },
+                "endTime": {
+                  "kind": "default",
+                  "relative": 1,
+                  "offsetInSeconds": null
+                },
+                "startValue": {
+                  "kind": "default",
+                  "value": 60
+                },
+                "endValue": {
+                  "kind": "default",
+                  "value": 21000
+                },
+                "interpolation": "ease-in-4",
+                "interpolation_status": "EXACT",
+                "curve_byte": "0x02..0x3f",
+                "curve_formula": "pow(p, 4.0)",
+                "curve_status": "STRONG_INFERENCE",
+                "time_semantics": "normalized relative time 0..1; all ramp times are {relative, optional offsetInSeconds}; no absolute times encoded",
+                "value_semantics": "absolute parameter value (not a delta)",
+                "curve_note": "byte class EXACT; exact byte inside class not distinguished"
+              }
+            ]
+          },
+          {
+            "index": 2,
+            "name": "AUHipass",
+            "name_status": "EXACT",
+            "placement": {
+              "start": {
+                "kind": "placement",
+                "relative": 0.5,
+                "offsetInSeconds": null
+              },
+              "end": {
+                "kind": "placement",
+                "relative": 1,
+                "offsetInSeconds": null
+              },
+              "status": "EXACT"
+            },
+            "automations": [
+              {
+                "index": 0,
+                "parameterId": "hp_cutoff_freq",
+                "parameterId_status": "EXACT",
+                "parameter_ref": "hp_cutoff_freq",
+                "startTime": {
+                  "kind": "default",
+                  "relative": 0,
+                  "offsetInSeconds": null
+                },
+                "endTime": {
+                  "kind": "default",
+                  "relative": 1,
+                  "offsetInSeconds": null
+                },
+                "startValue": {
+                  "kind": "default",
+                  "value": 3000
+                },
+                "endValue": {
+                  "kind": "default",
+                  "value": 10
+                },
+                "interpolation": "ease-out-4",
+                "interpolation_status": "EXACT",
+                "curve_byte": "0x42..0x7f",
+                "curve_formula": "1 - pow(1 - p, 4.0)",
+                "curve_status": "STRONG_INFERENCE",
+                "time_semantics": "normalized relative time 0..1; all ramp times are {relative, optional offsetInSeconds}; no absolute times encoded",
+                "value_semantics": "absolute parameter value (not a delta)",
+                "curve_note": "byte class EXACT; exact byte inside class not distinguished"
+              }
+            ]
+          },
+          {
+            "index": 3,
+            "name": "GAIN",
+            "name_status": "EXACT",
+            "placement": {
+              "start": {
+                "kind": "placement",
+                "relative": 0,
+                "offsetInSeconds": null
+              },
+              "end": {
+                "kind": "placement",
+                "relative": 1,
+                "offsetInSeconds": null
+              },
+              "status": "EXACT"
+            },
+            "automations": [
+              {
+                "index": 0,
+                "parameterId": "out_gain",
+                "parameterId_status": "EXACT",
+                "parameter_ref": "out_gain",
+                "startTime": {
+                  "kind": "default",
+                  "relative": 0.5,
+                  "offsetInSeconds": null
+                },
+                "endTime": {
+                  "kind": "default",
+                  "relative": 0.5,
+                  "offsetInSeconds": null
+                },
+                "startValue": {
+                  "kind": "default",
+                  "value": 0
+                },
+                "endValue": {
+                  "kind": "default",
+                  "value": 1
+                },
+                "interpolation": "linear",
+                "interpolation_status": "EXACT",
+                "curve_byte": "0x80",
+                "curve_formula": "p",
+                "curve_status": "EXACT",
+                "time_semantics": "normalized relative time 0..1; all ramp times are {relative, optional offsetInSeconds}; no absolute times encoded",
+                "value_semantics": "absolute parameter value (not a delta)"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 12,
+      "name": "BM - Long filter high to low",
+      "name_status": "EXACT",
+      "reachability": {
+        "planner_reachable": true,
+        "cls": "reachable_beat_matched",
+        "status": "EXACT",
+        "evidence": [
+          "FUN_272234380 @0x2722344d4-0x2722344d8: cmp x8,#0xc -> branch 0x2722347d0 (base score 10.0 @0x272234a24, expanded/shifted region pair, log @0x2722aa200)",
+          "P1_AUTOMIX_CLOSURE #1 (0xc == 12); FUN_27223e92c sole caller FUN_2722307ec"
+        ]
+      },
+      "offset": {
+        "present": true,
+        "relative": 0,
+        "offsetInSeconds": null,
+        "status": "EXACT",
+        "semantics": {
+          "maps_to_swift_field": "TransitionStyle.startTime",
+          "status": "STRONG_INFERENCE",
+          "evidence": "P1_AUTOMIX_CLOSURE §3.2 fieldmd + CodingKeys id/startTime; raw key is \"offset\", exact key<->field binding not traced"
+        }
+      },
+      "duration": {
+        "present": true,
+        "value": 16,
+        "status": "EXACT",
+        "semantics": {
+          "swift_field": "maximumBarCount",
+          "status": "STRONG_INFERENCE",
+          "evidence": [
+            "P1_AUTOMIX_CLOSURE §3.2 fieldmd: TransitionStyle.maximumBarCount: Int?",
+            "raw key is \"duration\"; no decoder xref tying key to field was found; unit (bars vs seconds) NOT FOUND"
+          ]
+        }
+      },
+      "instructions": {
+        "outgoing": [
+          {
+            "index": 0,
+            "name": "TimeStretching",
+            "name_status": "EXACT",
+            "placement": {
+              "start": {
+                "kind": "placement",
+                "relative": 0,
+                "offsetInSeconds": null
+              },
+              "end": {
+                "kind": "placement",
+                "relative": 1,
+                "offsetInSeconds": null
+              },
+              "status": "EXACT"
+            },
+            "automations": [
+              {
+                "index": 0,
+                "parameterId": "ts_rate",
+                "parameterId_status": "EXACT",
+                "parameter_ref": "ts_rate",
+                "startTime": {
+                  "kind": "default",
+                  "relative": 0,
+                  "offsetInSeconds": null
+                },
+                "endTime": {
+                  "kind": "default",
+                  "relative": 1,
+                  "offsetInSeconds": null
+                },
+                "startValue": {
+                  "kind": "default",
+                  "value": 1
+                },
+                "endValue": {
+                  "kind": "default",
+                  "value": 2
+                },
+                "interpolation": "linear",
+                "interpolation_status": "EXACT",
+                "curve_byte": "0x80",
+                "curve_formula": "p",
+                "curve_status": "EXACT",
+                "time_semantics": "normalized relative time 0..1; all ramp times are {relative, optional offsetInSeconds}; no absolute times encoded",
+                "value_semantics": "absolute parameter value (not a delta)"
+              }
+            ]
+          },
+          {
+            "index": 1,
+            "name": "AULowpass",
+            "name_status": "EXACT",
+            "placement": {
+              "start": {
+                "kind": "placement",
+                "relative": 0.25,
+                "offsetInSeconds": null
+              },
+              "end": {
+                "kind": "placement",
+                "relative": 0.75,
+                "offsetInSeconds": null
+              },
+              "status": "EXACT"
+            },
+            "automations": [
+              {
+                "index": 0,
+                "parameterId": "lp_cutoff_freq",
+                "parameterId_status": "EXACT",
+                "parameter_ref": "lp_cutoff_freq",
+                "startTime": {
+                  "kind": "default",
+                  "relative": 0,
+                  "offsetInSeconds": null
+                },
+                "endTime": {
+                  "kind": "default",
+                  "relative": 1,
+                  "offsetInSeconds": null
+                },
+                "startValue": {
+                  "kind": "default",
+                  "value": 20000
+                },
+                "endValue": {
+                  "kind": "default",
+                  "value": 200
+                },
+                "interpolation": "ease-out-2",
+                "interpolation_status": "EXACT",
+                "curve_byte": "0x41",
+                "curve_formula": "1 - (1 - p)^2",
+                "curve_status": "EXACT",
+                "time_semantics": "normalized relative time 0..1; all ramp times are {relative, optional offsetInSeconds}; no absolute times encoded",
+                "value_semantics": "absolute parameter value (not a delta)"
+              }
+            ]
+          },
+          {
+            "index": 2,
+            "name": "GAIN",
+            "name_status": "EXACT",
+            "placement": {
+              "start": {
+                "kind": "placement",
+                "relative": 0.75,
+                "offsetInSeconds": -0.3
+              },
+              "end": {
+                "kind": "placement",
+                "relative": 0.75,
+                "offsetInSeconds": null
+              },
+              "status": "EXACT"
+            },
+            "automations": [
+              {
+                "index": 0,
+                "parameterId": "out_gain",
+                "parameterId_status": "EXACT",
+                "parameter_ref": "out_gain",
+                "startTime": {
+                  "kind": "default",
+                  "relative": 0,
+                  "offsetInSeconds": null
+                },
+                "endTime": {
+                  "kind": "default",
+                  "relative": 1,
+                  "offsetInSeconds": null
+                },
+                "startValue": {
+                  "kind": "default",
+                  "value": 1
+                },
+                "endValue": {
+                  "kind": "default",
+                  "value": 0
+                },
+                "interpolation": "linear",
+                "interpolation_status": "EXACT",
+                "curve_byte": "0x80",
+                "curve_formula": "p",
+                "curve_status": "EXACT",
+                "time_semantics": "normalized relative time 0..1; all ramp times are {relative, optional offsetInSeconds}; no absolute times encoded",
+                "value_semantics": "absolute parameter value (not a delta)"
+              }
+            ]
+          }
+        ],
+        "incoming": [
+          {
+            "index": 0,
+            "name": "TimeStretching",
+            "name_status": "EXACT",
+            "placement": {
+              "start": {
+                "kind": "placement",
+                "relative": 0,
+                "offsetInSeconds": null
+              },
+              "end": {
+                "kind": "placement",
+                "relative": 1,
+                "offsetInSeconds": null
+              },
+              "status": "EXACT"
+            },
+            "automations": [
+              {
+                "index": 0,
+                "parameterId": "ts_rate",
+                "parameterId_status": "EXACT",
+                "parameter_ref": "ts_rate",
+                "startTime": {
+                  "kind": "default",
+                  "relative": 0,
+                  "offsetInSeconds": null
+                },
+                "endTime": {
+                  "kind": "default",
+                  "relative": 1,
+                  "offsetInSeconds": null
+                },
+                "startValue": {
+                  "kind": "default",
+                  "value": 2
+                },
+                "endValue": {
+                  "kind": "default",
+                  "value": 1
+                },
+                "interpolation": "linear",
+                "interpolation_status": "EXACT",
+                "curve_byte": "0x80",
+                "curve_formula": "p",
+                "curve_status": "EXACT",
+                "time_semantics": "normalized relative time 0..1; all ramp times are {relative, optional offsetInSeconds}; no absolute times encoded",
+                "value_semantics": "absolute parameter value (not a delta)"
+              }
+            ]
+          },
+          {
+            "index": 1,
+            "name": "AUHipass",
+            "name_status": "EXACT",
+            "placement": {
+              "start": {
+                "kind": "placement",
+                "relative": 0.25,
+                "offsetInSeconds": null
+              },
+              "end": {
+                "kind": "placement",
+                "relative": 0.75,
+                "offsetInSeconds": null
+              },
+              "status": "EXACT"
+            },
+            "automations": [
+              {
+                "index": 0,
+                "parameterId": "hp_cutoff_freq",
+                "parameterId_status": "EXACT",
+                "parameter_ref": "hp_cutoff_freq",
+                "startTime": {
+                  "kind": "default",
+                  "relative": 0,
+                  "offsetInSeconds": null
+                },
+                "endTime": {
+                  "kind": "default",
+                  "relative": 1,
+                  "offsetInSeconds": null
+                },
+                "startValue": {
+                  "kind": "default",
+                  "value": 20000
+                },
+                "endValue": {
+                  "kind": "default",
+                  "value": 10
+                },
+                "interpolation": "ease-out-2",
+                "interpolation_status": "EXACT",
+                "curve_byte": "0x41",
+                "curve_formula": "1 - (1 - p)^2",
+                "curve_status": "EXACT",
+                "time_semantics": "normalized relative time 0..1; all ramp times are {relative, optional offsetInSeconds}; no absolute times encoded",
+                "value_semantics": "absolute parameter value (not a delta)"
+              }
+            ]
+          },
+          {
+            "index": 2,
+            "name": "AULowpass",
+            "name_status": "EXACT",
+            "placement": {
+              "start": {
+                "kind": "placement",
+                "relative": 0.25,
+                "offsetInSeconds": null
+              },
+              "end": {
+                "kind": "placement",
+                "relative": 0.75,
+                "offsetInSeconds": null
+              },
+              "status": "EXACT"
+            },
+            "automations": [
+              {
+                "index": 0,
+                "parameterId": "lp_cutoff_freq",
+                "parameterId_status": "EXACT",
+                "parameter_ref": "lp_cutoff_freq",
+                "startTime": {
+                  "kind": "default",
+                  "relative": 0,
+                  "offsetInSeconds": null
+                },
+                "endTime": {
+                  "kind": "default",
+                  "relative": 1,
+                  "offsetInSeconds": null
+                },
+                "startValue": {
+                  "kind": "default",
+                  "value": 1200
+                },
+                "endValue": {
+                  "kind": "default",
+                  "value": 20000
+                },
+                "interpolation": "ease-in-4",
+                "interpolation_status": "EXACT",
+                "curve_byte": "0x02..0x3f",
+                "curve_formula": "pow(p, 4.0)",
+                "curve_status": "STRONG_INFERENCE",
+                "time_semantics": "normalized relative time 0..1; all ramp times are {relative, optional offsetInSeconds}; no absolute times encoded",
+                "value_semantics": "absolute parameter value (not a delta)",
+                "curve_note": "byte class EXACT; exact byte inside class not distinguished"
+              }
+            ]
+          },
+          {
+            "index": 3,
+            "name": "GAIN",
+            "name_status": "EXACT",
+            "placement": {
+              "start": {
+                "kind": "placement",
+                "relative": 0.25,
+                "offsetInSeconds": null
+              },
+              "end": {
+                "kind": "placement",
+                "relative": 0.25,
+                "offsetInSeconds": 0.3
+              },
+              "status": "EXACT"
+            },
+            "automations": [
+              {
+                "index": 0,
+                "parameterId": "out_gain",
+                "parameterId_status": "EXACT",
+                "parameter_ref": "out_gain",
+                "startTime": {
+                  "kind": "default",
+                  "relative": 0,
+                  "offsetInSeconds": null
+                },
+                "endTime": {
+                  "kind": "default",
+                  "relative": 1,
+                  "offsetInSeconds": null
+                },
+                "startValue": {
+                  "kind": "default",
+                  "value": 0
+                },
+                "endValue": {
+                  "kind": "default",
+                  "value": 1
+                },
+                "interpolation": "linear",
+                "interpolation_status": "EXACT",
+                "curve_byte": "0x80",
+                "curve_formula": "p",
+                "curve_status": "EXACT",
+                "time_semantics": "normalized relative time 0..1; all ramp times are {relative, optional offsetInSeconds}; no absolute times encoded",
+                "value_semantics": "absolute parameter value (not a delta)"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 33,
+      "name": "overlap + Reverb",
+      "name_status": "EXACT",
+      "reachability": {
+        "planner_reachable": null,
+        "cls": "no_consumer_found_in_ios26_planner",
+        "status": "PARTIAL",
+        "evidence": [
+          "id not handled in FUN_272234380 (zero-fill/no candidate if reached via BeatMatched)",
+          "style-ID -> [TransitionStyle] lookup FUN_27223e92c has the sole caller FUN_2722307ec (BeatMatched path); no other consumer of the loaded catalog found",
+          "no other style-ID xref/dispatch found in automix corpus (corpus-negative)"
+        ]
+      },
+      "offset": {
+        "present": false,
+        "relative": null,
+        "offsetInSeconds": null,
+        "status": "EXACT",
+        "semantics": {
+          "maps_to_swift_field": "TransitionStyle.startTime",
+          "status": "STRONG_INFERENCE"
+        }
+      },
+      "duration": {
+        "present": false,
+        "value": null,
+        "status": "EXACT",
+        "semantics": {
+          "swift_field": "maximumBarCount",
+          "status": "STRONG_INFERENCE",
+          "evidence": [
+            "P1_AUTOMIX_CLOSURE §3.2 fieldmd: TransitionStyle.maximumBarCount: Int?",
+            "raw key is \"duration\"; no decoder xref tying key to field was found; unit (bars vs seconds) NOT FOUND"
+          ],
+          "note": "duration key absent in resource -> maximumBarCount nil; no duration-limited behavior defined by this style"
+        }
+      },
+      "instructions": {
+        "outgoing": [
+          {
+            "index": 0,
+            "name": "AUReverb2",
+            "name_status": "EXACT",
+            "placement": {
+              "start": {
+                "kind": "placement",
+                "relative": 0,
+                "offsetInSeconds": null
+              },
+              "end": {
+                "kind": "placement",
+                "relative": 1,
+                "offsetInSeconds": null
+              },
+              "status": "EXACT"
+            },
+            "automations": [
+              {
+                "index": 0,
+                "parameterId": "fx_reverb_high_frequency_decay_time",
+                "parameterId_status": "EXACT",
+                "parameter_ref": "fx_reverb_high_frequency_decay_time",
+                "startTime": {
+                  "kind": "default",
+                  "relative": 0,
+                  "offsetInSeconds": null
+                },
+                "endTime": {
+                  "kind": "default",
+                  "relative": 0,
+                  "offsetInSeconds": null
+                },
+                "startValue": {
+                  "kind": "default",
+                  "value": 0.001
+                },
+                "endValue": {
+                  "kind": "default",
+                  "value": 6
+                },
+                "interpolation": "linear",
+                "interpolation_status": "EXACT",
+                "curve_byte": "0x80",
+                "curve_formula": "p",
+                "curve_status": "EXACT",
+                "time_semantics": "normalized relative time 0..1; all ramp times are {relative, optional offsetInSeconds}; no absolute times encoded",
+                "value_semantics": "absolute parameter value (not a delta)"
+              },
+              {
+                "index": 1,
+                "parameterId": "fx_reverb_low_frequency_decay_time",
+                "parameterId_status": "EXACT",
+                "parameter_ref": "fx_reverb_low_frequency_decay_time",
+                "startTime": {
+                  "kind": "default",
+                  "relative": 0,
+                  "offsetInSeconds": null
+                },
+                "endTime": {
+                  "kind": "default",
+                  "relative": 0,
+                  "offsetInSeconds": null
+                },
+                "startValue": {
+                  "kind": "default",
+                  "value": 0.001
+                },
+                "endValue": {
+                  "kind": "default",
+                  "value": 5
+                },
+                "interpolation": "linear",
+                "interpolation_status": "EXACT",
+                "curve_byte": "0x80",
+                "curve_formula": "p",
+                "curve_status": "EXACT",
+                "time_semantics": "normalized relative time 0..1; all ramp times are {relative, optional offsetInSeconds}; no absolute times encoded",
+                "value_semantics": "absolute parameter value (not a delta)"
+              },
+              {
+                "index": 2,
+                "parameterId": "fx_reverb_min_delay_time",
+                "parameterId_status": "EXACT",
+                "parameter_ref": "fx_reverb_min_delay_time",
+                "startTime": {
+                  "kind": "default",
+                  "relative": 0,
+                  "offsetInSeconds": null
+                },
+                "endTime": {
+                  "kind": "default",
+                  "relative": 0,
+                  "offsetInSeconds": null
+                },
+                "startValue": {
+                  "kind": "default",
+                  "value": 0.008
+                },
+                "endValue": {
+                  "kind": "default",
+                  "value": 0.9
+                },
+                "interpolation": "linear",
+                "interpolation_status": "EXACT",
+                "curve_byte": "0x80",
+                "curve_formula": "p",
+                "curve_status": "EXACT",
+                "time_semantics": "normalized relative time 0..1; all ramp times are {relative, optional offsetInSeconds}; no absolute times encoded",
+                "value_semantics": "absolute parameter value (not a delta)"
+              },
+              {
+                "index": 3,
+                "parameterId": "fx_reverb_dry_wet",
+                "parameterId_status": "EXACT",
+                "parameter_ref": "fx_reverb_dry_wet",
+                "startTime": {
+                  "kind": "default",
+                  "relative": 0,
+                  "offsetInSeconds": null
+                },
+                "endTime": {
+                  "kind": "default",
+                  "relative": 0,
+                  "offsetInSeconds": null
+                },
+                "startValue": {
+                  "kind": "default",
+                  "value": 0
+                },
+                "endValue": {
+                  "kind": "default",
+                  "value": 100
+                },
+                "interpolation": "linear",
+                "interpolation_status": "EXACT",
+                "curve_byte": "0x80",
+                "curve_formula": "p",
+                "curve_status": "EXACT",
+                "time_semantics": "normalized relative time 0..1; all ramp times are {relative, optional offsetInSeconds}; no absolute times encoded",
+                "value_semantics": "absolute parameter value (not a delta)"
+              },
+              {
+                "index": 4,
+                "parameterId": "send_mixer_gain",
+                "parameterId_status": "EXACT",
+                "parameter_ref": "send_mixer_gain",
+                "startTime": {
+                  "kind": "default",
+                  "relative": 0,
+                  "offsetInSeconds": null
+                },
+                "endTime": {
+                  "kind": "default",
+                  "relative": 0,
+                  "offsetInSeconds": 2
+                },
+                "startValue": {
+                  "kind": "default",
+                  "value": 0
+                },
+                "endValue": {
+                  "kind": "default",
+                  "value": 0.75
+                },
+                "interpolation": "linear",
+                "interpolation_status": "EXACT",
+                "curve_byte": "0x80",
+                "curve_formula": "p",
+                "curve_status": "EXACT",
+                "time_semantics": "normalized relative time 0..1; all ramp times are {relative, optional offsetInSeconds}; no absolute times encoded",
+                "value_semantics": "absolute parameter value (not a delta)"
+              },
+              {
+                "index": 5,
+                "parameterId": "fx_mixer_wet",
+                "parameterId_status": "EXACT",
+                "parameter_ref": "fx_mixer_wet",
+                "startTime": {
+                  "kind": "default",
+                  "relative": 0,
+                  "offsetInSeconds": null
+                },
+                "endTime": {
+                  "kind": "default",
+                  "relative": 0,
+                  "offsetInSeconds": null
+                },
+                "startValue": {
+                  "kind": "default",
+                  "value": 0
+                },
+                "endValue": {
+                  "kind": "default",
+                  "value": 1
+                },
+                "interpolation": "linear",
+                "interpolation_status": "EXACT",
+                "curve_byte": "0x80",
+                "curve_formula": "p",
+                "curve_status": "EXACT",
+                "time_semantics": "normalized relative time 0..1; all ramp times are {relative, optional offsetInSeconds}; no absolute times encoded",
+                "value_semantics": "absolute parameter value (not a delta)"
+              }
+            ]
+          }
+        ],
+        "incoming": []
+      }
+    },
+    {
+      "id": 44,
+      "name": "Ease-in Ring-out + Reverb",
+      "name_status": "EXACT",
+      "reachability": {
+        "planner_reachable": null,
+        "cls": "no_consumer_found_in_ios26_planner",
+        "status": "PARTIAL",
+        "evidence": [
+          "id not handled in FUN_272234380 (zero-fill/no candidate if reached via BeatMatched)",
+          "style-ID -> [TransitionStyle] lookup FUN_27223e92c has the sole caller FUN_2722307ec (BeatMatched path); no other consumer of the loaded catalog found",
+          "no other style-ID xref/dispatch found in automix corpus (corpus-negative)"
+        ]
+      },
+      "offset": {
+        "present": true,
+        "relative": 0,
+        "offsetInSeconds": null,
+        "status": "EXACT",
+        "semantics": {
+          "maps_to_swift_field": "TransitionStyle.startTime",
+          "status": "STRONG_INFERENCE",
+          "evidence": "P1_AUTOMIX_CLOSURE §3.2 fieldmd + CodingKeys id/startTime; raw key is \"offset\", exact key<->field binding not traced"
+        }
+      },
+      "duration": {
+        "present": false,
+        "value": null,
+        "status": "EXACT",
+        "semantics": {
+          "swift_field": "maximumBarCount",
+          "status": "STRONG_INFERENCE",
+          "evidence": [
+            "P1_AUTOMIX_CLOSURE §3.2 fieldmd: TransitionStyle.maximumBarCount: Int?",
+            "raw key is \"duration\"; no decoder xref tying key to field was found; unit (bars vs seconds) NOT FOUND"
+          ],
+          "note": "duration key absent in resource -> maximumBarCount nil; no duration-limited behavior defined by this style"
+        }
+      },
+      "instructions": {
+        "outgoing": [
+          {
+            "index": 0,
+            "name": "AUReverb2",
+            "name_status": "EXACT",
+            "placement": {
+              "start": {
+                "kind": "placement",
+                "relative": 0,
+                "offsetInSeconds": null
+              },
+              "end": {
+                "kind": "placement",
+                "relative": 1,
+                "offsetInSeconds": null
+              },
+              "status": "EXACT"
+            },
+            "automations": [
+              {
+                "index": 0,
+                "parameterId": "fx_reverb_high_frequency_decay_time",
+                "parameterId_status": "EXACT",
+                "parameter_ref": "fx_reverb_high_frequency_decay_time",
+                "startTime": {
+                  "kind": "default",
+                  "relative": 0,
+                  "offsetInSeconds": null
+                },
+                "endTime": {
+                  "kind": "default",
+                  "relative": 0,
+                  "offsetInSeconds": null
+                },
+                "startValue": {
+                  "kind": "default",
+                  "value": 0.001
+                },
+                "endValue": {
+                  "kind": "default",
+                  "value": 6
+                },
+                "interpolation": "linear",
+                "interpolation_status": "EXACT",
+                "curve_byte": "0x80",
+                "curve_formula": "p",
+                "curve_status": "EXACT",
+                "time_semantics": "normalized relative time 0..1; all ramp times are {relative, optional offsetInSeconds}; no absolute times encoded",
+                "value_semantics": "absolute parameter value (not a delta)"
+              },
+              {
+                "index": 1,
+                "parameterId": "fx_reverb_low_frequency_decay_time",
+                "parameterId_status": "EXACT",
+                "parameter_ref": "fx_reverb_low_frequency_decay_time",
+                "startTime": {
+                  "kind": "default",
+                  "relative": 0,
+                  "offsetInSeconds": null
+                },
+                "endTime": {
+                  "kind": "default",
+                  "relative": 0,
+                  "offsetInSeconds": null
+                },
+                "startValue": {
+                  "kind": "default",
+                  "value": 0.001
+                },
+                "endValue": {
+                  "kind": "default",
+                  "value": 5
+                },
+                "interpolation": "linear",
+                "interpolation_status": "EXACT",
+                "curve_byte": "0x80",
+                "curve_formula": "p",
+                "curve_status": "EXACT",
+                "time_semantics": "normalized relative time 0..1; all ramp times are {relative, optional offsetInSeconds}; no absolute times encoded",
+                "value_semantics": "absolute parameter value (not a delta)"
+              },
+              {
+                "index": 2,
+                "parameterId": "fx_reverb_min_delay_time",
+                "parameterId_status": "EXACT",
+                "parameter_ref": "fx_reverb_min_delay_time",
+                "startTime": {
+                  "kind": "default",
+                  "relative": 0,
+                  "offsetInSeconds": null
+                },
+                "endTime": {
+                  "kind": "default",
+                  "relative": 0,
+                  "offsetInSeconds": null
+                },
+                "startValue": {
+                  "kind": "default",
+                  "value": 0.008
+                },
+                "endValue": {
+                  "kind": "default",
+                  "value": 0.9
+                },
+                "interpolation": "linear",
+                "interpolation_status": "EXACT",
+                "curve_byte": "0x80",
+                "curve_formula": "p",
+                "curve_status": "EXACT",
+                "time_semantics": "normalized relative time 0..1; all ramp times are {relative, optional offsetInSeconds}; no absolute times encoded",
+                "value_semantics": "absolute parameter value (not a delta)"
+              },
+              {
+                "index": 3,
+                "parameterId": "fx_reverb_dry_wet",
+                "parameterId_status": "EXACT",
+                "parameter_ref": "fx_reverb_dry_wet",
+                "startTime": {
+                  "kind": "default",
+                  "relative": 0,
+                  "offsetInSeconds": null
+                },
+                "endTime": {
+                  "kind": "default",
+                  "relative": 0,
+                  "offsetInSeconds": null
+                },
+                "startValue": {
+                  "kind": "default",
+                  "value": 0
+                },
+                "endValue": {
+                  "kind": "default",
+                  "value": 100
+                },
+                "interpolation": "linear",
+                "interpolation_status": "EXACT",
+                "curve_byte": "0x80",
+                "curve_formula": "p",
+                "curve_status": "EXACT",
+                "time_semantics": "normalized relative time 0..1; all ramp times are {relative, optional offsetInSeconds}; no absolute times encoded",
+                "value_semantics": "absolute parameter value (not a delta)"
+              },
+              {
+                "index": 4,
+                "parameterId": "send_mixer_gain",
+                "parameterId_status": "EXACT",
+                "parameter_ref": "send_mixer_gain",
+                "startTime": {
+                  "kind": "default",
+                  "relative": 0,
+                  "offsetInSeconds": null
+                },
+                "endTime": {
+                  "kind": "default",
+                  "relative": 0,
+                  "offsetInSeconds": 2
+                },
+                "startValue": {
+                  "kind": "default",
+                  "value": 0
+                },
+                "endValue": {
+                  "kind": "default",
+                  "value": 0.75
+                },
+                "interpolation": "linear",
+                "interpolation_status": "EXACT",
+                "curve_byte": "0x80",
+                "curve_formula": "p",
+                "curve_status": "EXACT",
+                "time_semantics": "normalized relative time 0..1; all ramp times are {relative, optional offsetInSeconds}; no absolute times encoded",
+                "value_semantics": "absolute parameter value (not a delta)"
+              },
+              {
+                "index": 5,
+                "parameterId": "fx_mixer_wet",
+                "parameterId_status": "EXACT",
+                "parameter_ref": "fx_mixer_wet",
+                "startTime": {
+                  "kind": "default",
+                  "relative": 0,
+                  "offsetInSeconds": null
+                },
+                "endTime": {
+                  "kind": "default",
+                  "relative": 0,
+                  "offsetInSeconds": null
+                },
+                "startValue": {
+                  "kind": "default",
+                  "value": 0
+                },
+                "endValue": {
+                  "kind": "default",
+                  "value": 1
+                },
+                "interpolation": "linear",
+                "interpolation_status": "EXACT",
+                "curve_byte": "0x80",
+                "curve_formula": "p",
+                "curve_status": "EXACT",
+                "time_semantics": "normalized relative time 0..1; all ramp times are {relative, optional offsetInSeconds}; no absolute times encoded",
+                "value_semantics": "absolute parameter value (not a delta)"
+              }
+            ]
+          }
+        ],
+        "incoming": [
+          {
+            "index": 0,
+            "name": "GAIN",
+            "name_status": "EXACT",
+            "placement": {
+              "start": {
+                "kind": "placement",
+                "relative": 0,
+                "offsetInSeconds": null
+              },
+              "end": {
+                "kind": "placement",
+                "relative": 0,
+                "offsetInSeconds": 2
+              },
+              "status": "EXACT"
+            },
+            "automations": [
+              {
+                "index": 0,
+                "parameterId": "out_gain",
+                "parameterId_status": "EXACT",
+                "parameter_ref": "out_gain",
+                "startTime": {
+                  "kind": "default",
+                  "relative": 0,
+                  "offsetInSeconds": null
+                },
+                "endTime": {
+                  "kind": "default",
+                  "relative": 1,
+                  "offsetInSeconds": null
+                },
+                "startValue": {
+                  "kind": "default",
+                  "value": 0
+                },
+                "endValue": {
+                  "kind": "default",
+                  "value": 1
+                },
+                "interpolation": "ease-out-0.5",
+                "interpolation_status": "EXACT",
+                "curve_byte": "0x40",
+                "curve_formula": "sqrt(p)",
+                "curve_status": "EXACT",
+                "time_semantics": "normalized relative time 0..1; all ramp times are {relative, optional offsetInSeconds}; no absolute times encoded",
+                "value_semantics": "absolute parameter value (not a delta)"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

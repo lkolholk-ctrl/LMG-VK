@@ -1,0 +1,159 @@
+; Binary: _SonicKit_MusicKit_Packages
+; Address: 0x27221d858
+; Symbol: FUN_27221d858
+; Signature: undefined FUN_27221d858()
+27221d858: pacibsp
+27221d85c: sub sp,sp,#0x110
+27221d860: stp x28,x27,[sp, #0xb0]
+27221d864: stp x26,x25,[sp, #0xc0]
+27221d868: stp x24,x23,[sp, #0xd0]
+27221d86c: stp x22,x21,[sp, #0xe0]
+27221d870: stp x20,x19,[sp, #0xf0]
+27221d874: stp x29,x30,[sp, #0x100]
+27221d878: add x29,sp,#0x100
+27221d87c: ldr x28,[x0, #0x10]
+27221d880: cbz x28,0x27221da90
+27221d884: adrp x19,0x2780e3000
+27221d888: ldr x19,[x19, #0xc50]
+27221d88c: adrp x22,0x2722a3000
+27221d890: add x22,x22,#0x49c
+27221d894: add x23,x0,#0x20
+27221d898: adrp x8,0x272296000
+27221d89c: ldr q0,[x8, #0x6e0]
+27221d8a0: str q0,[sp]
+27221d8a4: mov w21,#0x28
+27221d8a8: adrp x24,0x280c99000
+27221d8ac: add x24,x24,#0x440
+27221d8b0: add x1,sp,#0x80
+27221d8b4: mov x0,x23
+27221d8b8: bl 0x27221361c
+27221d8bc: ldr x8,[x19, #0x10]
+27221d8c0: cbz x8,0x27221da1c
+27221d8c4: madd x8,x8,x21,x19
+27221d8c8: sub x0,x8,#0x8
+27221d8cc: add x1,sp,#0x58
+27221d8d0: bl 0x27221361c
+27221d8d4: ldp x25,x26,[sp, #0x98]
+27221d8d8: add x0,sp,#0x80
+27221d8dc: mov x1,x25
+27221d8e0: bl 0x27220ff94
+27221d8e4: mov x8,x26
+27221d8e8: ldr x9,[x8, #0x10]!
+27221d8ec: mov x20,x0
+27221d8f0: mov x0,x25
+27221d8f4: mov x1,x26
+27221d8f8: mov x17,x8
+27221d8fc: movk x17,#0xbc30, LSL #48
+27221d900: blraa x9,x17
+27221d904: mov x25,x0
+27221d908: ldp x26,x27,[sp, #0x70]
+27221d90c: add x0,sp,#0x58
+27221d910: mov x1,x26
+27221d914: bl 0x27220ff94
+27221d918: mov x8,x27
+27221d91c: ldr x9,[x8, #0x10]!
+27221d920: mov x20,x0
+27221d924: mov x0,x26
+27221d928: mov x1,x27
+27221d92c: mov x17,x8
+27221d930: movk x17,#0xbc30, LSL #48
+27221d934: blraa x9,x17
+27221d938: cmp x0,x25
+27221d93c: b.ge 0x27221da10
+27221d940: adrp x16,0x2780e3000
+27221d944: ldr x16,[x16, #0x218]
+27221d948: mov x17,#0x70f3
+27221d94c: pacia x16,x17
+27221d950: mov x4,x16
+27221d954: mov x0,#0x0
+27221d958: adrp x1,0x280c99000
+27221d95c: add x1,x1,#0x550
+27221d960: mov x2,x24
+27221d964: mov x3,x22
+27221d968: bl 0x27221e168
+27221d96c: add x1,sp,#0x10
+27221d970: bl 0x2743dde60
+27221d974: mov x20,x0
+27221d978: ldr q0,[sp]
+27221d97c: str q0,[x0, #0x10]
+27221d980: add x0,sp,#0x80
+27221d984: add x1,x20,#0x20
+27221d988: bl 0x27221361c
+27221d98c: ldr x25,[x19, #0x10]
+27221d990: mov x0,x19
+27221d994: bl 0x2743dde70
+27221d998: cbz w0,0x27221d9ac
+27221d99c: ldr x8,[x19, #0x18]
+27221d9a0: lsr x8,x8,#0x1
+27221d9a4: cmp x8,x25
+27221d9a8: b.hi 0x27221d9c8
+27221d9ac: add x1,x25,#0x1
+27221d9b0: mov w2,#0x1
+27221d9b4: mov x3,x19
+27221d9b8: bl 0x27225364c
+27221d9bc: mov x19,x0
+27221d9c0: ldr x8,[x0, #0x18]
+27221d9c4: lsr x8,x8,#0x1
+27221d9c8: ldr x9,[x19, #0x10]
+27221d9cc: cmp x8,x9
+27221d9d0: b.ls 0x27221dabc
+27221d9d4: madd x25,x9,x21,x19
+27221d9d8: mov x0,#0x0
+27221d9dc: mov x1,x24
+27221d9e0: mov x2,x22
+27221d9e4: bl 0x272213680
+27221d9e8: mov x3,x0
+27221d9ec: add x0,x25,#0x20
+27221d9f0: add x1,x20,#0x20
+27221d9f4: mov w2,#0x1
+27221d9f8: bl 0x2743ddcb0
+27221d9fc: mov x0,x20
+27221da00: bl 0x2743ddce0
+27221da04: ldr x8,[x19, #0x10]
+27221da08: add x8,x8,#0x1
+27221da0c: str x8,[x19, #0x10]
+27221da10: add x0,sp,#0x58
+27221da14: bl 0x272210e78
+27221da18: b 0x27221da78
+27221da1c: adrp x16,0x2780e3000
+27221da20: ldr x16,[x16, #0x218]
+27221da24: mov x17,#0x70f3
+27221da28: pacia x16,x17
+27221da2c: mov x4,x16
+27221da30: mov x0,#0x0
+27221da34: adrp x1,0x280c99000
+27221da38: add x1,x1,#0x550
+27221da3c: mov x2,x24
+27221da40: mov x3,x22
+27221da44: bl 0x27221e168
+27221da48: mov w1,#0x48
+27221da4c: mov w2,#0x7
+27221da50: bl 0x2743ddc90
+27221da54: mov x20,x0
+27221da58: ldr q0,[sp]
+27221da5c: str q0,[x0, #0x10]
+27221da60: add x0,sp,#0x80
+27221da64: add x1,x20,#0x20
+27221da68: bl 0x27221361c
+27221da6c: mov x0,x19
+27221da70: bl 0x2743ddce0
+27221da74: mov x19,x20
+27221da78: add x0,sp,#0x80
+27221da7c: bl 0x272210e78
+27221da80: add x23,x23,#0x28
+27221da84: subs x28,x28,#0x1
+27221da88: b.ne 0x27221d8b0
+27221da8c: b 0x27221da98
+27221da90: adrp x19,0x2780e3000
+27221da94: ldr x19,[x19, #0xc50]
+27221da98: mov x0,x19
+27221da9c: ldp x29,x30,[sp, #0x100]
+27221daa0: ldp x20,x19,[sp, #0xf0]
+27221daa4: ldp x22,x21,[sp, #0xe0]
+27221daa8: ldp x24,x23,[sp, #0xd0]
+27221daac: ldp x26,x25,[sp, #0xc0]
+27221dab0: ldp x28,x27,[sp, #0xb0]
+27221dab4: add sp,sp,#0x110
+27221dab8: retab
+27221dabc: brk #0x1
+

@@ -1,0 +1,44 @@
+; CoreMedia iOS 23A341, SHA256 7acd99bdcb174ba39ffa57ec45a325a81b4df06ef9b24e66aaecf80e7835a314
+196bf8574: e80300aa mov x8, x0
+196bf8578: 0a0c40b9 ldr w10, [x0, #0xc]
+196bf857c: 290c40b9 ldr w9, [x1, #0xc]
+196bf8580: 20010012 and w0, w9, #1
+196bf8584: 4a000037 tbnz w10, #0, #0x196bf858c
+196bf8588: c0035fd6 ret 
+196bf858c: 60000035 cbnz w0, #0x196bf8598
+196bf8590: 00008012 mov w0, #-1
+196bf8594: c0035fd6 ret 
+196bf8598: 8a011037 tbnz w10, #2, #0x196bf85c8
+196bf859c: a9ff1737 tbnz w9, #2, #0x196bf8590
+196bf85a0: aa012037 tbnz w10, #4, #0x196bf85d4
+196bf85a4: 69ff2737 tbnz w9, #4, #0x196bf8590
+196bf85a8: ca011837 tbnz w10, #3, #0x196bf85e0
+196bf85ac: a9001837 tbnz w9, #3, #0x196bf85c0
+196bf85b0: 090940f9 ldr x9, [x8, #0x10]
+196bf85b4: 2a0840f9 ldr x10, [x1, #0x10]
+196bf85b8: 3f010aeb cmp x9, x10
+196bf85bc: 8d010054 b.le #0x196bf85ec
+196bf85c0: 20008052 mov w0, #1
+196bf85c4: c0035fd6 ret 
+196bf85c8: 28008052 mov w8, #1
+196bf85cc: 0009690a bic w0, w8, w9, lsr #2
+196bf85d0: c0035fd6 ret 
+196bf85d4: 28008052 mov w8, #1
+196bf85d8: 0011690a bic w0, w8, w9, lsr #4
+196bf85dc: c0035fd6 ret 
+196bf85e0: 280d0353 ubfx w8, w9, #3, #1
+196bf85e4: 00050051 sub w0, w8, #1
+196bf85e8: c0035fd6 ret 
+196bf85ec: 2bfdff54 b.lt #0x196bf8590
+196bf85f0: 030940b9 ldr w3, [x8, #8]
+196bf85f4: 290840b9 ldr w9, [x1, #8]
+196bf85f8: 000140f9 ldr x0, [x8]
+196bf85fc: 220040f9 ldr x2, [x1]
+196bf8600: 7f00096b cmp w3, w9
+196bf8604: a1000054 b.ne #0x196bf8618
+196bf8608: 1f0002eb cmp x0, x2
+196bf860c: e8a39f5a csetm w8, lt
+196bf8610: 00d59f1a csinc w0, w8, wzr, le
+196bf8614: c0035fd6 ret 
+196bf8618: e10309aa mov x1, x9
+196bf861c: b0020014 b #0x196bf90dc

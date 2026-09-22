@@ -1,0 +1,14 @@
+{
+  "synthesis_cases": 24,
+  "mapping_cases": 20,
+  "remap_cases": 20,
+  "overlap_add_cases": 144,
+  "vDSP_complex_multiply": "0x234ad1570",
+  "vDSP_multiply_add": "0x234adecf0",
+  "hooks": [
+    "import routing to original functions",
+    "memory zeroing",
+    "PAC entry/return removed"
+  ],
+  "code_sha256": "337d610d6384805575af1b45d6e9ca2952d769ec0ae19e6ce71c1e60e32eef4d"
+}

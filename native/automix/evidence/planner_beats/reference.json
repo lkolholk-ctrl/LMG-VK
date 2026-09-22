@@ -1,0 +1,53 @@
+{
+  "binary": "_SonicKit_MusicKit_Packages",
+  "binary_sha256": "e843a9a94838f49c9c1e9b11f57fca70c6eebde59d7a3fd8d43917ee65607b4d",
+  "functions": {
+    "initial_hierarchy": "0x272225ef4",
+    "section_normalization": "0x27221cb94",
+    "rebuild": "0x27221cca4",
+    "stability_map": "0x272218400"
+  },
+  "fixtures": {
+    "initial_structure_events.bin": {
+      "cases": 71,
+      "sha256": "36c6a95bdab3eb52e974756b905bbe95630e716ddeb4e6f462d7946647c36a67",
+      "bytes": 168552
+    },
+    "normalized_structure_events.bin": {
+      "cases": 172,
+      "sha256": "6c7c59ba608f132c2137b83ccae4d4667188daabc462cdbd5c7767bb2ef1ea74",
+      "bytes": 431688
+    },
+    "beat_stability.bin": {
+      "cases": 134,
+      "sha256": "89c7aad3f0479e2d23de52cf106041ee29c5ff57ba5cdc2513c2838da0bd4aa7",
+      "bytes": 68952
+    }
+  },
+  "imports": {
+    "2743dd100": "1d3e83244 Event.time",
+    "2743dd110": "1d3e87b08 Event.TimeScale metadata",
+    "2743dd120": "1d3e83248 Event.timeScale",
+    "2743dd130": "1d3e87af8 Event metadata",
+    "2743dd140": "1d3e81a84 FlexAnalysis.events",
+    "2743dd150": "1d3e81810 FlexAnalysis metadata"
+  },
+  "raw_enum_constants": {
+    "27808ac98": [
+      "1d4498918",
+      0
+    ],
+    "27808aca0": [
+      "1d449891c",
+      1
+    ],
+    "27808ac90": [
+      "1d4498920",
+      2
+    ],
+    "27808aca8": [
+      "1d4498924",
+      3
+    ]
+  }
+}

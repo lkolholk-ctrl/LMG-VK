@@ -1,0 +1,3 @@
+-keep class com.lmg.vk.engine.automix.nativecore.NativeTrackEffects { *; }
+-keep class com.lmg.vk.engine.automix.nativecore.NativeTimePitch { *; }
+-keep class com.lmg.vk.engine.automix.nativecore.NativeProcessedTrack { *; }

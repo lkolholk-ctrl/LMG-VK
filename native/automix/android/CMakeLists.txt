@@ -1,0 +1,12 @@
+# Include after the lmg_automix core target. Kept separate from legacy liblmg.
+if(NOT TARGET lmg_automix)
+  message(FATAL_ERROR "Add native/automix before its Android JNI bridge")
+endif()
+add_library(lmg_automix_jni SHARED track_effects_jni.cpp time_pitch_jni.cpp processed_track_jni.cpp)
+target_link_libraries(lmg_automix_jni PRIVATE lmg_automix)
+target_compile_features(lmg_automix_jni PRIVATE cxx_std_17)
+target_compile_options(lmg_automix_jni PRIVATE -Wall -Wextra -Wpedantic)
+if(NOT ANDROID)
+  find_package(JNI REQUIRED)
+  target_include_directories(lmg_automix_jni PRIVATE ${JNI_INCLUDE_DIRS})
+endif()

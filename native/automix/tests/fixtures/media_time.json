@@ -1,0 +1,14 @@
+{
+  "cache_uuid": "e635f55744eb3f9681f4677ae893c993",
+  "coremedia_text_sha256": "1a625b812cc9d1226a34c890a5197ec5d91126046e5440deeac5fae08fbeaed4",
+  "code_sha256": {
+    "0x196bf782c": "247ef98c04d6e6bd4bc62a7f123494f9e399284ad43b1d76e12bf12bf2a4abd3",
+    "0x196bf8574": "7acd99bdcb174ba39ffa57ec45a325a81b4df06ef9b24e66aaecf80e7835a314",
+    "0x196bf90dc": "0b6fc4decae765a863e6cf91c4f321f25969b61c3755aeb19adcb784da960066"
+  },
+  "conversion_cases": 570,
+  "comparison_cases": 424,
+  "conversion_sha256": "5556087eebdde8ee7559978a568b5f9cdb4f73d8547ce1732ee84aae32d46a99",
+  "comparison_sha256": "1fbd18f46246ffceb5d79e73cba532665886b8c662a6fc11bcda9dcf388074d8",
+  "scope": "Numeric CMTime only, requested timescale 1e9; no hooks beyond PAC instructions"
+}

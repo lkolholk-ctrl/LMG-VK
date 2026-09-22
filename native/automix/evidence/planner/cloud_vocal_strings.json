@@ -1,0 +1,45 @@
+{
+  "text_page_sha256": "a598577b4b0111b19f1774ae4cac31a1393a8b2b74733fc23549c03ab7926140",
+  "getters": [
+    {
+      "address": "0x21600f4cc",
+      "value": "very-low",
+      "small_string": "766572792d6c6f7700000000000000e8"
+    },
+    {
+      "address": "0x21600f4e4",
+      "value": "low",
+      "small_string": "6c6f77000000000000000000000000e3"
+    },
+    {
+      "address": "0x21600f4f4",
+      "value": "medium",
+      "small_string": "6d656469756d000000000000000000e6"
+    },
+    {
+      "address": "0x21600f508",
+      "value": "high",
+      "small_string": "686967680000000000000000000000e4"
+    },
+    {
+      "address": "0x21600f518",
+      "value": "very-high",
+      "small_string": "766572792d68696768000000000000e9"
+    },
+    {
+      "address": "0x21600f2bc",
+      "value": "singing",
+      "small_string": "73696e67696e670000000000000000e7"
+    },
+    {
+      "address": "0x21600f2d4",
+      "value": "speech",
+      "small_string": "737065656368000000000000000000e6"
+    },
+    {
+      "address": "0x21600f2e8",
+      "value": "rapping",
+      "small_string": "72617070696e670000000000000000e7"
+    }
+  ]
+}

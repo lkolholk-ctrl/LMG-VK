@@ -1,0 +1,267 @@
+{
+  "binary_sha256": "e843a9a94838f49c9c1e9b11f57fca70c6eebde59d7a3fd8d43917ee65607b4d",
+  "hooks": [],
+  "parameters": [
+    {
+      "id": "Ga1g",
+      "minimum": 0.0,
+      "maximum": 1.0,
+      "defaultValue": 1.0,
+      "styleParameterId": "player_gain",
+      "initializer": "0x27226d284",
+      "raw_hex": "476131670000000000000000000000e40000000000000000000000000000f03f000000000000f03f706c617965725f6761696e00000000eb"
+    },
+    {
+      "id": "Fbw1",
+      "minimum": 0.05,
+      "maximum": 3.0,
+      "defaultValue": 2.0,
+      "styleParameterId": "aufilter_center_bandwidth",
+      "initializer": "0x27226d32c",
+      "raw_hex": "466277310000000000000000000000e49a9999999999a93f0000000000000840000000000000004019000000000000d02018297202000080"
+    },
+    {
+      "id": "Fcg1",
+      "minimum": -18.0,
+      "maximum": 18.0,
+      "defaultValue": 0.0,
+      "styleParameterId": "aufilter_center_gain",
+      "initializer": "0x27226d3d8",
+      "raw_hex": "466367310000000000000000000000e400000000000032c00000000000003240000000000000000014000000000000d00018297202000080"
+    },
+    {
+      "id": "Fcf1",
+      "minimum": 10.0,
+      "maximum": 21829.5,
+      "defaultValue": 2500.0,
+      "styleParameterId": "aufilter_center_freq",
+      "initializer": "0x27226d480",
+      "raw_hex": "466366310000000000000000000000e40000000000002440000000006051d540000000000088a34014000000000000d0e017297202000080"
+    },
+    {
+      "id": "HP1f",
+      "minimum": 10.0,
+      "maximum": 22050.0,
+      "defaultValue": 10.0,
+      "styleParameterId": "hp_cutoff_freq",
+      "initializer": "0x27226d530",
+      "raw_hex": "485031660000000000000000000000e40000000000002440000000008088d540000000000000244068705f6375746f66665f6672657100ee"
+    },
+    {
+      "id": "HP1r",
+      "minimum": -20.0,
+      "maximum": 40.01,
+      "defaultValue": 0.0,
+      "styleParameterId": "hp_reso",
+      "initializer": "0x27226d5e4",
+      "raw_hex": "485031720000000000000000000000e400000000000034c0e17a14ae47014440000000000000000068705f7265736f0000000000000000e7"
+    },
+    {
+      "id": "LP1f",
+      "minimum": 10.0,
+      "maximum": 21829.5,
+      "defaultValue": 22000.0,
+      "styleParameterId": "lp_cutoff_freq",
+      "initializer": "0x27226d688",
+      "raw_hex": "4c5031660000000000000000000000e40000000000002440000000006051d54000000000007cd5406c705f6375746f66665f6672657100ee"
+    },
+    {
+      "id": "LP1r",
+      "minimum": -20.0,
+      "maximum": 40.01,
+      "defaultValue": 0.0,
+      "styleParameterId": "lp_reso",
+      "initializer": "0x27226d740",
+      "raw_hex": "4c5031720000000000000000000000e400000000000034c0e17a14ae4701444000000000000000006c705f7265736f0000000000000000e7"
+    },
+    {
+      "id": "Ga2g",
+      "minimum": 0.0,
+      "maximum": 1.0,
+      "defaultValue": 1.0,
+      "styleParameterId": "send_mixer_gain",
+      "initializer": "0x27226d7e4",
+      "raw_hex": "476132670000000000000000000000e40000000000000000000000000000f03f000000000000f03f73656e645f6d697865725f6761696eef"
+    },
+    {
+      "id": "DLdt",
+      "minimum": 0.0001,
+      "maximum": 2.01,
+      "defaultValue": 1.0,
+      "styleParameterId": "fx_delay_delay_time",
+      "initializer": "0x27226d890",
+      "raw_hex": "444c64740000000000000000000000e42d431cebe2361a3f14ae47e17a140040000000000000f03f13000000000000d0c017297202000080"
+    },
+    {
+      "id": "DLlf",
+      "minimum": 10.0,
+      "maximum": 22050.0,
+      "defaultValue": 2500.0,
+      "styleParameterId": "fx_delay_lp_cutoff_frequency",
+      "initializer": "0x27226d93c",
+      "raw_hex": "444c6c660000000000000000000000e40000000000002440000000008088d540000000000088a3401c000000000000d0a017297202000080"
+    },
+    {
+      "id": "DLdw",
+      "minimum": 0.0,
+      "maximum": 100.0,
+      "defaultValue": 0.0,
+      "styleParameterId": "fx_delay_dry_wet",
+      "initializer": "0x27226d9ec",
+      "raw_hex": "444c64770000000000000000000000e400000000000000000000000000005940000000000000000010000000000000d08017297202000080"
+    },
+    {
+      "id": "DLfb",
+      "minimum": -99.9,
+      "maximum": 99.9,
+      "defaultValue": 50.0,
+      "styleParameterId": "fx_delay_feedback",
+      "initializer": "0x27226da94",
+      "raw_hex": "444c66620000000000000000000000e49a99999999f958c09a99999999f95840000000000000494011000000000000d06017297202000080"
+    },
+    {
+      "id": "RVga",
+      "minimum": -20.0,
+      "maximum": 20.01,
+      "defaultValue": 1.0,
+      "styleParameterId": "fx_reverb_gain",
+      "initializer": "0x27226db40",
+      "raw_hex": "525667610000000000000000000000e400000000000034c0c3f5285c8f023440000000000000f03f66785f7265766572625f6761696e00ee"
+    },
+    {
+      "id": "RVdw",
+      "minimum": 0.0,
+      "maximum": 100.0,
+      "defaultValue": 0.0,
+      "styleParameterId": "fx_reverb_dry_wet",
+      "initializer": "0x27226dbf4",
+      "raw_hex": "525664770000000000000000000000e400000000000000000000000000005940000000000000000011000000000000d04017297202000080"
+    },
+    {
+      "id": "RVmi",
+      "minimum": 0.0001,
+      "maximum": 1.0,
+      "defaultValue": 0.008,
+      "styleParameterId": "fx_reverb_min_delay_time",
+      "initializer": "0x27226dc9c",
+      "raw_hex": "52566d690000000000000000000000e42d431cebe2361a3f000000000000f03ffca9f1d24d62803f18000000000000d02017297202000080"
+    },
+    {
+      "id": "RVma",
+      "minimum": 0.0001,
+      "maximum": 1.0,
+      "defaultValue": 0.05,
+      "styleParameterId": "fx_reverb_max_delay_time",
+      "initializer": "0x27226dd54",
+      "raw_hex": "52566d610000000000000000000000e42d431cebe2361a3f000000000000f03f9a9999999999a93f18000000000000d00017297202000080"
+    },
+    {
+      "id": "RVlf",
+      "minimum": 0.001,
+      "maximum": 20.0,
+      "defaultValue": 1.0,
+      "styleParameterId": "fx_reverb_low_frequency_decay_time",
+      "initializer": "0x27226de0c",
+      "raw_hex": "52566c660000000000000000000000e4fca9f1d24d62503f0000000000003440000000000000f03f22000000000000d0d016297202000080"
+    },
+    {
+      "id": "RVhf",
+      "minimum": 0.001,
+      "maximum": 20.0,
+      "defaultValue": 0.5,
+      "styleParameterId": "fx_reverb_high_frequency_decay_time",
+      "initializer": "0x27226deb8",
+      "raw_hex": "525668660000000000000000000000e4fca9f1d24d62503f0000000000003440000000000000e03f23000000000000d0a016297202000080"
+    },
+    {
+      "id": "RVrr",
+      "minimum": 1.0,
+      "maximum": 1000.0,
+      "defaultValue": 1.0,
+      "styleParameterId": "fx_reverb_randomize_reflections",
+      "initializer": "0x27226df64",
+      "raw_hex": "525672720000000000000000000000e4000000000000f03f0000000000408f40000000000000f03f1f000000000000d08016297202000080"
+    },
+    {
+      "id": "HP2f",
+      "minimum": 10.0,
+      "maximum": 22050.0,
+      "defaultValue": 10.0,
+      "styleParameterId": "fx_hp_cutoff_freq",
+      "initializer": "0x27226e010",
+      "raw_hex": "485032660000000000000000000000e40000000000002440000000008088d540000000000000244011000000000000d06016297202000080"
+    },
+    {
+      "id": "HP2r",
+      "minimum": -20.0,
+      "maximum": 40.0,
+      "defaultValue": 0.0,
+      "styleParameterId": "fx_hp_reso",
+      "initializer": "0x27226e0bc",
+      "raw_hex": "485032720000000000000000000000e400000000000034c00000000000004440000000000000000066785f68705f7265736f0000000000ea"
+    },
+    {
+      "id": "LP2f",
+      "minimum": 10.0,
+      "maximum": 21829.5,
+      "defaultValue": 22000.0,
+      "styleParameterId": "fx_lp_cutoff_freq",
+      "initializer": "0x27226e164",
+      "raw_hex": "4c5032660000000000000000000000e40000000000002440000000006051d54000000000007cd54011000000000000d04016297202000080"
+    },
+    {
+      "id": "LP2r",
+      "minimum": -20.0,
+      "maximum": 40.0,
+      "defaultValue": 0.0,
+      "styleParameterId": "fx_lp_reso",
+      "initializer": "0x27226e214",
+      "raw_hex": "4c5032720000000000000000000000e400000000000034c00000000000004440000000000000000066785f6c705f7265736f0000000000ea"
+    },
+    {
+      "id": "Ga3g",
+      "minimum": 0.0,
+      "maximum": 1.0,
+      "defaultValue": 1.0,
+      "styleParameterId": "fx_mixer_dry",
+      "initializer": "0x27226e2bc",
+      "raw_hex": "476133670000000000000000000000e40000000000000000000000000000f03f000000000000f03f66785f6d697865725f647279000000ec"
+    },
+    {
+      "id": "Ga4g",
+      "minimum": 0.0,
+      "maximum": 1.0,
+      "defaultValue": 0.0,
+      "styleParameterId": "fx_mixer_wet",
+      "initializer": "0x27226e364",
+      "raw_hex": "476134670000000000000000000000e40000000000000000000000000000f03f000000000000000066785f6d697865725f776574000000ec"
+    },
+    {
+      "id": "ts_rate",
+      "minimum": 0.03125,
+      "maximum": 32.0,
+      "defaultValue": 1.0,
+      "styleParameterId": "ts_rate",
+      "initializer": "0x27226e410",
+      "raw_hex": "74735f726174650000000000000000e7000000000000a03f0000000000004040000000000000f03f74735f726174650000000000000000e7"
+    },
+    {
+      "id": "out_gain",
+      "minimum": 0.0,
+      "maximum": 1.0,
+      "defaultValue": 0.0,
+      "styleParameterId": "out_gain",
+      "initializer": "0x27226e49c",
+      "raw_hex": "6f75745f6761696e00000000000000e80000000000000000000000000000f03f00000000000000006f75745f6761696e00000000000000e8"
+    },
+    {
+      "id": "bypa",
+      "minimum": 0.0,
+      "maximum": 1.0,
+      "defaultValue": 1.0,
+      "styleParameterId": "bypa",
+      "initializer": "0x27226e534",
+      "raw_hex": "627970610000000000000000000000e40000000000000000000000000000f03f000000000000f03f627970610000000000000000000000e4"
+    }
+  ]
+}

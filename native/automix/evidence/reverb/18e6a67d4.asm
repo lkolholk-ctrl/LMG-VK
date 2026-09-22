@@ -1,0 +1,50 @@
+; iOS 23A341 range 0x18e6a67d4..0x18e6a6894
+; SHA256 3d9b1f6799897ade8ae1439d1c03478f1c0b804072103847701f37b6342b254c
+0x18e6a67d4: c83f2eb0 adrp x8, #0x1eae9f000
+0x18e6a67d8: 081944b9 ldr w8, [x8, #0x418]
+0x18e6a67dc: c8020034 cbz w8, #0x18e6a6834
+0x18e6a67e0: c93f2eb0 adrp x9, #0x1eae9f000
+0x18e6a67e4: 2af140f9 ldr x10, [x9, #0x1e0]
+0x18e6a67e8: cb3f2eb0 adrp x11, #0x1eae9f000
+0x18e6a67ec: 6ced40f9 ldr x12, [x11, #0x1d8]
+0x18e6a67f0: 884540b8 ldr w8, [x12], #4
+0x18e6a67f4: 4d0140b9 ldr w13, [x10]
+0x18e6a67f8: a801080b add w8, w13, w8
+0x18e6a67fc: 484500b8 str w8, [x10], #4
+0x18e6a6800: 087d0153 lsr w8, w8, #1
+0x18e6a6804: cd3f2eb0 adrp x13, #0x1eae9f000
+0x18e6a6808: ad1542f9 ldr x13, [x13, #0x428]
+0x18e6a680c: ce3f2eb0 adrp x14, #0x1eae9f000
+0x18e6a6810: ce0942f9 ldr x14, [x14, #0x410]
+0x18e6a6814: 9f010deb cmp x12, x13
+0x18e6a6818: 8f318e9a csel x15, x12, x14, lo
+0x18e6a681c: 5f010deb cmp x10, x13
+0x18e6a6820: 4a318e9a csel x10, x10, x14, lo
+0x18e6a6824: ec318c9a csel x12, x15, x12, lo
+0x18e6a6828: 2af100f9 str x10, [x9, #0x1e0]
+0x18e6a682c: 6ced00f9 str x12, [x11, #0x1d8]
+0x18e6a6830: 17000014 b #0x18e6a688c
+0x18e6a6834: c83f2eb0 adrp x8, #0x1eae9f000
+0x18e6a6838: 090942f9 ldr x9, [x8, #0x410]
+0x18e6a683c: 280140b9 ldr w8, [x9]
+0x18e6a6840: 1f010071 cmp w8, #0
+0x18e6a6844: 8a249b52 mov w10, #0xd924
+0x18e6a6848: 6aeba072 movk w10, #0x75b, lsl #16
+0x18e6a684c: 4801881a csel w8, w10, w8, eq
+0x18e6a6850: ea6b8152 mov w10, #0xb5f
+0x18e6a6854: ca69b072 movk w10, #0x834e, lsl #16
+0x18e6a6858: 0a7d2a9b smull x10, w8, w10
+0x18e6a685c: 4afd60d3 lsr x10, x10, #0x20
+0x18e6a6860: 4a01080b add w10, w10, w8
+0x18e6a6864: 4b7d1013 asr w11, w10, #0x10
+0x18e6a6868: 6a7d4a0b add w10, w11, w10, lsr #31
+0x18e6a686c: eb348852 mov w11, #0x41a7
+0x18e6a6870: 4a7d0a0b add w10, w10, w10, lsl #31
+0x18e6a6874: 08290b1b madd w8, w8, w11, w10
+0x18e6a6878: 0a050051 sub w10, w8, #1
+0x18e6a687c: 1f010071 cmp w8, #0
+0x18e6a6880: 48b1881a csel w8, w10, w8, lt
+0x18e6a6884: 08790012 and w8, w8, #0x7fffffff
+0x18e6a6888: 280100b9 str w8, [x9]
+0x18e6a688c: e003082a mov w0, w8
+0x18e6a6890: c0035fd6 ret 

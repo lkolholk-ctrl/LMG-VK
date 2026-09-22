@@ -1,0 +1,131 @@
+{
+  "getter_bytes_sha256": "63e25659c2977b15d7977fe9be437d892592e7dec47716995fd5a8cbe73c2be6",
+  "values": [
+    {
+      "internal_tonic_tag": 0,
+      "getter": "0x21608e078",
+      "literal": "Ab",
+      "branch": "#0x215be8a3c"
+    },
+    {
+      "internal_tonic_tag": 1,
+      "getter": "0x21608e080",
+      "literal": "A",
+      "branch": "#0x215be7138"
+    },
+    {
+      "internal_tonic_tag": 2,
+      "getter": "0x21608e088",
+      "literal": "A#",
+      "branch": "#0x215be8a3c"
+    },
+    {
+      "internal_tonic_tag": 3,
+      "getter": "0x21608e090",
+      "literal": "Bb",
+      "branch": "#0x215be8a3c"
+    },
+    {
+      "internal_tonic_tag": 4,
+      "getter": "0x21608e098",
+      "literal": "B",
+      "branch": "#0x215be7138"
+    },
+    {
+      "internal_tonic_tag": 5,
+      "getter": "0x21608e0a0",
+      "literal": "B#",
+      "branch": "#0x215be8a3c"
+    },
+    {
+      "internal_tonic_tag": 6,
+      "getter": "0x21608e0a8",
+      "literal": "Cb",
+      "branch": "#0x215be8a3c"
+    },
+    {
+      "internal_tonic_tag": 7,
+      "getter": "0x21608e0b0",
+      "literal": "C",
+      "branch": "#0x215be7138"
+    },
+    {
+      "internal_tonic_tag": 8,
+      "getter": "0x21608e0b8",
+      "literal": "C#",
+      "branch": "#0x215be8a3c"
+    },
+    {
+      "internal_tonic_tag": 9,
+      "getter": "0x21608e0c0",
+      "literal": "Db",
+      "branch": "#0x215be8a3c"
+    },
+    {
+      "internal_tonic_tag": 10,
+      "getter": "0x21608e0c8",
+      "literal": "D",
+      "branch": "#0x215be7138"
+    },
+    {
+      "internal_tonic_tag": 11,
+      "getter": "0x21608e0d0",
+      "literal": "D#",
+      "branch": "#0x215be8a3c"
+    },
+    {
+      "internal_tonic_tag": 12,
+      "getter": "0x21608e0d8",
+      "literal": "Eb",
+      "branch": "#0x215be8a3c"
+    },
+    {
+      "internal_tonic_tag": 13,
+      "getter": "0x21608e0e0",
+      "literal": "E",
+      "branch": "#0x215be7138"
+    },
+    {
+      "internal_tonic_tag": 14,
+      "getter": "0x21608e0e8",
+      "literal": "E#",
+      "branch": "#0x215be8a3c"
+    },
+    {
+      "internal_tonic_tag": 15,
+      "getter": "0x21608e0f0",
+      "literal": "Fb",
+      "branch": "#0x215be8a3c"
+    },
+    {
+      "internal_tonic_tag": 16,
+      "getter": "0x21608e0f8",
+      "literal": "F",
+      "branch": "#0x215be7138"
+    },
+    {
+      "internal_tonic_tag": 17,
+      "getter": "0x21608e100",
+      "literal": "F#",
+      "branch": "#0x215be8a3c"
+    },
+    {
+      "internal_tonic_tag": 18,
+      "getter": "0x21608e108",
+      "literal": "Gb",
+      "branch": "#0x215be8a3c"
+    },
+    {
+      "internal_tonic_tag": 19,
+      "getter": "0x21608e110",
+      "literal": "G",
+      "branch": "#0x215be7138"
+    },
+    {
+      "internal_tonic_tag": 20,
+      "getter": "0x21608e118",
+      "literal": "G#",
+      "branch": "#0x215be8a3c"
+    }
+  ]
+}

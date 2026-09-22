@@ -1,0 +1,96 @@
+; Binary: _SonicKit_MusicKit_Packages
+; Address: 0x272252970
+; Symbol: FUN_272252970
+; Signature: undefined FUN_272252970()
+272252970: pacibsp
+272252974: stp d13,d12,[sp, #-0x70]!
+272252978: stp d11,d10,[sp, #0x10]
+27225297c: stp d9,d8,[sp, #0x20]
+272252980: stp x24,x23,[sp, #0x30]
+272252984: stp x22,x21,[sp, #0x40]
+272252988: stp x20,x19,[sp, #0x50]
+27225298c: stp x29,x30,[sp, #0x60]
+272252990: add x29,sp,#0x60
+272252994: ldr x21,[x0, #0x10]
+272252998: cbz x21,0x2722529bc
+27225299c: fmov d8,d0
+2722529a0: mov x19,x0
+2722529a4: ldr d11,[x19, #0x20]!
+2722529a8: add x8,x19,x21, LSL #0x3
+2722529ac: ldur d9,[x8, #-0x8]
+2722529b0: fsub d0,d9,d11
+2722529b4: fcmp d0,d8
+2722529b8: b.ge 0x2722529e8
+2722529bc: adrp x3,0x2780e3000
+2722529c0: ldr x3,[x3, #0xc50]
+2722529c4: mov x0,x3
+2722529c8: ldp x29,x30,[sp, #0x60]
+2722529cc: ldp x20,x19,[sp, #0x50]
+2722529d0: ldp x22,x21,[sp, #0x40]
+2722529d4: ldp x24,x23,[sp, #0x30]
+2722529d8: ldp d9,d8,[sp, #0x20]
+2722529dc: ldp d11,d10,[sp, #0x10]
+2722529e0: ldp d13,d12,[sp], #0x70
+2722529e4: retab
+2722529e8: adrp x1,0x280c99000
+2722529ec: add x1,x1,#0xbf0
+2722529f0: adrp x2,0x2884af000
+2722529f4: add x2,x2,#0xef8
+2722529f8: bl 0x2722545e4
+2722529fc: mov w1,#0x28
+272252a00: mov w2,#0x7
+272252a04: bl 0x2743ddc90
+272252a08: mov x3,x0
+272252a0c: mov x22,#0x0
+272252a10: adrp x8,0x272296000
+272252a14: ldr q0,[x8, #0x6e0]
+272252a18: str q0,[x0, #0x10]
+272252a1c: str d11,[x0, #0x20]
+272252a20: fadd d10,d8,d8
+272252a24: ldr d12,[x19,x22, lsl #3]
+272252a28: fsub d0,d12,d11
+272252a2c: fcmp d10,d0
+272252a30: b.ls 0x272252a50
+272252a34: fsub d1,d9,d12
+272252a38: fcmp d1,#0.0
+272252a3c: b.ne 0x272252a94
+272252a40: ldp x23,x8,[x3, #0x10]
+272252a44: add x20,x23,#0x1
+272252a48: fmov d12,d9
+272252a4c: b 0x272252aa8
+272252a50: ldr x23,[x3, #0x10]
+272252a54: ldr x8,[x3, #0x18]
+272252a58: add x20,x23,#0x1
+272252a5c: cmp x23,x8, LSR #0x1
+272252a60: b.cs 0x272252a88
+272252a64: fadd d11,d11,d8
+272252a68: str x20,[x3, #0x10]
+272252a6c: add x8,x3,x23, LSL #0x3
+272252a70: str d11,[x8, #0x20]
+272252a74: fsub d0,d12,d11
+272252a78: fcmp d10,d0
+272252a7c: mov x23,x20
+272252a80: b.ls 0x272252a54
+272252a84: b 0x272252a34
+272252a88: bl 0x27225470c
+272252a8c: mov x3,x0
+272252a90: b 0x272252a64
+272252a94: fcmp d1,d8
+272252a98: fccmp d0,d8,#0x8,ge
+272252a9c: b.lt 0x272252ac0
+272252aa0: ldp x23,x8,[x3, #0x10]
+272252aa4: add x20,x23,#0x1
+272252aa8: cmp x23,x8, LSR #0x1
+272252aac: b.cs 0x272252ad0
+272252ab0: str x20,[x3, #0x10]
+272252ab4: add x8,x3,x23, LSL #0x3
+272252ab8: str d12,[x8, #0x20]
+272252abc: fmov d11,d12
+272252ac0: add x22,x22,#0x1
+272252ac4: cmp x22,x21
+272252ac8: b.ne 0x272252a24
+272252acc: b 0x2722529c4
+272252ad0: bl 0x27225470c
+272252ad4: mov x3,x0
+272252ad8: b 0x272252ab0
+

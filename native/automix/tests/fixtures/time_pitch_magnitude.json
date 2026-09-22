@@ -1,0 +1,7 @@
+{
+  "magnitude_cases": 504,
+  "estimate_bucket_boundary_checks": 9216,
+  "table_entries": 512,
+  "code_sha256": "09d521d9a5efaee54d9923b3ad21dd7cda4cf2a067a1568e426826879cafa4f8",
+  "hooks": []
+}

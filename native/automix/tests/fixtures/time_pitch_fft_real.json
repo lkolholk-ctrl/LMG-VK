@@ -1,0 +1,11 @@
+{
+  "cases": 36,
+  "entry": "0x234ace2a8",
+  "text_sha256": "d8885879fba251698928bab56fb29d6710b8afdcbbbe6018ed32d061d713c628",
+  "fixture_sha256": "2c1e8439d16abca97c8c98cb6b041cf69ce9b9de28205dfd0e241788ac3f4635",
+  "hooks": [
+    "allocation",
+    "host libm"
+  ],
+  "scope": "Complete original forward and inverse real FFT, N=256..8192"
+}

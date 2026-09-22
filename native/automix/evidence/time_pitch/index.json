@@ -1,0 +1,173 @@
+{
+  "image": "libEmbeddedSystemAUs.dylib",
+  "base": "0x234f04000",
+  "image_header_sha256": "73edfa416c1547bead3fc8c0b2a1d7c37a41cd20205b86c0d4439bdb769688c6",
+  "symbol_count": 4451,
+  "function_count": 3644,
+  "factories": [
+    {
+      "address": "0x234f810dc",
+      "kind": 15,
+      "name": "_AUAsyncRendererFactory"
+    },
+    {
+      "address": "0x234f67ac8",
+      "kind": 15,
+      "name": "_AUBandpassFactory"
+    },
+    {
+      "address": "0x234fe9df0",
+      "kind": 15,
+      "name": "_AUConverterFactory"
+    },
+    {
+      "address": "0x234f5e998",
+      "kind": 15,
+      "name": "_AUDeferredRendererFactory"
+    },
+    {
+      "address": "0x234fdf30c",
+      "kind": 15,
+      "name": "_AUDelayFactory"
+    },
+    {
+      "address": "0x234f86204",
+      "kind": 15,
+      "name": "_AUDistortionFactory"
+    },
+    {
+      "address": "0x234fe6afc",
+      "kind": 15,
+      "name": "_AUDynamicsProcessorFactory"
+    },
+    {
+      "address": "0x234f3a43c",
+      "kind": 15,
+      "name": "_AUFilterFactory"
+    },
+    {
+      "address": "0x234f83e44",
+      "kind": 15,
+      "name": "_AUGenericOutputFactory"
+    },
+    {
+      "address": "0x234f63ee0",
+      "kind": 15,
+      "name": "_AUHapticSynthFactory"
+    },
+    {
+      "address": "0x234fce1c8",
+      "kind": 15,
+      "name": "_AUHighShelfFilterFactory"
+    },
+    {
+      "address": "0x234fc5c94",
+      "kind": 15,
+      "name": "_AUHipassFactory"
+    },
+    {
+      "address": "0x234f68a00",
+      "kind": 15,
+      "name": "_AULopassFactory"
+    },
+    {
+      "address": "0x234f51bc4",
+      "kind": 15,
+      "name": "_AULowShelfFilterFactory"
+    },
+    {
+      "address": "0x234f54358",
+      "kind": 15,
+      "name": "_AUMatrixMixerFactory"
+    },
+    {
+      "address": "0x234fe55e8",
+      "kind": 15,
+      "name": "_AUMatrixReverbLiteFactory"
+    },
+    {
+      "address": "0x234f6023c",
+      "kind": 15,
+      "name": "_AUMergerFactory"
+    },
+    {
+      "address": "0x234f56cac",
+      "kind": 15,
+      "name": "_AUMultiChannelMixerFactory"
+    },
+    {
+      "address": "0x234f6d7dc",
+      "kind": 15,
+      "name": "_AUMultiSplitterFactory"
+    },
+    {
+      "address": "0x234fefc60",
+      "kind": 15,
+      "name": "_AUNewPitchFactory"
+    },
+    {
+      "address": "0x234f9e984",
+      "kind": 15,
+      "name": "_AUNewTimePitchFactory"
+    },
+    {
+      "address": "0x234f8840c",
+      "kind": 15,
+      "name": "_AUNotQuiteSoSimpleTimeFactory"
+    },
+    {
+      "address": "0x234f83c80",
+      "kind": 15,
+      "name": "_AUParametricEQFactory"
+    },
+    {
+      "address": "0x234f6d088",
+      "kind": 15,
+      "name": "_AUPeakLimiterFactory"
+    },
+    {
+      "address": "0x234f5081c",
+      "kind": 15,
+      "name": "_AUPitchFactory"
+    },
+    {
+      "address": "0x234fd4a40",
+      "kind": 15,
+      "name": "_AUSampleDelayFactory"
+    },
+    {
+      "address": "0x234fc7bf8",
+      "kind": 15,
+      "name": "_AUSimpleTimeFactory"
+    },
+    {
+      "address": "0x234fe7654",
+      "kind": 15,
+      "name": "_AUSpecialPurposeSweepFilterFactory"
+    },
+    {
+      "address": "0x234f5b444",
+      "kind": 15,
+      "name": "_AUSplitterFactory"
+    },
+    {
+      "address": "0x234ff2698",
+      "kind": 15,
+      "name": "_AUVarispeedFactory"
+    },
+    {
+      "address": "0x234fd6074",
+      "kind": 15,
+      "name": "_MIDISynthFactory"
+    },
+    {
+      "address": "0x234f5a820",
+      "kind": 15,
+      "name": "_SamplerFactory"
+    }
+  ],
+  "inputs": [
+    "/tmp/lmg-au-evidence/System/Library/Caches/com.apple.dyld/dyld_shared_cache_arm64e.48",
+    "/tmp/lmg-au-evidence/System/Library/Caches/com.apple.dyld/dyld_shared_cache_arm64e.72.dyldlinkedit"
+  ]
+}

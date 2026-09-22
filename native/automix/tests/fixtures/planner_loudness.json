@@ -1,0 +1,17 @@
+{
+  "binary_sha256": "e843a9a94838f49c9c1e9b11f57fca70c6eebde59d7a3fd8d43917ee65607b4d",
+  "function_sha256": {
+    "0x272226584": "ef16aeb9dc06463b2156b68118dc804afec587e6cca79dc6ae1979d778a192e9",
+    "0x272223e74": "101b1013bc1600243a025b5d7f022a5b6ba29ce5a5313441496de7766e164e90",
+    "0x272216414": "4031bd14d755d752529b1cdd5f56882bc8934e1730b7bfd494e941bd5d834b54",
+    "0x272216c00": "f0c532145e6acef39606a3f286f7c3c315ecbb17d9621b7a5239f1d0487339d1",
+    "0x272215af4": "ebffe47adad71f8a9667f58a357f0e4a856a2d632f22f7ab18bb3e5019f612c5",
+    "0x272215bbc": "292b4ca7ed63c7fc7f7deefdbebf2b6960540e35cb8f46792cea18e8b391fe5d"
+  },
+  "map_cases": 50,
+  "window_mean_cases": 510,
+  "hooks": [
+    "Swift arrays and refcounts"
+  ],
+  "scope": "Original inference, timestamp loop, closed-window filter, ordered average. No full ratio caller."
+}

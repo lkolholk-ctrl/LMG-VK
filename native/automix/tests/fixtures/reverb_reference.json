@@ -1,0 +1,100 @@
+{
+  "code_hashes": {
+    "0x234fe3ff4": "2d2b77a374a4e1d57b3d9e0303a25fd7712b935f8458a45c5a7beb9ce99d69bb",
+    "0x234fd4ac0": "cb565ab1046590dbfb7d8d43ffab4556d041351c0cea03c583f067ca6fcf9697",
+    "0x18e6a67d4": "3d9b1f6799897ade8ae1439d1c03478f1c0b804072103847701f37b6342b254c",
+    "0x18e6f2804": "3326f482966d45321535aaccf4a788c055f262ddc0de629405dfbf97e1307f4e"
+  },
+  "cases": [
+    {
+      "rate": 48000,
+      "minimum": 0.008,
+      "maximum": 0.05,
+      "seed": 1,
+      "low": 1,
+      "high": 0.5,
+      "wet": 100,
+      "layout": 2,
+      "delays": [
+        389,
+        449,
+        487,
+        571,
+        647,
+        739,
+        787,
+        907,
+        1049,
+        1129,
+        1319,
+        1471,
+        1693,
+        1861,
+        2129,
+        2411
+      ],
+      "filename": "reverb_0.bin",
+      "sha256": "f25b72edb11de3268f3d46bd78aedef0503f2f4a2a463fb6c93343ddda9ff0c2"
+    },
+    {
+      "rate": 44100,
+      "minimum": 0.008,
+      "maximum": 0.05,
+      "seed": 0,
+      "low": 1.7,
+      "high": 0.2,
+      "wet": 37,
+      "layout": 1,
+      "delays": [
+        353,
+        397,
+        457,
+        491,
+        557,
+        641,
+        769,
+        821,
+        907,
+        1087,
+        1151,
+        1423,
+        1531,
+        1747,
+        2027,
+        2207
+      ],
+      "filename": "reverb_1.bin",
+      "sha256": "e557b6df6006924ecada0eb40de9e0bc02c693ec6b16717f110e700bcffbd89c"
+    },
+    {
+      "rate": 48000,
+      "minimum": 0.0001,
+      "maximum": 0.0001,
+      "seed": 4294967295,
+      "low": 0.8,
+      "high": 1.2,
+      "wet": 65,
+      "layout": 3,
+      "delays": [
+        5,
+        7,
+        5,
+        7,
+        5,
+        7,
+        5,
+        7,
+        5,
+        7,
+        5,
+        7,
+        5,
+        7,
+        5,
+        7
+      ],
+      "filename": "reverb_2.bin",
+      "sha256": "15f0f090fcf47c4f223f6b375af493f5748af9d172312156cbae04aed3f76fcb"
+    }
+  ]
+}

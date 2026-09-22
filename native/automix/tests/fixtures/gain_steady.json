@@ -1,0 +1,11 @@
+{
+  "code_sha256": {
+    "0x234acb870": "5cfd10449dee89dd7925285c5e066efa7e8b10b74f51027f7a2fa13a6d6fe333",
+    "0x234ae6db0": "5ba53daff6184536e29b62054053fb2dba4e9a11d06657deaab814e9ed0c1938"
+  },
+  "fixture_sha256": "34fc578cc6c44ab3d6054a69c34f0a7bbf90a53817a026882fc0d17c553a9b62",
+  "cases": 312,
+  "replacements": [
+    "PAC entry/return only"
+  ]
+}

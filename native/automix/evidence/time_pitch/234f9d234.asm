@@ -1,0 +1,20 @@
+; Image: libEmbeddedSystemAUs.dylib iOS 23A341
+; Range: 0x234f9d234..0x234f9d278
+; Code SHA256: 5ef44add0d46336f0b10afb1f89f7500ac30f297581436f33c1fd51155c90de8
+0x234f9d234: 280c0051 sub w8, w1, #3
+0x234f9d238: 1f090031 cmn w8, #2
+0x234f9d23c: 62000054 b.hs #0x234f9d248
+0x234f9d240: 204e8512 mov w0, #-0x2a72
+0x234f9d244: c0035fd6 ret 
+0x234f9d248: 62000034 cbz w2, #0x234f9d254
+0x234f9d24c: 804f8512 mov w0, #-0x2a7d
+0x234f9d250: c0035fd6 ret 
+0x234f9d254: 7f2303d5 pacibsp 
+0x234f9d258: fd7bbfa9 stp x29, x30, [sp, #-0x10]!
+0x234f9d25c: fd030091 mov x29, sp
+0x234f9d260: 00c00c91 add x0, x0, #0x330
+0x234f9d264: b79d7e94 bl #0x236f44940
+0x234f9d268: 00008052 mov w0, #0
+0x234f9d26c: fd7bc1a8 ldp x29, x30, [sp], #0x10
+0x234f9d270: ff2303d5 autibsp 
+0x234f9d274: c0035fd6 ret 
