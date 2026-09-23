@@ -35,6 +35,7 @@ data class MetadataProbeReport(
     val mainExpandedTempoTag: Int?,
     val edgeNormalTempoTag: Int?,
     val edgeExpandedTempoTag: Int?,
+    val preparation: PlannerPreparationReport? = null,
 ) {
     val selectedStyleId: Int? get() = null
 }

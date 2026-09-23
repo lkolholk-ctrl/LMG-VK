@@ -33,6 +33,29 @@ def verify_test_report(report: Path, minimum_cases: int) -> int:
     return len(cases)
 
 
+STAGE3A_CLASS = "com.lmg.vk.engine.automix.observation.NativePlannerPreparationIntegrationTest"
+STAGE3A_CASES = frozenset({
+    "completeResponsesUseNativeFlexStructure", "missingAndEmptyStayDifferent",
+    "sourceOrderAndDuplicateTimesArePreserved", "limitsRejectBeforeStructureExpansion",
+    "rawIdentityAndAbiAreStrict", "durationAndCatalogAreNotSubstituted",
+    "capturedBytesSurviveCallerMutation", "failureDoesNotExposePartiallyPreparedMaps",
+})
+
+
+def verify_stage3a_report(reports: Path) -> int:
+    report = reports / f"TEST-{STAGE3A_CLASS}.xml"
+    count = verify_test_report(report, len(STAGE3A_CASES))
+    suite = ET.parse(report).getroot()
+    if suite.get("name") != STAGE3A_CLASS:
+        raise ValueError("Stage 3a report belongs to a different test suite")
+    cases = suite.findall("testcase")
+    if not STAGE3A_CASES.issubset({case.get("name") for case in cases}):
+        raise ValueError("Stage 3a required test names are missing")
+    if any(case.get("classname") != STAGE3A_CLASS for case in cases):
+        raise ValueError("Stage 3a testcase class mismatch")
+    return count
+
+
 def verify(root: Path) -> None:
     source = root / "research/ios26-automix/TransitionStyles.json"
     canonical = source.read_bytes()
@@ -54,9 +77,10 @@ def verify(root: Path) -> None:
     reports = root / "app/build/test-results/testDebugUnitTest"
     stage1 = verify_test_report(reports / "TEST-com.lmg.vk.engine.automix.NativeObservationIntegrationTest.xml", 3)
     stage2 = verify_test_report(reports / "TEST-com.lmg.vk.engine.automix.observation.NativeMetadataProbeIntegrationTest.xml", 6)
+    stage3a = verify_stage3a_report(reports)
     lifecycle = verify_test_report(reports / "TEST-com.lmg.vk.engine.automix.observation.ObservationPipelineTest.xml", 20)
     print(f"Verified {len(apks)} APK(s), {len(ABIS)} JNI ABIs, catalog SHA-256, "
-          f"{stage1 + stage2} real JNI tests and {lifecycle} lifecycle tests")
+          f"{stage1 + stage2 + stage3a} real JNI tests and {lifecycle} lifecycle tests")
 
 
 if __name__ == "__main__":

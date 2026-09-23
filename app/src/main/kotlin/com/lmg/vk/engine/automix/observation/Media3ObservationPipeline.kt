@@ -48,6 +48,14 @@ class Media3ObservationPipeline(
                         append(" style=none issues=${report.issues.joinToString(",") { it.name }}")
                         append(" mainTags=${report.mainNormalTempoTag}/${report.mainExpandedTempoTag}")
                         append(" edgeTags=${report.edgeNormalTempoTag}/${report.edgeExpandedTempoTag}")
+                        report.preparation?.let { prepared ->
+                            append(" preparation=${prepared.outgoing.status}/${prepared.incoming.status}")
+                            append(" stableRegions=${prepared.outgoing.structure?.stableRegions ?: 0}")
+                            append("/${prepared.incoming.structure?.stableRegions ?: 0}")
+                            append(" preparationIssues=${prepared.outgoing.issues.joinToString(",") { it.name }}")
+                            append("/${prepared.incoming.issues.joinToString(",") { it.name }}")
+                            append(" selectionBlock=${prepared.selectionBlock}")
+                        }
                     }
                 }
                 // Logging is not allowed to break the playback/service lifecycle.

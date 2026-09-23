@@ -11,4 +11,12 @@ object NativeObservationBridge {
 
     /** Fixed-size, presence-preserving metadata probe; never returns a playback plan. */
     external fun probePair(values: DoubleArray, presentMask: Int, traits: Int): LongArray
+
+    /** Stage 3a: full raw responses -> native maps/region inventory, no selection.
+     * durationsMs has two slots; bits 0/1 mark presence. Absent slots MUST be zero.
+     * LongArray response is the bounded versioned ABI in OBSERVATION_STAGE3A.md.
+     */
+    external fun preparePair(outgoing: ByteArray, outgoingId: ByteArray,
+                             incoming: ByteArray, incomingId: ByteArray,
+                             durationsMs: LongArray, durationPresence: Int): LongArray
 }

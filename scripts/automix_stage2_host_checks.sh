@@ -32,7 +32,7 @@ BRIDGE=native/automix/android/src/main/kotlin/com/lmg/vk/engine/automix/nativeco
 kotlinc "$MAIN/ObservationPipeline.kt" "$TEST/ObservationPipelineScenarios.kt" \
   -cp "$COROUTINES_JAR" -include-runtime -d "$OUT/pipeline-tests.jar"
 java -cp "$OUT/pipeline-tests.jar:$COROUTINES_JAR" com.lmg.vk.engine.automix.observation.ObservationPipelineScenarios
-kotlinc "$MAIN/ObservationPipeline.kt" "$MAIN/MetadataProbe.kt" "$BRIDGE" "$TEST/NativeMetadataProbeScenarios.kt" \
+kotlinc "$MAIN/ObservationPipeline.kt" "$MAIN/MetadataProbe.kt" "$MAIN/PlannerPreparation.kt" "$BRIDGE" "$TEST/NativeMetadataProbeScenarios.kt" \
   -cp "$COROUTINES_JAR" -include-runtime -d "$OUT/probe-jni-tests.jar"
 java -Djava.library.path="$OUT/native" -cp "$OUT/probe-jni-tests.jar:$COROUTINES_JAR" \
   com.lmg.vk.engine.automix.observation.NativeMetadataProbeScenarios

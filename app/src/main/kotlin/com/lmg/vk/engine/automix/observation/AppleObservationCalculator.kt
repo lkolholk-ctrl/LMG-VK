@@ -9,7 +9,10 @@ internal class AppleObservationCalculator(private val openAsset: (String) -> Inp
     private val parser = AppleSongAnalysisParser()
     private var catalog: TransitionStyleCatalog? = null
 
-    fun decode(input: ByteArray, requestedSongId: String): AppleSongAnalysis =
+    fun decode(input: ByteArray, requestedSongId: String): DecodedObservationSong =
+        DecodedObservationSong.capture(input, requestedSongId, ::parse)
+
+    private fun parse(input: ByteArray, requestedSongId: String): AppleSongAnalysis =
         when (val parsed = parser.parse(input, requestedSongId)) {
             is AppleSongAnalysisParser.Result.Parsed -> parsed.analysis
             is AppleSongAnalysisParser.Result.Rejected -> throw ObservationFailure(
@@ -21,7 +24,7 @@ internal class AppleObservationCalculator(private val openAsset: (String) -> Inp
             )
         }
 
-    fun calculate(outgoing: AppleSongAnalysis, incoming: AppleSongAnalysis, pair: ObservationPair): MetadataProbeReport {
+    fun calculate(outgoing: DecodedObservationSong, incoming: DecodedObservationSong, pair: ObservationPair): MetadataProbeReport {
         val verified = catalog ?: when (val loaded = TransitionStyleCatalog.loadBundled(openAsset)) {
             is TransitionStyleCatalog.LoadResult.Loaded -> loaded.catalog.also { catalog = it }
             is TransitionStyleCatalog.LoadResult.Rejected -> throw ObservationFailure(
@@ -32,8 +35,9 @@ internal class AppleObservationCalculator(private val openAsset: (String) -> Inp
                 }, loaded.reason.name,
             )
         }
-        return MetadataProbe.calculate(project(outgoing, pair.outgoing.durationMs),
-            project(incoming, pair.incoming.durationMs), verified.sha256)
+        return MetadataProbe.calculate(project(outgoing.analysis, pair.outgoing.durationMs),
+            project(incoming.analysis, pair.incoming.durationMs), verified.sha256)
+            .copy(preparation = outgoing.prepareWith(incoming, pair))
     }
 
     private fun project(analysis: AppleSongAnalysis, durationMs: Long?): MetadataProbeTrack {
