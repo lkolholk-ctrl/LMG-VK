@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "scope": "Scalar textual ARM64 instruction slices only; getters are supplied as inputs. Not original-binary execution, not Swift converter or full planner verification.",
+  "slices": {
+    "style": {
+      "sourcePath": "root0/decompiled_package/automix/disassembly/272234e14__FUN_272234e14.asm",
+      "sourceSha256": "8c0a52d8850c53686b4f5948d4358507d50f562b22e81a390f6c764fa054d263",
+      "entry": "272234ed0",
+      "exit": "272234fc0",
+      "instructions": {
+        "272234ed0": "subs x24,x23,x22",
+        "272234ed4": "b.vs 0x272235154",
+        "272234ed8": "cmp x24,#0x0",
+        "272234edc": "b.le 0x272234fac",
+        "272234ee0": "cmp x24,x0",
+        "272234ee4": "b.lt 0x272234fb4",
+        "272234ee8": "b 0x272234fc0",
+        "272234fac": "cmp x0,#0x0",
+        "272234fb0": "b.le 0x272234fbc",
+        "272234fb4": "mov x24,x0",
+        "272234fb8": "b 0x272234fc0",
+        "272234fbc": "mov x24,#0x0"
+      }
+    },
+    "budget": {
+      "sourcePath": "root0/decompiled_package/automix/disassembly/272233804__FUN_272233804.asm",
+      "sourceSha256": "ddf05e066f06fda0768cd1ae39e09b8eab12092ccc395120979313343aaacf6f",
+      "entry": "272233844",
+      "exit": "27223386c",
+      "instructions": {
+        "272233844": "cbz w8,0x27223385c",
+        "272233848": "cmp w8,#0x1",
+        "27223384c": "b.eq 0x27223386c",
+        "272233850": "mov w8,#0x2",
+        "272233854": "sdiv x19,x19,x8",
+        "272233858": "b 0x27223386c",
+        "27223385c": "mov x8,#0x4000000000000000",
+        "272233860": "cmn x19,x8",
+        "272233864": "b.mi 0x272233884",
+        "272233868": "lsl x19,x19,#0x1"
+      }
+    },
+    "incoming": {
+      "sourcePath": "root0/decompiled_package/automix/disassembly/272233888__FUN_272233888.asm",
+      "sourceSha256": "27104a28b898363dc3a798c35db3e8891191378d45f5af35ef49920407f7d785",
+      "entry": "2722338f4",
+      "exit": "272233934",
+      "instructions": {
+        "2722338f4": "cmp x20,x22",
+        "2722338f8": "csel x24,x20,x22,lt",
+        "27223392c": "subs x24,x0,x24",
+        "272233930": "b.vs 0x272233ab8"
+      }
+    },
+    "half": {
+      "sourcePath": "root0/decompiled_package/automix/disassembly/2722335b4__FUN_2722335b4.asm",
+      "sourceSha256": "88368543b26e3082fc62a0d09f8925e96cf7f7fb25841d167ae781814355a1b1",
+      "entry": "27223361c",
+      "exit": "27223365c",
+      "instructions": {
+        "27223361c": "mov w8,#0x2",
+        "272233624": "sdiv x24,x20,x8",
+        "272233654": "subs x24,x0,x24",
+        "272233658": "b.vs 0x2722337e0"
+      }
+    }
+  }
+}

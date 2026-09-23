@@ -1,0 +1,734 @@
+{
+  "schemaVersion": 1,
+  "purpose": "Known next source dependencies, not a claim that their availability proves full planner fidelity.",
+  "baseCommit": "c47d129a87dc2f9810c60b92b568ce0e09bfe1ea",
+  "providedArchiveSha256": "b94c277d51d910401d57e8da37e2a7cf9e21a210c0218bd87a4389f36c184aee",
+  "originalEntryPoints": [
+    "272213c20",
+    "2722290a0",
+    "27222919c",
+    "272229758",
+    "27222d644",
+    "27222e9bc",
+    "27222eb20",
+    "2722305c8",
+    "2722307ec",
+    "2722315f8",
+    "272231b68",
+    "272231d04",
+    "27223218c",
+    "272232790",
+    "272233100",
+    "2722335b4",
+    "272233804",
+    "272233888",
+    "272233adc",
+    "272233c88",
+    "272234380",
+    "272234b0c",
+    "272234e14",
+    "272236920",
+    "27223c184",
+    "27223c3ac",
+    "27223cd58",
+    "27223d324",
+    "27223d6cc"
+  ],
+  "required": [
+    {
+      "address": "27222e528",
+      "role": "seed_pair_generation",
+      "directCallSitesInProvidedArchive": [],
+      "bodyEntryPresentInProvidedArchive": false
+    },
+    {
+      "address": "27222f54c",
+      "role": "seed_pair_generation",
+      "directCallSitesInProvidedArchive": [],
+      "bodyEntryPresentInProvidedArchive": false
+    },
+    {
+      "address": "27222fa50",
+      "role": "seed_pair_generation",
+      "directCallSitesInProvidedArchive": [],
+      "bodyEntryPresentInProvidedArchive": false
+    },
+    {
+      "address": "27222fd74",
+      "role": "seed_pair_generation",
+      "directCallSitesInProvidedArchive": [],
+      "bodyEntryPresentInProvidedArchive": false
+    },
+    {
+      "address": "272230274",
+      "role": "seed_pair_generation",
+      "directCallSitesInProvidedArchive": [],
+      "bodyEntryPresentInProvidedArchive": false
+    },
+    {
+      "address": "272230380",
+      "role": "seed_pair_generation",
+      "directCallSitesInProvidedArchive": [],
+      "bodyEntryPresentInProvidedArchive": false
+    },
+    {
+      "address": "2722304d8",
+      "role": "seed_pair_generation",
+      "directCallSitesInProvidedArchive": [],
+      "bodyEntryPresentInProvidedArchive": false
+    },
+    {
+      "address": "2722377dc",
+      "role": "seed_pair_generation",
+      "directCallSitesInProvidedArchive": [],
+      "bodyEntryPresentInProvidedArchive": false
+    },
+    {
+      "address": "27221f524",
+      "role": "seed_pair_generation",
+      "directCallSitesInProvidedArchive": [],
+      "bodyEntryPresentInProvidedArchive": false
+    },
+    {
+      "address": "27222bd20",
+      "role": "beat_bar_and_time_projection",
+      "directCallSitesInProvidedArchive": [
+        {
+          "caller": "2722335b4",
+          "callSite": "2722335e8"
+        },
+        {
+          "caller": "2722335b4",
+          "callSite": "272233604"
+        },
+        {
+          "caller": "272233804",
+          "callSite": "272233828"
+        },
+        {
+          "caller": "272233888",
+          "callSite": "2722338c0"
+        },
+        {
+          "caller": "272233888",
+          "callSite": "2722338dc"
+        },
+        {
+          "caller": "272233c88",
+          "callSite": "272233cc8"
+        },
+        {
+          "caller": "272233c88",
+          "callSite": "272233ce8"
+        },
+        {
+          "caller": "272234b0c",
+          "callSite": "272234b70"
+        },
+        {
+          "caller": "272236920",
+          "callSite": "272236a3c"
+        }
+      ],
+      "bodyEntryPresentInProvidedArchive": false
+    },
+    {
+      "address": "27222be34",
+      "role": "beat_bar_and_time_projection",
+      "directCallSitesInProvidedArchive": [
+        {
+          "caller": "2722315f8",
+          "callSite": "272231638"
+        },
+        {
+          "caller": "2722315f8",
+          "callSite": "272231660"
+        },
+        {
+          "caller": "272233100",
+          "callSite": "272233138"
+        },
+        {
+          "caller": "272234e14",
+          "callSite": "272234e4c"
+        },
+        {
+          "caller": "272236920",
+          "callSite": "272236950"
+        }
+      ],
+      "bodyEntryPresentInProvidedArchive": false
+    },
+    {
+      "address": "27220fe30",
+      "role": "beat_bar_and_time_projection",
+      "directCallSitesInProvidedArchive": [
+        {
+          "caller": "2722335b4",
+          "callSite": "27223360c"
+        },
+        {
+          "caller": "272233804",
+          "callSite": "272233830"
+        },
+        {
+          "caller": "272233888",
+          "callSite": "2722338e4"
+        },
+        {
+          "caller": "272234b0c",
+          "callSite": "272234b78"
+        }
+      ],
+      "bodyEntryPresentInProvidedArchive": false
+    },
+    {
+      "address": "27222f3d4",
+      "role": "beat_bar_and_time_projection",
+      "directCallSitesInProvidedArchive": [
+        {
+          "caller": "272233100",
+          "callSite": "27223319c"
+        }
+      ],
+      "bodyEntryPresentInProvidedArchive": false
+    },
+    {
+      "address": "27222bc88",
+      "role": "beat_bar_and_time_projection",
+      "directCallSitesInProvidedArchive": [
+        {
+          "caller": "27222919c",
+          "callSite": "272229218"
+        },
+        {
+          "caller": "27222919c",
+          "callSite": "27222937c"
+        },
+        {
+          "caller": "27222919c",
+          "callSite": "2722294d4"
+        },
+        {
+          "caller": "27222919c",
+          "callSite": "2722295cc"
+        },
+        {
+          "caller": "272229758",
+          "callSite": "2722297d0"
+        },
+        {
+          "caller": "272229758",
+          "callSite": "272229920"
+        },
+        {
+          "caller": "272232790",
+          "callSite": "2722327bc"
+        }
+      ],
+      "bodyEntryPresentInProvidedArchive": false
+    },
+    {
+      "address": "272213440",
+      "role": "beat_bar_and_time_projection",
+      "directCallSitesInProvidedArchive": [
+        {
+          "caller": "2722305c8",
+          "callSite": "27223062c"
+        },
+        {
+          "caller": "2722315f8",
+          "callSite": "2722317f0"
+        },
+        {
+          "caller": "2722315f8",
+          "callSite": "2722319d8"
+        },
+        {
+          "caller": "272231b68",
+          "callSite": "272231bd8"
+        },
+        {
+          "caller": "272233adc",
+          "callSite": "272233b58"
+        }
+      ],
+      "bodyEntryPresentInProvidedArchive": false
+    },
+    {
+      "address": "27222d08c",
+      "role": "beat_bar_and_time_projection",
+      "directCallSitesInProvidedArchive": [
+        {
+          "caller": "27223218c",
+          "callSite": "272232230"
+        }
+      ],
+      "bodyEntryPresentInProvidedArchive": false
+    },
+    {
+      "address": "27222d090",
+      "role": "beat_bar_and_time_projection",
+      "directCallSitesInProvidedArchive": [
+        {
+          "caller": "27223218c",
+          "callSite": "272232240"
+        }
+      ],
+      "bodyEntryPresentInProvidedArchive": false
+    },
+    {
+      "address": "272218ff0",
+      "role": "stable_suffix_and_region_tempo",
+      "directCallSitesInProvidedArchive": [
+        {
+          "caller": "27223218c",
+          "callSite": "272232204"
+        }
+      ],
+      "bodyEntryPresentInProvidedArchive": false
+    },
+    {
+      "address": "2722324d0",
+      "role": "stable_suffix_and_region_tempo",
+      "directCallSitesInProvidedArchive": [
+        {
+          "caller": "27223218c",
+          "callSite": "27223225c"
+        }
+      ],
+      "bodyEntryPresentInProvidedArchive": false
+    },
+    {
+      "address": "272232a90",
+      "role": "stable_suffix_and_region_tempo",
+      "directCallSitesInProvidedArchive": [
+        {
+          "caller": "2722315f8",
+          "callSite": "2722316f8"
+        },
+        {
+          "caller": "2722315f8",
+          "callSite": "272231780"
+        }
+      ],
+      "bodyEntryPresentInProvidedArchive": false
+    },
+    {
+      "address": "272232c24",
+      "role": "stable_suffix_and_region_tempo",
+      "directCallSitesInProvidedArchive": [
+        {
+          "caller": "2722315f8",
+          "callSite": "272231790"
+        },
+        {
+          "caller": "2722315f8",
+          "callSite": "2722317ac"
+        }
+      ],
+      "bodyEntryPresentInProvidedArchive": false
+    },
+    {
+      "address": "2722378a0",
+      "role": "shifted_region_closures",
+      "directCallSitesInProvidedArchive": [],
+      "bodyEntryPresentInProvidedArchive": false
+    },
+    {
+      "address": "27223775c",
+      "role": "shifted_region_closures",
+      "directCallSitesInProvidedArchive": [],
+      "bodyEntryPresentInProvidedArchive": false
+    },
+    {
+      "address": "27221ac78",
+      "role": "shifted_region_closures",
+      "directCallSitesInProvidedArchive": [
+        {
+          "caller": "272233c88",
+          "callSite": "272233d30"
+        },
+        {
+          "caller": "272233c88",
+          "callSite": "272233d8c"
+        }
+      ],
+      "bodyEntryPresentInProvidedArchive": false
+    },
+    {
+      "address": "27223550c",
+      "role": "region_score_predicates",
+      "directCallSitesInProvidedArchive": [
+        {
+          "caller": "272234380",
+          "callSite": "272234544"
+        }
+      ],
+      "bodyEntryPresentInProvidedArchive": false
+    },
+    {
+      "address": "272235d08",
+      "role": "region_score_predicates",
+      "directCallSitesInProvidedArchive": [
+        {
+          "caller": "272234380",
+          "callSite": "272234630"
+        },
+        {
+          "caller": "272234380",
+          "callSite": "272234954"
+        }
+      ],
+      "bodyEntryPresentInProvidedArchive": false
+    },
+    {
+      "address": "272235fd8",
+      "role": "region_score_predicates",
+      "directCallSitesInProvidedArchive": [
+        {
+          "caller": "272234380",
+          "callSite": "27223463c"
+        },
+        {
+          "caller": "272234380",
+          "callSite": "272234960"
+        }
+      ],
+      "bodyEntryPresentInProvidedArchive": false
+    },
+    {
+      "address": "272236188",
+      "role": "region_score_predicates",
+      "directCallSitesInProvidedArchive": [
+        {
+          "caller": "272234380",
+          "callSite": "272234660"
+        }
+      ],
+      "bodyEntryPresentInProvidedArchive": false
+    },
+    {
+      "address": "272236498",
+      "role": "region_score_predicates",
+      "directCallSitesInProvidedArchive": [
+        {
+          "caller": "272234380",
+          "callSite": "272234504"
+        },
+        {
+          "caller": "272234380",
+          "callSite": "272234608"
+        },
+        {
+          "caller": "272234380",
+          "callSite": "272234910"
+        },
+        {
+          "caller": "272234380",
+          "callSite": "27223492c"
+        }
+      ],
+      "bodyEntryPresentInProvidedArchive": false
+    },
+    {
+      "address": "272237058",
+      "role": "region_score_predicates",
+      "directCallSitesInProvidedArchive": [],
+      "bodyEntryPresentInProvidedArchive": false
+    },
+    {
+      "address": "272235198",
+      "role": "region_score_predicates",
+      "directCallSitesInProvidedArchive": [
+        {
+          "caller": "272234380",
+          "callSite": "27223452c"
+        },
+        {
+          "caller": "272234380",
+          "callSite": "272234680"
+        },
+        {
+          "caller": "272234380",
+          "callSite": "27223497c"
+        }
+      ],
+      "bodyEntryPresentInProvidedArchive": false
+    },
+    {
+      "address": "272235840",
+      "role": "region_score_predicates",
+      "directCallSitesInProvidedArchive": [
+        {
+          "caller": "272234380",
+          "callSite": "272234564"
+        },
+        {
+          "caller": "272234380",
+          "callSite": "2722346a0"
+        },
+        {
+          "caller": "272234380",
+          "callSite": "27223499c"
+        }
+      ],
+      "bodyEntryPresentInProvidedArchive": false
+    },
+    {
+      "address": "272233fac",
+      "role": "region_score_predicates",
+      "directCallSitesInProvidedArchive": [
+        {
+          "caller": "272231d04",
+          "callSite": "272231d24"
+        }
+      ],
+      "bodyEntryPresentInProvidedArchive": false
+    },
+    {
+      "address": "2722341d4",
+      "role": "region_score_predicates",
+      "directCallSitesInProvidedArchive": [
+        {
+          "caller": "272231d04",
+          "callSite": "272231dd0"
+        }
+      ],
+      "bodyEntryPresentInProvidedArchive": false
+    },
+    {
+      "address": "27222d51c",
+      "role": "score_tie_field_projection",
+      "directCallSitesInProvidedArchive": [
+        {
+          "caller": "272234380",
+          "callSite": "2722345e8"
+        },
+        {
+          "caller": "272234380",
+          "callSite": "272234728"
+        },
+        {
+          "caller": "272234380",
+          "callSite": "272234a20"
+        }
+      ],
+      "bodyEntryPresentInProvidedArchive": false
+    },
+    {
+      "address": "27222b858",
+      "role": "score_tie_field_projection",
+      "directCallSitesInProvidedArchive": [
+        {
+          "caller": "272229758",
+          "callSite": "27222978c"
+        },
+        {
+          "caller": "272229758",
+          "callSite": "2722298c4"
+        }
+      ],
+      "bodyEntryPresentInProvidedArchive": false
+    },
+    {
+      "address": "27222b7e0",
+      "role": "score_tie_field_projection",
+      "directCallSitesInProvidedArchive": [
+        {
+          "caller": "27222919c",
+          "callSite": "2722291d0"
+        },
+        {
+          "caller": "27222919c",
+          "callSite": "27222930c"
+        },
+        {
+          "caller": "27222919c",
+          "callSite": "27222933c"
+        },
+        {
+          "caller": "27222919c",
+          "callSite": "272229470"
+        }
+      ],
+      "bodyEntryPresentInProvidedArchive": false
+    },
+    {
+      "address": "2722132b8",
+      "role": "score_tie_field_projection",
+      "directCallSitesInProvidedArchive": [
+        {
+          "caller": "27222919c",
+          "callSite": "2722291e0"
+        },
+        {
+          "caller": "27222919c",
+          "callSite": "272229318"
+        },
+        {
+          "caller": "27222919c",
+          "callSite": "272229348"
+        },
+        {
+          "caller": "27222919c",
+          "callSite": "27222947c"
+        },
+        {
+          "caller": "272229758",
+          "callSite": "27222979c"
+        },
+        {
+          "caller": "272229758",
+          "callSite": "2722298d0"
+        }
+      ],
+      "bodyEntryPresentInProvidedArchive": false
+    },
+    {
+      "address": "2722113c8",
+      "role": "score_tie_field_projection",
+      "directCallSitesInProvidedArchive": [
+        {
+          "caller": "272234380",
+          "callSite": "2722345dc"
+        },
+        {
+          "caller": "272234380",
+          "callSite": "27223471c"
+        },
+        {
+          "caller": "272234380",
+          "callSite": "272234a14"
+        }
+      ],
+      "bodyEntryPresentInProvidedArchive": false
+    },
+    {
+      "address": "272213d4c",
+      "role": "placement_criteria",
+      "directCallSitesInProvidedArchive": [
+        {
+          "caller": "272213c20",
+          "callSite": "272213c58"
+        }
+      ],
+      "bodyEntryPresentInProvidedArchive": false
+    },
+    {
+      "address": "272214200",
+      "role": "placement_criteria",
+      "directCallSitesInProvidedArchive": [
+        {
+          "caller": "272213c20",
+          "callSite": "272213c68"
+        }
+      ],
+      "bodyEntryPresentInProvidedArchive": false
+    },
+    {
+      "address": "27223e008",
+      "role": "style_dispatch_and_bar_count",
+      "directCallSitesInProvidedArchive": [
+        {
+          "caller": "2722307ec",
+          "callSite": "2722312f0"
+        }
+      ],
+      "bodyEntryPresentInProvidedArchive": false
+    },
+    {
+      "address": "272234310",
+      "role": "style_dispatch_and_bar_count",
+      "directCallSitesInProvidedArchive": [],
+      "bodyEntryPresentInProvidedArchive": false
+    },
+    {
+      "address": "27223738c",
+      "role": "style_dispatch_and_bar_count",
+      "directCallSitesInProvidedArchive": [],
+      "bodyEntryPresentInProvidedArchive": false
+    },
+    {
+      "address": "27223736c",
+      "role": "style_dispatch_and_bar_count",
+      "directCallSitesInProvidedArchive": [],
+      "bodyEntryPresentInProvidedArchive": false
+    },
+    {
+      "address": "27223e92c",
+      "role": "style_dispatch_and_bar_count",
+      "directCallSitesInProvidedArchive": [
+        {
+          "caller": "2722307ec",
+          "callSite": "27223119c"
+        }
+      ],
+      "bodyEntryPresentInProvidedArchive": false
+    },
+    {
+      "address": "27223dd68",
+      "role": "incoming_styling_and_loudness",
+      "directCallSitesInProvidedArchive": [],
+      "bodyEntryPresentInProvidedArchive": false
+    },
+    {
+      "address": "27223dd88",
+      "role": "incoming_styling_and_loudness",
+      "directCallSitesInProvidedArchive": [],
+      "bodyEntryPresentInProvidedArchive": false
+    },
+    {
+      "address": "27223daac",
+      "role": "incoming_styling_and_loudness",
+      "directCallSitesInProvidedArchive": [
+        {
+          "caller": "27223d6cc",
+          "callSite": "27223d6ec"
+        },
+        {
+          "caller": "27223d6cc",
+          "callSite": "27223d708"
+        }
+      ],
+      "bodyEntryPresentInProvidedArchive": false
+    },
+    {
+      "address": "2722161c8",
+      "role": "incoming_styling_and_loudness",
+      "directCallSitesInProvidedArchive": [
+        {
+          "caller": "27223d6cc",
+          "callSite": "27223d6f4"
+        }
+      ],
+      "bodyEntryPresentInProvidedArchive": false
+    },
+    {
+      "address": "272215c88",
+      "role": "incoming_styling_and_loudness",
+      "directCallSitesInProvidedArchive": [
+        {
+          "caller": "272232790",
+          "callSite": "2722327d8"
+        }
+      ],
+      "bodyEntryPresentInProvidedArchive": false
+    },
+    {
+      "address": "272215b7c",
+      "role": "incoming_styling_and_loudness",
+      "directCallSitesInProvidedArchive": [
+        {
+          "caller": "27223cd58",
+          "callSite": "27223cd94"
+        },
+        {
+          "caller": "27223d6cc",
+          "callSite": "27223d720"
+        }
+      ],
+      "bodyEntryPresentInProvidedArchive": false
+    }
+  ]
+}
