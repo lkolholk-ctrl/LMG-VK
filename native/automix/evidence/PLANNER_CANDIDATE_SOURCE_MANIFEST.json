@@ -1,0 +1,443 @@
+{
+  "schemaVersion": 1,
+  "archive": "automix-stage3b-dependencies.zip",
+  "archiveSha256": "ffd81a8190f1f2081994046824d3303a733f2c2aec11b95fea653cc0a5a80347",
+  "payloadFilesVerified": 1594,
+  "payloadBytesVerified": 3674643,
+  "manifestStatus": "REQUIRED_DISASSEMBLY_FOUND",
+  "missingRequiredDisassembly": [],
+  "missingTransitiveDisassembly": [],
+  "unvisitedAtDepthLimit": [
+    "27220f490",
+    "27220f5fc",
+    "2722208dc",
+    "272226584",
+    "2722271cc",
+    "272227228",
+    "272227e84",
+    "272228e18",
+    "27222e38c",
+    "27223e8d0",
+    "27223e8d4",
+    "2722423e8",
+    "272243e0c",
+    "2722442f8",
+    "2722444cc",
+    "2722445a8",
+    "2722445ac",
+    "2722445dc",
+    "2722445f4",
+    "27224460c"
+  ],
+  "scope": "File integrity and selected source-address anchors; NOT proof of full semantic closure. No ARM binary or Swift runtime was executed.",
+  "selectedSourceFunctions": [
+    {
+      "address": "272234380",
+      "disassembly": [
+        {
+          "archive": "automix-stage3b-dependencies.zip",
+          "archiveSha256": "ffd81a8190f1f2081994046824d3303a733f2c2aec11b95fea653cc0a5a80347",
+          "path": "root0/decompiled_package/automix/disassembly/272234380__FUN_272234380.asm",
+          "sha256": "0d0526bcffdd0fd40ad22dd6c7e7f3538a259bac06a7bad686fe79ebd73ba5e1",
+          "bytes": 13144
+        }
+      ]
+    },
+    {
+      "address": "272234b0c",
+      "disassembly": [
+        {
+          "archive": "automix-stage3b-dependencies.zip",
+          "archiveSha256": "ffd81a8190f1f2081994046824d3303a733f2c2aec11b95fea653cc0a5a80347",
+          "path": "root0/decompiled_package/automix/disassembly/272234b0c__FUN_272234b0c.asm",
+          "sha256": "9bc76e100f6326e60e0b123a736a1e01e2c6d19959c8344ee42ec4a5abca26d8",
+          "bytes": 5346
+        }
+      ]
+    },
+    {
+      "address": "272234e14",
+      "disassembly": [
+        {
+          "archive": "automix-stage3b-dependencies.zip",
+          "archiveSha256": "ffd81a8190f1f2081994046824d3303a733f2c2aec11b95fea653cc0a5a80347",
+          "path": "root0/decompiled_package/automix/disassembly/272234e14__FUN_272234e14.asm",
+          "sha256": "8c0a52d8850c53686b4f5948d4358507d50f562b22e81a390f6c764fa054d263",
+          "bytes": 6112
+        }
+      ]
+    },
+    {
+      "address": "272233adc",
+      "disassembly": [
+        {
+          "archive": "automix-stage3b-dependencies.zip",
+          "archiveSha256": "ffd81a8190f1f2081994046824d3303a733f2c2aec11b95fea653cc0a5a80347",
+          "path": "root0/decompiled_package/automix/disassembly/272233adc__FUN_272233adc.asm",
+          "sha256": "8c4f01405e777ccd9bee20b09b5ded554d8e6162d1e56b32eac9e7a24e5e6a2a",
+          "bytes": 3004
+        }
+      ]
+    },
+    {
+      "address": "272233c88",
+      "disassembly": [
+        {
+          "archive": "automix-stage3b-dependencies.zip",
+          "archiveSha256": "ffd81a8190f1f2081994046824d3303a733f2c2aec11b95fea653cc0a5a80347",
+          "path": "root0/decompiled_package/automix/disassembly/272233c88__FUN_272233c88.asm",
+          "sha256": "ec4b1f8063460bcf18f0236b5bd684db8cd3e7a720299254f863becf11e35948",
+          "bytes": 4441
+        }
+      ]
+    },
+    {
+      "address": "272233f00",
+      "disassembly": [
+        {
+          "archive": "automix-stage3b-dependencies.zip",
+          "archiveSha256": "ffd81a8190f1f2081994046824d3303a733f2c2aec11b95fea653cc0a5a80347",
+          "path": "root0/decompiled_package/automix/disassembly/272233f00__FUN_272233f00.asm",
+          "sha256": "b42fc3748ef602d9547170ac13b95b3f6bf0d35fdf1116366a4ccd79484eb922",
+          "bytes": 1298
+        }
+      ]
+    },
+    {
+      "address": "27222d51c",
+      "disassembly": [
+        {
+          "archive": "automix-stage3b-dependencies.zip",
+          "archiveSha256": "ffd81a8190f1f2081994046824d3303a733f2c2aec11b95fea653cc0a5a80347",
+          "path": "root0/decompiled_package/automix/disassembly/27222d51c__FUN_27222d51c.asm",
+          "sha256": "d3722911c4628145719177eb759299f8e93fc7b47381491a40cc4067d0782fbd",
+          "bytes": 2119
+        }
+      ]
+    },
+    {
+      "address": "27222b858",
+      "disassembly": [
+        {
+          "archive": "automix-stage3b-dependencies.zip",
+          "archiveSha256": "ffd81a8190f1f2081994046824d3303a733f2c2aec11b95fea653cc0a5a80347",
+          "path": "root0/decompiled_package/automix/disassembly/27222b858__FUN_27222b858.asm",
+          "sha256": "7722498b0bc5ab135e99947e5b251e3982f3420e4f84ca78389840e7390381de",
+          "bytes": 983
+        }
+      ]
+    },
+    {
+      "address": "27222b7e0",
+      "disassembly": [
+        {
+          "archive": "automix-stage3b-dependencies.zip",
+          "archiveSha256": "ffd81a8190f1f2081994046824d3303a733f2c2aec11b95fea653cc0a5a80347",
+          "path": "root0/decompiled_package/automix/disassembly/27222b7e0__FUN_27222b7e0.asm",
+          "sha256": "cbb193405a24b8c17fb876e4cca6c90324c436207d960d7cd1f527e6a5da3c12",
+          "bytes": 954
+        }
+      ]
+    },
+    {
+      "address": "27222bc88",
+      "disassembly": [
+        {
+          "archive": "automix-stage3b-dependencies.zip",
+          "archiveSha256": "ffd81a8190f1f2081994046824d3303a733f2c2aec11b95fea653cc0a5a80347",
+          "path": "root0/decompiled_package/automix/disassembly/27222bc88__FUN_27222bc88.asm",
+          "sha256": "ebea8ef586e54eeb1676500e7a30c3e0fdf100b559288a3d530fc84e8bff5520",
+          "bytes": 1174
+        }
+      ]
+    },
+    {
+      "address": "27223550c",
+      "disassembly": [
+        {
+          "archive": "automix-stage3b-dependencies.zip",
+          "archiveSha256": "ffd81a8190f1f2081994046824d3303a733f2c2aec11b95fea653cc0a5a80347",
+          "path": "root0/decompiled_package/automix/disassembly/27223550c__FUN_27223550c.asm",
+          "sha256": "d0cc85823ee4c70a4bfda95f153ca71350d9617a48805c35a8899c13ab0627f6",
+          "bytes": 5538
+        }
+      ]
+    },
+    {
+      "address": "272235d08",
+      "disassembly": [
+        {
+          "archive": "automix-stage3b-dependencies.zip",
+          "archiveSha256": "ffd81a8190f1f2081994046824d3303a733f2c2aec11b95fea653cc0a5a80347",
+          "path": "root0/decompiled_package/automix/disassembly/272235d08__FUN_272235d08.asm",
+          "sha256": "97c0d792e42203c2324326730b194787e857bb66cc0ab134455a3da149123295",
+          "bytes": 4855
+        }
+      ]
+    },
+    {
+      "address": "27222be34",
+      "disassembly": [
+        {
+          "archive": "automix-stage3b-dependencies.zip",
+          "archiveSha256": "ffd81a8190f1f2081994046824d3303a733f2c2aec11b95fea653cc0a5a80347",
+          "path": "root0/decompiled_package/automix/disassembly/27222be34__FUN_27222be34.asm",
+          "sha256": "175c188b968cf44297aaaa65e9b94c27bdd5e452d55f28e5f7c2676744ecab4f",
+          "bytes": 804
+        }
+      ]
+    },
+    {
+      "address": "27222c8a0",
+      "disassembly": [
+        {
+          "archive": "automix-stage3b-dependencies.zip",
+          "archiveSha256": "ffd81a8190f1f2081994046824d3303a733f2c2aec11b95fea653cc0a5a80347",
+          "path": "root0/decompiled_package/automix/disassembly/27222c8a0__FUN_27222c8a0.asm",
+          "sha256": "8d4be392115d3cb50c6523daa7341b6c342aee972ea4b9e9d41d0db9d045464b",
+          "bytes": 2203
+        }
+      ]
+    },
+    {
+      "address": "27222f3d4",
+      "disassembly": [
+        {
+          "archive": "automix-stage3b-dependencies.zip",
+          "archiveSha256": "ffd81a8190f1f2081994046824d3303a733f2c2aec11b95fea653cc0a5a80347",
+          "path": "root0/decompiled_package/automix/disassembly/27222f3d4__FUN_27222f3d4.asm",
+          "sha256": "bae48a4e79f2f5b0a4e9ed68bfc81c6f2ea9974433758a2752864ca82a022261",
+          "bytes": 2019
+        }
+      ]
+    },
+    {
+      "address": "272235fd8",
+      "disassembly": [
+        {
+          "archive": "automix-stage3b-dependencies.zip",
+          "archiveSha256": "ffd81a8190f1f2081994046824d3303a733f2c2aec11b95fea653cc0a5a80347",
+          "path": "root0/decompiled_package/automix/disassembly/272235fd8__FUN_272235fd8.asm",
+          "sha256": "3b03406523b512e1307bb60d289f719b6c4ce9c76c2ceb8ff7d70defa582cf8f",
+          "bytes": 2988
+        }
+      ]
+    },
+    {
+      "address": "272236498",
+      "disassembly": [
+        {
+          "archive": "automix-stage3b-dependencies.zip",
+          "archiveSha256": "ffd81a8190f1f2081994046824d3303a733f2c2aec11b95fea653cc0a5a80347",
+          "path": "root0/decompiled_package/automix/disassembly/272236498__FUN_272236498.asm",
+          "sha256": "d0abaea63722bd238bd99ddd2675eca9f589a8408c1472c001588934891577bb",
+          "bytes": 7762
+        }
+      ]
+    },
+    {
+      "address": "272236920",
+      "disassembly": [
+        {
+          "archive": "automix-stage3b-dependencies.zip",
+          "archiveSha256": "ffd81a8190f1f2081994046824d3303a733f2c2aec11b95fea653cc0a5a80347",
+          "path": "root0/decompiled_package/automix/disassembly/272236920__FUN_272236920.asm",
+          "sha256": "f11aeeb8267c7f8fd0ce5d6f0045d52197da56a66d9749171da528cc8596a88d",
+          "bytes": 3612
+        }
+      ]
+    },
+    {
+      "address": "272236b2c",
+      "disassembly": [
+        {
+          "archive": "automix-stage3b-dependencies.zip",
+          "archiveSha256": "ffd81a8190f1f2081994046824d3303a733f2c2aec11b95fea653cc0a5a80347",
+          "path": "root0/decompiled_package/automix/disassembly/272236b2c__FUN_272236b2c.asm",
+          "sha256": "246fa2f3e6780b21f313cc581f1a3f34cc112a511dfb74effcdf87e1f2f6448f",
+          "bytes": 1205
+        }
+      ]
+    },
+    {
+      "address": "27221e200",
+      "disassembly": [
+        {
+          "archive": "automix-stage3b-dependencies.zip",
+          "archiveSha256": "ffd81a8190f1f2081994046824d3303a733f2c2aec11b95fea653cc0a5a80347",
+          "path": "root0/decompiled_package/automix/disassembly/27221e200__FUN_27221e200.asm",
+          "sha256": "4e57a342568fa6523628f3df1d297188b8546c44e5ae8126abed4d83ce9c5190",
+          "bytes": 895
+        }
+      ]
+    },
+    {
+      "address": "272218f90",
+      "disassembly": [
+        {
+          "archive": "automix-stage3b-dependencies.zip",
+          "archiveSha256": "ffd81a8190f1f2081994046824d3303a733f2c2aec11b95fea653cc0a5a80347",
+          "path": "root0/decompiled_package/automix/disassembly/272218f90__FUN_272218f90.asm",
+          "sha256": "33fb70d0c34c8d7becf84b2a41e131decba4b104d65ae23054083f7fda460ba4",
+          "bytes": 780
+        }
+      ]
+    },
+    {
+      "address": "272218e64",
+      "disassembly": [
+        {
+          "archive": "automix-stage3b-dependencies.zip",
+          "archiveSha256": "ffd81a8190f1f2081994046824d3303a733f2c2aec11b95fea653cc0a5a80347",
+          "path": "root0/decompiled_package/automix/disassembly/272218e64__FUN_272218e64.asm",
+          "sha256": "6bb18cbe0f7acebc273fbf2c83144b9ef93a198603094590dce17843dc439b59",
+          "bytes": 2187
+        }
+      ]
+    },
+    {
+      "address": "272235198",
+      "disassembly": [
+        {
+          "archive": "automix-stage3b-dependencies.zip",
+          "archiveSha256": "ffd81a8190f1f2081994046824d3303a733f2c2aec11b95fea653cc0a5a80347",
+          "path": "root0/decompiled_package/automix/disassembly/272235198__FUN_272235198.asm",
+          "sha256": "7b95bfc80b08e1b5a5154ff51b1983e7551c2f707b07d996124de37a283f88e7",
+          "bytes": 5946
+        }
+      ]
+    },
+    {
+      "address": "272237058",
+      "disassembly": [
+        {
+          "archive": "automix-stage3b-dependencies.zip",
+          "archiveSha256": "ffd81a8190f1f2081994046824d3303a733f2c2aec11b95fea653cc0a5a80347",
+          "path": "root0/decompiled_package/automix/disassembly/272237058__FUN_272237058.asm",
+          "sha256": "94bbd9f50391e2fa61be8e4ddaae3d8893d273480bf13b40e0ae6fbf6b344064",
+          "bytes": 4008
+        }
+      ]
+    },
+    {
+      "address": "272236188",
+      "disassembly": [
+        {
+          "archive": "automix-stage3b-dependencies.zip",
+          "archiveSha256": "ffd81a8190f1f2081994046824d3303a733f2c2aec11b95fea653cc0a5a80347",
+          "path": "root0/decompiled_package/automix/disassembly/272236188__FUN_272236188.asm",
+          "sha256": "f08e680e697652cb757596c78ea7c75b1f049fed5a56a1bdb45432d560ff5a25",
+          "bytes": 5210
+        }
+      ]
+    },
+    {
+      "address": "272236f48",
+      "disassembly": [
+        {
+          "archive": "automix-stage3b-dependencies.zip",
+          "archiveSha256": "ffd81a8190f1f2081994046824d3303a733f2c2aec11b95fea653cc0a5a80347",
+          "path": "root0/decompiled_package/automix/disassembly/272236f48__FUN_272236f48.asm",
+          "sha256": "d6700a51347caae009d6c6a538ed2b5c774d0beddfd5047687933e0c616f26f7",
+          "bytes": 1907
+        }
+      ]
+    },
+    {
+      "address": "272236d10",
+      "disassembly": [
+        {
+          "archive": "automix-stage3b-dependencies.zip",
+          "archiveSha256": "ffd81a8190f1f2081994046824d3303a733f2c2aec11b95fea653cc0a5a80347",
+          "path": "root0/decompiled_package/automix/disassembly/272236d10__FUN_272236d10.asm",
+          "sha256": "fb2e2b16f4f0d681c72199fe9e15e4d365995dff49aa518215fa494a8051d89d",
+          "bytes": 4089
+        }
+      ]
+    },
+    {
+      "address": "272236bcc",
+      "disassembly": [
+        {
+          "archive": "automix-stage3b-dependencies.zip",
+          "archiveSha256": "ffd81a8190f1f2081994046824d3303a733f2c2aec11b95fea653cc0a5a80347",
+          "path": "root0/decompiled_package/automix/disassembly/272236bcc__FUN_272236bcc.asm",
+          "sha256": "cdcc855a3934403526664d10fb5b3522c59230025bd9b3686e11949b98db367f",
+          "bytes": 2334
+        }
+      ]
+    },
+    {
+      "address": "27221f568",
+      "disassembly": [
+        {
+          "archive": "automix-stage3b-dependencies.zip",
+          "archiveSha256": "ffd81a8190f1f2081994046824d3303a733f2c2aec11b95fea653cc0a5a80347",
+          "path": "root0/decompiled_package/automix/disassembly/27221f568__FUN_27221f568.asm",
+          "sha256": "bd6ccb851d826a51637f6551f9a7cd343b836dbf80a2fce536b53fe987917b3f",
+          "bytes": 3589
+        }
+      ]
+    },
+    {
+      "address": "27223a230",
+      "disassembly": [
+        {
+          "archive": "automix-stage3b-dependencies.zip",
+          "archiveSha256": "ffd81a8190f1f2081994046824d3303a733f2c2aec11b95fea653cc0a5a80347",
+          "path": "root0/decompiled_package/automix/disassembly/27223a230__FUN_27223a230.asm",
+          "sha256": "920a8f0ea5f6f2b64bee702e7be160881c9f12649cae8aed3060d578b6bb8fb6",
+          "bytes": 422
+        }
+      ]
+    },
+    {
+      "address": "27223a25c",
+      "disassembly": [
+        {
+          "archive": "automix-stage3b-dependencies.zip",
+          "archiveSha256": "ffd81a8190f1f2081994046824d3303a733f2c2aec11b95fea653cc0a5a80347",
+          "path": "root0/decompiled_package/automix/disassembly/27223a25c__FUN_27223a25c.asm",
+          "sha256": "100ac2079669d0d197687d485476ed9c22b208145f8ea425689b2b77ad100ef7",
+          "bytes": 1205
+        }
+      ]
+    },
+    {
+      "address": "27221f4e4",
+      "disassembly": [
+        {
+          "archive": "automix-stage3b-dependencies.zip",
+          "archiveSha256": "ffd81a8190f1f2081994046824d3303a733f2c2aec11b95fea653cc0a5a80347",
+          "path": "root0/decompiled_package/automix/disassembly/27221f4e4__FUN_27221f4e4.asm",
+          "sha256": "aa53ef4ac2eef0bb50a6999406506b20132de97f04bbde2fe8ef71f4ac2ee880",
+          "bytes": 539
+        }
+      ]
+    },
+    {
+      "address": "272231d04",
+      "disassembly": [
+        {
+          "archive": "automix-stage3b-dependencies.zip",
+          "archiveSha256": "ffd81a8190f1f2081994046824d3303a733f2c2aec11b95fea653cc0a5a80347",
+          "path": "root0/decompiled_package/automix/disassembly/272231d04__FUN_272231d04.asm",
+          "sha256": "15e73f4f2aefe532e16fa8a559a7d2c6c9d9089f07949efc03d27e3390d15e0a",
+          "bytes": 2243
+        }
+      ]
+    },
+    {
+      "address": "272233fac",
+      "disassembly": [
+        {
+          "archive": "automix-stage3b-dependencies.zip",
+          "archiveSha256": "ffd81a8190f1f2081994046824d3303a733f2c2aec11b95fea653cc0a5a80347",
+          "path": "root0/decompiled_package/automix/disassembly/272233fac__FUN_272233fac.asm",
+          "sha256": "541ad406e913fdf127a0cc2e2edd938c1cb11640de8836ce97f53c260b6764bc",
+          "bytes": 3828
+        }
+      ]
+    }
+  ]
+}
