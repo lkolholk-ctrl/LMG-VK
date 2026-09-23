@@ -36,7 +36,7 @@ EXCLUDE_DIRS = frozenset({".git", ".gradle", ".idea", "build", "node_modules", "
 MAX_FILES = 128
 MAX_FILE_BYTES = 2 * 1024 * 1024
 MAX_TOTAL_BYTES = 16 * 1024 * 1024
-MAX_SCANNED = 100_000
+MAX_SCANNED = 1_000_000
 
 
 def is_target(name: str) -> bool:
