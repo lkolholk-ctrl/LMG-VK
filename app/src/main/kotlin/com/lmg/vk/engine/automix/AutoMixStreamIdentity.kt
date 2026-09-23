@@ -3,7 +3,7 @@ package com.lmg.vk.engine.automix
 import androidx.media3.common.C
 import androidx.media3.common.Timeline
 import androidx.media3.common.util.UnstableApi
-import androidx.media3.exoplayer.audio.AudioSink
+import androidx.media3.exoplayer.source.MediaSource
 
 /** Identity of the configured decoded stream, independent of renderer slot or sink order. */
 @UnstableApi
@@ -20,11 +20,16 @@ data class AutoMixStreamIdentity(
     }
 
     companion object {
-        /** Missing period/timeline metadata stays unresolved; never substitute the active player item. */
-        fun from(config: AudioSink.AudioSinkConfig): AutoMixStreamIdentity? {
-            val id = config.mediaPeriodId ?: return null
-            if (id.isAd) return null
-            val timeline = config.timeline
+        /**
+         * media3-lmg 1.5.1-lmg30 has configure(Format, int, int[]), not AudioSinkConfig.
+         * Format/buffer/channel mapping cannot identify a period or a repeat instance.
+         * A future renderer bridge must supply its own captured Timeline + MediaPeriodId;
+         * missing metadata stays unresolved. Never substitute player.currentMediaItem,
+         * Format.id, renderer index, or sink callback order. Also usable by newer forks.
+         */
+        fun from(timeline: Timeline?, mediaPeriodId: MediaSource.MediaPeriodId?): AutoMixStreamIdentity? {
+            val id = mediaPeriodId ?: return null
+            if (id.isAd || timeline == null) return null
             val index = timeline.getIndexOfPeriod(id.periodUid)
             if (index == C.INDEX_UNSET) return null
             val period = timeline.getPeriod(index, Timeline.Period(), true)

@@ -13,9 +13,13 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: automix-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   native_automix_tests:
-    name: Native C++ AutoMix Tests (39 suites)
+    name: Native C++ AutoMix & JNI Verification
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -23,22 +27,37 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Configure CMake
+      - name: Set up JDK 17 for host JNI
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Configure CMake with canonical catalog and JNI
         run: |
           cmake -S native/automix -B build_native \
             -DCMAKE_BUILD_TYPE=Debug \
+            -DLMG_AUTOMIX_JNI=ON \
+            -DLMG_AUTOMIX_TESTS=ON \
             -DLMG_AUTOMIX_SANITIZERS=OFF
 
-      - name: Build Native Tests
-        run: |
-          cmake --build build_native --parallel 2
+      - name: Build Native Tests and host JNI
+        run: cmake --build build_native --parallel 2
 
       - name: Run CTest Verification
-        run: |
-          ctest --test-dir build_native --output-on-failure
+        run: ctest --test-dir build_native --output-on-failure
+
+      - name: Share host JNI with Kotlin integration tests
+        uses: actions/upload-artifact@v4
+        with:
+          name: automix-host-jni
+          path: build_native/android/liblmg_automix_jni.so
+          if-no-files-found: error
+          retention-days: 3
 
   android_kotlin_check:
-    name: Android Kotlin & Media3 Verification
+    name: Android Kotlin, JNI & APK Verification
+    needs: native_automix_tests
     runs-on: ubuntu-latest
     timeout-minutes: 25
 
@@ -54,12 +73,13 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Set up Android SDK
+      - name: Set up Android SDK without obsolete tools package
         uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools'
 
       - name: Install Android SDK Packages
         run: |
-          yes | sdkmanager --licenses > /dev/null || true
           sdkmanager \
             "platform-tools" \
             "platforms;android-36" \
@@ -67,21 +87,38 @@ jobs:
             "ndk;26.3.11579264" \
             "cmake;3.22.1"
 
+      - name: Receive verified host JNI
+        uses: actions/download-artifact@v4
+        with:
+          name: automix-host-jni
+          path: build_native_host
+
       - name: Make gradlew executable
         run: chmod +x gradlew
 
-      - name: Fetch forked media3 AARs
+      - name: Fetch pinned forked media3 AARs
         run: |
           VER=1.5.1-lmg30
-          curl -sSL -o media3-m2.zip \
+          curl --fail --silent --show-error --location --retry 2 -o media3-m2.zip \
             "https://github.com/lkolholk-ctrl/media3-lmg/releases/download/v${VER}/media3-${VER}-m2.zip"
           mkdir -p media3-m2
           unzip -q media3-m2.zip -d media3-m2
 
-      - name: Run Automix Host Unit Tests
+      - name: Run Kotlin and real host JNI tests, then build APK
         run: |
-          ./gradlew testDebugUnitTest --continue --stacktrace
+          ./gradlew :app:testDebugUnitTest :app:assembleDebug --stacktrace \
+            -PautomixHostLibraryPath="$PWD/build_native_host"
 
-      - name: Compile Kotlin Codebase
-        run: |
-          ./gradlew compileDebugKotlin --stacktrace
+      - name: Verify packaged JNI, canonical asset and non-skipped JNI tests
+        run: python3 scripts/automix_verify_observation_apk.py
+
+      - name: Preserve Android test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: automix-android-test-reports
+          path: |
+            app/build/reports/tests/testDebugUnitTest
+            app/build/test-results/testDebugUnitTest
+          if-no-files-found: ignore
+          retention-days: 7

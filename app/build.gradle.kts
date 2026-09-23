@@ -1,3 +1,5 @@
+import java.security.MessageDigest
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -6,10 +8,25 @@ plugins {
     id("com.google.devtools.ksp")
 }
 
+// The canonical resource is copied byte-for-byte, never regenerated from Kotlin.
+val prepareAutoMixAssets = tasks.register<Sync>("prepareAutoMixAssets") {
+    val catalog = rootProject.file("research/ios26-automix/TransitionStyles.json")
+    val expected = "fe3d0a36625ccb043c519bcc5119c98190893a9911cfa58412ad60cbab04d120"
+    inputs.property("catalogSha256", expected)
+    from(catalog) { into("automix") }
+    into(layout.buildDirectory.dir("generated/automix/assets"))
+    doFirst {
+        val actual = MessageDigest.getInstance("SHA-256").digest(catalog.readBytes())
+            .joinToString("") { b -> (b.toInt() and 255).toString(16).padStart(2, '0') }
+        check(actual == expected) { "AutoMix catalog SHA-256 mismatch; do not silently replace the canonical resource" }
+    }
+}
+
 android {
     namespace = "com.lmg.vk"
     compileSdk = 36
     buildToolsVersion = "36.1.0"
+    ndkVersion = "26.3.11579264"
 
     defaultConfig {
         applicationId = "com.lmg.vk"
@@ -60,6 +77,10 @@ android {
         }
     }
 
+    buildTypes.configureEach {
+        proguardFiles(rootProject.file("native/automix/android/consumer-rules.pro"))
+    }
+
     buildTypes {
         debug {
             isDebuggable = true
@@ -91,6 +112,11 @@ android {
     sourceSets {
         getByName("main") {
             kotlin.srcDir("src/main/kotlin")
+            kotlin.srcDir(rootProject.file("native/automix/android/src/main/kotlin"))
+            kotlin.srcDir(rootProject.file("third_party/accompanist-lyrics-core/src/commonMain/kotlin"))
+            kotlin.srcDir(rootProject.file("third_party/accompanist-lyrics-ui/src/commonMain/kotlin"))
+            kotlin.srcDir(rootProject.file("third_party/accompanist-lyrics-ui/src/androidMain/kotlin"))
+            assets.srcDir(layout.buildDirectory.dir("generated/automix/assets"))
         }
     }
 
@@ -206,4 +232,14 @@ dependencies {
 
     // --- TFLite (VadLyricsEngine: Interpreter) ---
     implementation("org.tensorflow:tensorflow-lite:2.16.1")
+}
+
+// No native processing is installed into AudioService or PlayerAudioChain here.
+tasks.named("preBuild") { dependsOn(prepareAutoMixAssets) }
+tasks.withType<org.gradle.api.tasks.testing.Test>().configureEach {
+    systemProperty("automix.catalogPath", rootProject.file("research/ios26-automix/TransitionStyles.json").absolutePath)
+    providers.gradleProperty("automixHostLibraryPath").orNull?.let { directory ->
+        systemProperty("java.library.path", directory)
+        systemProperty("automix.requireJni", "true")
+    }
 }

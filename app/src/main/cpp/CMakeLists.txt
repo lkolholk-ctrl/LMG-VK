@@ -31,3 +31,10 @@ target_link_libraries(lmg
     log
     android
 )
+
+# Separate observation/AutoMix JNI library. Do not link it into legacy liblmg
+# and do not instantiate it from the current PCM chain in this phase.
+set(LMG_AUTOMIX_TESTS OFF CACHE BOOL "Host tests are built by the native CI job" FORCE)
+set(LMG_AUTOMIX_JNI ON CACHE BOOL "Package the standalone AutoMix JNI bridge" FORCE)
+add_subdirectory("${CMAKE_CURRENT_LIST_DIR}/../../../../native/automix"
+                 "${CMAKE_CURRENT_BINARY_DIR}/automix")
