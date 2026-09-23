@@ -15,6 +15,11 @@ internal class DecodedObservationSong private constructor(
         PlannerPreparation.calculate(sourceBytes, requestedSongId, other.sourceBytes, other.requestedSongId,
             pair.outgoing.durationMs, pair.incoming.durationMs, responseSha256, other.responseSha256)
 
+    fun selectWith(other: DecodedObservationSong, pair: ObservationPair,
+                   catalog: com.lmg.vk.engine.automix.TransitionStyleCatalog): PlannerSelectionReport =
+        PlannerSelectionBinding.calculate(sourceBytes, requestedSongId, other.sourceBytes, other.requestedSongId,
+            pair, catalog)
+
     override fun toString(): String = "DecodedObservationSong(redacted)"
 
     companion object {

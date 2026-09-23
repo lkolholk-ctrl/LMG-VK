@@ -45,6 +45,10 @@ data class ObservationPair(
     val incoming: ObservationTrack,
     val repeatMode: Int,
     val shuffle: Boolean,
+    /** Worker-only captured binding, not part of the owner's playlist identity. */
+    internal val selectionScope: ResolvedPlannerScope? = null,
+    internal val selectionGeneration: Long = 0,
+    internal val selectionRevision: Long = 0,
 )
 
 enum class ObservationSide { OUTGOING, INCOMING }
@@ -116,6 +120,8 @@ internal class ObservationPipeline<A : Any, R : Any>(
     private val values = mutableListOf<A?>(null, null)
     private val decodeJobs = arrayOfNulls<Job>(2)
     private var calculationJob: Job? = null
+    private var resolvedScope: ResolvedPlannerScope? = null
+    private var bindingRevision = 0L
     private val mutableState = MutableStateFlow<ObservationState<R>>(
         ObservationState(0L, ObservationPhase.SUSPENDED, ObservationReason.NO_PAIR),
     )
@@ -126,6 +132,10 @@ internal class ObservationPipeline<A : Any, R : Any>(
     fun update(newPair: ObservationPair?, reason: ObservationReason = ObservationReason.NO_PAIR, force: Boolean = false) {
         checkOwner()
         if (closed) return
+        // Owner snapshots contain playlist identity only; a bound worker snapshot
+        // cannot bypass the original-ticket binding path when replayed as input.
+        require(newPair == null || (newPair.selectionScope == null &&
+            newPair.selectionGeneration == 0L && newPair.selectionRevision == 0L))
         if (!force && newPair == pair && (newPair != null || reason == suspendedReason)) return
         generation = Math.addExact(generation, 1L)
         cancelWork()
@@ -145,6 +155,29 @@ internal class ObservationPipeline<A : Any, R : Any>(
     fun accepts(ticket: ObservationTicket): Boolean {
         checkOwner()
         return !closed && ticket.generation == generation && tickets.any { it === ticket }
+    }
+
+    /** One immutable scope per epoch, authenticated by an original occurrence ticket.
+     * Accepted response bytes/decoded values stay owned by this pipeline. A binding
+     * does not consume a response ticket and never schedules another HTTP request.
+     */
+    fun bindResolvedScope(ticket: ObservationTicket, scope: ResolvedPlannerScope): ObservationScopeSubmission {
+        checkOwner()
+        if (closed) return ObservationScopeSubmission.CLOSED
+        if (!accepts(ticket)) return ObservationScopeSubmission.STALE
+        resolvedScope?.let {
+            return if (it == scope) ObservationScopeSubmission.DUPLICATE else ObservationScopeSubmission.CONFLICT
+        }
+        resolvedScope = scope
+        bindingRevision = Math.addExact(bindingRevision, 1L)
+        calculationJob?.cancel()
+        calculationJob = null
+        val a = values[0]
+        val b = values[1]
+        val snapshot = pair
+        if (a != null && b != null && snapshot != null) startCalculation(generation, a, b, snapshot)
+        else publishWaiting()
+        return ObservationScopeSubmission.ACCEPTED
     }
 
     /** Read-only preflight before the public adapter copies a response off Main.
@@ -200,26 +233,36 @@ internal class ObservationPipeline<A : Any, R : Any>(
 
     private fun startCalculation(epoch: Long, outgoing: A, incoming: A, snapshot: ObservationPair) {
         if (calculationJob != null) return
+        val revision = bindingRevision
+        val boundSnapshot = snapshot.copy(selectionScope = resolvedScope,
+            selectionGeneration = epoch, selectionRevision = revision)
         mutableState.value = ObservationState(generation, ObservationPhase.CALCULATING)
         calculationJob = scope.launch {
             try {
-                val result = work { calculate(outgoing, incoming, snapshot) }
+                val result = work { calculate(outgoing, incoming, boundSnapshot) }
                 currentCoroutineContext().ensureActive()
-                if (!closed && generation == epoch) {
+                if (!closed && generation == epoch && bindingRevision == revision) {
                     mutableState.value = ObservationState(epoch, ObservationPhase.OBSERVED, result = result)
                 }
             } catch (_: TimeoutCancellationException) {
-                reject(epoch, ObservationReason.TIMEOUT)
+                rejectCalculation(epoch, revision, ObservationReason.TIMEOUT)
             } catch (cancel: CancellationException) {
                 throw cancel
             } catch (failure: ObservationFailure) {
-                reject(epoch, failure.reason, failure.detailCode)
+                rejectCalculation(epoch, revision, failure.reason, failure.detailCode)
             } catch (_: LinkageError) {
-                reject(epoch, ObservationReason.NATIVE_UNAVAILABLE)
+                rejectCalculation(epoch, revision, ObservationReason.NATIVE_UNAVAILABLE)
             } catch (_: Exception) {
-                reject(epoch, ObservationReason.INTERNAL_FAILURE)
+                rejectCalculation(epoch, revision, ObservationReason.INTERNAL_FAILURE)
             }
         }
+    }
+
+    // Cancellation does not guarantee that an uninterruptible JNI call throws
+    // CancellationException: a late native failure can surface instead. Guard
+    // error publication with the SAME revision test as successful publication.
+    private fun rejectCalculation(epoch: Long, revision: Long, reason: ObservationReason, detail: String? = null) {
+        if (bindingRevision == revision) reject(epoch, reason, detail)
     }
 
     private suspend fun <T> work(block: () -> T): T = withTimeout(timeoutMs) {
@@ -254,6 +297,8 @@ internal class ObservationPipeline<A : Any, R : Any>(
         decodeJobs.fill(null)
         calculationJob?.cancel()
         calculationJob = null
+        resolvedScope = null
+        bindingRevision = 0L
         values[0] = null
         values[1] = null
         accepted.fill(false)

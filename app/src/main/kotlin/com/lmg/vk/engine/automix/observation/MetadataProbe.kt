@@ -25,7 +25,10 @@ enum class MetadataProbeIssue(val bit: Long) {
     INVALID_SCALAR(1L shl 14), REGIONS_REQUIRED(1L shl 15),
 }
 
-/** Never executable: no cue, DSP schedule, speed command or inferred style is exposed. */
+/** Never executable. Probe issues describe only the original scalar probe;
+ * REGIONS_REQUIRED is not a verdict on the separately reported scoped selection.
+ * Candidate times are observations, not cue/seek/DSP commands.
+ */
 data class MetadataProbeReport(
     val catalogSha256: String,
     val issues: Set<MetadataProbeIssue>,
@@ -36,8 +39,10 @@ data class MetadataProbeReport(
     val edgeNormalTempoTag: Int?,
     val edgeExpandedTempoTag: Int?,
     val preparation: PlannerPreparationReport? = null,
+    val selection: PlannerSelectionReport? = null,
 ) {
-    val selectedStyleId: Int? get() = null
+    val selectedStyleId: Int? get() = selection?.selectedStyleId
+    val canExecute: Boolean get() = false
 }
 
 internal object MetadataProbe {

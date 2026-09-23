@@ -7,6 +7,7 @@ from pathlib import Path
 import sys
 import xml.etree.ElementTree as ET
 from zipfile import BadZipFile, ZipFile
+from automix_verify_jni_export import ABI_IDENTITIES, verify_jni_export
 
 SHA256 = "fe3d0a36625ccb043c519bcc5119c98190893a9911cfa58412ad60cbab04d120"
 ABIS = ("arm64-v8a", "armeabi-v7a", "x86")
@@ -56,6 +57,29 @@ def verify_stage3a_report(reports: Path) -> int:
     return count
 
 
+
+BINDING_JNI_CLASS = "com.lmg.vk.engine.automix.observation.NativePlannerSelectionIntegrationTest"
+BINDING_LIFECYCLE_CLASS = "com.lmg.vk.engine.automix.observation.ObservationBindingTest"
+BINDING_JNI_CASES = frozenset(['defaultProfileRemainsBlocked', 'resolvedRawJsonSelectsStyleNine', 'expandedRawJsonSelectsStyleTwelve', 'rawIdentityIsStrict', 'malformedWireIsRejected', 'missingTimelineDurationNotSubstituted', 'deniedScopeNeverPublishesCandidate', 'malformedJsonCannotPublishPartialWinner', 'ownedResponsesSurviveMutation', 'scopeMustMatchVerifiedCatalogIds', 'canonicalChecksumStillRequired', 'realPipelineRebindsWithoutRefetch'])
+BINDING_LIFECYCLE_CASES = frozenset(['bindingBeforeReplies', 'bindingAfterObservedReusesResponses', 'bindingDuringNativeCall', 'lateFailureCannotRejectReboundScope', 'duplicateBinding', 'conflictingBinding', 'staleBinding', 'forgedTicket', 'bindingAfterClose', 'newGenerationClearsScope', 'samePairRefreshPreservesScope', 'onePendingReplyIsPreserved', 'scopeCopiesCallerLists', 'requestCopiesOwnedLists', 'pauseRevokesScope', 'backendChangeRevokesScope'])
+
+
+def verify_selection_binding_reports(reports: Path) -> tuple[int, int]:
+    counts = []
+    for classname, required in ((BINDING_JNI_CLASS, BINDING_JNI_CASES),
+                                (BINDING_LIFECYCLE_CLASS, BINDING_LIFECYCLE_CASES)):
+        report = reports / f"TEST-{classname}.xml"
+        count = verify_test_report(report, len(required))
+        suite = ET.parse(report).getroot()
+        cases = suite.findall("testcase")
+        if suite.get("name") != classname or any(c.get("classname") != classname for c in cases):
+            raise ValueError("Selection binding report/class mismatch")
+        if not required.issubset({c.get("name") for c in cases}):
+            raise ValueError("Selection binding required scenarios are missing")
+        counts.append(count)
+    return counts[0], counts[1]
+
+
 def verify(root: Path) -> None:
     source = root / "research/ios26-automix/TransitionStyles.json"
     canonical = source.read_bytes()
@@ -71,6 +95,9 @@ def verify(root: Path) -> None:
                 name = f"lib/{abi}/liblmg_automix_jni.so"
                 if name not in names or archive.getinfo(name).file_size == 0:
                     raise ValueError(f"Missing or empty AutoMix JNI for {abi}")
+                if archive.getinfo(name).file_size > 128 * 1024 * 1024:
+                    raise ValueError(f"JNI verification size limit exceeded for {abi}")
+                verify_jni_export(archive.read(name), *ABI_IDENTITIES[abi])
             asset = archive.read("assets/automix/TransitionStyles.json")
             if asset != canonical or hashlib.sha256(asset).hexdigest() != SHA256:
                 raise ValueError("Packaged catalog differs from the verified source")
@@ -79,8 +106,9 @@ def verify(root: Path) -> None:
     stage2 = verify_test_report(reports / "TEST-com.lmg.vk.engine.automix.observation.NativeMetadataProbeIntegrationTest.xml", 6)
     stage3a = verify_stage3a_report(reports)
     lifecycle = verify_test_report(reports / "TEST-com.lmg.vk.engine.automix.observation.ObservationPipelineTest.xml", 20)
+    binding_jni, binding_lifecycle = verify_selection_binding_reports(reports)
     print(f"Verified {len(apks)} APK(s), {len(ABIS)} JNI ABIs, catalog SHA-256, "
-          f"{stage1 + stage2 + stage3a} real JNI tests and {lifecycle} lifecycle tests")
+          f"{stage1 + stage2 + stage3a + binding_jni} real JNI tests and {lifecycle + binding_lifecycle} lifecycle tests")
 
 
 if __name__ == "__main__":

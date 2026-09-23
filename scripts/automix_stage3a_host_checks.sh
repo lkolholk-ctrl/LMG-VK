@@ -33,7 +33,7 @@ nm "$OUT/jni.o" | grep 'Java_com_lmg_vk_engine_automix_nativecore_NativeObservat
 MAIN=app/src/main/kotlin/com/lmg/vk/engine/automix/observation
 TEST=app/src/test/kotlin/com/lmg/vk/engine/automix/observation
 BRIDGE=native/automix/android/src/main/kotlin/com/lmg/vk/engine/automix/nativecore/NativeObservationBridge.kt
-kotlinc "$MAIN/ObservationPipeline.kt" "$MAIN/PlannerPreparation.kt" "$BRIDGE" \
+kotlinc "$MAIN/ResolvedPlannerScope.kt" "$MAIN/PlannerSelectionReport.kt" "$MAIN/ObservationPipeline.kt" "$MAIN/PlannerPreparation.kt" "$BRIDGE" \
   "$TEST/PlannerPreparationTransportScenarios.kt" -cp "$COROUTINES_JAR" -include-runtime -d "$OUT/transport.jar"
 java -cp "$OUT/transport.jar:$COROUTINES_JAR" \
   com.lmg.vk.engine.automix.observation.PlannerPreparationTransportScenarios "$OUT/native-snapshots.bin"

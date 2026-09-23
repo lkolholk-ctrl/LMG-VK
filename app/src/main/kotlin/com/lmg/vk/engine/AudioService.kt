@@ -108,6 +108,19 @@ class AudioService : MediaSessionService() {
         return observer.submitAnalysis(ticket, requestedSongId, response)
     }
 
+    /** Observation only. Scope must come from a resolved provider/Criteria binding,
+     * not guessed catalog duration units or a synthetic default profile.
+     * Use the original ticket issued for this service generation.
+     */
+    suspend fun bindAutoMixObservationScope(
+        ticket: ObservationTicket,
+        scope: com.lmg.vk.engine.automix.observation.ResolvedPlannerScope,
+    ): com.lmg.vk.engine.automix.observation.ObservationScopeSubmission {
+        val observer = withContext(Dispatchers.Main.immediate) { autoMixObservation }
+            ?: return com.lmg.vk.engine.automix.observation.ObservationScopeSubmission.SERVICE_UNAVAILABLE
+        return observer.bindResolvedScope(ticket, scope)
+    }
+
     /**
      * Stage 8b — отдельный плеер для ЛОКАЛЬНОГО аудио, играющий через JUCE-движок.
      * Создаётся лениво при первой локальной очереди и подставляется в ту же

@@ -45,9 +45,17 @@ class Media3ObservationPipeline(
                     append(" reason=${snapshot.reason} pending=${snapshot.requests.size}")
                     snapshot.detail?.let { append(" detail=$it") }
                     if (report != null) {
-                        append(" style=none issues=${report.issues.joinToString(",") { it.name }}")
+                        append(" style=${report.selectedStyleId ?: "none"} probeIssues=${report.issues.joinToString(",") { it.name }}")
                         append(" mainTags=${report.mainNormalTempoTag}/${report.mainExpandedTempoTag}")
                         append(" edgeTags=${report.edgeNormalTempoTag}/${report.edgeExpandedTempoTag}")
+                        report.selection?.let {
+                            append(" selection=${it.status} bindingRevision=${it.bindingRevision}")
+                            append(" scope=${if (it.explicitResolvedScope) "EXPLICIT_RESOLVED" else "UNRESOLVED_DEFAULT"}")
+                            append(" completeScope=${it.completeForResolvedScope} blockers=${it.missingSourceBindingCodes.joinToString(",")}")
+                            append(" seeds=${it.seedCount} attempted=${it.attemptedCandidates}")
+                            append(" candidateRejections=${it.candidateRejectionCodes.joinToString(",")}")
+                            append(" canExecute=false")
+                        }
                         report.preparation?.let { prepared ->
                             append(" preparation=${prepared.outgoing.status}/${prepared.incoming.status}")
                             append(" stableRegions=${prepared.outgoing.structure?.stableRegions ?: 0}")
@@ -133,6 +141,12 @@ class Media3ObservationPipeline(
         val privateBytes = withContext(Dispatchers.Default) { response.copyOf() }
         return withContext(Dispatchers.Main.immediate) { pipeline.submitOwned(ticket, requestedSongId, privateBytes) }
     }
+
+    /** Bind only a genuinely resolved source profile/context to the original
+     * occurrence ticket. No default profile or Criteria arithmetic is guessed.
+     */
+    suspend fun bindResolvedScope(ticket: ObservationTicket, scope: ResolvedPlannerScope): ObservationScopeSubmission =
+        withContext(Dispatchers.Main.immediate) { pipeline.bindResolvedScope(ticket, scope) }
 
     fun close() {
         checkOwner()

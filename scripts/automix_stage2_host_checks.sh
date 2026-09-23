@@ -29,10 +29,10 @@ nm -D "$OUT/native/liblmg_automix_jni.so" | grep 'Java_com_lmg_vk_engine_automix
 MAIN=app/src/main/kotlin/com/lmg/vk/engine/automix/observation
 TEST=app/src/test/kotlin/com/lmg/vk/engine/automix/observation
 BRIDGE=native/automix/android/src/main/kotlin/com/lmg/vk/engine/automix/nativecore/NativeObservationBridge.kt
-kotlinc "$MAIN/ObservationPipeline.kt" "$TEST/ObservationPipelineScenarios.kt" \
+kotlinc "$MAIN/ResolvedPlannerScope.kt" "$MAIN/PlannerSelectionReport.kt" "$MAIN/ObservationPipeline.kt" "$TEST/ObservationPipelineScenarios.kt" \
   -cp "$COROUTINES_JAR" -include-runtime -d "$OUT/pipeline-tests.jar"
 java -cp "$OUT/pipeline-tests.jar:$COROUTINES_JAR" com.lmg.vk.engine.automix.observation.ObservationPipelineScenarios
-kotlinc "$MAIN/ObservationPipeline.kt" "$MAIN/MetadataProbe.kt" "$MAIN/PlannerPreparation.kt" "$BRIDGE" "$TEST/NativeMetadataProbeScenarios.kt" \
+kotlinc "$MAIN/ResolvedPlannerScope.kt" "$MAIN/PlannerSelectionReport.kt" "$MAIN/ObservationPipeline.kt" "$MAIN/MetadataProbe.kt" "$MAIN/PlannerPreparation.kt" "$BRIDGE" "$TEST/NativeMetadataProbeScenarios.kt" \
   -cp "$COROUTINES_JAR" -include-runtime -d "$OUT/probe-jni-tests.jar"
 java -Djava.library.path="$OUT/native" -cp "$OUT/probe-jni-tests.jar:$COROUTINES_JAR" \
   com.lmg.vk.engine.automix.observation.NativeMetadataProbeScenarios

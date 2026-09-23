@@ -37,7 +37,8 @@ internal class AppleObservationCalculator(private val openAsset: (String) -> Inp
         }
         return MetadataProbe.calculate(project(outgoing.analysis, pair.outgoing.durationMs),
             project(incoming.analysis, pair.incoming.durationMs), verified.sha256)
-            .copy(preparation = outgoing.prepareWith(incoming, pair))
+            .copy(preparation = outgoing.prepareWith(incoming, pair),
+                selection = outgoing.selectWith(incoming, pair, verified))
     }
 
     private fun project(analysis: AppleSongAnalysis, durationMs: Long?): MetadataProbeTrack {

@@ -2,6 +2,10 @@ package com.lmg.vk.engine.automix.nativecore
 
 /** Control-thread metadata only. No PCM buffers, player handles, or DSP graph creation. */
 object NativeObservationBridge {
+    /** Stateless selection within an explicitly resolved MusicKit scope. No PCM. */
+    external fun selectResolvedPair(outgoing: ByteArray, outgoingId: ByteArray,
+                                   incoming: ByteArray, incomingId: ByteArray, request: LongArray): LongArray
+
     init { System.loadLibrary("lmg_automix_jni") }
 
     // Standard UTF-8 byte arrays, not JNI Modified UTF-8 strings. Signatures are
