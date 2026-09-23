@@ -8,4 +8,7 @@ object NativeObservationBridge {
     // intentionally stable; keep this class and its native methods through R8.
     external fun describeSong(input: ByteArray, songId: ByteArray): ByteArray
     external fun describeStyles(input: ByteArray): ByteArray
+
+    /** Fixed-size, presence-preserving metadata probe; never returns a playback plan. */
+    external fun probePair(values: DoubleArray, presentMask: Int, traits: Int): LongArray
 }

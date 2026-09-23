@@ -41,6 +41,11 @@ import com.google.common.util.concurrent.ListenableFuture
 import com.lmg.vk.R
 import com.lmg.vk.debug.DebugLog
 import com.lmg.vk.data.local.db.AppDatabase
+import com.lmg.vk.engine.automix.observation.Media3ObservationPipeline
+import com.lmg.vk.engine.automix.observation.MetadataProbeReport
+import com.lmg.vk.engine.automix.observation.ObservationState
+import com.lmg.vk.engine.automix.observation.ObservationSubmission
+import com.lmg.vk.engine.automix.observation.ObservationTicket
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -82,6 +87,26 @@ class AudioService : MediaSessionService() {
 
     private lateinit var player: ExoPlayer
     private var session: MediaSession? = null
+
+    // Metadata-only AutoMix observation. Never owns PCM, gain, timing or playback.
+    @Volatile private var autoMixObservation: Media3ObservationPipeline? = null
+
+    /** Available after onCreate; collect with a service-bound scope. */
+    val autoMixObservationState: StateFlow<ObservationState<MetadataProbeReport>>?
+        get() = autoMixObservation?.state
+
+    /** Submit a provider-matched response with the ORIGINAL occurrence ticket.
+     * No catalog lookup, HTTP, token or recording match is inferred by this API.
+     */
+    suspend fun submitAutoMixObservationAnalysis(
+        ticket: ObservationTicket,
+        requestedSongId: String,
+        response: ByteArray,
+    ): ObservationSubmission {
+        val observer = withContext(Dispatchers.Main.immediate) { autoMixObservation }
+            ?: return ObservationSubmission.SERVICE_UNAVAILABLE
+        return observer.submitAnalysis(ticket, requestedSongId, response)
+    }
 
     /**
      * Stage 8b — отдельный плеер для ЛОКАЛЬНОГО аудио, играющий через JUCE-движок.
@@ -208,6 +233,10 @@ class AudioService : MediaSessionService() {
         }
 
     private val playerListener = object : Player.Listener {
+        override fun onEvents(player: Player, events: Player.Events) {
+            autoMixObservation?.onPlayerEvents(player, events)
+        }
+
         override fun onPlaybackStateChanged(playbackState: Int) {
             if (!exoOwnsSession()) return // события неактивного плеера — чужие
 
@@ -583,9 +612,19 @@ class AudioService : MediaSessionService() {
             // Любая обложка (VK CDN или локальный fallback) декодируется не
             // больше 512px. Это не даёт SystemUI получить 1080/1200px bitmap.
             .setBitmapLoader(
-                CacheBitmapLoader(BoundedArtworkBitmapLoader(this, maximumOutputDimension = 512))
+                com.lmg.vk.artwork.ItunesSessionBitmapLoader(
+                    this, serviceScope,
+                    CacheBitmapLoader(BoundedArtworkBitmapLoader(this, maximumOutputDimension = 512)),
+                )
             )
             .build()
+
+        autoMixObservation = Media3ObservationPipeline(
+            player = player,
+            isActiveBackend = { exoOwnsSession() },
+            ownerScope = mainScope,
+            openAsset = applicationContext.assets::open,
+        ).also { it.refresh() }
 
         // ── Нотификация ──
         val notificationProvider = DefaultMediaNotificationProvider.Builder(this)
@@ -859,6 +898,8 @@ class AudioService : MediaSessionService() {
     }
 
     override fun onDestroy() {
+        autoMixObservation?.close()
+        autoMixObservation = null
         PlayerController.logFinalPlayback()
         positionJob?.cancel()
         // Отмена скоупов (P1, аудит): вечные коллекторы currentTrack/favoriteIds
@@ -1190,6 +1231,11 @@ class AudioService : MediaSessionService() {
     /** Плеер, которым сейчас управляет сессия (JUCE — локальное, Exo — стриминг). */
     private fun activePlayer(): Player = session?.player ?: player
 
+    /** Called on Main by the lyrics frame clock; follows the session's actual audio timeline. */
+    @androidx.annotation.MainThread
+    fun currentPlaybackPositionMs(): Long? =
+        if (::player.isInitialized) activePlayer().currentPosition.coerceAtLeast(0L) else null
+
     /** Текущая позиция фактического session.player, минуя 500ms StateFlow polling. */
     fun activePlaybackPositionMs(): Long {
         return if (Looper.myLooper() == Looper.getMainLooper()) {
@@ -1231,6 +1277,7 @@ class AudioService : MediaSessionService() {
             abandonAudioFocus()
             pausedByTransientFocusLoss = false
             session?.player = player
+            autoMixObservation?.refresh(force = true)
         }
     }
 
@@ -1252,6 +1299,7 @@ class AudioService : MediaSessionService() {
                     player.clearMediaItems() // pause() оставлял таймлайн, события и wifi-lock
                 }
                 session?.player = juce
+                autoMixObservation?.refresh(force = true)
             }
             juce.setMediaItems(mediaItems, startIndex.coerceAtLeast(0), 0L)
             juce.prepare()
