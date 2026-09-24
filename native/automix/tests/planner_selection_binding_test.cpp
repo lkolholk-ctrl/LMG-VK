@@ -38,13 +38,13 @@ std::vector<std::int64_t> request(bool explicitScope=true){
 struct Snapshot{std::vector<std::int64_t> q,r;};
 std::vector<Snapshot> samples;
 std::vector<std::int64_t> run(std::vector<std::int64_t> q,const CloudSongAnalysis& a=cloud("a"),const CloudSongAnalysis& b=cloud("b")){
-  auto r=observePlannerSelectionBinding(q,a,b);check(r.size()==48&&r[9]==0&&r[3]==q[3]&&r[4]==q[4]);return r;
+  auto r=observePlannerSelectionBinding(q,a,b);check(r.size()==48&&r[1]==2&&r[9]==0&&r[3]==q[3]&&r[4]==q[4]&&r[44]==3&&r[45]==8&&r[46]==9&&r[47]==12);return r;
 }
 void writeNumber(std::ostream& f,std::uint64_t n,int bytes){for(int i=0;i<bytes;++i)f.put(static_cast<char>((n>>(i*8))&255));}
 }
 int main(int argc,char**argv){try{
-  test("default keeps three missing bindings, never a candidate",[]{auto q=request(false),r=run(q);
-    check(r[6]==0&&r[7]==7&&r[8]==0&&r[28]==-1);samples.push_back({q,r});});
+  test("default knows profile but preserves two unresolved bindings",[]{auto q=request(false),r=run(q);
+    check(r[6]==0&&r[7]==6&&r[8]==0&&r[28]==-1);samples.push_back({q,r});});
   test("resolved scope automatic seeds -> style9",[]{auto q=request(),r=run(q);
     check(r[6]==1&&r[7]==0&&r[8]==1&&r[10]==1&&r[11]==12&&r[28]==9&&r[29]==9&&r[30]==1);
     check(std::abs(value(r[40])-15.104)<1e-12&&value(r[36])==104&&value(r[39])==16);samples.push_back({q,r});});

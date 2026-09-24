@@ -20,6 +20,12 @@ class ExportTests(unittest.TestCase):
     subprocess.run([os.environ.get('CC','cc'),*extra,'-shared','-fPIC',str(source),'-o',str(binary)],check=True)
     data=binary.read_bytes();cls=data[4];machine=struct.unpack_from('<H',data,18)[0]
     verify_jni_export(data,cls,machine);accepted+=1
+    # An actually linked v1 JNI export must not satisfy the new v2 APK gate.
+    stale_source=root/'stale.c';stale_binary=root/'stale.so'
+    stale_source.write_text('void '+SYMBOL.decode().removesuffix('V2')+'(void) {}\n')
+    subprocess.run([os.environ.get('CC','cc'),*extra,'-shared','-fPIC',str(stale_source),'-o',str(stale_binary)],check=True)
+    with self.assertRaises(ValueError):verify_jni_export(stale_binary.read_bytes(),cls,machine)
+    rejected+=1
     # Linux x86-64 GCC/binutils can emit a no-libc ELF32 fixture without multilib headers.
     if not extra and cls==2 and machine==62:flags.append(['-m32','-nostdlib'])
     wrong=[]

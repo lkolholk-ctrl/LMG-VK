@@ -1,4 +1,5 @@
 #include "lmg/automix/planner_selection_binding.h"
+#include "lmg/automix/planner_source_bindings.h"
 #include <algorithm>
 #include <cmath>
 #include <cstring>
@@ -22,12 +23,14 @@ std::int64_t count(std::size_t v, std::size_t maximum) {
 }
 std::vector<std::int64_t> empty(const PlannerSelectionBindingRequest& q) {
   std::vector<std::int64_t> w(kPlannerBindingResponseWords);
-  w[0]=kPlannerBindingResponseMagic; w[1]=1; w[2]=static_cast<std::int64_t>(w.size());
+  w[0]=kPlannerBindingResponseMagic; w[1]=2; w[2]=static_cast<std::int64_t>(w.size());
   w[3]=q.generation; w[4]=q.revision; w[5]=q.explicitResolvedScope?1:0;
-  // status0: exact source bindings unavailable. Bits: default profile, raw
-  // catalog->internal-record mapping, final provider/Criteria context. Not an
-  // Apple FailureReason and not a playback fallback decision.
-  w[7]=q.explicitResolvedScope?0:7;
+  // The source default profile is known; catalog mapping and full context are not.
+  // This is LMG observation completeness, never a playback fallback decision.
+  w[7]=q.explicitResolvedScope?0:static_cast<std::int64_t>(kPlannerRemainingDefaultBindings);
+  const auto& profile=plannerDefaultBeatMatchedStyleIds();
+  w[44]=static_cast<std::int64_t>(profile.size());
+  std::copy(profile.begin(),profile.end(),w.begin()+45);
   w[27]=-1; w[28]=-1; w[29]=-1; w[30]=-1;
   w[41]=-1; w[42]=-1;
   return w;

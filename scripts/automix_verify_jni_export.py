@@ -4,7 +4,7 @@ This detects old APK libraries; it is not an Android load/playback test.
 """
 import struct
 
-SYMBOL = b'Java_com_lmg_vk_engine_automix_nativecore_NativeObservationBridge_selectResolvedPair'
+SYMBOL = b'Java_com_lmg_vk_engine_automix_nativecore_NativeObservationBridge_selectResolvedPairV2'
 ABI_IDENTITIES = {'armeabi-v7a': (1, 40), 'arm64-v8a': (2, 183), 'x86': (1, 3)}
 
 def verify_jni_export(data: bytes, elf_class: int, machine: int) -> None:
@@ -49,4 +49,4 @@ def verify_jni_export(data: bytes, elf_class: int, machine: int) -> None:
             if data[strings + name:end] == SYMBOL:
                 need(info >> 4 in (1, 2) and info & 15 == 2 and index != 0 and other & 3 in (0, 3))
                 return
-    raise ValueError('APK contains no defined dynamic selectResolvedPair JNI export; rebuild assembleDebug')
+    raise ValueError('APK contains no defined dynamic selectResolvedPairV2 JNI export; rebuild assembleDebug')

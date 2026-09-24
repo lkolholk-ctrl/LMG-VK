@@ -21,7 +21,7 @@ internal object PlannerSelectionBinding {
             throw ObservationFailure(ObservationReason.ANALYSIS_REJECTED, "SELECTION_CONTEXT_INVALID")
         }
         val result = try {
-            NativeObservationBridge.selectResolvedPair(outgoing, outgoingId.toByteArray(Charsets.UTF_8),
+            NativeObservationBridge.selectResolvedPairV2(outgoing, outgoingId.toByteArray(Charsets.UTF_8),
                 incoming, incomingId.toByteArray(Charsets.UTF_8), request)
         } catch (_: LinkageError) {
             throw ObservationFailure(ObservationReason.NATIVE_UNAVAILABLE)

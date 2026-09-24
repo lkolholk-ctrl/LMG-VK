@@ -24,7 +24,7 @@ std::string json(const char* id,int bars=60,double bpm=120){
 }
 int main(){try{
  const auto a=json("a"),b=json("b");auto q=req();
- auto r=observePlannerSelectionBindingJson(q,a,"a",b,"b");check(r[28]==9&&r[9]==0&&r[8]==1);
+ auto r=observePlannerSelectionBindingJson(q,a,"a",b,"b");check(r[28]==9&&r[9]==0&&r[8]==1&&r[1]==2&&r[44]==3&&r[45]==8&&r[46]==9&&r[47]==12);
  r=observePlannerSelectionBindingJson(q,a,"a",json("b",75,150),"b");check(r[28]==12);
  bool rejected=false;try{observePlannerSelectionBindingJson(q,a,"wrong",b,"b");}catch(const std::invalid_argument&){rejected=true;}check(rejected);
  rejected=false;try{observePlannerSelectionBindingJson(q,"broken","a",b,"b");}catch(const std::invalid_argument&){rejected=true;}check(rejected);

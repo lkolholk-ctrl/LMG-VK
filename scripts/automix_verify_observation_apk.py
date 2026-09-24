@@ -60,7 +60,7 @@ def verify_stage3a_report(reports: Path) -> int:
 
 BINDING_JNI_CLASS = "com.lmg.vk.engine.automix.observation.NativePlannerSelectionIntegrationTest"
 BINDING_LIFECYCLE_CLASS = "com.lmg.vk.engine.automix.observation.ObservationBindingTest"
-BINDING_JNI_CASES = frozenset(['defaultProfileRemainsBlocked', 'resolvedRawJsonSelectsStyleNine', 'expandedRawJsonSelectsStyleTwelve', 'rawIdentityIsStrict', 'malformedWireIsRejected', 'missingTimelineDurationNotSubstituted', 'deniedScopeNeverPublishesCandidate', 'malformedJsonCannotPublishPartialWinner', 'ownedResponsesSurviveMutation', 'scopeMustMatchVerifiedCatalogIds', 'canonicalChecksumStillRequired', 'realPipelineRebindsWithoutRefetch'])
+BINDING_JNI_CASES = frozenset(['defaultModeRequiresCatalogAndContext', "knownDefaultProfileIsOrderedAndImmutable", "explicitRequestOrderIsNotReplacedByDefault", 'resolvedRawJsonSelectsStyleNine', 'expandedRawJsonSelectsStyleTwelve', 'rawIdentityIsStrict', 'malformedWireIsRejected', 'missingTimelineDurationNotSubstituted', 'deniedScopeNeverPublishesCandidate', 'malformedJsonCannotPublishPartialWinner', 'ownedResponsesSurviveMutation', 'scopeMustMatchVerifiedCatalogIds', 'canonicalChecksumStillRequired', 'realPipelineRebindsWithoutRefetch'])
 BINDING_LIFECYCLE_CASES = frozenset(['bindingBeforeReplies', 'bindingAfterObservedReusesResponses', 'bindingDuringNativeCall', 'lateFailureCannotRejectReboundScope', 'duplicateBinding', 'conflictingBinding', 'staleBinding', 'forgedTicket', 'bindingAfterClose', 'newGenerationClearsScope', 'samePairRefreshPreservesScope', 'onePendingReplyIsPreserved', 'scopeCopiesCallerLists', 'requestCopiesOwnedLists', 'pauseRevokesScope', 'backendChangeRevokesScope'])
 
 

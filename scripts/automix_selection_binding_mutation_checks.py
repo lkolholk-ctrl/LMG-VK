@@ -8,12 +8,12 @@ import tempfile
 ROOT=Path(__file__).resolve().parents[1]
 MODULES=('planner_scoring planner_loudness planner_vocals planner_flex planner_beats planner_analysis '
  'planner_regions planner_observation planner_region_algebra planner_candidate_selector '
- 'planner_candidate_observation planner_input_producers planner_produced_observation').split()
+ 'planner_candidate_observation planner_input_producers planner_produced_observation planner_source_bindings').split()
 def run(args,**kwargs):return subprocess.run(args,check=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,timeout=60,**kwargs)
 def main():
  cxx=os.environ.get('CXX','c++');flags=['-std=c++17','-O1','-ffp-contract=off','-I',str(ROOT/'native/automix/include')]
  source=(ROOT/'native/automix/src/planner_selection_binding.cpp').read_text()
- mutations=[('execution-flag','  w[7]=q.explicitResolvedScope?0:7;','  w[9]=1; w[7]=q.explicitResolvedScope?0:7;'),
+ mutations=[('execution-flag','  w[7]=q.explicitResolvedScope?0:static_cast<std::int64_t>(kPlannerRemainingDefaultBindings);','  w[9]=1; w[7]=q.explicitResolvedScope?0:static_cast<std::int64_t>(kPlannerRemainingDefaultBindings);'),
   ('revision-echo','w[4]=q.revision;','w[4]=0;'),
   ('default-blocker','if (!q.explicitResolvedScope) return w;','if (false) return w;'),
   ('budget-binding','q.workBudget=static_cast<std::uint64_t>(w[9]);','q.workBudget=kPlannerProducerWorkBudget;'),

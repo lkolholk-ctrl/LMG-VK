@@ -1,0 +1,240 @@
+{
+  "schemaVersion": 1,
+  "scope": "Source default BM profile and finite-domain Criteria subset; not full production closure",
+  "archiveSha256": "d7ae5ff80326a873ce800c0c2a9689b5549cff1e08283525aa4f2c98051a8d4e",
+  "payloadsVerified": 654,
+  "textsResolvedByHash": 888,
+  "declaredImage": {
+    "uuid": "83c387fd-3c68-344a-85e5-0c3c015811c1",
+    "sha256": "e843a9a94838f49c9c1e9b11f57fca70c6eebde59d7a3fd8d43917ee65607b4d",
+    "textImageMatchProven": false
+  },
+  "imageByteExtentFromSegments": 1063640,
+  "defaultProfile": {
+    "constructor": "272243e0c",
+    "array": "2884aa5e8",
+    "countOffset": 16,
+    "elementsOffset": 32,
+    "ids": [
+      8,
+      9,
+      12
+    ]
+  },
+  "catalogConformance": {
+    "record": "27229a8a8",
+    "relativeField": "27229a8c0",
+    "signedOffset": -310800,
+    "computedTarget": "27224eab0",
+    "bodyAvailable": false
+  },
+  "provider": {
+    "table": "2884ace78",
+    "slots": [
+      "0x18",
+      "0x20",
+      "0x28"
+    ],
+    "targets": [
+      "2722246f8",
+      "272224708",
+      "272224718"
+    ]
+  },
+  "missingFunctionBodies": [
+    "27224eab0",
+    "272259834",
+    "2722246f8",
+    "272224708",
+    "272224718"
+  ],
+  "missingBodiesCoveredByRawWindows": false,
+  "instructionExecutionPerformed": false,
+  "fullDefaultScopeResolved": false,
+  "canExecute": false,
+  "sources": [
+    {
+      "address": "272243e0c",
+      "path": "production-closure-evidence/text/root0/decompiled_package/automix/disassembly/272243e0c__FUN_272243e0c.asm",
+      "sha256": "2e0367ab5b8398d39e1e027517998f70e997b17995d068139f0c03015d8622b6",
+      "bytes": 1220
+    },
+    {
+      "address": "272243e0c",
+      "path": "production-closure-evidence/text/root0/decompiled_package/automix/pseudocode/272243e0c__FUN_272243e0c.c",
+      "sha256": "565b40a353d2076c7cd73d981b3ae8484d5f14f3140284a71b5ef0b0e5c5c0b0",
+      "bytes": 1619
+    },
+    {
+      "address": "2722461cc",
+      "path": "automix-stage3b-dependencies/root0/decompiled_package/automix/disassembly/2722461cc__FUN_2722461cc.asm",
+      "sha256": "25b530ec23bc38d9cda6fe0df82389ad2e32d2d427f1a4f05b8d1eb51ca416ad",
+      "bytes": 3188
+    },
+    {
+      "address": "2722461cc",
+      "path": "automix-stage3b-dependencies/root0/decompiled_package/automix/pseudocode/2722461cc__FUN_2722461cc.c",
+      "sha256": "cbfad71775d762469efa3397636b005d5052baf60102ed572cef8bae43ac8884",
+      "bytes": 3263
+    },
+    {
+      "address": "272255b88",
+      "path": "production-closure-evidence/text/root0/decompiled_package/automix/disassembly/272255b88__FUN_272255b88.asm",
+      "sha256": "159cf905343f0326028b3270f362300c0251493a5079229cdc2373b08ae42c20",
+      "bytes": 1525
+    },
+    {
+      "address": "272255b88",
+      "path": "production-closure-evidence/text/root0/decompiled_package/automix/pseudocode/272255b88__FUN_272255b88.c",
+      "sha256": "56d36bfe6ca117dcf4ba0582601149f6d2d54113f376332e166f30194695609b",
+      "bytes": 3134
+    },
+    {
+      "address": "272258148",
+      "path": "production-closure-evidence/text/root0/decompiled_package/automix/disassembly/272258148__FUN_272258148.asm",
+      "sha256": "131fd0872092523c851378c75ca0e0a493769b6cf32fcebfe1a9d0b00e0a939c",
+      "bytes": 1490
+    },
+    {
+      "address": "272258148",
+      "path": "production-closure-evidence/text/root0/decompiled_package/automix/pseudocode/272258148__FUN_272258148.c",
+      "sha256": "2493a56f62630ad855a1795e265be20abdad943507bebb7c17676345fcf04ca0",
+      "bytes": 2239
+    },
+    {
+      "address": "27224e480",
+      "path": "production-closure-evidence/text/root0/decompiled_package/automix/disassembly/27224e480__FUN_27224e480.asm",
+      "sha256": "9e738acd025fef0ef22fc507b5f5a78ba60ee8de27aaab9f2a4bb15530b842aa",
+      "bytes": 6046
+    },
+    {
+      "address": "27224e480",
+      "path": "production-closure-evidence/text/root0/decompiled_package/automix/pseudocode/27224e480__FUN_27224e480.c",
+      "sha256": "eb04b6af4fed873aa94e00cd2ad74de9770f180b04f461de9fd40c05e8b02be4",
+      "bytes": 5919
+    },
+    {
+      "address": "27224e814",
+      "path": "production-closure-evidence/text/root0/decompiled_package/automix/disassembly/27224e814__FUN_27224e814.asm",
+      "sha256": "416c6a05ec718dce2c1b6d15f50e0fb3aa1af75987c4c4d24be8499e81aa2700",
+      "bytes": 1221
+    },
+    {
+      "address": "27224e814",
+      "path": "production-closure-evidence/text/root0/decompiled_package/automix/pseudocode/27224e814__FUN_27224e814.c",
+      "sha256": "b177a43c3a0b7f77ba8c4f7c9826def88c47d1cd66a6923fcf788baf282890d4",
+      "bytes": 1327
+    },
+    {
+      "address": "27224ecd4",
+      "path": "production-closure-evidence/text/root0/decompiled_package/automix/disassembly/27224ecd4__FUN_27224ecd4.asm",
+      "sha256": "2bd3446eba041ca10cfdf5a4181265e1e37e89cce3357b01a8a800fb4e3a30a3",
+      "bytes": 683
+    },
+    {
+      "address": "27224ecd4",
+      "path": "production-closure-evidence/text/root0/decompiled_package/automix/pseudocode/27224ecd4__FUN_27224ecd4.c",
+      "sha256": "d57c1e2d241ca476c301b9e8702185150cc4ba20035e252a08d04b6c15a44f32",
+      "bytes": 889
+    },
+    {
+      "address": "27222a4b4",
+      "path": "automix-stage3b-dependencies/root0/decompiled_package/automix/disassembly/27222a4b4__FUN_27222a4b4.asm",
+      "sha256": "de542d3c30771175eb9ff23b7b9d4c937e1a4df957ec788f7b59bcedba1d376f",
+      "bytes": 4332
+    },
+    {
+      "address": "27222a4b4",
+      "path": "automix-stage3b-dependencies/root0/decompiled_package/automix/pseudocode/27222a4b4__FUN_27222a4b4.c",
+      "sha256": "71b10aa13efd8d8ca3a54cd455d6055ec20063286b5d00d313525b5e514e2339",
+      "bytes": 4736
+    },
+    {
+      "address": "2722200cc",
+      "path": "automix-stage3b-dependencies/root0/decompiled_package/automix/disassembly/2722200cc__FUN_2722200cc.asm",
+      "sha256": "2bdfc015f047ce5281e79daa18db9a8bce073f03c462a5864e7f6ed95e826bee",
+      "bytes": 11724
+    },
+    {
+      "address": "2722200cc",
+      "path": "automix-stage3b-dependencies/root0/decompiled_package/automix/pseudocode/2722200cc__FUN_2722200cc.c",
+      "sha256": "0af215b19227158ea2f742b1ba2756170af698389343bec7123bf5fb04613eb1",
+      "bytes": 14264
+    },
+    {
+      "address": "27222919c",
+      "path": "automix-stage3b-dependencies/root0/decompiled_package/automix/disassembly/27222919c__FUN_27222919c.asm",
+      "sha256": "7417f59116deafaf0b857b17db1b103b19a2661541d4d91f5f0699461822ac3d",
+      "bytes": 9824
+    },
+    {
+      "address": "27222919c",
+      "path": "automix-stage3b-dependencies/root0/decompiled_package/automix/pseudocode/27222919c__FUN_27222919c.c",
+      "sha256": "a9becb66845ddde5cbc9e6fe950af24d7ad6eb946b652affeffc4e8d67498356",
+      "bytes": 11217
+    },
+    {
+      "address": "272229758",
+      "path": "automix-stage3b-dependencies/root0/decompiled_package/automix/disassembly/272229758__FUN_272229758.asm",
+      "sha256": "cde04f01e78a5c86cdfc4656146721d76000049d815108281706c2e7ceba81ec",
+      "bytes": 5624
+    },
+    {
+      "address": "272229758",
+      "path": "automix-stage3b-dependencies/root0/decompiled_package/automix/pseudocode/272229758__FUN_272229758.c",
+      "sha256": "fb44c2fd5ebcac10f91bd4cbdb7f022c46fb47df5f3251f4f20f06eaa0aa3f26",
+      "bytes": 6774
+    },
+    {
+      "address": "27222f54c",
+      "path": "automix-stage3b-dependencies/root0/decompiled_package/automix/disassembly/27222f54c__FUN_27222f54c.asm",
+      "sha256": "d45f2a372fc2c42d97ab95715dbc74e4eea7ee122b4c0143687edf27071b283e",
+      "bytes": 8600
+    },
+    {
+      "address": "27222f54c",
+      "path": "automix-stage3b-dependencies/root0/decompiled_package/automix/pseudocode/27222f54c__FUN_27222f54c.c",
+      "sha256": "7fee71579f7c6efaf019bfb8527616f4a1f5b75cbff4b4d65c0bb4fd54b397ae",
+      "bytes": 11035
+    },
+    {
+      "address": "2722666d0",
+      "path": "production-closure-evidence/text/root0/decompiled_package/automix/disassembly/2722666d0____s015_SonicKit_MusicB9_Packages17TransitionPlannerV4SongV7ContextV24previousPlaybackEndStateAA0E0V0.asm",
+      "sha256": "f454bea96e9dd73835c64675188d3c9f5cbe14a400b8e21ab14139fb6867553f",
+      "bytes": 442
+    },
+    {
+      "address": "2722666d0",
+      "path": "production-closure-evidence/text/root0/decompiled_package/automix/pseudocode/2722666d0____s015_SonicKit_MusicB9_Packages17TransitionPlannerV4SongV7ContextV24previousPlaybackEndStateAA0E0V0.c",
+      "sha256": "1466c13da019989bd92c9ebe204f07010d9a1e543f0196593663a9306c162c2b",
+      "bytes": 996
+    },
+    {
+      "address": "2722666e4",
+      "path": "production-closure-evidence/text/root0/decompiled_package/automix/disassembly/2722666e4____s015_SonicKit_MusicB9_Packages17TransitionPlannerV4SongV7ContextV24previousPlaybackEndStateAgA0E0V.asm",
+      "sha256": "cedcb2f5d564638a8ee1e87110c38279bb49fdb95470e9540d536baff954d2be",
+      "bytes": 450
+    },
+    {
+      "address": "2722666e4",
+      "path": "production-closure-evidence/text/root0/decompiled_package/automix/pseudocode/2722666e4____s015_SonicKit_MusicB9_Packages17TransitionPlannerV4SongV7ContextV24previousPlaybackEndStateAgA0E0V.c",
+      "sha256": "c31c43d9b69e73a0d4522f010120cd626d898f94eb667587f3f4d65e374d82ce",
+      "bytes": 1005
+    },
+    {
+      "path": "production-closure-evidence/raw/data/2884aa5e8.bin",
+      "sha256": "e9d249d749e692d18d31664b64478eff19f985a0b17f81dbe2fe7a66a20e200b",
+      "bytes": 128
+    },
+    {
+      "path": "production-closure-evidence/raw/data/27229a8a8.bin",
+      "sha256": "852aaa1f8fea8cbc5d885b88d971ebea9929d2cd84300543ce76a2822a9eaad9",
+      "bytes": 128
+    },
+    {
+      "path": "production-closure-evidence/raw/data/2884ace78.bin",
+      "sha256": "1c4d8a4c3abd112761507a5f2bcb7c89714edf39021d693218ef0615dd555f1f",
+      "bytes": 128
+    }
+  ]
+}

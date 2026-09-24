@@ -26,7 +26,10 @@ class PlannerSelectionReport internal constructor(
     val seedCount: Int, val attemptedCandidates: Int,
     val rejectionReasons: Long,
     val candidate: ObservedPlannerCandidate?,
+    knownBeatMatchedStyleIds: List<Int>,
 ) {
+    /** Native profile for this source image. Not the active explicitly resolved request list. */
+    val knownBeatMatchedStyleIds: List<Int> = java.util.Collections.unmodifiableList(knownBeatMatchedStyleIds.toList())
     val canExecute: Boolean get() = false
     val selectedStyleId: Int? get() = candidate?.styleId
     val candidateRejectionCodes: List<String>
@@ -82,12 +85,14 @@ internal object PlannerSelectionWire {
             request[11] in 0L..14L && request[12] in 0L..14L &&
             request.size.toLong() == 24 + request[11] + 3 * request[12])
         ensure(w.size == 48)
-        ensure(w[0] == RESPONSE_MAGIC && w[1] == 1L && w[2] == 48L)
+        ensure(w[0] == RESPONSE_MAGIC && w[1] == 2L && w[2] == 48L)
         ensure(w[3] == request[3] && w[4] == request[4] && w[5] == request[5])
         ensure(w[6] in 0L..8L && w[8] in 0L..1L && w[9] == 0L && w[10] in 0L..1L)
-        ensure((44..47).all { w[it] == 0L })
+        // Source-profile words are bounded ABI metadata, not Kotlin-side musical inference.
+        ensure(w[44] == 3L && w[45] == 8L && w[46] == 9L && w[47] == 12L)
+        val knownProfile = (45..47).map { w[it].toInt() }
         val explicit = request[5] == 1L
-        ensure(if (explicit) w[6] != 0L && w[7] == 0L else w[6] == 0L && w[7] == 7L)
+        ensure(if (explicit) w[6] != 0L && w[7] == 0L else w[6] == 0L && w[7] == 6L)
         val complete = w[8] == 1L
         ensure(complete == (w[6] == 1L))
         fun noWinner() {
@@ -125,6 +130,6 @@ internal object PlannerSelectionWire {
             } else noWinner()
         }
         return PlannerSelectionReport(w[3], w[4], PlannerSelectionStatus.entries[w[6].toInt()], explicit,
-            w[7].toInt(), complete, w[11].toInt(), w[20].toInt(), w[26], c)
+            w[7].toInt(), complete, w[11].toInt(), w[20].toInt(), w[26], c, knownProfile)
     }
 }

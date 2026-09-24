@@ -22,7 +22,7 @@ std::string bytes(JNIEnv* e,jbyteArray a,jsize limit) {
 }
 }
 extern "C" JNIEXPORT jlongArray JNICALL
-Java_com_lmg_vk_engine_automix_nativecore_NativeObservationBridge_selectResolvedPair(
+Java_com_lmg_vk_engine_automix_nativecore_NativeObservationBridge_selectResolvedPairV2(
     JNIEnv* e,jobject,jbyteArray a,jbyteArray aId,jbyteArray b,jbyteArray bId,jlongArray input) {
   try {
     if(!input) throw std::invalid_argument("Missing contract");

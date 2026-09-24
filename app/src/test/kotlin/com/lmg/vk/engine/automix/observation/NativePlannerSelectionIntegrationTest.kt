@@ -17,7 +17,7 @@ class NativePlannerSelectionIntegrationTest {
         @BeforeClass @JvmStatic fun requireNative() {
             assumeTrue("Pass -PautomixHostLibraryPath", System.getProperty("automix.requireJni") == "true")
             val q = PlannerSelectionWire.request(0, 0, null, null, null)
-            val r = NativeObservationBridge.selectResolvedPair(byteArrayOf(), byteArrayOf(), byteArrayOf(), byteArrayOf(), q)
+            val r = NativeObservationBridge.selectResolvedPairV2(byteArrayOf(), byteArrayOf(), byteArrayOf(), byteArrayOf(), q)
             check(PlannerSelectionWire.decode(r, q).status == PlannerSelectionStatus.NEEDS_SOURCE_BINDINGS)
         }
     }
@@ -39,17 +39,32 @@ class NativePlannerSelectionIntegrationTest {
         ObservationTrack("in", 1, ObservationSource("same", "memory:b"), 120000), 0, false,
         selectionScope = scope, selectionGeneration = 71, selectionRevision = if (scope == null) 0 else 1)
     private fun direct(q: LongArray, a: ByteArray = response("a"), b: ByteArray = response("b"), aId: String = "a") =
-        PlannerSelectionWire.decode(NativeObservationBridge.selectResolvedPair(a, aId.encodeToByteArray(),
+        PlannerSelectionWire.decode(NativeObservationBridge.selectResolvedPairV2(a, aId.encodeToByteArray(),
             b, "b".encodeToByteArray(), q), q)
     private fun request(scope: ResolvedPlannerScope? = ObservationBindingScenarios.scope(), duration: Long? = 120000) =
         PlannerSelectionWire.request(71, if (scope == null) 0 else 1, scope, 120000, duration)
     private fun rejects(block: () -> Unit) { var bad = false; try { block() } catch (_: IllegalArgumentException) { bad = true }; check(bad) }
 
-    @Test fun defaultProfileRemainsBlocked() {
+    @Test fun defaultModeRequiresCatalogAndContext() {
         val calc = calculator(); val r = calc.calculate(calc.decode(response("a"), "a"), calc.decode(response("b"), "b"), pair())
         val selection = requireNotNull(r.selection)
-        check(selection.status == PlannerSelectionStatus.NEEDS_SOURCE_BINDINGS && selection.missingSourceBindings == 7)
+        check(selection.status == PlannerSelectionStatus.NEEDS_SOURCE_BINDINGS && selection.missingSourceBindings == 6)
         check(r.selectedStyleId == null && !r.canExecute)
+    }
+    @Test fun knownDefaultProfileIsOrderedAndImmutable() {
+        val r = direct(request(scope = null))
+        check(r.knownBeatMatchedStyleIds == listOf(8, 9, 12))
+        check(r.missingSourceBindings == 6 && r.selectedStyleId == null && !r.canExecute)
+        var immutable = false
+        try { (r.knownBeatMatchedStyleIds as MutableList<Int>)[0] = 99 } catch (_: UnsupportedOperationException) { immutable = true }
+        check(immutable)
+    }
+    @Test fun explicitRequestOrderIsNotReplacedByDefault() {
+        val s = ObservationBindingScenarios.scope()
+        val reordered = ResolvedPlannerScope.create(listOf(9, 9, 8), s.records, s.bounds, s.eligibility)
+        val r = direct(request(reordered))
+        check(r.knownBeatMatchedStyleIds == listOf(8, 9, 12))
+        check(r.explicitResolvedScope && r.selectedStyleId == 9 && r.candidate?.styleIndex == 0)
     }
     @Test fun resolvedRawJsonSelectsStyleNine() {
         val r = direct(request()); check(r.selectedStyleId == 9 && r.candidate?.score == 15.104 && r.completeForResolvedScope && !r.canExecute)

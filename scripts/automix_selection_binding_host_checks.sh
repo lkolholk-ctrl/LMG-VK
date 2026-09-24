@@ -19,7 +19,7 @@ if [[ "${AUTOMIX_BINDING_SANITIZE:-0}" == 1 ]]; then
 fi
 CORE=(planner_scoring planner_loudness planner_vocals planner_flex planner_beats planner_analysis
  planner_regions planner_observation planner_region_algebra planner_candidate_selector
- planner_candidate_observation planner_input_producers planner_produced_observation planner_selection_binding)
+ planner_candidate_observation planner_input_producers planner_produced_observation planner_selection_binding planner_source_bindings)
 OBJECTS=()
 for module in "${CORE[@]}"; do
  "$CXX" "${FLAGS[@]}" -c "native/automix/src/$module.cpp" -o "$OUT/$module.o"
@@ -32,7 +32,7 @@ done
 "$CXX" "${FLAGS[@]}" -c native/automix/tests/planner_selection_binding_json_test.cpp -o "$OUT/raw-test.o"
 "$CXX" "${FLAGS[@]}" -I "$JAVA_HOME/include" -I "$JAVA_HOME/include/linux" \
  -c native/automix/android/planner_selection_binding_jni.cpp -o "$OUT/jni.o"
-nm "$OUT/jni.o" | grep 'Java_com_lmg_vk_engine_automix_nativecore_NativeObservationBridge_selectResolvedPair' >/dev/null
+nm "$OUT/jni.o" | grep 'Java_com_lmg_vk_engine_automix_nativecore_NativeObservationBridge_selectResolvedPairV2' >/dev/null
 MAIN=app/src/main/kotlin/com/lmg/vk/engine/automix/observation
 TEST=app/src/test/kotlin/com/lmg/vk/engine/automix/observation
 BRIDGE=native/automix/android/src/main/kotlin/com/lmg/vk/engine/automix/nativecore/NativeObservationBridge.kt

@@ -21,7 +21,7 @@ class ReportsTest(unittest.TestCase):
    for i,(name,r) in enumerate(zip((BINDING_JNI_CLASS,BINDING_LIFECYCLE_CLASS),roots)):
     if i!=omit:ET.ElementTree(r).write(Path(d)/f'TEST-{name}.xml',encoding='utf-8')
    return verify_selection_binding_reports(Path(d))
- def test_positive(self):self.assertEqual(self.verify(self.suites()),(12,16))
+ def test_positive(self):self.assertEqual(self.verify(self.suites()),(14,16))
  def test_corrupt(self):
   n=0
   for side in (0,1):
