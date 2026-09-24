@@ -26,6 +26,10 @@ PlannerSelectionBindingRequest decodePlannerSelectionBinding(const std::vector<s
 std::vector<std::int64_t> observePlannerSelectionBinding(
     const std::vector<std::int64_t>& request,
     const CloudSongAnalysis& outgoing, const CloudSongAnalysis& incoming);
+// Shared encoder for a completed native composition. Stage4a reuses the SAME
+// selected object rather than rerunning selection or accepting a Kotlin winner.
+std::vector<std::int64_t> encodePlannerSelectionBindingResult(
+    const std::vector<std::int64_t>& request, const PlannerProducedObservation&);
 // Raw production entry: existing strict JSON decoder, then unchanged composition.
 // The Kotlin owner verifies the canonical catalog before constructing any request.
 // Explicit internal records remain independently resolved inputs, NOT JSON.duration.

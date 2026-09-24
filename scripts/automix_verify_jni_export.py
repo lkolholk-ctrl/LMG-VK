@@ -6,6 +6,7 @@ import struct
 
 SYMBOL = b'Java_com_lmg_vk_engine_automix_nativecore_NativeObservationBridge_selectResolvedPairV2'
 SOURCE_SYMBOL = b'Java_com_lmg_vk_engine_automix_nativecore_NativeObservationBridge_selectMusicKitSourcePairV1'
+SCHEDULE_SYMBOL = b'Java_com_lmg_vk_engine_automix_nativecore_NativeObservationBridge_compileMusicKitScheduleV1'
 ABI_IDENTITIES = {'armeabi-v7a': (1, 40), 'arm64-v8a': (2, 183), 'x86': (1, 3)}
 
 def verify_jni_export(data: bytes, elf_class: int, machine: int, symbol: bytes = SYMBOL) -> None:
@@ -15,7 +16,7 @@ def verify_jni_export(data: bytes, elf_class: int, machine: int, symbol: bytes =
     def integer(fmt: str, offset: int) -> int:
         need(offset >= 0 and offset + struct.calcsize(fmt) <= len(data))
         return struct.unpack_from('<' + fmt, data, offset)[0]
-    need(symbol in (SYMBOL, SOURCE_SYMBOL))
+    need(symbol in (SYMBOL, SOURCE_SYMBOL, SCHEDULE_SYMBOL))
     need(len(data) >= (64 if elf_class == 2 else 52) and data[:4] == b'\x7fELF')
     need(elf_class in (1, 2) and data[4] == elf_class and data[5] == 1 and data[6] == 1)
     need(integer('H', 16) == 3 and integer('H', 18) == machine)
@@ -58,3 +59,9 @@ def verify_jni_exports(data: bytes, elf_class: int, machine: int) -> None:
     """Require the existing resolved V2 AND new source-context ABI in each fresh APK library."""
     verify_jni_export(data, elf_class, machine, SYMBOL)
     verify_jni_export(data, elf_class, machine, SOURCE_SYMBOL)
+
+
+def verify_schedule_jni_exports(data: bytes, elf_class: int, machine: int) -> None:
+    """Stage4a requires ALL prior entries and the actual new schedule function."""
+    verify_jni_exports(data, elf_class, machine)
+    verify_jni_export(data, elf_class, machine, SCHEDULE_SYMBOL)

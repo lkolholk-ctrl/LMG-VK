@@ -15,7 +15,7 @@ def main():
  source=(ROOT/'native/automix/src/planner_selection_binding.cpp').read_text()
  mutations=[('execution-flag','  w[7]=q.explicitResolvedScope?0:static_cast<std::int64_t>(kPlannerRemainingDefaultBindings);','  w[9]=1; w[7]=q.explicitResolvedScope?0:static_cast<std::int64_t>(kPlannerRemainingDefaultBindings);'),
   ('revision-echo','w[4]=q.revision;','w[4]=0;'),
-  ('default-blocker','if (!q.explicitResolvedScope) return w;','if (false) return w;'),
+  ('default-blocker','if (!q.explicitResolvedScope) return empty(q);','if (!q.explicitResolvedScope) { auto w=empty(q); w[7]=0; return w; }'),
   ('budget-binding','q.workBudget=static_cast<std::uint64_t>(w[9]);','q.workBudget=kPlannerProducerWorkBudget;'),
   ('descriptor-presence','require(present==1?bars>=0:bars==0);','require(bars>=0);')]
  with tempfile.TemporaryDirectory(prefix='lmg-binding-mutations-') as d:

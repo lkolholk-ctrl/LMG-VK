@@ -17,7 +17,7 @@ internal object PlannerSourceContextBinding {
             throw ObservationFailure(ObservationReason.ANALYSIS_REJECTED, "SOURCE_CONTEXT_INVALID")
         }
         val response = try {
-            NativeObservationBridge.selectMusicKitSourcePairV1(outgoing, outgoingId.encodeToByteArray(),
+            NativeObservationBridge.compileMusicKitScheduleV1(outgoing, outgoingId.encodeToByteArray(),
                 incoming, incomingId.encodeToByteArray(), catalog.nativeSourceBytes(), request)
         } catch (_: LinkageError) {
             throw ObservationFailure(ObservationReason.NATIVE_UNAVAILABLE)
@@ -28,6 +28,6 @@ internal object PlannerSourceContextBinding {
         } catch (_: IllegalStateException) {
             throw ObservationFailure(ObservationReason.NATIVE_FAILURE)
         }
-        return PlannerSourceContextWire.decode(response, request, catalog.styles.map { it.id.toLong() }.toSet())
+        return PlannerScheduleWire.decode(response, request, catalog.styles.map { it.id.toLong() }.toSet())
     }
 }

@@ -1,0 +1,241 @@
+{
+  "schemaVersion": 1,
+  "purpose": "Stage4a structured continuous schedule evidence attribution, not full original execution",
+  "imageBytes": 1063640,
+  "imageSha256": "e843a9a94838f49c9c1e9b11f57fca70c6eebde59d7a3fd8d43917ee65607b4d",
+  "imageUuid": "83c387fd-3c68-344a-85e5-0c3c015811c1",
+  "windows": [
+    {
+      "label": "candidate_repacking",
+      "vmAddress": "0x2722685b4",
+      "fileOffset": 370100,
+      "byteCount": 544,
+      "sha256": "0bf4b049eb7bb7d986bd4c2a0cef4d83b0f1eb90c516f23d2be429291e5f1c86"
+    },
+    {
+      "label": "continuous_dispatch",
+      "vmAddress": "0x27226725c",
+      "fileOffset": 365148,
+      "byteCount": 216,
+      "sha256": "8338b7ce456b574756454f1d1d91df85a4676d5e9c325db42fce1ae4ae8b45eb"
+    },
+    {
+      "label": "continuous_constructor",
+      "vmAddress": "0x27221013c",
+      "fileOffset": 8508,
+      "byteCount": 1144,
+      "sha256": "c00bcd05ad42e0371da72d767ddf12b973554c489fff672b22b7418d58ff3c50"
+    },
+    {
+      "label": "structured_existential",
+      "vmAddress": "0x2722105b4",
+      "fileOffset": 9652,
+      "byteCount": 172,
+      "sha256": "8062163ba5f2f0c381f8fc5bd6928e8ef1b96f2f85d9a04356c62b5e504c2e35"
+    },
+    {
+      "label": "style_compiler_rate_branch",
+      "vmAddress": "0x272210660",
+      "fileOffset": 9824,
+      "byteCount": 808,
+      "sha256": "a2750de968a4b9a73b82b7fd8c0053ca4d9be689905d78d436794146b707959e"
+    },
+    {
+      "label": "structured_source_ranges",
+      "vmAddress": "0x27220f378",
+      "fileOffset": 4984,
+      "byteCount": 136,
+      "sha256": "599498babffa9dacfa0f477e5a4aaafea52d3e63bc3b8579ed4d5e8e0ecd9ce3"
+    },
+    {
+      "label": "outgoing_anchored_range",
+      "vmAddress": "0x27220f400",
+      "fileOffset": 5120,
+      "byteCount": 144,
+      "sha256": "4ac022557cf096fca28db5e481386ed9cc61ab364b942ea8429ffa7568dee5d5"
+    },
+    {
+      "label": "structured_reference_time",
+      "vmAddress": "0x27220f568",
+      "fileOffset": 5480,
+      "byteCount": 148,
+      "sha256": "3538bc5378b7ca3d4a142fa19a664a7efd25d1cec95a721f23cf9acd1f635674"
+    },
+    {
+      "label": "outgoing_stretched_duration",
+      "vmAddress": "0x27220f6d8",
+      "fileOffset": 5848,
+      "byteCount": 76,
+      "sha256": "2f07b9a2dd083d5562e1e40923b5cc97c01e17adec4acc22dde584ec6f84ebd2"
+    },
+    {
+      "label": "incoming_stretched_duration",
+      "vmAddress": "0x27220f89c",
+      "fileOffset": 6300,
+      "byteCount": 60,
+      "sha256": "88cebadbfc181e6b49d76137d0499f83924261ff877aa7741557ece7ae289479"
+    },
+    {
+      "label": "structured_witness_thunks",
+      "vmAddress": "0x27220f904",
+      "fileOffset": 6404,
+      "byteCount": 108,
+      "sha256": "91d0250bc55b1825bfa741482b03e571ac403d02ca05d820b712482e74e449a2"
+    },
+    {
+      "label": "outgoing_end_rate",
+      "vmAddress": "0x27220fb44",
+      "fileOffset": 6980,
+      "byteCount": 92,
+      "sha256": "e3878392110c6d2a7b53bee5d50668d25796f4890c0065d79e00b4ccf2e261a5"
+    },
+    {
+      "label": "effective_incoming_duration",
+      "vmAddress": "0x27220fba0",
+      "fileOffset": 7072,
+      "byteCount": 96,
+      "sha256": "676dc6e90a1b2dc9d5dcf61406ca62a837b79fe098d09bd6d31608d80a186b18"
+    },
+    {
+      "label": "incoming_start_rate",
+      "vmAddress": "0x27220fc00",
+      "fileOffset": 7168,
+      "byteCount": 228,
+      "sha256": "b9ed946d2af9431f96d13b9d276a976e491df9ee0f09bfac2407798bb807366e"
+    },
+    {
+      "label": "outgoing_playback_range",
+      "vmAddress": "0x27220fce4",
+      "fileOffset": 7396,
+      "byteCount": 68,
+      "sha256": "198ab2318bd5f752f55aee8e759c6e444d62775b1cf53bfd4c7eb6f46b61ad3e"
+    },
+    {
+      "label": "incoming_playback_range",
+      "vmAddress": "0x27220fd28",
+      "fileOffset": 7464,
+      "byteCount": 108,
+      "sha256": "d117dbc4674062e6005878d94079677ad92c583453dc83caac9506ec1ef9934b"
+    },
+    {
+      "label": "scaled_beat_ratio",
+      "vmAddress": "0x27220fda4",
+      "fileOffset": 7588,
+      "byteCount": 140,
+      "sha256": "79853a418adb9c03d684e58e887f4dea28c0f2f124628b4866f5a6ecac124527"
+    },
+    {
+      "label": "beat_count_subtraction",
+      "vmAddress": "0x27220fe30",
+      "fileOffset": 7728,
+      "byteCount": 112,
+      "sha256": "cba04cfbd4d15679389c0ebe52b04ff57e6db164b4f064174ed5903449a8df96"
+    },
+    {
+      "label": "beat_index_getter",
+      "vmAddress": "0x2722174dc",
+      "fileOffset": 38108,
+      "byteCount": 8,
+      "sha256": "e6aa07f69f3ee44d0192e9e05fb59bb3de72d3c54697acb9fe9973f6848a2801"
+    },
+    {
+      "label": "downbeat_index_getter",
+      "vmAddress": "0x27221756c",
+      "fileOffset": 38252,
+      "byteCount": 8,
+      "sha256": "153f7a2389c4b30894b41fea1db68dad16286dd26a6786ba8309d192a793a91b"
+    },
+    {
+      "label": "beat_region_conversion",
+      "vmAddress": "0x27222bd20",
+      "fileOffset": 122144,
+      "byteCount": 144,
+      "sha256": "9bd37755d574b7e18c4fa27eeebfe7765bea7006c9794775f0f309790815105e"
+    },
+    {
+      "label": "scale_factors",
+      "vmAddress": "0x272296638",
+      "fileOffset": 558648,
+      "byteCount": 24,
+      "sha256": "7150415ca2ea2ff382e6651a2693d2ee7e64b25caaf162e497c8031f78bdb157"
+    },
+    {
+      "label": "structured_schedule_witness",
+      "vmAddress": "0x2884aaa50",
+      "fileOffset": 712704,
+      "byteCount": 104,
+      "sha256": "fd07125d7c53a92c4e225339cdb3342f9761230ea6a7f3b416786f453b8bbb7b"
+    },
+    {
+      "label": "beat_event_witness",
+      "vmAddress": "0x2884ab8b8",
+      "fileOffset": 716392,
+      "byteCount": 24,
+      "sha256": "bdc03bcfa6a9221a78d0a244dff850b719765b6e5bbc879498dbd739e90bd0c8"
+    },
+    {
+      "label": "downbeat_as_beat_witness",
+      "vmAddress": "0x2884ab970",
+      "fileOffset": 716576,
+      "byteCount": 24,
+      "sha256": "d19a45a0ecfeeface5f4e05b50fdb1173ede8fbac8fe15f7e029dcf63b86f96f"
+    },
+    {
+      "label": "beat_conformance",
+      "vmAddress": "0x2722976f8",
+      "fileOffset": 562936,
+      "byteCount": 32,
+      "sha256": "c7f3f29dd5a779fee9c131e37eebbbee3c6d009facc2c79daf7c4d3487a5ced7"
+    },
+    {
+      "label": "downbeat_beat_conformance",
+      "vmAddress": "0x27229775c",
+      "fileOffset": 563036,
+      "byteCount": 32,
+      "sha256": "d949e11e6be2c6ace30804a70270a585e471697c73b1a6f95402ea8d507eb623"
+    }
+  ],
+  "instructionExecutionPerformed": false,
+  "directCalls": [
+    {
+      "site": "0x272210184",
+      "target": "0x2722105b4"
+    },
+    {
+      "site": "0x2722102d4",
+      "target": "0x272210660"
+    },
+    {
+      "site": "0x27221030c",
+      "target": "0x272210660"
+    },
+    {
+      "site": "0x27220f420",
+      "target": "0x27220f6d8"
+    },
+    {
+      "site": "0x27220f434",
+      "target": "0x27220f6d8"
+    },
+    {
+      "site": "0x27220f448",
+      "target": "0x27220f89c"
+    }
+  ],
+  "witnessTableAddress": "0x2884aaa50",
+  "witnessTargets": [
+    "0x272296620",
+    "0x27220f904",
+    "0x27220f908",
+    "0x27220f904",
+    "0x27220f908",
+    "0x27220f90c",
+    "0x27220fd94",
+    "0x27220fd98",
+    "0x27220f90c",
+    "0x27220f910",
+    "0x27220fd9c",
+    "0x27220fda0",
+    "0x27220f940"
+  ]
+}

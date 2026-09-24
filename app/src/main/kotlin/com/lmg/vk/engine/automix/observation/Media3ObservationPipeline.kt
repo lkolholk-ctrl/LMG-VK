@@ -55,6 +55,10 @@ class Media3ObservationPipeline(
                             append(" completeScope=${it.completeForResolvedScope} blockers=${it.missingSourceBindingCodes.joinToString(",")}")
                             append(" seeds=${it.seedCount} attempted=${it.attemptedCandidates}")
                             append(" candidateRejections=${it.candidateRejectionCodes.joinToString(",")}")
+                            it.scheduleStatus?.let { status -> append(" schedule=$status") }
+                            it.schedule?.let { schedule ->
+                                append(" automations=${schedule.outgoing.automations.size}/${schedule.incoming.automations.size}")
+                            }
                             append(" canExecute=false")
                         }
                         report.preparation?.let { prepared ->
@@ -63,7 +67,7 @@ class Media3ObservationPipeline(
                             append("/${prepared.incoming.structure?.stableRegions ?: 0}")
                             append(" preparationIssues=${prepared.outgoing.issues.joinToString(",") { it.name }}")
                             append("/${prepared.incoming.issues.joinToString(",") { it.name }}")
-                            append(" selectionBlock=${prepared.selectionBlock}")
+                            append(" preparationOnlyBlock=${prepared.selectionBlock}")
                         }
                     }
                 }

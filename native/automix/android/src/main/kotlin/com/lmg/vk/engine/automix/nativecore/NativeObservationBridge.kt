@@ -28,4 +28,8 @@ object NativeObservationBridge {
     external fun preparePair(outgoing: ByteArray, outgoingId: ByteArray,
                              incoming: ByteArray, incomingId: ByteArray,
                              durationsMs: LongArray, durationPresence: Int): LongArray
+
+    /** Stateless source selection + bounded continuous schedule. Still observation-only. */
+    external fun compileMusicKitScheduleV1(outgoing: ByteArray, outgoingSongId: ByteArray,
+        incoming: ByteArray, incomingSongId: ByteArray, catalog: ByteArray, request: LongArray): LongArray
 }

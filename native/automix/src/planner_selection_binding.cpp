@@ -79,10 +79,16 @@ PlannerSelectionBindingRequest decodePlannerSelectionBinding(const std::vector<s
 std::vector<std::int64_t> observePlannerSelectionBinding(const std::vector<std::int64_t>& request,
     const CloudSongAnalysis& outgoing, const CloudSongAnalysis& incoming) {
   const auto q=decodePlannerSelectionBinding(request);
-  auto w=empty(q);
-  if (!q.explicitResolvedScope) return w;
+  if (!q.explicitResolvedScope) return empty(q);
   const auto r=observeProducedMusicKitCandidates(outgoing,incoming,
       q.outgoingDurationMs,q.incomingDurationMs,q.requestedIds,q.catalog,q.context,q.eligibility,q.workBudget);
+  return encodePlannerSelectionBindingResult(request,r);
+}
+std::vector<std::int64_t> encodePlannerSelectionBindingResult(const std::vector<std::int64_t>& request,
+    const PlannerProducedObservation& r) {
+  const auto q=decodePlannerSelectionBinding(request);
+  require(q.explicitResolvedScope);
+  auto w=empty(q);
   w[6]=1+static_cast<std::int64_t>(r.status);
   w[8]=r.completeForResolvedScope?1:0;
   if (!r.completeForResolvedScope) {

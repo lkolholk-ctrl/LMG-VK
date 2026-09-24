@@ -28,6 +28,8 @@ class PlannerSelectionReport internal constructor(
     val candidate: ObservedPlannerCandidate?,
     knownBeatMatchedStyleIds: List<Int>,
     val sourceContextResolution: PlannerSourceContextResolution? = null,
+    val scheduleStatus: PlannerScheduleStatus? = null,
+    val schedule: ObservedTransitionSchedule? = null,
 ) {
     /** Native profile for this source image. Not the active explicitly resolved request list. */
     val knownBeatMatchedStyleIds: List<Int> = java.util.Collections.unmodifiableList(knownBeatMatchedStyleIds.toList())
@@ -40,7 +42,11 @@ class PlannerSelectionReport internal constructor(
     internal fun fromSourceContext(resolution: PlannerSourceContextResolution): PlannerSelectionReport =
         PlannerSelectionReport(generation, bindingRevision, status, false, missingSourceBindings,
             completeForResolvedScope, seedCount, attemptedCandidates, rejectionReasons, candidate,
-            knownBeatMatchedStyleIds, resolution)
+            knownBeatMatchedStyleIds, resolution, scheduleStatus, schedule)
+    internal fun withSchedule(status: PlannerScheduleStatus, plan: ObservedTransitionSchedule?): PlannerSelectionReport =
+        PlannerSelectionReport(generation, bindingRevision, this.status, explicitResolvedScope, missingSourceBindings,
+            completeForResolvedScope, seedCount, attemptedCandidates, rejectionReasons, candidate,
+            knownBeatMatchedStyleIds, sourceContextResolution, status, plan)
     val selectedStyleId: Int? get() = candidate?.styleId
     val candidateRejectionCodes: List<String>
         get() = REJECTION_CODES.filterIndexed { i, _ -> rejectionReasons and (1L shl i) != 0L }
@@ -142,4 +148,31 @@ internal object PlannerSelectionWire {
         return PlannerSelectionReport(w[3], w[4], PlannerSelectionStatus.entries[w[6].toInt()], explicit,
             w[7].toInt(), complete, w[11].toInt(), w[20].toInt(), w[26], c, knownProfile)
     }
+}
+
+
+/** Compiled is a description, never a permission to write PCM or start playback. */
+enum class PlannerScheduleStatus { COMPILED, SOURCE_REJECTED, SELECTION_UNAVAILABLE, UNSUPPORTED_STYLE, INVALID_SCHEDULE }
+data class ObservedSchedulePoint internal constructor(val value: Double, val songTimeSeconds: Double, val curve: Int)
+class ObservedScheduleAutomation internal constructor(val parameterId: String, points: List<ObservedSchedulePoint>) {
+    val points: List<ObservedSchedulePoint> = java.util.Collections.unmodifiableList(points.toList())
+}
+class ObservedScheduleSide internal constructor(
+    val startEvent: Int, val endEvent: Int, val beatCount: Int,
+    val sourceStartSeconds: Double, val sourceEndSeconds: Double,
+    val playbackTransitionStartSeconds: Double, val playbackTransitionEndSeconds: Double,
+    val startPlaybackSongTimeSeconds: Double, val stretchedRegionDurationSeconds: Double,
+    val startRate: Double, val endRate: Double, automations: List<ObservedScheduleAutomation>,
+) {
+    val automations: List<ObservedScheduleAutomation> = java.util.Collections.unmodifiableList(automations.toList())
+}
+class ObservedTransitionSchedule internal constructor(
+    val generation: Long, val bindingRevision: Long, val styleId: Int, val incomingScale: Int,
+    val score: Double, val scaledBeatRatio: Double, val effectiveIncomingDurationSeconds: Double,
+    val transitionStartSeconds: Double, val transitionEndSeconds: Double, val referenceTransitionTimeSeconds: Double,
+    val outgoing: ObservedScheduleSide, val incoming: ObservedScheduleSide,
+) {
+    val canExecute: Boolean get() = false
+    val requiresPositionRevalidation: Boolean get() = true
+    override fun toString(): String = "ObservedTransitionSchedule(styleId=$styleId, canExecute=false)"
 }
