@@ -16,7 +16,7 @@ object PlannerSelectionTransportScenarios {
             val r = PlannerSelectionWire.decode(w, q)
             check(!r.canExecute && r.generation == 71L)
             check(r.knownBeatMatchedStyleIds == listOf(8, 9, 12))
-            if (index == 0) check(r.missingSourceBindingCodes == listOf("CATALOG_FIELD_MAPPING_UNVERIFIED", "CRITERIA_BINDING_UNVERIFIED"))
+            if (index == 0) check(r.missingSourceBindingCodes == listOf("CRITERIA_BINDING_UNVERIFIED"))
             var immutable = false
             try { (r.knownBeatMatchedStyleIds as MutableList<Int>)[0] = 99 } catch (_: UnsupportedOperationException) { immutable = true }
             check(immutable)

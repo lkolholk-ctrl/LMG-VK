@@ -50,7 +50,8 @@ class Media3ObservationPipeline(
                         append(" edgeTags=${report.edgeNormalTempoTag}/${report.edgeExpandedTempoTag}")
                         report.selection?.let {
                             append(" selection=${it.status} bindingRevision=${it.bindingRevision}")
-                            append(" scope=${if (it.explicitResolvedScope) "EXPLICIT_RESOLVED" else "UNRESOLVED_DEFAULT"}")
+                            append(" scope=${it.scopeKind}")
+                            it.sourceContextResolution?.let { reason -> append(" sourceContext=$reason") }
                             append(" completeScope=${it.completeForResolvedScope} blockers=${it.missingSourceBindingCodes.joinToString(",")}")
                             append(" seeds=${it.seedCount} attempted=${it.attemptedCandidates}")
                             append(" candidateRejections=${it.candidateRejectionCodes.joinToString(",")}")
@@ -142,10 +143,10 @@ class Media3ObservationPipeline(
         return withContext(Dispatchers.Main.immediate) { pipeline.submitOwned(ticket, requestedSongId, privateBytes) }
     }
 
-    /** Bind only a genuinely resolved source profile/context to the original
-     * occurrence ticket. No default profile or Criteria arithmetic is guessed.
+    /** Bind immutable source facts/caller Criteria OR an explicit resolved scope to the
+     * original occurrence ticket. Native code resolves source geometry; PCM is untouched.
      */
-    suspend fun bindResolvedScope(ticket: ObservationTicket, scope: ResolvedPlannerScope): ObservationScopeSubmission =
+    suspend fun bindResolvedScope(ticket: ObservationTicket, scope: PlannerObservationScope): ObservationScopeSubmission =
         withContext(Dispatchers.Main.immediate) { pipeline.bindResolvedScope(ticket, scope) }
 
     fun close() {

@@ -43,8 +43,8 @@ std::vector<std::int64_t> run(std::vector<std::int64_t> q,const CloudSongAnalysi
 void writeNumber(std::ostream& f,std::uint64_t n,int bytes){for(int i=0;i<bytes;++i)f.put(static_cast<char>((n>>(i*8))&255));}
 }
 int main(int argc,char**argv){try{
-  test("default knows profile but preserves two unresolved bindings",[]{auto q=request(false),r=run(q);
-    check(r[6]==0&&r[7]==6&&r[8]==0&&r[28]==-1);samples.push_back({q,r});});
+  test("default knows profile but preserves unresolved full provider policy",[]{auto q=request(false),r=run(q);
+    check(r[6]==0&&r[7]==4&&r[8]==0&&r[28]==-1);samples.push_back({q,r});});
   test("resolved scope automatic seeds -> style9",[]{auto q=request(),r=run(q);
     check(r[6]==1&&r[7]==0&&r[8]==1&&r[10]==1&&r[11]==12&&r[28]==9&&r[29]==9&&r[30]==1);
     check(std::abs(value(r[40])-15.104)<1e-12&&value(r[36])==104&&value(r[39])==16);samples.push_back({q,r});});

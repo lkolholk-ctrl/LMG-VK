@@ -46,7 +46,7 @@ data class ObservationPair(
     val repeatMode: Int,
     val shuffle: Boolean,
     /** Worker-only captured binding, not part of the owner's playlist identity. */
-    internal val selectionScope: ResolvedPlannerScope? = null,
+    internal val selectionScope: PlannerObservationScope? = null,
     internal val selectionGeneration: Long = 0,
     internal val selectionRevision: Long = 0,
 )
@@ -120,7 +120,7 @@ internal class ObservationPipeline<A : Any, R : Any>(
     private val values = mutableListOf<A?>(null, null)
     private val decodeJobs = arrayOfNulls<Job>(2)
     private var calculationJob: Job? = null
-    private var resolvedScope: ResolvedPlannerScope? = null
+    private var resolvedScope: PlannerObservationScope? = null
     private var bindingRevision = 0L
     private val mutableState = MutableStateFlow<ObservationState<R>>(
         ObservationState(0L, ObservationPhase.SUSPENDED, ObservationReason.NO_PAIR),
@@ -161,7 +161,7 @@ internal class ObservationPipeline<A : Any, R : Any>(
      * Accepted response bytes/decoded values stay owned by this pipeline. A binding
      * does not consume a response ticket and never schedules another HTTP request.
      */
-    fun bindResolvedScope(ticket: ObservationTicket, scope: ResolvedPlannerScope): ObservationScopeSubmission {
+    fun bindResolvedScope(ticket: ObservationTicket, scope: PlannerObservationScope): ObservationScopeSubmission {
         checkOwner()
         if (closed) return ObservationScopeSubmission.CLOSED
         if (!accepts(ticket)) return ObservationScopeSubmission.STALE

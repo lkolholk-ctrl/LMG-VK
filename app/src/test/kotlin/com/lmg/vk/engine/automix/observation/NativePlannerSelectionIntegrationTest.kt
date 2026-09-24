@@ -48,13 +48,13 @@ class NativePlannerSelectionIntegrationTest {
     @Test fun defaultModeRequiresCatalogAndContext() {
         val calc = calculator(); val r = calc.calculate(calc.decode(response("a"), "a"), calc.decode(response("b"), "b"), pair())
         val selection = requireNotNull(r.selection)
-        check(selection.status == PlannerSelectionStatus.NEEDS_SOURCE_BINDINGS && selection.missingSourceBindings == 6)
+        check(selection.status == PlannerSelectionStatus.NEEDS_SOURCE_BINDINGS && selection.missingSourceBindings == 4)
         check(r.selectedStyleId == null && !r.canExecute)
     }
     @Test fun knownDefaultProfileIsOrderedAndImmutable() {
         val r = direct(request(scope = null))
         check(r.knownBeatMatchedStyleIds == listOf(8, 9, 12))
-        check(r.missingSourceBindings == 6 && r.selectedStyleId == null && !r.canExecute)
+        check(r.missingSourceBindings == 4 && r.selectedStyleId == null && !r.canExecute)
         var immutable = false
         try { (r.knownBeatMatchedStyleIds as MutableList<Int>)[0] = 99 } catch (_: UnsupportedOperationException) { immutable = true }
         check(immutable)

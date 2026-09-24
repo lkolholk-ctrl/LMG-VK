@@ -6,6 +6,11 @@ object NativeObservationBridge {
     external fun selectResolvedPairV2(outgoing: ByteArray, outgoingId: ByteArray,
                                    incoming: ByteArray, incomingId: ByteArray, request: LongArray): LongArray
 
+    /** Source-derived descriptors/provider geometry for the explicitly confirmed subset. */
+    external fun selectMusicKitSourcePairV1(outgoing: ByteArray, outgoingId: ByteArray,
+                                          incoming: ByteArray, incomingId: ByteArray,
+                                          catalog: ByteArray, request: LongArray): LongArray
+
     init { System.loadLibrary("lmg_automix_jni") }
 
     // Standard UTF-8 byte arrays, not JNI Modified UTF-8 strings. Signatures are

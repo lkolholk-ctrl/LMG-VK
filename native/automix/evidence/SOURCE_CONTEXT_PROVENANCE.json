@@ -1,0 +1,203 @@
+{
+  "schemaVersion": 1,
+  "image": {
+    "name": "_SonicKit_MusicKit_Packages",
+    "size": 1063640,
+    "sha256": "e843a9a94838f49c9c1e9b11f57fca70c6eebde59d7a3fd8d43917ee65607b4d",
+    "uuid": "83c387fd-3c68-344a-85e5-0c3c015811c1"
+  },
+  "functionWindows": [
+    {
+      "address": "0x27224e480",
+      "end": "0x27224e814",
+      "fileOffset": 263296,
+      "size": 916,
+      "sha256": "f7dbd15e12bc18c5eb467d84598d9051b93c833c90c1de43440cd218f647d35d"
+    },
+    {
+      "address": "0x27224e814",
+      "end": "0x27224e8bc",
+      "fileOffset": 264212,
+      "size": 168,
+      "sha256": "a988bae41ee40ce033e9cac757e965e3dfb8bf863dbd8718ec8b4d550a2659e1"
+    },
+    {
+      "address": "0x27224eab0",
+      "end": "0x27224eadc",
+      "fileOffset": 264880,
+      "size": 44,
+      "sha256": "898a32fee9ae6df17a6744996ce3e8cf45612c3ffb7ae93ca356fb23fcbde145"
+    },
+    {
+      "address": "0x27224e8bc",
+      "end": "0x27224e9d0",
+      "fileOffset": 264380,
+      "size": 276,
+      "sha256": "c31f61ab29defc53474f9750fc2c5177f667dcc3f24ea5d512ba9fd919d4b68d"
+    },
+    {
+      "address": "0x27224d8fc",
+      "end": "0x27224d94c",
+      "fileOffset": 260348,
+      "size": 80,
+      "sha256": "cbc19130f7b78e6597537886c8ae13f7819fc3458913cce759fa6a76678cb12a"
+    },
+    {
+      "address": "0x27224d1f0",
+      "end": "0x27224d5c4",
+      "fileOffset": 258544,
+      "size": 980,
+      "sha256": "e1a150e9aa4f0e428b2605f2c624a361312b92693499677738cb6073d5916904"
+    },
+    {
+      "address": "0x27224ce64",
+      "end": "0x27224cee0",
+      "fileOffset": 257636,
+      "size": 124,
+      "sha256": "f3ebb8e63dd714013dfb80bb4a4fd7f62432070bf1529878a957b15793f3301c"
+    },
+    {
+      "address": "0x272259834",
+      "end": "0x2722598d8",
+      "fileOffset": 309300,
+      "size": 164,
+      "sha256": "38978f90215cae8aac7596164fbeb411c9b70cc88332d147032ff61697a23c73"
+    },
+    {
+      "address": "0x272258148",
+      "end": "0x272258218",
+      "fileOffset": 303432,
+      "size": 208,
+      "sha256": "f3d649a03bc64522752f354f0a385c0c2821daf5dd0f891369788db06925d83c"
+    },
+    {
+      "address": "0x272255b88",
+      "end": "0x272255c60",
+      "fileOffset": 293768,
+      "size": 216,
+      "sha256": "102b0c74e7a7c5e8d3582723cb6375e650ac5d88f26c4c1a0439439855efdb18"
+    },
+    {
+      "address": "0x2722246f8",
+      "end": "0x272224708",
+      "fileOffset": 91896,
+      "size": 16,
+      "sha256": "5f4a8e5adfb3f6a1726640160d57cbd4156eb5528a861085777ef4ade6742727"
+    },
+    {
+      "address": "0x272224708",
+      "end": "0x272224718",
+      "fileOffset": 91912,
+      "size": 16,
+      "sha256": "f8ebdd468512438584a9281987b41388877c0518c3c5f6abf0c1f88be5590aab"
+    },
+    {
+      "address": "0x272224718",
+      "end": "0x272224728",
+      "fileOffset": 91928,
+      "size": 16,
+      "sha256": "54314be051a9f25986e5f9f30084a5ca62cfc7d6eb4df8061dc209942be8cf82"
+    },
+    {
+      "address": "0x2722200cc",
+      "end": "0x272220784",
+      "fileOffset": 73932,
+      "size": 1720,
+      "sha256": "f499713b9e22b29ddefd3220df4170ee8deb7dba58d85f58cfb4d726438fc2ab"
+    },
+    {
+      "address": "0x272220ae4",
+      "end": "0x2722210e0",
+      "fileOffset": 76516,
+      "size": 1532,
+      "sha256": "d78975ddb9a5a118f276c881673102a58893dd853e808ec597dfa87aa5aedc56"
+    },
+    {
+      "address": "0x27222a140",
+      "end": "0x27222a4b4",
+      "fileOffset": 115008,
+      "size": 884,
+      "sha256": "f75bf5c62d9d2f331940c86d7e6239dcee74f51065e3a03d73e1b894cf98a536"
+    },
+    {
+      "address": "0x27222a4b4",
+      "end": "0x27222a728",
+      "fileOffset": 115892,
+      "size": 628,
+      "sha256": "c952ff5807145b6af52d72f7e7a24373e5336c11ff3ed3603d33124ab9380fb8"
+    },
+    {
+      "address": "0x27222f54c",
+      "end": "0x27222fa50",
+      "fileOffset": 136524,
+      "size": 1284,
+      "sha256": "78fcf870c44ceec1de4f431d51684d1db6fad6b4bcb7b08bf6a3354f864217e6"
+    },
+    {
+      "address": "0x2722210e0",
+      "end": "0x272221524",
+      "fileOffset": 78048,
+      "size": 1092,
+      "sha256": "178b2007d88424f2c278646ac75eac02309e5f0dce07e6956ed84887eb8c0041"
+    },
+    {
+      "address": "0x272221524",
+      "end": "0x27222171c",
+      "fileOffset": 79140,
+      "size": 504,
+      "sha256": "0710b2e327a4ed28c091f2c94f2f7672c4cff5fe78e13beecc884145b528226c"
+    },
+    {
+      "address": "0x27222171c",
+      "end": "0x272221994",
+      "fileOffset": 79644,
+      "size": 632,
+      "sha256": "d75688b3c6a0fee7af9113e05f07d2347301e7e898e0c57668a556c5ac194b9f"
+    },
+    {
+      "address": "0x27222919c",
+      "end": "0x272229758",
+      "fileOffset": 111004,
+      "size": 1468,
+      "sha256": "3e8869ec39635cc658db2f151e5d75376e8c788309f2b5950bd1f1e722ac095d"
+    },
+    {
+      "address": "0x272229758",
+      "end": "0x272229a94",
+      "fileOffset": 112472,
+      "size": 828,
+      "sha256": "c66aea0e6e29d9e55ed4047d581d2216a4817b8113548971d1ed5a41089ea476"
+    },
+    {
+      "address": "0x272213d4c",
+      "end": "0x272214200",
+      "fileOffset": 23884,
+      "size": 1204,
+      "sha256": "e75dce954a1c92f31b4200893b2482abe98e7527da1d3e2df04050c023f36d58"
+    },
+    {
+      "address": "0x272243e0c",
+      "end": "0x272243ea4",
+      "fileOffset": 220684,
+      "size": 152,
+      "sha256": "71dcc188d2b653ac92a37ae46ffe4598660d1a85e5898b9d395f080e567efc3e"
+    },
+    {
+      "address": "0x2722461cc",
+      "end": "0x27224637c",
+      "fileOffset": 229836,
+      "size": 432,
+      "sha256": "3f337d99a3737e11639a90d0f3c1962220dc8ec3d85475765a899ade6c6ee115"
+    }
+  ],
+  "byteBacked": true,
+  "originalInstructionExecution": false,
+  "fullPlannerParity": false,
+  "pcmExecution": false,
+  "method": "Direct little-endian Mach-O mapping; instruction inspection with LLVM 17; duplicate outlined labels resolved by raw B/BL immediates. Function hashes establish attribution, not semantic parity.",
+  "remaining": [
+    "upper provider eligibility including genre/source authorization is caller-established",
+    "spatial/reference-to-playback and previous-state mappings are unsupported",
+    "candidate selection is not compiled PCM execution"
+  ]
+}

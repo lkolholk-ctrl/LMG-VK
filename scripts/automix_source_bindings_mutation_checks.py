@@ -18,9 +18,9 @@ def main():
         ('inclusive-end', 'source', 'if(c.time > d)', 'if(c.time >= d)', 2),
         ('within-upper', 'source', 'return resolved(c.lower,c.upper);', 'return resolved(c.lower,d);', 1),
         ('missing-duration', 'source', 'return failure(PlannerCriteriaResolution::durationUnavailable);', 'return resolved(0.0,0.0);', 2),
-        ('late-invented-range', 'source', 'return failure(PlannerCriteriaResolution::latePlacementUnresolved);', 'return resolved(0.0,d);', 1),
+        ('late-range-erased', 'source', 'if constexpr(!std::is_same_v<T,PlannerOutgoingLateInSong>)', 'if constexpr(std::is_same_v<T,PlannerOutgoingEarlyAfter>)', 1),
         ('nonfinite-duration', 'source', 'std::isfinite(v) && v >= 0.0', 'v >= 0.0', 1),
-        ('unclosed-bits', 'header', '(1ULL << 1) | (1ULL << 2)', '0ULL', 1),
+        ('unclosed-bits', 'header', '(1ULL << 2)', '0ULL', 1),
         ('signed-zero', 'source', 'return resolved(c.time,d);', 'return resolved(std::abs(c.time),d);', 2),
     ]
     with tempfile.TemporaryDirectory(prefix='lmg-source-binding-mut-') as directory:

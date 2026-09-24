@@ -7,9 +7,13 @@ import com.lmg.vk.engine.automix.nativecore.NativeObservationBridge
 internal object PlannerSelectionBinding {
     fun calculate(outgoing: ByteArray, outgoingId: String, incoming: ByteArray, incomingId: String,
                   pair: ObservationPair, catalog: TransitionStyleCatalog): PlannerSelectionReport {
-        val scope = pair.selectionScope
+        val bound = pair.selectionScope
+        if (bound is MusicKitSourceContext) {
+            return PlannerSourceContextBinding.calculate(outgoing, outgoingId, incoming, incomingId, pair, catalog, bound)
+        }
+        val scope = bound as? ResolvedPlannerScope
         // The existing loader owns canonical bytes+SHA and full native catalog validation.
-        // Membership does not mean duration has been proven to denote bar count.
+        // The explicit path preserves caller records; the source-context path binds catalog fields natively.
         if (catalog.sha256 != TransitionStyleCatalog.BUNDLED_SHA256 ||
             scope?.records?.any { catalog.style(it.id.toInt()) == null } == true ||
             scope?.requestedIds?.any { catalog.style(it.toInt()) == null } == true

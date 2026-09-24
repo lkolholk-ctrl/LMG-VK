@@ -49,12 +49,12 @@ PlannerCriteriaRangeResult resolvePlannerOutgoingCriteria(
   if (!duration) return failure(PlannerCriteriaResolution::durationUnavailable);
   return std::visit([d=*duration](const auto& c) noexcept -> PlannerCriteriaRangeResult {
     using T=std::decay_t<decltype(c)>;
-    if constexpr(std::is_same_v<T,PlannerOutgoingEarlyAfter>) {
+    if constexpr(!std::is_same_v<T,PlannerOutgoingLateInSong>) {
       if(c.time > d) return failure(PlannerCriteriaResolution::invalidInput);
       return resolved(c.time,d);
     } else {
-      // Do not import the early-after duration comparison into untraced late logic.
-      return failure(PlannerCriteriaResolution::latePlacementUnresolved);
+      // Source 272259834 inSong arm. This normalizes start limits, not strategy policy.
+      return resolved(0.0,d);
     }
   },criteria);
 }

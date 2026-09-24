@@ -83,7 +83,7 @@ object ObservationBindingScenarios {
         val p = pipeline(this)
         try { p.update(pair()); val t = p.state.value.requests; p.bindResolvedScope(t[0], scope())
             check(p.bindResolvedScope(t[1], scope(ResolvedPlannerEligibility.DENIED)) == ObservationScopeSubmission.CONFLICT)
-            p.both(t); check(p.observed().selectionScope?.eligibility == ResolvedPlannerEligibility.ALLOWED)
+            p.both(t); check((p.observed().selectionScope as? ResolvedPlannerScope)?.eligibility == ResolvedPlannerEligibility.ALLOWED)
         } finally { p.close() }
     }
     suspend fun staleBinding() = coroutineScope {

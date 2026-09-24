@@ -9,8 +9,9 @@ namespace lmg::automix {
 // Constructor 272243e0c -> static array 2884aa5e8. Requested IDs, NOT bar counts.
 const std::array<std::int64_t, 3>& plannerDefaultBeatMatchedStyleIds() noexcept;
 // Stable LMG bits: profile=0, catalog mapping=1, complete provider/Criteria=2.
-// Only the profile binding is closed. No permission to execute audio follows.
-inline constexpr std::uint64_t kPlannerRemainingDefaultBindings = (1ULL << 1) | (1ULL << 2);
+// Profile and catalog-field mapping are closed. Full provider policy/previous-state
+// mapping is not. Scoped source-context calculation does not authorize audio.
+inline constexpr std::uint64_t kPlannerRemainingDefaultBindings = (1ULL << 2);
 
 struct PlannerCriteriaAfter { double time; };
 struct PlannerCriteriaWithin { double lower, upper; };
@@ -28,7 +29,7 @@ struct PlannerCriteriaRangeResult {
   PlannerCriteriaResolution status;
   std::optional<PlannerCriteriaTimeRange> range;
 };
-// Start-time limits only: 272255b88 (incoming) and early branch of 272258148.
+// Start-time limits only: 272255b88 (incoming), 272258148 + 272259834 (outgoing).
 // Finite nonnegative host domain; unknown duration is not zero/catalog duration.
 // Equal endpoints and signed zero survive without rounding, epsilon or clamping.
 // Reversed Within rejection is an LMG domain check, not a claim that the original
@@ -37,6 +38,6 @@ PlannerCriteriaRangeResult resolvePlannerIncomingCriteria(
     std::optional<double> durationSeconds, const PlannerIncomingCriteria& criteria) noexcept;
 PlannerCriteriaRangeResult resolvePlannerOutgoingCriteria(
     std::optional<double> durationSeconds, const PlannerOutgoingCriteria& criteria) noexcept;
-// Not a ResolvedPlannerScope factory. Late placement, provider witness getters,
-// prior playback context and eligibility remain unresolved outside these helpers.
+// Early and late placement tags remain distinct even though their normalized ranges
+// coincide in this finite domain. Prior-state/strategy policy is not inferred here.
 } // namespace lmg::automix

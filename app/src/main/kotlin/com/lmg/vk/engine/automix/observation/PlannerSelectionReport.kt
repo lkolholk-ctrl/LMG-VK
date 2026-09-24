@@ -27,10 +27,20 @@ class PlannerSelectionReport internal constructor(
     val rejectionReasons: Long,
     val candidate: ObservedPlannerCandidate?,
     knownBeatMatchedStyleIds: List<Int>,
+    val sourceContextResolution: PlannerSourceContextResolution? = null,
 ) {
     /** Native profile for this source image. Not the active explicitly resolved request list. */
     val knownBeatMatchedStyleIds: List<Int> = java.util.Collections.unmodifiableList(knownBeatMatchedStyleIds.toList())
     val canExecute: Boolean get() = false
+    val scopeKind: String get() = when {
+        sourceContextResolution != null -> "SOURCE_MUSICKIT_SUBSET"
+        explicitResolvedScope -> "EXPLICIT_RESOLVED"
+        else -> "UNRESOLVED_DEFAULT"
+    }
+    internal fun fromSourceContext(resolution: PlannerSourceContextResolution): PlannerSelectionReport =
+        PlannerSelectionReport(generation, bindingRevision, status, false, missingSourceBindings,
+            completeForResolvedScope, seedCount, attemptedCandidates, rejectionReasons, candidate,
+            knownBeatMatchedStyleIds, resolution)
     val selectedStyleId: Int? get() = candidate?.styleId
     val candidateRejectionCodes: List<String>
         get() = REJECTION_CODES.filterIndexed { i, _ -> rejectionReasons and (1L shl i) != 0L }
@@ -44,7 +54,7 @@ class PlannerSelectionReport internal constructor(
             "MATCHING_BARS_UNAVAILABLE", "FEWER_THAN_EIGHT_BARS", "TONALITY_MISMATCH", "VOCAL_CONFLICT", "NONPOSITIVE_SCORE")
     }
     override fun toString(): String = "PlannerSelectionReport(status=$status, scope=" +
-        (if (explicitResolvedScope) "EXPLICIT_RESOLVED" else "UNRESOLVED_DEFAULT") + ", canExecute=false)"
+        scopeKind + ", canExecute=false)"
 }
 
 /** Strict bounded transport only. It does not reproduce source math or score candidates. */
@@ -92,7 +102,7 @@ internal object PlannerSelectionWire {
         ensure(w[44] == 3L && w[45] == 8L && w[46] == 9L && w[47] == 12L)
         val knownProfile = (45..47).map { w[it].toInt() }
         val explicit = request[5] == 1L
-        ensure(if (explicit) w[6] != 0L && w[7] == 0L else w[6] == 0L && w[7] == 6L)
+        ensure(if (explicit) w[6] != 0L && w[7] == 0L else w[6] == 0L && w[7] == 4L)
         val complete = w[8] == 1L
         ensure(complete == (w[6] == 1L))
         fun noWinner() {
