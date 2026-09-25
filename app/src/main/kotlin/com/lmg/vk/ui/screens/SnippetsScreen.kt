@@ -227,6 +227,7 @@ private fun SnippetCard(
             uri = null,
             contentDescription = track.title,
             coverUrl = track.coverUrl ?: page.imageUrl,
+            artworkQuery = com.lmg.vk.artwork.ArtworkQuery(track.title, track.artist, track.fullDurationMs),
             contentScale = ContentScale.Crop,
             modifier = Modifier.fillMaxSize(),
         )

@@ -1,5 +1,7 @@
 package com.lmg.vk.ui
 
+import com.lmg.vk.ui.navigation.OverlayRouteReturn
+import com.lmg.vk.ui.navigation.WindowCloseSurface
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
@@ -30,7 +32,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.windowInsetsBottomHeight
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.activity.compose.BackHandler
-import androidx.activity.compose.PredictiveBackHandler
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -45,6 +47,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
@@ -86,84 +90,33 @@ import com.lmg.vk.ui.icons.lmgVector
 import com.lmg.vk.ui.theme.ForceDarkContent
 import com.lmg.vk.ui.theme.LiquidTheme
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.flow.collect
 
 private enum class RootOverlay { SEARCH, SETTINGS, PROFILE, AUTH }
 
-private data class OverlayNavReturn(
-    val overlay: RootOverlay,
-    val originRoute: String?,
-    val destinationEntered: Boolean = false,
-)
-
 @Composable
-private fun PredictiveBackLayer(
+private fun WindowCloseLayer(
     enabled: Boolean,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
     content: @Composable (requestBack: () -> Unit) -> Unit,
 ) {
-    val scope = rememberCoroutineScope()
-    val progress = remember { Animatable(0f) }
-    var widthPx by remember { mutableStateOf(1f) }
-    var completing by remember { mutableStateOf(false) }
-
-    fun finishBack() {
-        if (completing) return
-        completing = true
-        scope.launch {
-            progress.animateTo(
-                1f,
-                tween(260, easing = com.lmg.vk.ui.theme.AppleEasings.Standard),
-            )
-            onBack()
-        }
-    }
-
-    val fraction = progress.value.coerceIn(0f, 1f)
-    Box(modifier = modifier.fillMaxSize()) {
-        Box(
-            Modifier
-                .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.12f * (1f - fraction)))
-        )
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .onSizeChanged { widthPx = it.width.toFloat().coerceAtLeast(1f) }
-                .graphicsLayer {
-                    translationX = widthPx * fraction
-                    scaleX = 1f - 0.08f * fraction
-                    scaleY = 1f - 0.08f * fraction
-                    alpha = 1f - 0.06f * fraction
-                    clip = fraction > 0f
-                    shape = RoundedCornerShape((30f * fraction).dp)
-                }
-        ) {
-            content(::finishBack)
-        }
-    }
-
-    PredictiveBackHandler(enabled = enabled && !completing) { events ->
-        try {
-            events.collect { event -> progress.snapTo(event.progress) }
-            completing = true
-            progress.animateTo(
-                1f,
-                tween(140, easing = com.lmg.vk.ui.theme.AppleEasings.Standard),
-            )
-            onBack()
-        } catch (cancellation: CancellationException) {
-            completing = false
-            progress.animateTo(0f, spring(dampingRatio = 0.82f, stiffness = 520f))
-            throw cancellation
-        }
+    WindowCloseSurface(enabled = enabled, onBack = onBack, modifier = modifier) { requestBack ->
+        content(requestBack)
     }
 }
 
 @Composable
 fun AppRoot() {
+    val track by PlayerController.currentTrack.collectAsState()
+    com.lmg.vk.ui.glass.ProvidePlayingArtwork(track) {
+        com.lmg.vk.ui.player.ProvideMotionArtwork(track) {
+            AppRootContent()
+        }
+    }
+}
+
+@Composable
+private fun AppRootContent() {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
@@ -173,8 +126,11 @@ fun AppRoot() {
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
+    LaunchedEffect(currentRoute) {
+        com.lmg.vk.debug.AppStartupTrace.mark("route=$currentRoute")
+    }
     val currentGraph = NavRoutes.graphOf(currentRoute)
-    var overlayNavReturn by remember { mutableStateOf<OverlayNavReturn?>(null) }
+    var overlayNavReturn by remember { mutableStateOf<OverlayRouteReturn<RootOverlay>?>(null) }
     var rootOverlayStack by remember { mutableStateOf<List<RootOverlay>>(emptyList()) }
     val selectedIndex = when (currentGraph) {
         NavRoutes.GRAPH_LIBRARY -> 2
@@ -192,7 +148,7 @@ fun AppRoot() {
 
     fun switchTab(index: Int, resetOnReselect: Boolean = false) {
         overlayNavReturn?.let { pending ->
-            rootOverlayStack = rootOverlayStack.filterNot { it == pending.overlay }
+            rootOverlayStack = pending.visibleOverlays(rootOverlayStack)
         }
         overlayNavReturn = null
         if (index == 3) {
@@ -202,6 +158,7 @@ fun AppRoot() {
             AppSettings.setLastScreen(index)
             return
         }
+        rootOverlayStack = emptyList()
         val (graph, home) = when (index) {
             2 -> NavRoutes.GRAPH_LIBRARY to NavRoutes.LIBRARY_HOME
             4 -> NavRoutes.GRAPH_NEW to NavRoutes.NEW_HOME
@@ -255,12 +212,6 @@ fun AppRoot() {
     var profileAtRoot by remember { mutableStateOf(true) }
     var authAtRoot by remember { mutableStateOf(true) }
     var lrcPublishAtRoot by remember { mutableStateOf(true) }
-    val rootBackProgress = remember { Animatable(0f) }
-    var rootBackWidthPx by remember { mutableStateOf(1f) }
-    var rootBackCompleting by remember { mutableStateOf(false) }
-    var rootBackOverlay by remember { mutableStateOf<RootOverlay?>(null) }
-    var rootBackUnderlay by remember { mutableStateOf<RootOverlay?>(null) }
-    var rootBackUsesBase by remember { mutableStateOf(false) }
     var accountActionError by remember { mutableStateOf<String?>(null) }
     var accountPendingRemoval by remember { mutableStateOf<com.lmg.vk.engine.backend.VkAccountSummary?>(null) }
     val accounts by com.lmg.vk.engine.backend.MusicAuth.accounts.collectAsState()
@@ -269,16 +220,16 @@ fun AppRoot() {
     }
     val activeCaptchaPrompt by com.lmg.vk.network.GlobalCaptchaManager.activePrompt.collectAsState()
     val activeValidationPrompt by com.lmg.vk.network.GlobalCaptchaManager.activeValidation.collectAsState()
-    val hiddenRootOverlay = overlayNavReturn?.overlay
+    val visibleRootOverlays = overlayNavReturn?.visibleOverlays(rootOverlayStack) ?: rootOverlayStack
     val settingsRetained = RootOverlay.SETTINGS in rootOverlayStack
     val authRetained = RootOverlay.AUTH in rootOverlayStack
     val profileRetained = RootOverlay.PROFILE in rootOverlayStack
     val searchRetained = RootOverlay.SEARCH in rootOverlayStack
-    val settingsOpen = settingsRetained && hiddenRootOverlay != RootOverlay.SETTINGS
-    val authOpen = authRetained && hiddenRootOverlay != RootOverlay.AUTH
-    val profileOpen = profileRetained && hiddenRootOverlay != RootOverlay.PROFILE
-    val searchOpen = searchRetained && hiddenRootOverlay != RootOverlay.SEARCH
-    val topRootOverlay = rootOverlayStack.lastOrNull { it != hiddenRootOverlay }
+    val settingsOpen = RootOverlay.SETTINGS in visibleRootOverlays
+    val authOpen = RootOverlay.AUTH in visibleRootOverlays
+    val profileOpen = RootOverlay.PROFILE in visibleRootOverlays
+    val searchOpen = RootOverlay.SEARCH in visibleRootOverlays
+    val topRootOverlay = visibleRootOverlays.lastOrNull()
 
     fun openRootOverlay(overlay: RootOverlay) {
         rootOverlayStack = rootOverlayStack.filterNot { it == overlay } + overlay
@@ -306,97 +257,47 @@ fun AppRoot() {
         }
     }
 
-    fun captureRootBack(overlay: RootOverlay) {
-        val visibleStack = rootOverlayStack.filterNot { it == hiddenRootOverlay }
-        val position = visibleStack.indexOf(overlay)
-        rootBackOverlay = overlay
-        rootBackUnderlay = visibleStack.getOrNull(position - 1)
-        rootBackUsesBase = rootBackUnderlay == null
-    }
-
-    suspend fun completeRootBack(overlay: RootOverlay, durationMillis: Int) {
-        rootBackProgress.animateTo(
-            1f,
-            tween(durationMillis, easing = com.lmg.vk.ui.theme.AppleEasings.Standard),
-        )
-        closeRootOverlayFromBack(overlay)
-        rootBackCompleting = false
-        scope.launch {
-            kotlinx.coroutines.delay(360)
-            if (rootBackOverlay == overlay && !rootBackCompleting) {
-                rootBackProgress.snapTo(0f)
-                rootBackOverlay = null
-                rootBackUnderlay = null
-                rootBackUsesBase = false
-            }
-        }
-    }
-
     fun finishRootBack() {
         val overlay = topRootOverlay ?: return
-        if (rootBackCompleting || !rootOverlayAtRoot(overlay)) return
-        rootBackCompleting = true
-        scope.launch {
-            rootBackProgress.snapTo(0f)
-            captureRootBack(overlay)
-            completeRootBack(overlay, 260)
-        }
+        if (rootOverlayAtRoot(overlay)) closeRootOverlayFromBack(overlay)
     }
 
     fun clearRootOverlays() {
         rootOverlayStack = emptyList()
     }
 
+    val overlayBackground = LiquidTheme.colors.settingsBackground
+
+    @Composable
     fun overlayModifier(overlay: RootOverlay): Modifier {
-        val hidden = hiddenRootOverlay == overlay
-        val frontFraction = if (rootBackOverlay == overlay) {
-            rootBackProgress.value.coerceIn(0f, 1f)
-        } else {
-            0f
-        }
-        val backFraction = if (rootBackUnderlay == overlay) {
-            rootBackProgress.value.coerceIn(0f, 1f)
-        } else {
-            0f
-        }
+        val hidden = overlay in rootOverlayStack && overlay !in visibleRootOverlays
+        val position = rootOverlayStack.indexOf(overlay)
+        val layer = remember(overlay) { androidx.compose.runtime.mutableFloatStateOf(100f) }
+        val z = if (position >= 0) position.toFloat() + 100f else layer.floatValue
+        androidx.compose.runtime.SideEffect { if (position >= 0) layer.floatValue = z }
         return Modifier
-            .zIndex(if (hidden) -10f else rootOverlayStack.indexOf(overlay).toFloat() + 100f)
-            .onSizeChanged { rootBackWidthPx = it.width.toFloat().coerceAtLeast(1f) }
-            .graphicsLayer {
-                translationX = rootBackWidthPx * frontFraction
-                val scale = when {
-                    frontFraction > 0f -> 1f - 0.12f * frontFraction
-                    backFraction > 0f -> 0.94f + 0.06f * backFraction
-                    else -> 1f
-                }
-                scaleX = scale
-                scaleY = scale
-                alpha = when {
-                    hidden -> 0f
-                    frontFraction > 0f -> 1f - 0.16f * frontFraction
-                    backFraction > 0f -> 0.7f + 0.3f * backFraction
-                    else -> 1f
-                }
-                clip = frontFraction > 0f
-                shape = RoundedCornerShape((28f * frontFraction).dp)
-                shadowElevation = 24.dp.toPx() * frontFraction
-            }
+            .zIndex(if (hidden) -10f else z)
+            .then(
+                if (hidden) Modifier.clearAndSetSemantics {}.pointerInput(Unit) {
+                    awaitPointerEventScope {
+                        while (true) awaitPointerEvent(PointerEventPass.Initial).changes.forEach { it.consume() }
+                    }
+                } else Modifier,
+            )
+            .graphicsLayer { alpha = if (hidden) 0f else 1f }
+            .background(overlayBackground)
     }
 
     fun navigateFromOverlay(overlay: RootOverlay, route: String) {
-        overlayNavReturn = OverlayNavReturn(overlay, currentRoute)
+        if (overlay !in visibleRootOverlays) return
+        val originEntryId = navController.currentBackStackEntry?.id ?: return
         navController.navigate(route)
+        overlayNavReturn = OverlayRouteReturn(rootOverlayStack.toList(), originEntryId)
     }
 
-    LaunchedEffect(currentRoute, overlayNavReturn) {
+    LaunchedEffect(navBackStackEntry?.id, overlayNavReturn) {
         val pending = overlayNavReturn ?: return@LaunchedEffect
-        if (currentRoute != pending.originRoute) {
-            if (!pending.destinationEntered) {
-                overlayNavReturn = pending.copy(destinationEntered = true)
-            }
-        } else if (pending.destinationEntered) {
-            overlayNavReturn = null
-        }
+        overlayNavReturn = pending.followEntry(navBackStackEntry?.id)
     }
 
     val fullScreenRoute = currentRoute == NavRoutes.RECOMMENDATIONS_ONBOARDING ||
@@ -404,6 +305,9 @@ fun AppRoot() {
     val barsVisible = !settingsOpen && !authOpen && !profileOpen && !searchOpen && !fullScreenRoute
 
     val currentTrack by PlayerController.currentTrack.collectAsState()
+    val trackArtwork = com.lmg.vk.ui.glass.rememberTrackArtwork(currentTrack)
+    val preferredTrackCover = trackArtwork.coverUrl
+    val preferredArtUri = currentTrack?.displayArtUri?.takeIf { trackArtwork.isReady }
     val isPlaying by PlayerController.isPlaying.collectAsState()
     val currentPositionMs by PlayerController.currentPositionMs.collectAsState()
     val durationMs by PlayerController.durationMs.collectAsState()
@@ -413,11 +317,14 @@ fun AppRoot() {
     val artistName = currentTrack?.artist ?: "—"
 
     val expandProgress = remember { Animatable(0f) }
+    val playerHandlesBack by remember { derivedStateOf { expandProgress.value > 0.5f } }
+    val playerLeavesWaveVisible by remember { derivedStateOf { expandProgress.value < 0.05f } }
+    val playerCollapsed by remember { derivedStateOf { expandProgress.value < 0.1f } }
     var screenHeightPx by remember { mutableStateOf(1f) }
     val navBackEnabled = topRootOverlay == null &&
         lrcPublishTrack == null &&
         tagEditTrack == null &&
-        expandProgress.value <= 0.5f
+        !playerHandlesBack
 
     DisposableEffect(navController, navBackEnabled) {
         navController.enableOnBackPressed(navBackEnabled)
@@ -505,32 +412,16 @@ fun AppRoot() {
                 @Suppress("DEPRECATION")
                 packageInfo.versionCode
             }
-            AppUpdater.checkForUpdate(versionCode)
+            com.lmg.vk.debug.AppStartupTrace.elapsed("app_update_check") { AppUpdater.checkForUpdate(versionCode) }
         } catch (_: Exception) {}
     }
-
-    val miniAlpha = (1f - expandProgress.value * 3f).coerceIn(0f, 1f)
-
-    // ── Apple-style parallax: background scales down when player opens ──
-    // Морф (масштаб/скругление/альфа фона) синхронно по прогрессу, а само
-    // скругление — по апловской кривой (мягче «оседает»), как у их морфа обложки.
-    val morphE = com.lmg.vk.ui.theme.AppleEasings.Standard.transform(
-        expandProgress.value.coerceIn(0f, 1f)
-    )
-    val bgScale = (1f - expandProgress.value * 0.08f).coerceIn(0.9f, 1f)
-    val bgCorner = (morphE * 24f).coerceAtLeast(0f)
-    val bgAlpha = (1f - expandProgress.value * 0.15f).coerceIn(0.8f, 1f)
-    val rootBackFraction = rootBackProgress.value.coerceIn(0f, 1f)
-    val baseRevealScale = if (rootBackUsesBase) 0.94f + 0.06f * rootBackFraction else 1f
-    val baseRevealAlpha = if (rootBackUsesBase) 0.7f + 0.3f * rootBackFraction else 1f
 
     val rootBackdrop: LayerBackdrop = rememberLayerBackdrop()
 
     BackHandler(
-        enabled = expandProgress.value > 0.5f
-    ) {
-        animateCollapse()
-    }
+        enabled = playerHandlesBack && topRootOverlay == null && lrcPublishTrack == null && tagEditTrack == null,
+        onBack = ::animateCollapse,
+    )
 
     val lc = LiquidTheme.colors
     val rootBg = if (lc.isDark) Color.Black else Color(0xFFF5F5F7)
@@ -546,9 +437,13 @@ fun AppRoot() {
             modifier = Modifier
                 .fillMaxSize()
                 .graphicsLayer {
-                    scaleX = bgScale * baseRevealScale
-                    scaleY = bgScale * baseRevealScale
-                    alpha = bgAlpha * baseRevealAlpha
+                    val e = expandProgress.value.coerceIn(0f, 1f)
+                    val bgScale = (1f - e * 0.08f).coerceIn(0.9f, 1f)
+                    val bgAlpha = (1f - e * 0.15f).coerceIn(0.8f, 1f)
+                    val bgCorner = com.lmg.vk.ui.theme.AppleEasings.Standard.transform(e) * 24f
+                    scaleX = bgScale
+                    scaleY = bgScale
+                    alpha = bgAlpha
                     clip = true
                     shape = RoundedCornerShape(bgCorner.dp)
                 }
@@ -557,7 +452,7 @@ fun AppRoot() {
         ) {
             val waveAnimationsActive = onWaveHome &&
                     !settingsOpen && !authOpen && !profileOpen &&
-                    expandProgress.value < 0.05f &&
+                    playerLeavesWaveVisible &&
                     // При потере фокуса окна (пикер, «о приложении», шторка) замораживаем
                     // тяжёлый дым Волны, чтобы рендер не душил аудио-колбэк JUCE.
                     EffectsLifecycle.hasWindowFocus
@@ -622,14 +517,13 @@ fun AppRoot() {
             // своими вкладками — это «приложение в приложении»), либо наш
             // полноширинный мини-плеер (раскладка по референсу друга, стиль наш).
             // Прячется под полным плеером. Основная навигация — в SideBar слева.
-            val lsBottomAlpha = if (expandProgress.value >= 0.99f) 0f else 1f
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
                     .graphicsLayer {
                         translationY = expandProgress.value * 160.dp.toPx()
-                        alpha = lsBottomAlpha
+                        alpha = if (expandProgress.value >= 0.99f) 0f else 1f
                     }
             ) {
                 com.lmg.vk.ui.player.LandscapeBottomBar(
@@ -638,9 +532,6 @@ fun AppRoot() {
                 )
             }
     } else if (barsVisible) {
-            val density = androidx.compose.ui.platform.LocalDensity.current
-            val bottomBarTranslateY = expandProgress.value * density.run { 160.dp.toPx() }
-            val bottomBarAlpha = if (expandProgress.value >= 0.99f) 0f else 1f
 
             // ── Автоскрытие бара на главной (Wave): 3с бездействия → бар плавно
             // уезжает вниз, фон обложки дотекает до края. Тап по нижней зоне —
@@ -666,7 +557,7 @@ fun AppRoot() {
             // вкладках — обычный цвет темы.
             val onWaveTab = selectedIndex == 0
             val albumColorsForBar = com.lmg.vk.ui.glass.rememberAlbumColors(
-                currentTrack?.displayArtUri, currentTrack?.coverUrl,
+                preferredArtUri, preferredTrackCover,
             )
             val waveBarColor by animateColorAsState(
                 targetValue = lerp(albumColorsForBar.darkMuted, Color.Black, 0.35f),
@@ -682,9 +573,9 @@ fun AppRoot() {
                     .fillMaxWidth()
                     .align(Alignment.BottomCenter)
                     .graphicsLayer {
-                        translationY = bottomBarTranslateY +
+                        translationY = expandProgress.value * 160.dp.toPx() +
                             waveHideFrac * 160.dp.toPx()   // автоскрытие на Wave
-                        alpha = bottomBarAlpha
+                        alpha = if (expandProgress.value >= 0.99f) 0f else 1f
                     },
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
@@ -697,15 +588,17 @@ fun AppRoot() {
                     val miniLibraryRepo = remember {
                         com.lmg.vk.data.local.db.LibraryRepository.getInstance(context)
                     }
-                    val miniLiked by miniLibraryRepo.isFavoriteFlow(miniTrack.id)
-                        .collectAsState(initial = false)
+                    val miniFavoriteFlow = remember(miniLibraryRepo, miniTrack.id) {
+                        miniLibraryRepo.isFavoriteFlow(miniTrack.id)
+                    }
+                    val miniLiked by miniFavoriteFlow.collectAsState(initial = false)
                     Spacer(Modifier.height(6.dp))
                     com.lmg.vk.ui.player.MiniPlayer(
                         trackTitle = trackTitle,
                         artistName = artistName,
                         isPlaying = isPlaying,
-                        albumArtUri = miniTrack.displayArtUri,
-                        coverUrl = miniTrack.coverUrl,
+                        albumArtUri = preferredArtUri,
+                        coverUrl = preferredTrackCover,
                         tint = albumColorsForBar.darkMuted,
                         isLiked = miniLiked,
                         onToggleLike = {
@@ -752,7 +645,7 @@ fun AppRoot() {
 
             // Невидимая тап-зона внизу: пока бар скрыт, тап возвращает его
             // (и НЕ проваливается в контент под ним). Только Wave + плеер свёрнут.
-            if (onWaveTab && !waveBarShown && expandProgress.value < 0.1f) {
+            if (onWaveTab && !waveBarShown && playerCollapsed) {
                 Box(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
@@ -769,24 +662,19 @@ fun AppRoot() {
         // Фулл-плеер всегда тёмный — эффекты/палитра рассчитаны на тёмный фон.
         Box(
             modifier = Modifier
-                .fillMaxSize()
-                .graphicsLayer {
-                    scaleX = baseRevealScale
-                    scaleY = baseRevealScale
-                    alpha = baseRevealAlpha
-                },
+                .fillMaxSize(),
         ) {
         ForceDarkContent {
         FullPlayer(
-            expandProgress = expandProgress.value,
+            expandProgress = expandProgress.asState(),
             trackTitle = trackTitle,
             artistName = artistName,
             artists = currentTrack?.artists ?: emptyList(),
             isPlaying = isPlaying,
-            albumArtUri = currentTrack?.displayArtUri,
-            coverUrl = currentTrack?.coverUrl,
-            audioFileUri = currentTrack?.uri,
-            albumId = currentTrack?.albumId ?: -1L,
+            albumArtUri = preferredArtUri,
+            coverUrl = preferredTrackCover,
+            audioFileUri = currentTrack?.uri?.takeIf { trackArtwork.isReady },
+            albumId = if (trackArtwork.isReady) currentTrack?.albumId ?: -1L else -1L,
             currentPositionMs = currentPositionMs,
             durationMs = durationMs,
             volume = volume,
@@ -838,13 +726,10 @@ fun AppRoot() {
                 initialOffsetY = { it },
                 animationSpec = spring(dampingRatio = 0.88f, stiffness = 300f)
             ) + fadeIn(tween(200)),
-            exit = slideOutVertically(
-                targetOffsetY = { it },
-                animationSpec = spring(dampingRatio = 0.92f, stiffness = 400f)
-            ) + fadeOut(tween(150))
+            exit = androidx.compose.animation.ExitTransition.None
         ) {
             lrcPublishTrack?.let { track ->
-                PredictiveBackLayer(
+                WindowCloseLayer(
                     enabled = tagEditTrack == null && topRootOverlay == null && lrcPublishAtRoot,
                     onBack = { lrcPublishTrack = null },
                 ) { requestBack ->
@@ -865,13 +750,10 @@ fun AppRoot() {
                 initialOffsetY = { it },
                 animationSpec = spring(dampingRatio = 0.88f, stiffness = 300f)
             ) + fadeIn(tween(200)),
-            exit = slideOutVertically(
-                targetOffsetY = { it },
-                animationSpec = spring(dampingRatio = 0.92f, stiffness = 400f)
-            ) + fadeOut(tween(150))
+            exit = androidx.compose.animation.ExitTransition.None
         ) {
             tagEditTrack?.let { track ->
-                PredictiveBackLayer(
+                WindowCloseLayer(
                     enabled = topRootOverlay == null,
                     onBack = { tagEditTrack = null },
                 ) { requestBack ->
@@ -883,24 +765,6 @@ fun AppRoot() {
             }
         }
 
-        val activeRootBackOverlay = rootBackOverlay
-        if (
-            rootBackProgress.value > 0f &&
-            activeRootBackOverlay != null &&
-            activeRootBackOverlay in rootOverlayStack
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .zIndex(rootOverlayStack.indexOf(activeRootBackOverlay).toFloat() + 99.5f)
-                    .background(
-                        Color.Black.copy(
-                            alpha = 0.12f * (1f - rootBackProgress.value.coerceIn(0f, 1f)),
-                        ),
-                    ),
-            )
-        }
-
         // ── Поиск (оверлей поверх всего, из сайдбара или кнопки на главной) ──
         AnimatedVisibility(
             visible = searchRetained,
@@ -909,10 +773,7 @@ fun AppRoot() {
                 initialOffsetY = { it },
                 animationSpec = spring(dampingRatio = 0.88f, stiffness = 300f)
             ) + fadeIn(tween(200)),
-            exit = slideOutVertically(
-                targetOffsetY = { it },
-                animationSpec = spring(dampingRatio = 0.92f, stiffness = 400f)
-            ) + fadeOut(tween(150))
+            exit = slideOutHorizontally(tween(160)) { it / 16 } + fadeOut(tween(160))
         ) {
             com.lmg.vk.ui.screens.SearchScreen(
                 onNavigateToAlbum = { id ->
@@ -942,10 +803,7 @@ fun AppRoot() {
                 initialOffsetX = { it },
                 animationSpec = tween(340, easing = com.lmg.vk.ui.theme.AppleEasings.Standard)
             ) + fadeIn(animationSpec = tween(250)),
-            exit = slideOutHorizontally(
-                targetOffsetX = { it },
-                animationSpec = tween(300, easing = com.lmg.vk.ui.theme.AppleEasings.Standard)
-            ) + fadeOut(animationSpec = tween(200))
+            exit = slideOutHorizontally(tween(160)) { it / 16 } + fadeOut(tween(160))
         ) {
             SettingsScreen(
                 onBack = { finishRootBack() },
@@ -977,22 +835,19 @@ fun AppRoot() {
                 initialOffsetX = { it },
                 animationSpec = spring(dampingRatio = 0.9f, stiffness = 300f)
             ) + fadeIn(tween(200)),
-            exit = slideOutHorizontally(
-                targetOffsetX = { it },
-                animationSpec = spring(dampingRatio = 0.9f, stiffness = 350f)
-            ) + fadeOut(tween(150))
+            exit = slideOutHorizontally(tween(160)) { it / 16 } + fadeOut(tween(160))
         ) {
             ProfileScreen(
+                onBack = { closeRootOverlayFromBack(RootOverlay.PROFILE) },
+                onOpenHistory = { navigateFromOverlay(RootOverlay.PROFILE, NavRoutes.VK_HISTORY) },
+                onSelectMainTab = { switchTab(it, resetOnReselect = true) },
                 onOpenSettings = { openRootOverlay(RootOverlay.SETTINGS) },
                 onLogout = { closeRootOverlay(RootOverlay.PROFILE) },
                 onOpenAuth = {
                     authAddingAccount = false
                     openRootOverlay(RootOverlay.AUTH)
                 },
-                onOpenLibrary = {
-                    closeRootOverlay(RootOverlay.PROFILE)
-                    switchTab(2)
-                },
+                onOpenLibrary = { switchTab(2) },
                 onOpenPlaylist = { playlistId ->
                     navigateFromOverlay(
                         RootOverlay.PROFILE,
@@ -1024,10 +879,7 @@ fun AppRoot() {
                 initialOffsetY = { it },
                 animationSpec = spring(dampingRatio = 0.88f, stiffness = 300f)
             ) + fadeIn(tween(200)),
-            exit = slideOutVertically(
-                targetOffsetY = { it },
-                animationSpec = spring(dampingRatio = 0.92f, stiffness = 400f)
-            ) + fadeOut(tween(150))
+            exit = slideOutHorizontally(tween(160)) { it / 16 } + fadeOut(tween(160))
         ) {
             AuthScreen(
                 onAuthSuccess = {
@@ -1138,37 +990,13 @@ fun AppRoot() {
 
     }
 
-    PredictiveBackHandler(
+    BackHandler(
         enabled = topRootOverlay != null &&
             rootOverlayAtRoot(topRootOverlay) &&
-            !rootBackCompleting &&
             !accountsDialogOpen &&
             accountPendingRemoval == null &&
             activeCaptchaPrompt == null &&
             activeValidationPrompt == null,
-    ) { events ->
-        val overlay = topRootOverlay ?: return@PredictiveBackHandler
-        try {
-            rootBackProgress.snapTo(0f)
-            captureRootBack(overlay)
-            events.collect { event ->
-                if (topRootOverlay != overlay) throw CancellationException()
-                rootBackProgress.snapTo(event.progress)
-            }
-            rootBackCompleting = true
-            completeRootBack(overlay, 140)
-        } catch (cancellation: CancellationException) {
-            rootBackCompleting = false
-            rootBackProgress.animateTo(
-                0f,
-                spring(dampingRatio = 0.82f, stiffness = 520f),
-            )
-            if (rootBackOverlay == overlay) {
-                rootBackOverlay = null
-                rootBackUnderlay = null
-                rootBackUsesBase = false
-            }
-            throw cancellation
-        }
-    }
+        onBack = ::finishRootBack,
+    )
 }

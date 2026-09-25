@@ -1,5 +1,6 @@
 package com.lmg.vk.network
 
+import com.lmg.vk.debug.AppStartupTrace
 import com.lmg.vk.network.dto.VKError
 import com.lmg.vk.network.dto.VKResponse
 import com.squareup.moshi.JsonAdapter
@@ -8,6 +9,9 @@ import com.squareup.moshi.JsonDataException
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.Types
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 import java.lang.reflect.Type
@@ -21,6 +25,11 @@ import java.lang.reflect.Type
 fun interface VkResponseParser<T> {
     suspend fun parse(raw: RawHttpResponse): VkParsedResponse<T>
 }
+
+internal suspend fun <T> VkResponseParser<T>.parseInBackground(raw: RawHttpResponse): VkParsedResponse<T> =
+    withContext(Dispatchers.Default) {
+        parse(raw).also { ensureActive() }
+    }
 
 /** Сырой HTTP-ответ (обёртка над Ktor HttpResponse — `AbstractC16824e`). */
 interface RawHttpResponse {
@@ -59,7 +68,8 @@ class MoshiVkResponseParser<T>(
     private val decode: (String) -> VKResponse<T>,
 ) : VkResponseParser<T> {
     override suspend fun parse(raw: RawHttpResponse): VkParsedResponse<T> {
-        val envelope = decode(raw.bodyText())
+        val body = raw.bodyText()
+        val envelope = AppStartupTrace.measure("vk_decode.moshi") { decode(body) }
         return VkParsedResponse(envelope.response, envelope.error, envelope.execute_errors.orEmpty())
     }
 }
@@ -86,12 +96,13 @@ class MoshiEnvelopeParser<T>(
     responseType: Type,
     moshi: Moshi = VkJson.moshi,
 ) : VkResponseParser<T> {
-    private val adapter: JsonAdapter<VKResponse<T>> = moshi.adapter<VKResponse<T>>(
-        Types.newParameterizedType(VKResponse::class.java, responseType),
-    )
+    private val adapter: JsonAdapter<VKResponse<T>> = AppStartupTrace.measure("vk_adapter.envelope") {
+        moshi.adapter<VKResponse<T>>(Types.newParameterizedType(VKResponse::class.java, responseType))
+    }
 
     override suspend fun parse(raw: RawHttpResponse): VkParsedResponse<T> {
-        val envelope = requireNotNull(adapter.fromJson(raw.bodyText())) {
+        val body = raw.bodyText()
+        val envelope = requireNotNull(AppStartupTrace.measure("vk_decode.envelope") { adapter.fromJson(body) }) {
             "Empty VK response from ${raw.url}"
         }
         return VkParsedResponse(envelope.response, envelope.error, envelope.execute_errors.orEmpty())
@@ -102,16 +113,21 @@ class TolerantMoshiEnvelopeParser<T>(
     responseType: Type,
     moshi: Moshi = VkJson.moshi,
 ) : VkResponseParser<T> {
-    private val adapter: JsonAdapter<VKResponse<T>> = moshi.adapter<VKResponse<T>>(
-        Types.newParameterizedType(VKResponse::class.java, responseType),
-    )
+    private val adapter: JsonAdapter<VKResponse<T>> = AppStartupTrace.measure("vk_adapter.tolerant") {
+        moshi.adapter<VKResponse<T>>(Types.newParameterizedType(VKResponse::class.java, responseType))
+    }
 
     override suspend fun parse(raw: RawHttpResponse): VkParsedResponse<T> {
-        val root = JSONObject(raw.bodyText())
+        val body = raw.bodyText()
+        return AppStartupTrace.measure("vk_decode.tolerant") { decodeBody(body, raw.url) }
+    }
+
+    private fun decodeBody(body: String, url: String): VkParsedResponse<T> {
+        val root = JSONObject(body)
         repeat(MAX_SKIPPED_FIELDS) {
             try {
                 val envelope = requireNotNull(adapter.fromJson(root.toString())) {
-                    "Empty VK response from ${raw.url}"
+                    "Empty VK response from $url"
                 }
                 return VkParsedResponse(
                     envelope.response,
@@ -128,7 +144,7 @@ class TolerantMoshiEnvelopeParser<T>(
             }
         }
         val envelope = requireNotNull(adapter.fromJson(root.toString())) {
-            "Empty VK response from ${raw.url}"
+            "Empty VK response from $url"
         }
         return VkParsedResponse(envelope.response, envelope.error, envelope.execute_errors.orEmpty())
     }
@@ -179,10 +195,11 @@ class MoshiDirectParser<T>(
     type: Type,
     moshi: Moshi = VkJson.moshi,
 ) : VkResponseParser<T> {
-    private val adapter: JsonAdapter<T> = moshi.adapter(type)
+    private val adapter: JsonAdapter<T> = AppStartupTrace.measure("vk_adapter.direct") { moshi.adapter(type) }
 
     override suspend fun parse(raw: RawHttpResponse): VkParsedResponse<T> {
-        val data = requireNotNull(adapter.fromJson(raw.bodyText())) {
+        val body = raw.bodyText()
+        val data = requireNotNull(AppStartupTrace.measure("vk_decode.direct") { adapter.fromJson(body) }) {
             "Empty OAuth response from ${raw.url}"
         }
         return VkParsedResponse(data, null)
@@ -196,6 +213,8 @@ class MappingVkResponseParser<I, O>(
 ) : VkResponseParser<O> {
     override suspend fun parse(raw: RawHttpResponse): VkParsedResponse<O> {
         val parsed = delegate.parse(raw)
-        return VkParsedResponse(parsed.data?.let(transform), parsed.error, parsed.executeErrors)
+        return AppStartupTrace.measure("vk_mapping") {
+            VkParsedResponse(parsed.data?.let(transform), parsed.error, parsed.executeErrors)
+        }
     }
 }

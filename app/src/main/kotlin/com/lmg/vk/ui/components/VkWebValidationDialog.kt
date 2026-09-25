@@ -40,7 +40,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.compose.ui.window.Dialog
+import com.lmg.vk.ui.navigation.WindowDialog as Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.lmg.vk.R
 import com.lmg.vk.network.ValidationPrompt

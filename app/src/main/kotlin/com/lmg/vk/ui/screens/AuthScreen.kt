@@ -1,5 +1,7 @@
 package com.lmg.vk.ui.screens
 
+import com.lmg.vk.ui.navigation.rememberWindowCloseState
+import com.lmg.vk.ui.navigation.windowClose
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -79,7 +81,6 @@ import com.lmg.vk.ui.theme.LiquidSurfaces
 import com.lmg.vk.ui.theme.LiquidTheme
 import com.lmg.vk.ui.theme.VkSansDisplay
 import com.lmg.vk.ui.theme.VkSansText
-import androidx.activity.compose.BackHandler
 import kotlinx.coroutines.launch
 
 private val VkBlue = Color(0xFF0077FF)
@@ -149,9 +150,11 @@ fun AuthScreen(
         onRootBackStateChanged(step == AuthStep.Phone)
     }
 
-    BackHandler(enabled = backHandlingEnabled && step != AuthStep.Phone) {
-        returnToPhone()
-    }
+    val stepBack = rememberWindowCloseState(
+        enabled = backHandlingEnabled && step != AuthStep.Phone,
+        onBack = ::returnToPhone,
+    )
+    LaunchedEffect(step) { stepBack.reset() }
 
     fun submit() {
         if (isLoading) return
@@ -225,7 +228,7 @@ fun AuthScreen(
     }
 
     Box(
-        modifier = Modifier
+        modifier = Modifier.windowClose(stepBack)
             .fillMaxSize()
             .background(LiquidSurfaces.sheet(isDark))
     ) {

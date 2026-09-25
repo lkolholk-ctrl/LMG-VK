@@ -26,6 +26,7 @@ import com.lmg.vk.network.VkResult
 import com.lmg.vk.network.VkMultiSessionStore
 import com.lmg.vk.network.VkSessionStore
 import com.lmg.vk.network.getOrNull
+import com.lmg.vk.network.authRejectionDiagnostic
 import com.lmg.vk.network.dto.AuthFlowName
 import com.lmg.vk.network.dto.AuthValidationType
 import com.lmg.vk.network.dto.AuthVerificationMethod
@@ -617,14 +618,18 @@ object MusicBackend {
     }
 
     // ---------- home / charts ----------
-    suspend fun loadHomeContent(region: String? = null): HomeResponse {
+    suspend fun loadHomeContent(
+        region: String? = null,
+        catalogPage: HomeCatalogPage? = null,
+    ): HomeResponse {
         requireInitialized()
         // Current VK and VK Music clients bind the root music catalog to the
         // active account. Without owner_id VK may return only the generic
         // Popular showcase instead of the complete personalised sections.
         val catalog = catalogApi.getAudio(
             ref = "",
-            ownerId = currentUserId(),
+            url = catalogPage?.url(currentUserId()),
+            ownerId = if (catalogPage == null) currentUserId() else null,
         ).requireData()
         val sections = buildList {
             catalog.catalog?.sections.orEmpty().forEach { section ->
@@ -657,7 +662,8 @@ object MusicBackend {
                     }
                 }
         }.distinctBy { it.id }
-        val selectedSectionId = catalog.catalog?.default_section?.takeIf(String::isNotBlank)
+        val selectedSectionId = catalog.section?.id?.takeIf { catalogPage != null && it.isNotBlank() }
+            ?: catalog.catalog?.default_section?.takeIf(String::isNotBlank)
             ?: catalog.catalog?.pinned_section?.takeIf(String::isNotBlank)
             ?: catalog.section?.id?.takeIf(String::isNotBlank)
             ?: sections.firstOrNull()?.id
@@ -671,8 +677,11 @@ object MusicBackend {
             catalog
         }
         val catalogPages = if (firstPage === catalog) listOf(catalog) else listOf(catalog, firstPage)
-        val catalogBlocks = catalogPages.toHomeBlocks(selectedSectionId)
-        val blocks = catalogBlocks.ifEmpty { loadHomeFallbackBlocks() }
+        val catalogBlocks = com.lmg.vk.debug.AppStartupTrace.measure("catalog_map") {
+            catalogPages.toHomeBlocks(selectedSectionId)
+        }
+        val blocks = if (catalogPage == null) catalogBlocks.ifEmpty { loadHomeFallbackBlocks() }
+            else catalogBlocks
         catalogPages.flatMap { it.audios.orEmpty() }
             .mergeAudioTracksById()
             .also(::cacheTracks)
@@ -714,6 +723,29 @@ object MusicBackend {
         return HomeSectionPage(
             blocks = listOf(response).toHomeBlocks(sectionId),
             nextFrom = response.sectionNextFrom(sectionId),
+            sectionId = sectionId,
+        )
+    }
+
+    /** Resolve editorial/collection key_url into the same native blocks as the home catalog. */
+    suspend fun loadCatalogUrl(rawUrl: String): HomeSectionPage {
+        requireInitialized()
+        val url = catalogApiUrl(rawUrl) ?: throw IllegalArgumentException("Неизвестный адрес музыкального каталога")
+        val root = catalogApi.getAudio(url = url, needBlocks = true).requireData()
+        val sectionId = root.section?.id?.takeIf(String::isNotBlank)
+            ?: root.catalog?.default_section?.takeIf(String::isNotBlank)
+            ?: root.catalog?.pinned_section?.takeIf(String::isNotBlank)
+            ?: root.catalog?.sections.orEmpty().firstOrNull { it.id.isNotBlank() }?.id
+        val page = if (sectionId != null && root.section?.id != sectionId) {
+            catalogApi.getSection(sectionId).requireData()
+        } else root
+        val pages = if (page === root) listOf(root) else listOf(root, page)
+        pages.flatMap { it.audios.orEmpty() }.mergeAudioTracksById().also(::cacheTracks)
+        val blocks = pages.toHomeBlocks(sectionId)
+        if (blocks.isEmpty()) throw IllegalStateException("VK не вернул содержимое этой подборки")
+        return HomeSectionPage(
+            blocks = blocks,
+            nextFrom = if (sectionId != null) page.sectionNextFrom(sectionId) else null,
             sectionId = sectionId,
         )
     }
@@ -1558,6 +1590,36 @@ object MusicBackend {
             count = playlists.size,
             items = playlists.map { playlist -> playlist.toUserPlaylist() },
         )
+    }
+
+    suspend fun getCatalogShortcutTracks(item: HomeItem): List<Track> {
+        val uri = item.catalogUrl?.let(android.net.Uri::parse)
+        val target = uri?.let(com.lmg.vk.engine.VkLinkResolver::parseOffline)
+        val playlistId = when (target) {
+            is com.lmg.vk.engine.VkLinkTarget.Playlist -> target.navId
+            is com.lmg.vk.engine.VkLinkTarget.Album -> target.navId
+            else -> item.collectionId
+        }
+        if (playlistId != null) {
+            val (ownerId, id) = parsePlaylistId(playlistId)
+            return audioApi.getAudios(ownerId = ownerId, playlistId = id, offset = 0, count = 200)
+                .requireData().map(::cacheTrack).filter { it.isAvailable }.map { it.toEngineTrack() }
+        }
+        val ownerId = (target as? com.lmg.vk.engine.VkLinkTarget.OwnerAudio)?.ownerId ?: item.musicOwnerId
+        if (ownerId != null) {
+            return audioApi.getAudios(ownerId = ownerId, offset = 0, count = 200).requireData()
+                .map(::cacheTrack).filter { it.isAvailable }.map { it.toEngineTrack() }
+        }
+        val sectionId = item.catalogSectionId ?: catalogSectionFromUrl(item.catalogUrl) ?: return emptyList()
+        val blocks = loadHomeSection(sectionId).blocks
+        val ids = blocks.flatMap { it.items }.filter { it.isTrack && it.isAvailable }
+            .map { it.trackId ?: it.id }.distinct().take(200)
+        if (ids.isNotEmpty()) {
+            return ids.chunked(100).flatMap { audioApi.getById(it).requireData() }
+                .map(::cacheTrack).filter { it.isAvailable }.map { it.toEngineTrack() }
+        }
+        val playable = blocks.firstOrNull { !it.actions.playBlockId.isNullOrBlank() }
+        return playable?.let { getCatalogSourceTracks(it.actions.playBlockId.orEmpty(), it.actions.playRef) }.orEmpty()
     }
 
     suspend fun getUserPlaylistTracks(playlistId: String, limit: Int = 200, offset: Int = 0): PlaylistTracksResponse? =
@@ -2503,13 +2565,14 @@ object MusicBackend {
         artist = subtext?.takeIf(String::isNotBlank),
         cover = coverUrl(),
         source = "vk",
-        // Баннер — реальная сущность CatalogKit, но не аудиозапись. Не
-        // пытаемся передать его в плеер до восстановления click_action.
         isCustom = true,
+        catalogUrl = catalogWebUrl(click_action?.action?.url),
+        catalogSectionId = click_action?.action?.section_id?.takeIf(String::isNotBlank),
     )
 
     private fun VkCatalogVideo.toHomeItem() = HomeItem(
         id = "catalog_video_$fullId",
+        catalogUrl = catalogWebUrl(direct_url) ?: "https://vk.com/video$fullId",
         title = title.ifBlank { str(R.string.vk_clip_fallback) },
         artist = str(R.string.vk_clips_artist),
         cover = coverUrl(),
@@ -2534,7 +2597,7 @@ object MusicBackend {
     private fun AudioRecommendedPlaylistDto.toHomeItem(): HomeItem? {
         val fullId = fullId ?: return null
         val match = percentage_title?.takeIf(String::isNotBlank)
-            ?: percentage?.takeIf { it > 0f }?.let { str(R.string.match_percent, it.toInt()) }
+            ?: percentage?.takeIf { it > 0f }?.let { str(R.string.match_percent, catalogMatchPercent(it) ?: 0) }
             ?: str(R.string.vk_recommendation)
         return HomeItem(
             id = "recommended_playlist_$fullId",
@@ -2554,21 +2617,8 @@ object MusicBackend {
         cover = coverUrl(),
         source = "vk",
         isCustom = true,
-        catalogUrl = url.takeIf(::isSupportedMusicCatalogUrl),
+        catalogUrl = catalogWebUrl(url),
     )
-
-    private fun isSupportedMusicCatalogUrl(url: String): Boolean {
-        if (url.isBlank()) return false
-        val path = runCatching { android.net.Uri.parse(url).path.orEmpty() }
-            .getOrDefault(url)
-            .lowercase()
-        return path.contains("/artist/") ||
-            path.contains("/music/curator/") ||
-            path.contains("/music/album/") ||
-            path.contains("/music/playlist/") ||
-            path.contains("/audio_playlist") ||
-            Regex("""/audios-?\d+""").containsMatchIn(path)
-    }
 
     private fun VkAudioContentCard.toHomeItem() = HomeItem(
         id = "content_card_$fullId",
@@ -2594,6 +2644,7 @@ object MusicBackend {
 
     private fun VkCatalogLongread.toHomeItem() = HomeItem(
         id = "longread_$id",
+        catalogUrl = catalogWebUrl(viewUrl) ?: catalogWebUrl(url),
         title = title?.takeIf(String::isNotBlank) ?: str(R.string.vk_music_history_title),
         artist = ownerName,
         subtitle = subtitle,
@@ -2634,22 +2685,6 @@ object MusicBackend {
         isCustom = true,
     )
 
-    /** Moshi's opaque catalog image lists contain maps with url/src/sizes. */
-    private fun bestCatalogImageUrl(values: List<Any?>): String? {
-        fun find(value: Any?): String? = when (value) {
-            is String -> value.takeIf { it.startsWith("http", ignoreCase = true) }
-            is Map<*, *> -> {
-                listOf("url", "src", "uri").asSequence()
-                    .mapNotNull { (value[it] as? String)?.takeIf { url -> url.startsWith("http", true) } }
-                    .firstOrNull()
-                    ?: value.values.asSequence().mapNotNull(::find).firstOrNull()
-            }
-            is Iterable<*> -> value.asSequence().mapNotNull(::find).firstOrNull()
-            else -> null
-        }
-        return values.asSequence().mapNotNull(::find).firstOrNull()
-    }
-
     private fun bestCatalogText(values: List<Any?>): String? {
         fun find(value: Any?): String? = when (value) {
             is String -> value.takeIf(String::isNotBlank)
@@ -2675,7 +2710,7 @@ object MusicBackend {
 
     private fun AudioStreamMix.toHomeItem() = HomeItem(
         id = "stream_mix_$id",
-        title = title,
+        title = stream_mix?.title?.takeIf(String::isNotBlank) ?: displayTitle ?: str(R.string.vkmix_brand),
         artist = description.takeIf(String::isNotBlank),
         cover = image_url?.takeIf(String::isNotBlank),
         source = "vk",
@@ -2691,13 +2726,13 @@ object MusicBackend {
         if ((action?.type ?: type) != "play_vk_mix") return null
         val playbackMixId = mix_id?.takeIf(String::isNotBlank) ?: return null
         val catalogId = id?.takeIf(String::isNotBlank)
-        val cover = (images.orEmpty() + foreground_images.orEmpty())
+        val cover = images.orEmpty()
             .asSequence()
             .filter { it.url.isNotBlank() }
             .maxByOrNull { it.width * it.height }
             ?.url
         return HomeItem(
-            id = "play_mix_${catalogId ?: playbackMixId}",
+            id = "play_mix_${catalogId ?: listOf(playbackMixId, entity_id.orEmpty(), mix_options.orEmpty(), title.orEmpty()).joinToString(":")}",
             title = title?.takeIf(String::isNotBlank) ?: str(R.string.vkmix_brand),
             artist = description?.takeIf(String::isNotBlank),
             cover = cover,
@@ -2710,6 +2745,9 @@ object MusicBackend {
             streamMixCatalogItemId = catalogId,
             streamMixOptions = parseMixOptions(mix_options),
             streamMixResolveSettings = true,
+            catalogStyle = action?.style ?: style,
+            foregroundCover = foreground_images.orEmpty().filter { it.url.isNotBlank() }
+                .maxByOrNull { it.width * it.height }?.url,
         )
     }
 
@@ -2781,7 +2819,8 @@ object MusicBackend {
             ?.title
             ?.takeIf(String::isNotBlank)
             ?: titles?.common_state?.takeIf(String::isNotBlank)
-            ?: title
+            ?: displayTitle
+            ?: str(R.string.vkmix_brand)
 
     private fun AudioTrack.toTrackMeta() = TrackMeta(
         id = fullId,
@@ -3128,6 +3167,8 @@ object MusicBackend {
         val curators = flatMap { it.curators.orEmpty() }
         val groups = flatMap { it.groups.orEmpty() }
         val music_owners = flatMap { it.music_owners.orEmpty() }
+        val recommendationOwners = (flatMap { it.profiles.orEmpty() } + music_owners + curators + groups)
+            .associateBy { it.id }
         val podcast_episodes = flatMap { it.podcast_episodes.orEmpty() }
         val podcast_slider_items = flatMap { it.podcast_slider_items.orEmpty() }
         val podcasts = flatMap { it.podcasts.orEmpty() }
@@ -3140,6 +3181,7 @@ object MusicBackend {
         val audio_stream_mixes = flatMap { it.audio_stream_mixes.orEmpty() }
         val signal_infos = flatMap { it.audio_signal_common_info.orEmpty() }
         val audiosById = audios.orEmpty().associateBy { it.fullId }
+        val recommendationTracksById = audiosById.mapValues { it.value.toHomeItem() }
         val playlistsById = playlists.orEmpty().associateBy { it.fullId }
         val recommendedPlaylistsById = recommended_playlists.mapNotNull { recommended ->
             recommended.fullId?.let { it to recommended }
@@ -3200,39 +3242,33 @@ object MusicBackend {
             .forEach { block ->
                 orderedBlocks[block.id] = orderedBlocks[block.id]?.mergeWith(block) ?: block
             }
-        fun HomeItem.catalogDedupeKey(): String = when {
-            isStreamMix -> "mix:${streamMixId}:${streamMixEntityId.orEmpty()}"
-            isArtist -> "artist:$id"
-            isAlbum -> "album:${collectionId ?: id}"
-            isPlaylist -> "playlist:${collectionId ?: id}"
-            isTrack -> "audio:${trackId ?: id}"
-            else -> "card:$id"
-        }
-
         var pendingHeaderTitle: String? = null
+        var pendingHeader: VkCatalogBlock? = null
         val catalogBlocks = orderedBlocks.values.mapNotNull { block ->
             val layoutName = block.layout?.name.orEmpty()
             if (layoutName == "header" || layoutName == "header_compact" ||
                 layoutName == "header_large" || layoutName == "header_extended") {
                 pendingHeaderTitle = block.layout?.title?.takeIf(String::isNotBlank)
                     ?: pendingHeaderTitle
+                pendingHeader = block
                 return@mapNotNull null
             }
             val signal = block.audio_signal_common_info_id.orEmpty()
                 .mapNotNull(signalsById::byCatalogId)
                 .firstOrNull()
             val signalAudioIds = signal?.audios.orEmpty()
-            val playBlockAction = block.actions.orEmpty().firstOrNull { action ->
+            val blockActions = block.actions.orEmpty() + pendingHeader?.actions.orEmpty()
+            val playBlockAction = blockActions.firstOrNull { action ->
                 action.actionType() in setOf(
                     "play_audios_from_block",
                     "play_shuffled_audios_from_block",
                     "play_shuffled_audio_from_block",
                 )
             }
-            val openSectionAction = block.actions.orEmpty().firstOrNull { action ->
+            val openSectionAction = blockActions.firstOrNull { action ->
                 action.actionType() == "open_section"
             }
-            val showAllInfo = block.meta?.show_all_info
+            val showAllInfo = block.meta?.show_all_info ?: pendingHeader?.meta?.show_all_info
             val catalogActions = HomeCatalogActions(
                 playBlockId = (playBlockAction?.action?.block_id
                     ?: playBlockAction?.block_id)?.takeIf(String::isNotBlank),
@@ -3267,11 +3303,22 @@ object MusicBackend {
             val items = buildList {
                 block.actions.orEmpty().mapNotNull { it.toPlayMixHomeItem() }
                     .forEach(::add)
-                block.audios_ids.orEmpty().mapNotNull(audiosById::byCatalogId)
+                val isRecommended = block.data_type == "music_recommended_playlists" ||
+                    block.playlists_ids.orEmpty().any { recommendedPlaylistsById.byCatalogId(it) != null }
+                block.audios_ids.orEmpty().takeUnless { isRecommended }.orEmpty().mapNotNull(audiosById::byCatalogId)
                     .forEach { add(it.toHomeItem()) }
                 block.playlists_ids.orEmpty().forEach { id ->
-                    playlistsById.byCatalogId(id)?.let { add(it.toHomeItem()) }
-                        ?: recommendedPlaylistsById.byCatalogId(id)?.toHomeItem()?.let(::add)
+                    val playlist = playlistsById.byCatalogId(id)?.toHomeItem()
+                    val recommended = recommendedPlaylistsById.byCatalogId(id)
+                    if (recommended != null) {
+                        recommended.toCatalogRecommendation(
+                            playlist,
+                            recommendationOwners[recommended.owner_id] ?: recommendationOwners[recommended.owner_id?.let { -it }],
+                            recommendationTracksById,
+                        )?.let(::add)
+                    } else {
+                        playlist?.let(::add)
+                    }
                 }
                 block.artists_ids.orEmpty().mapNotNull(artistsById::byCatalogId)
                     .forEach { add(it.toHomeItem()) }
@@ -3316,14 +3363,15 @@ object MusicBackend {
             // Deduplicate only inside this block. VK can intentionally repeat
             // the same release in several thematic blocks; global filtering
             // made later server sections incomplete or entirely empty.
-            }.distinctBy { it.catalogDedupeKey() }
+            }.distinctBy { it.catalogIdentity() }
 
-            val title = pendingHeaderTitle
+            val rawTitle = pendingHeaderTitle
                 ?: block.layout?.title?.takeIf(String::isNotBlank)
                 ?: block.layout?.top_title?.text?.takeIf(String::isNotBlank)
                 ?: block.title?.takeIf(String::isNotBlank)
                 ?: block.data_type.takeIf(String::isNotBlank)
                 ?: str(R.string.vk_music_brand)
+            val title = catalogTitleResource(rawTitle, block.data_type)?.let { str(it) } ?: rawTitle
             val contentType = block.data_type.takeIf(String::isNotBlank) ?: when {
                 block.curators_ids.orEmpty().isNotEmpty() -> "curators"
                 block.catalog_banner_ids.orEmpty().isNotEmpty() -> "catalog_banners"
@@ -3345,13 +3393,18 @@ object MusicBackend {
                 block.audios_ids.orEmpty().isNotEmpty() -> "audios"
                 else -> ""
             }
-            pendingHeaderTitle = null
+            val subtitle = block.layout?.subtitle?.takeIf(String::isNotBlank)
+                ?: pendingHeader?.layout?.subtitle?.takeIf(String::isNotBlank)
             // `subsection_tabs` — блок БЕЗ entity-идентификаторов: всё его
             // содержимое это `actions[0].options` (см. HomeSubsectionTab). Общее
             // правило «пустой блок выбрасываем» съедало его целиком, поэтому
             // переключатель подразделов не доходил до UI вообще. Пропускаем такой
             // блок только если и табов в нём не оказалось.
             val tabs = block.subsectionTabs()
+            if (items.isNotEmpty() || tabs.isNotEmpty() || signalInfo != null) {
+                pendingHeaderTitle = null
+                pendingHeader = null
+            }
             if (layoutName == "subsection_tabs") {
                 return@mapNotNull tabs.takeIf { it.isNotEmpty() && block.id.isNotBlank() }
                     ?.let {
@@ -3371,6 +3424,9 @@ object MusicBackend {
                             catalogRef = block.ref?.takeIf(String::isNotBlank),
                             subsectionTabs = it,
                             actions = catalogActions,
+                            subtitle = subtitle,
+                            layoutStyle = block.layout?.custom_style ?: block.layout?.style,
+                            gridLayout = block.layout?.grid_layout.orEmpty(),
                         )
                     }
             }
@@ -3396,6 +3452,9 @@ object MusicBackend {
                         subsectionTabs = tabs,
                         signalInfo = signalInfo,
                         actions = catalogActions,
+                        subtitle = subtitle,
+                        layoutStyle = block.layout?.custom_style ?: block.layout?.style,
+                        gridLayout = block.layout?.grid_layout.orEmpty(),
                     )
                 }
         }
@@ -3636,7 +3695,7 @@ object MusicAuth {
     private suspend fun maintainSavedSessions(
         targetUserId: Long? = null,
         force: Boolean = false,
-    ) = tokenMaintenanceMutex.withLock {
+    ) = com.lmg.vk.debug.AppStartupTrace.elapsed("vk_session_maintenance") { tokenMaintenanceMutex.withLock {
         val client = apiClient ?: return@withLock
         val store = sessionStore ?: return@withLock
         val registry = methods ?: return@withLock
@@ -3690,7 +3749,7 @@ object MusicAuth {
         }
         val activeAfter = store.session
         if (activeBefore != activeAfter) applySession(activeAfter) else updateAccountSummaries()
-    }
+    } }
 
     private fun deferExchangeTokenRecovery(key: ExchangeAttemptKey, now: Long) {
         val failures = exchangeTokenFailures.merge(key, 1, Int::plus) ?: 1
@@ -3728,6 +3787,10 @@ object MusicAuth {
                 val normalizedUsername = username.trim()
                 val isCaptchaContinuation = !captchaKey.isNullOrBlank() && !captchaSid.isNullOrBlank()
                 val currentAttempt = activeAuthAttempt
+                // A password entered after SMS must continue the verified session, never start a new login.
+                if (!isCaptchaContinuation && !validationSid.isNullOrBlank() && currentAttempt == null) {
+                    return@withLock VkLoginResult.Failure(str(R.string.err_vk_session_expired_restart))
+                }
                 val isPasswordContinuation = !isCaptchaContinuation &&
                     !validationSid.isNullOrBlank() &&
                     password.isNotBlank() &&
@@ -3780,6 +3843,9 @@ object MusicAuth {
                                 } else {
                                     "phone_confirmation_sid"
                                 }
+                                com.lmg.vk.debug.DebugLog.add(
+                                    "VK AUTH FLOW otp_verified password_required=${attempt.awaitingPassword} grant=${attempt.grantType}",
+                                )
                                 if (!attempt.canSkipPassword && password.isBlank()) {
                                     return@withLock VkLoginResult.NeedPassword(attempt.sid)
                                 }
@@ -3950,14 +4016,14 @@ object MusicAuth {
                     }
                 }
                 is RequestTokenResponse.ClientError -> {
+                    val diagnostic = authRejectionDiagnostic(response.error, response.errorType, attempt.grantType)
                     com.lmg.vk.debug.DebugLog.add(
-                        "VK OAuth token rejected: error=${response.error.ifBlank { "none" }}, " +
-                            "type=${response.errorType.ifBlank { "none" }}, grant=${attempt.grantType}",
+                        "VK AUTH FLOW rejected $diagnostic",
                     )
                     VkLoginResult.Failure(
                         response.errorDescription.ifBlank {
                             response.error.ifBlank { str(R.string.err_vk_auth_failed) }
-                        },
+                        } + "\n" + diagnostic,
                     )
                 }
                 is RequestTokenResponse.NestedApiError -> {
@@ -3981,14 +4047,15 @@ object MusicAuth {
                             VkLoginResult.Captcha(error.captchaSid, error.captchaImg)
                         }
                         else -> VkLoginResult.Failure(
-                            error.error_msg.ifBlank { str(R.string.err_vk_generic_code, error.error_code) },
+                            error.error_msg.ifBlank { str(R.string.err_vk_generic_code, error.error_code) } +
+                                "\n" + authRejectionDiagnostic(error.error_code.toString(), "nested_api_error", attempt.grantType),
                         )
                     }
                 }
                 is RequestTokenResponse.UnknownError -> VkLoginResult.Failure(
                     response.errorDescription.ifBlank {
                         response.error.ifBlank { str(R.string.err_unknown_auth_response) }
-                    },
+                    } + "\n" + authRejectionDiagnostic(response.error, response.errorType, attempt.grantType),
                 )
             }
         }

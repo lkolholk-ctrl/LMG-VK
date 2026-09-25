@@ -112,7 +112,9 @@ fun rememberAlbumColors(uri: Uri?, coverUrl: String? = null): AlbumColors {
 @Composable
 fun rememberAlbumColors(source: ResolvedArtworkSource?): AlbumColors {
     val context = LocalContext.current
-    var colors by remember(source?.cacheKey) { mutableStateOf(AlbumColors()) }
+    var colors by remember(source?.cacheKey) {
+        mutableStateOf(source?.cacheKey?.let(::cachedPalette) ?: AlbumColors())
+    }
 
     LaunchedEffect(source?.cacheKey) {
         if (source == null) {

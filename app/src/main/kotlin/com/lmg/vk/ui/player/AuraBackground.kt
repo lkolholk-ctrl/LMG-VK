@@ -301,7 +301,11 @@ private fun AuraShaderBackground(
     // lite-устройства: 4 октавы fbm вместо 6 (~вдвое дешевле на пиксель),
     // объёмный свет выключен (он стоит +1 полную fbm-выборку на пиксель).
     val liteTier = com.lmg.vk.ui.DeviceTier.lite
-    val shader = remember { RuntimeShader(auraAgsl(if (liteTier) 4 else 6, lighting = !liteTier)) }
+    val shader = remember {
+        com.lmg.vk.debug.AppStartupTrace.measure("aura_shader_create") {
+            RuntimeShader(auraAgsl(if (liteTier) 4 else 6, lighting = !liteTier))
+        }
+    }
     val brush = remember { ShaderBrush(shader) }
 
     // цвета вуалей — из палитры обложки, плавно меняются при смене трека

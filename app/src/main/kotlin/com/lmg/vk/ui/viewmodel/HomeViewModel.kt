@@ -9,6 +9,7 @@ import com.lmg.vk.engine.backend.CatalogTabState
 import com.lmg.vk.engine.backend.Chart
 import com.lmg.vk.engine.backend.HomeBlock
 import com.lmg.vk.engine.backend.HomeSignalInfo
+import com.lmg.vk.engine.backend.HomeCatalogPage
 import com.lmg.vk.engine.backend.HomeResponse
 import com.lmg.vk.engine.backend.MusicBackend
 import com.lmg.vk.engine.backend.BackendException
@@ -88,6 +89,7 @@ sealed interface CatalogSectionUiState {
         val title: String,
         val message: String,
         val curatorId: String? = null,
+        val catalogUrl: String? = null,
     ) : CatalogSectionUiState
 }
 
@@ -98,7 +100,7 @@ sealed interface CatalogSectionUiState {
  * starts VK Mix directly; WaveRepository remains only for explicit legacy
  * mood/station modes outside the personal Aura entry point.
  */
-class HomeViewModel : ViewModel() {
+class HomeViewModel(private val catalogPage: HomeCatalogPage? = null) : ViewModel() {
 
     private var homeLoadJob: Job? = null
     private var homeSectionJob: Job? = null
@@ -277,7 +279,8 @@ class HomeViewModel : ViewModel() {
         homeLoadJob = viewModelScope.launch {
             Log.d("HomeViewModel", "homeLoadJob started; active=${activeLoadCount()}")
             try {
-                val cached = HomeCacheManager.load(accountId)
+                val cached = HomeCacheManager.load(accountId, catalogPage)
+                if ((MusicAuth.profileId.value ?: 0L) != accountId) return@launch
                 if (cached != null && _homeContent.value == null) {
                     _homeContent.value = cached
                     _selectedHomeSectionId.value = cached.selectedSectionId
@@ -286,7 +289,7 @@ class HomeViewModel : ViewModel() {
                 var lastException: Exception? = null
                 repeat(3) { attempt ->
                     try {
-                        val response = MusicBackend.loadHomeContent()
+                        val response = MusicBackend.loadHomeContent(catalogPage = catalogPage)
                         if ((MusicAuth.profileId.value ?: 0L) != accountId) return@launch
                         _homeContent.value = response
                         _selectedHomeSectionId.value = response.selectedSectionId
@@ -298,10 +301,10 @@ class HomeViewModel : ViewModel() {
                         }
                         homeLoadedAtMs = System.currentTimeMillis()
                         _error.value = null
-                        HomeCacheManager.save(response, accountId)
+                        HomeCacheManager.save(response, accountId, catalogPage)
                         // The home response already contains its charts block. Do not issue
                         // another chart search unless that block is genuinely absent.
-                        if (response.blocks.none { it.type == "charts" }) loadCharts()
+                        if (catalogPage == null && response.blocks.none { it.type == "charts" }) loadCharts()
                         return@launch
                     } catch (e: CancellationException) {
                         throw e
@@ -357,7 +360,7 @@ class HomeViewModel : ViewModel() {
      */
     fun refresh() {
         _homeContent.value = null
-        HomeCacheManager.clear()
+        HomeCacheManager.clear(catalogPage = catalogPage)
         // Выдача табов и догруженные порции привязаны к id блоков и курсорам
         // ПРЕЖНЕГО ответа: VK меняет их при каждой выдаче. Не сбросив, мы бы
         // показали под новыми блоками содержимое старых.
@@ -658,9 +661,9 @@ class HomeViewModel : ViewModel() {
     }
 
     /** Resolve the tunable source without starting playback. */
-    fun prepareVkMixSettings() {
+    fun prepareVkMixSettings(personal: Boolean = false) {
         val current = _vkMixState.value
-        if (current is VkMixUiState.Ready &&
+        if (!personal && current is VkMixUiState.Ready &&
             (!current.session.isTunable || current.settingsLoaded)
         ) {
             return
@@ -673,10 +676,11 @@ class HomeViewModel : ViewModel() {
             is VkMixUiState.Error -> current.session
             else -> null
         } ?: (PlayerController.playbackContext as? PlaybackContext.VkMix)?.session
+        val requestedSession = retainedSession.takeUnless { personal }
 
         _vkMixState.value = VkMixUiState.Loading
         mixSettingsJob = viewModelScope.launch {
-            var resolvedSession = retainedSession
+            var resolvedSession = requestedSession
             try {
                 val session = resolvedSession ?: MusicBackend.resolvePersonalMixSession()
                 resolvedSession = session
@@ -847,6 +851,41 @@ class HomeViewModel : ViewModel() {
         resolveCatalogMixAndStart(context, session)
     }
 
+    fun playCatalogPlaylist(context: Context, item: com.lmg.vk.engine.backend.HomeItem, seedId: String? = null) {
+        if (waveLoadJob?.isActive == true) return
+        waveLoadJob = viewModelScope.launch {
+            try {
+                val id = item.collectionId ?: item.id
+                val tracks = if (item.isCustom) {
+                    MusicBackend.getCatalogShortcutTracks(item)
+                } else {
+                    val response = MusicBackend.getUserPlaylistTracks(id)
+                        ?: throw IllegalStateException(context.getString(com.lmg.vk.R.string.err_response_processing_failed))
+                    response.tracks.filter { it.isAvailable }.map {
+                        Track(
+                            id = it.id, title = it.title, artist = it.artist, coverUrl = it.cover,
+                            albumName = response.playlist?.title.orEmpty(), uri = com.lmg.vk.engine.VkAudioIdentity.playbackUri(),
+                            durationMs = it.durationMs, albumId = 0L, source = "vk", isExplicit = it.isExplicit,
+                        )
+                    }
+                }
+                if (tracks.isEmpty()) throw IllegalStateException(context.getString(com.lmg.vk.R.string.catalog_empty))
+                PlayerController.playFromList(
+                    context = context, tracks = tracks,
+                    startIndex = tracks.indexOfFirst { it.id == seedId }.coerceAtLeast(0),
+                    playbackContext = if (item.isCustom) PlaybackContext.Catalog(item.catalogSectionId ?: id)
+                        else PlaybackContext.Playlist(id),
+                )
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _error.value = com.lmg.vk.engine.backend.backendUserMessage(e)
+            } finally {
+                if (waveLoadJob === coroutineContext[Job]) waveLoadJob = null
+            }
+        }
+    }
+
     /** Start VK Music Signal through its official StartPlayCatalogSource chain. */
     fun startCatalogSignal(
         context: Context,
@@ -922,6 +961,31 @@ class HomeViewModel : ViewModel() {
         }
     }
 
+    fun openCatalogUrl(url: String, title: String) {
+        catalogSectionJob?.cancel()
+        catalogSectionUsedCursors.clear()
+        _catalogSectionState.value = CatalogSectionUiState.Loading(url, title)
+        catalogSectionJob = viewModelScope.launch {
+            try {
+                val page = MusicBackend.loadCatalogUrl(url)
+                _catalogSectionState.value = CatalogSectionUiState.Ready(
+                    sectionId = page.sectionId.orEmpty(),
+                    title = title,
+                    blocks = page.blocks,
+                    nextFrom = page.nextFrom.takeIf { !page.sectionId.isNullOrBlank() },
+                )
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _catalogSectionState.value = CatalogSectionUiState.Failed(
+                    url, title, com.lmg.vk.engine.backend.backendUserMessage(e), catalogUrl = url,
+                )
+            } finally {
+                if (catalogSectionJob === coroutineContext[Job]) catalogSectionJob = null
+            }
+        }
+    }
+
     fun loadMoreCatalogSection() {
         val ready = _catalogSectionState.value as? CatalogSectionUiState.Ready ?: return
         val cursor = ready.nextFrom?.takeIf(String::isNotBlank) ?: return
@@ -958,9 +1022,11 @@ class HomeViewModel : ViewModel() {
 
     fun retryCatalogSection() {
         when (val state = _catalogSectionState.value) {
-            is CatalogSectionUiState.Failed -> state.curatorId?.let {
-                openCatalogCurator(it, state.title)
-            } ?: openCatalogSection(state.sectionId, state.title)
+            is CatalogSectionUiState.Failed -> when {
+                state.catalogUrl != null -> openCatalogUrl(state.catalogUrl, state.title)
+                state.curatorId != null -> openCatalogCurator(state.curatorId, state.title)
+                else -> openCatalogSection(state.sectionId, state.title)
+            }
             is CatalogSectionUiState.Ready -> loadMoreCatalogSection()
             else -> Unit
         }

@@ -10,6 +10,8 @@ import com.lmg.vk.network.VkResult
 import com.lmg.vk.network.methods.VkAudioApi
 import com.lmg.vk.network.methods.VkMethodsRegistry
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -193,6 +195,21 @@ object VkLinkResolver {
                 VkLinkTarget.OwnerAudio(-objectId, isGroup = true, wantsProfile = true),
             )
             else -> VkLinkResolution.Unsupported("vk.com/$screenName")
+        }
+    }
+
+    /** Catalog cards must never launch another app, including on API failure. */
+    suspend fun handleInApp(context: Context, uri: Uri): String? {
+        val resolution = resolve(uri)
+        currentCoroutineContext().ensureActive()
+        return when (resolution) {
+            is VkLinkResolution.Resolved -> when (val target = resolution.target) {
+                is VkLinkTarget.Audio -> playAudio(context, target)
+                else -> { VkLinkRouter.post(target); null }
+            }
+            is VkLinkResolution.Failed -> resolution.reason
+            is VkLinkResolution.Unsupported, VkLinkResolution.NotVkLink ->
+                "Для этой карточки пока нет нативного экрана в приложении."
         }
     }
 

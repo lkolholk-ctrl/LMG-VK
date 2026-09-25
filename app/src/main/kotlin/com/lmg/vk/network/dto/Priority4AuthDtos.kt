@@ -304,6 +304,7 @@ sealed interface RequestTokenResponse {
     data class UnknownError(
         val error: String = "",
         @Json(name = "error_description") val errorDescription: String = "",
+        @Json(name = "error_type") val errorType: String = "",
     ) : RequestTokenResponse
 }
 

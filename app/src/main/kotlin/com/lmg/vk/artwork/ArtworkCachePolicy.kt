@@ -1,7 +1,7 @@
 package com.lmg.vk.artwork
 
 internal object ArtworkCachePolicy {
-    const val LOOKUP_VERSION = 2
+    const val LOOKUP_VERSION = 3
     const val MISS_TTL_MS = 15 * 60 * 1_000L
 
     fun canReuse(positive: Boolean, expires: Long, lookupVersion: Int, now: Long): Boolean =

@@ -9,7 +9,6 @@ import com.lmg.vk.engine.lyrics.apple.AppleLyricsProjector
 import com.lmg.vk.engine.lyrics.apple.AppleTtmlCache
 import com.lmg.vk.engine.lyrics.apple.AppleTtmlClient
 import com.lmg.vk.engine.lyrics.apple.DefaultAppleTtmlClient
-import com.lmg.vk.engine.lyrics.apple.LyricsPlusRichAdapter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -25,44 +24,38 @@ object LyricsRepository {
         durationMs: Long = 0L,
         trackId: String? = null,
         language: String? = null,
-        forceRefresh: Boolean = false
+        forceRefresh: Boolean = false,
+        enabledSources: Set<LyricsSource>? = null,
     ): LyricsContent = withContext(Dispatchers.IO) {
-        if (title.isNotBlank()) {
-            val enabledSources = LyricsSourceStore.enabled(context)
-            val appleEnabled = LyricsSource.APPLE_TTML in enabledSources
-
-            if (appleEnabled) {
-                if (forceRefresh) {
-                    AppleTtmlCache.delete(context, title, artist, durationMs, language)
+        // Saved/downloaded audio owns its lyrics even when all network providers are disabled.
+        val localUri = uri?.takeIf { it.scheme == "content" || it.scheme == "file" }
+            ?: trackId?.let { com.lmg.vk.data.local.db.FavoriteTrackDatabase.getInstance(context).getDownloadedTrack(it) }
+                ?.localPath?.let(com.lmg.vk.data.local.PublicDownloads::toPlayableUri)
+        localUri?.let { local ->
+            com.lmg.vk.audio.EmbeddedLyrics.read(context, local)?.let { raw ->
+                com.lmg.vk.audio.EmbeddedLyrics.validTtml(raw)?.let {
+                    return@withContext LyricsContent.RawTtml(it, "embedded", "Встроенный TTML")
                 }
-                // 1. Check persistent local Apple TTML cache
-                if (!forceRefresh) {
-                    val cachedTtml = AppleTtmlCache.read(context, title, artist, durationMs, language)
-                    if (!cachedTtml.isNullOrBlank()) {
-                        DebugLog.add("LyricsRepository: Apple TTML cache hit bytes=${cachedTtml.length}")
-                        return@withContext LyricsContent.RawTtml(
-                            value = cachedTtml,
-                            sourceId = LyricsSource.APPLE_TTML.id,
-                            sourceLabel = LyricsSource.APPLE_TTML.title,
-                        )
-                    }
-                }
-
-                // 2. Network fetch Apple TTML
-                val fetchResult = ttmlClient.fetch(title, artist, durationMs, language)
-                fetchResult.getOrNull()?.let { rawTtml ->
-                    DebugLog.add("LyricsRepository: Apple TTML network success bytes=${rawTtml.length}")
-                    AppleTtmlCache.write(context, title, artist, durationMs, language, rawTtml)
-                    return@withContext LyricsContent.RawTtml(
-                        value = rawTtml,
-                        sourceId = LyricsSource.APPLE_TTML.id,
-                        sourceLabel = LyricsSource.APPLE_TTML.title,
-                    )
+                LyricsParser.parseLyrics(raw).takeIf { it.lines.isNotEmpty() }?.let {
+                    return@withContext LyricsContent.Legacy(it.copy(source = "embedded"))
                 }
             }
         }
+        val enabled = enabledSources ?: LyricsSourceStore.enabled(context)
+        if (title.isNotBlank()) {
+            firstPreferredLyrics(enabled) { source ->
+                when (source) {
+                    LyricsSource.APPLE_TTML -> loadPrimary(context, title, artist, durationMs, language, forceRefresh)
+                    LyricsSource.BINI_LYRICS -> ExternalLyricsRepository.fetchBiniLyricsContent(title, artist, durationMs)
+                    LyricsSource.LYRICS_PLUS -> ExternalLyricsRepository.fetchLyricsPlusContent(title, artist, durationMs)
+                    LyricsSource.LRCLIB -> LyricsParser.fetchLrcLib(context, uri, title, artist, durationMs, trackId)
+                        .takeIf { it.lines.isNotEmpty() }?.let { LyricsContent.Legacy(it) }
+                    else -> null
+                }
+            }?.let { return@withContext it }
+        }
 
-        // 3. Fallback to existing Legacy LyricsParser
+        // Optional providers and embedded/VK fallback run only after the preferred sources.
         DebugLog.add("LyricsRepository: falling back to Legacy LyricsParser")
         val legacy = LyricsParser.loadLyrics(
             context = context,
@@ -71,29 +64,27 @@ object LyricsRepository {
             artist = artist,
             durationMs = durationMs,
             trackId = trackId,
-            // Apple was already resolved above. Prevent a second cache/server pass in
-            // ExternalLyricsRepository while preserving LyricsPlus/BetterLyrics/LRCLIB.
-            excludedSources = setOf(LyricsSource.APPLE_TTML),
-            // Product priority: local Apple TTML -> Apple proxy -> LyricsPlus/other
-            // configured external providers -> VK/LRCLIB/embedded legacy fallback.
+            excludedSources = preferredLyricsSources.toSet(),
             preferExternalBeforeOfficial = true,
+            sourceSnapshot = enabled,
         )
 
-        if (legacy.source == LyricsSource.LYRICS_PLUS.id && legacy.isWordLevel) {
-            LyricsPlusRichAdapter.convert(legacy, durationMs)?.let { document ->
-                DebugLog.add(
-                    "LyricsRepository: LyricsPlus rich lines=${document.allLines.size} " +
-                        "pieces=${document.allLines.sumOf { it.main.size }}"
-                )
-                return@withContext LyricsContent.Rich(
-                    document = document,
-                    sourceId = LyricsSource.LYRICS_PLUS.id,
-                    sourceLabel = LyricsSource.LYRICS_PLUS.title,
-                )
+        LyricsContent.Legacy(lyrics = legacy)
+    }
+
+    private suspend fun loadPrimary(
+        context: Context, title: String, artist: String, durationMs: Long,
+        language: String?, forceRefresh: Boolean,
+    ): LyricsContent.RawTtml? {
+        if (forceRefresh) AppleTtmlCache.delete(context, title, artist, durationMs, language)
+        if (!forceRefresh) {
+            AppleTtmlCache.read(context, title, artist, durationMs, language)?.takeIf { it.isNotBlank() }?.let {
+                return LyricsContent.RawTtml(it, LyricsSource.APPLE_TTML.id, LyricsSource.APPLE_TTML.title)
             }
         }
-
-        LyricsContent.Legacy(lyrics = legacy)
+        val raw = ttmlClient.fetch(title, artist, durationMs, language).getOrNull() ?: return null
+        AppleTtmlCache.write(context, title, artist, durationMs, language, raw)
+        return LyricsContent.RawTtml(raw, LyricsSource.APPLE_TTML.id, LyricsSource.APPLE_TTML.title)
     }
 
     /**

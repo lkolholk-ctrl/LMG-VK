@@ -16,6 +16,8 @@
 
     <string name="tab_wave">Волна</string>
     <string name="tab_new">Новое</string>
+    <string name="new_main">Главное</string>
+    <string name="new_explore">Обзор</string>
     <string name="tab_library">Библиотека</string>
     <string name="tab_settings">Настройки</string>
     <string name="tab_home">Главная</string>
@@ -26,6 +28,9 @@
     <string name="action_close">Закрыть</string>
     <string name="action_back">Назад</string>
     <string name="action_retry">Повторить</string>
+    <string name="lyrics_load_error">Не удалось загрузить текст песни</string>
+    <string name="lyrics_previous_track">Предыдущий трек</string>
+    <string name="lyrics_next_track">Следующий трек</string>
     <string name="action_submit">Отправить</string>
     <string name="action_save">Сохранить</string>
     <string name="action_delete">Удалить</string>
@@ -137,6 +142,14 @@
     <string name="new_load_failed">Не удалось загрузить новое</string>
     <string name="shuffle_section">Перемешать раздел</string>
     <string name="listen_section">Слушать раздел</string>
+    <string name="main_mix_listen">Слушать</string>
+    <string name="main_play_named">Слушать %1$s</string>
+    <string name="main_show_more">Показать больше</string>
+    <string name="catalog_featured">Подборки</string>
+    <string name="catalog_tracks">Треки</string>
+    <string name="catalog_mixes">Миксы</string>
+    <string name="catalog_curators">Кураторы</string>
+    <string name="catalog_following_updates">Новое в подписках</string>
     <string name="open_section_count">Открыть раздел, %1$d элементов</string>
     <string name="open_section">Открыть раздел</string>
     <string name="listen_all">Слушать всё</string>
@@ -505,6 +518,7 @@
 
     <string name="no_lyrics">Текст недоступен</string>
     <string name="lyrics_by_source">Текст из %1$s</string>
+    <string name="lyrics_songwriters">Авторы: %1$s</string>
     <string name="lyrics_sources_title">Источники текста</string>
     <string name="lyrics_sources_description">Выберите дополнительные источники. Официальный текст VK остается доступен всегда.</string>
     <string name="lyrics_translation">Перевод</string>
@@ -576,6 +590,7 @@
     <string name="crossfade_description">Плавный переход между треками. Выключено — играют подряд.</string>
     <string name="section_vpn_connection">VPN и соединение</string>
     <string name="vpn_bypass_title">Обход системного VPN</string>
+    <string name="vpn_bypass_auth_warning">С включённым обходом VPN авторизация VK не работает. Выключите этот тумблер перед входом в аккаунт.</string>
     <string name="vpn_active_vk_ok">VPN активен · VK работает через Wi-Fi / SIM</string>
     <string name="vpn_active_bypass_pending">VPN активен · поиск прямого подключения</string>
     <string name="vpn_enabled_standby">Включён · сработает при подключении VPN</string>
@@ -1007,4 +1022,25 @@
         <item quantity="many">%1$d треков</item>
         <item quantity="other">%1$d трека</item>
     </plurals>
+    <string name="download_delete_failed">Не удалось удалить загрузку</string>
+    <string name="profile_all_playlists">Все плейлисты</string>
+    <string name="profile_about_title">О профиле</string>
+    <string name="profile_account_actions">Управление аккаунтом</string>
+    <string name="profile_music_empty">Пока нет треков</string>
+    <plurals name="profile_friends_count">
+        <item quantity="one">%1$d друг</item>
+        <item quantity="few">%1$d друга</item>
+        <item quantity="many">%1$d друзей</item>
+        <item quantity="other">%1$d друзей</item>
+    </plurals>
+    <plurals name="profile_mutual_count">
+        <item quantity="one">%1$d общий друг</item>
+        <item quantity="few">%1$d общих друга</item>
+        <item quantity="many">%1$d общих друзей</item>
+        <item quantity="other">%1$d общих друзей</item>
+    </plurals>
+    <string name="profile_actions">Действия</string>
+    <string name="profile_all">Все</string>
+    <string name="profile_recently_listened">Недавно слушал</string>
+    <string name="profile_playlists_empty">Пока нет плейлистов</string>
 </resources>

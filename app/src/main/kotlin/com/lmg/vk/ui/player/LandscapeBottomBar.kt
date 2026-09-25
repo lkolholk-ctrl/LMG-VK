@@ -102,7 +102,8 @@ fun LandscapeBottomBar(
                     .background(if (lc.isDark) Color(0xFF242424) else Color(0xFFE3E3E8)),
                 contentAlignment = Alignment.Center
             ) {
-                val cover = cur.coverUrl ?: cur.displayArtUri.toString()
+                val artwork = com.lmg.vk.ui.glass.rememberTrackArtwork(cur)
+                val cover = artwork.coverUrl ?: cur.displayArtUri.toString().takeIf { artwork.isReady }
                 if (!cover.isNullOrBlank()) {
                     AsyncImage(
                         model = cover, contentDescription = null,

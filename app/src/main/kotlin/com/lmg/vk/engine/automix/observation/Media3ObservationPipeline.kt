@@ -26,9 +26,13 @@ class Media3ObservationPipeline(
     ownerScope: CoroutineScope,
     openAsset: (String) -> InputStream,
     private val log: (String) -> Unit = { android.util.Log.d("LMG.AutoMix.Observe", it) },
+    private val renderBoundary: com.lmg.vk.engine.automix.render.RenderBoundaryController? = null,
 ) {
     private val calculator = AppleObservationCalculator(openAsset)
-    private val pipeline = ObservationPipeline(ownerScope, calculator::decode, calculator::calculate, ::checkOwner)
+    private val pipeline = ObservationPipeline(ownerScope, calculator::decode, calculator::calculate,
+        ::checkOwner, onStatePublished = { snapshot, pair, revision ->
+            renderBoundary?.let { publishRenderBoundary(it, snapshot, pair, revision) }
+        })
     val state: StateFlow<ObservationState<MetadataProbeReport>> = pipeline.state
     private val logJob: Job
 

@@ -56,6 +56,7 @@ fun SectionTopBar(
     onBack: (() -> Unit)? = null,
     onTitleClick: (() -> Unit)? = null,
     actions: (@Composable RowScope.() -> Unit)? = null,
+    trailing: (@Composable RowScope.() -> Unit)? = null,
 ) {
     val compact = rememberWindowInfo().useSideBySide
     val colors = LiquidTheme.colors
@@ -126,6 +127,7 @@ fun SectionTopBar(
                     )
                 }
             }
+            trailing?.invoke(this)
         }
 
         actions?.let { content ->

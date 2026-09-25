@@ -29,6 +29,7 @@ object NavRoutes {
 
     /** Лента сниппетов VK (`audio.getSnippets`) — открывается из вкладки New. */
     const val NEW_SNIPPETS = "new/snippets"
+    const val NEW_RECOMMENDATIONS = "new/recommendations"
 
     // ── Аргументы ──
     const val ARG_ID = "id"

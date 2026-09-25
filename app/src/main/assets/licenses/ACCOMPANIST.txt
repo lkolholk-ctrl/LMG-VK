@@ -1,0 +1,21 @@
+Accompanist Lyrics Core and Accompanist Lyrics UI
+Copyright [2025] [6xingyv]
+Licensed under the Apache License, Version 2.0.
+
+Sources were supplied in Lyrics-Apache2-0.zip and adapted for LMG VK.
+See accompanist-lyrics-core/LICENSE and accompanist-lyrics-ui/LICENSE in this directory.
+Local changes: Android source-set adaptation, Compose shape substitution,
+manual scroll/seek handling, clock callback freshness, viewport/blur guards,
+font-scale measurement updates, TTML offset-time units and zero-duration syllable handling,
+density-aware karaoke fill feather, staggered character lift and emphasis,
+line-end lift release, expanded character spacing, merged vocal-gap detection
+and audio-position-based waiting dots. Further adaptations: spatial smoothing of lift,
+direct per-character emphasis without rotation and word-local expansion compensation,
+cached glyph geometry and animation buffers, inactive redraw suppression,
+fixed instrumental spacing and vocal follow-anchor correction.
+Further changes: subpixel line placement, drag-only spring suspension and
+fill-position-based glyph lift independent of the emphasis schedule.
+Further changes: cached viewport fade, optional blur animation suppression,
+automatic layer composition and independently timed line activity transitions.
+Further changes: cached supersampled glyph and shadow masks for fractional lift
+without per-frame text rasterization or glyph rotation.

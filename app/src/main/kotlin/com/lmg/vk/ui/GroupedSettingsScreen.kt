@@ -1,8 +1,8 @@
 package com.lmg.vk.ui.screens
 
+import com.lmg.vk.ui.navigation.WindowPageHost
 import android.content.Context
 import android.os.Build
-import androidx.activity.compose.BackHandler
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -143,9 +143,6 @@ fun SettingsScreen(
         )
     }
 
-    BackHandler(enabled = backHandlingEnabled && page != SettingsPage.ROOT) {
-        returnFromPage()
-    }
 
     val headerBack: (() -> Unit)? = when {
         page != SettingsPage.ROOT -> ::returnFromPage
@@ -186,6 +183,11 @@ fun SettingsScreen(
         }
     }
 
+    WindowPageHost(
+        page = page,
+        enabled = backHandlingEnabled && page != SettingsPage.ROOT && !showDuplicateRemovalDialog,
+        onBack = ::returnFromPage,
+    ) { visiblePage, requestBack ->
     Box(modifier = Modifier.fillMaxSize().background(colors.settingsBackground)) {
         Column(
             modifier = Modifier
@@ -199,14 +201,14 @@ fun SettingsScreen(
                         Modifier.fillMaxSize()
                     },
                 )
-                .verticalScroll(scroll),
+                .verticalScroll(if (visiblePage == page) scroll else rememberScrollState()),
         ) {
             SectionTopBar(
-                title = stringResource(page.titleRes),
-                subtitle = stringResource(page.subtitleRes),
+                title = stringResource(visiblePage.titleRes),
+                subtitle = stringResource(visiblePage.subtitleRes),
                 isDark = colors.isDark,
-                onBack = headerBack,
-                onTitleClick = if (page == SettingsPage.ROOT) {
+                onBack = if (page != SettingsPage.ROOT) requestBack else headerBack,
+                onTitleClick = if (visiblePage == SettingsPage.ROOT) {
                     {
                         val now = System.currentTimeMillis()
                         debugTaps = if (now - debugLastTapAt < 1200L) debugTaps + 1 else 1
@@ -228,7 +230,7 @@ fun SettingsScreen(
             )
 
             Column(modifier = Modifier.padding(horizontal = 20.dp)) {
-                when (page) {
+                when (visiblePage) {
                     SettingsPage.ROOT -> {
                         SettingsProfileCard(
                             onClick = onOpenProfile,
@@ -413,6 +415,12 @@ fun SettingsScreen(
                                 selected = vpnBypassEnabled,
                                 onSelect = AppSettings::setVpnBypassEnabled,
                             )
+                            Text(
+                                text = stringResource(R.string.vpn_bypass_auth_warning),
+                                color = Color(0xFFFC3C44),
+                                fontSize = 12.sp,
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                            )
                         }
 
                         Spacer(Modifier.height(sectionGap))
@@ -591,6 +599,7 @@ fun SettingsScreen(
                 Spacer(Modifier.height(110.dp))
             }
         }
+    }
     }
 }
 

@@ -2,9 +2,6 @@ package com.lmg.vk.artwork
 
 import android.content.Context
 import android.os.SystemClock
-import coil.imageLoader
-import coil.request.ImageRequest
-import coil.request.SuccessResult
 import com.lmg.vk.network.installVpnBypass
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -102,7 +99,7 @@ object ItunesArtworkRepository {
             .joinToString("\u0000")
         val hash = MessageDigest.getInstance("SHA-256").digest(key.toByteArray())
             .joinToString("") { "%02x".format(it) }
-        val directory = File(context.cacheDir, "itunes_artwork_v2").apply { mkdirs() }
+        val directory = File(context.cacheDir, "itunes_artwork_v3").apply { mkdirs() }
         val file = File(directory, "$hash.json")
         val stored = runCatching {
             val obj = Json.parseToJsonElement(file.readText()).jsonObject
@@ -119,26 +116,16 @@ object ItunesArtworkRepository {
         }
         var ttl = ArtworkCachePolicy.MISS_TTL_MS
         val selected = try {
-            val artwork = stored?.takeIf { it.expires > System.currentTimeMillis() }?.artwork
-                ?: search(query)?.artworkUrl
-            if (artwork == null) null else {
-                val workingUrl = ItunesArtworkQuality.urls(artwork).firstOrNull { url ->
-                    context.imageLoader.execute(ImageRequest.Builder(context)
-                        .data(url).size(600).allowHardware(false).build()) is SuccessResult
-                }
-                if (workingUrl != null) {
-                    ttl = TimeUnit.DAYS.toMillis(7)
-                    workingUrl
-                } else {
-                    ttl = TimeUnit.MINUTES.toMillis(5)
-                    null
-                }
-            }
+            val catalog = AppleArtworkRepository.find(context, query)
+            val artwork = catalog?.cover ?: search(query)?.artworkUrl
+            if (artwork != null) ttl = TimeUnit.DAYS.toMillis(1)
+            artwork?.let { ItunesArtworkQuality.urls(it).first() }
         } catch (cancelled: CancellationException) {
             throw cancelled
-        } catch (_: Exception) {
-            ttl = TimeUnit.MINUTES.toMillis(5)
-            null
+        } catch (error: Exception) {
+            com.lmg.vk.debug.DebugLog.add("ARTWORK cover failed ${error.javaClass.simpleName}: ${error.message}")
+            // A transport failure is not evidence that the track has no cover.
+            return@withContext null
         }
         val entry = Entry(selected, System.currentTimeMillis() + ttl)
         synchronized(lock) { cache[query] = entry }

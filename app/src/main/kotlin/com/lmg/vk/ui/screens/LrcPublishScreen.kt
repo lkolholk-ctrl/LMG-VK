@@ -1,6 +1,7 @@
 package com.lmg.vk.ui.screens
 
-import androidx.activity.compose.BackHandler
+import com.lmg.vk.ui.navigation.rememberWindowCloseState
+import com.lmg.vk.ui.navigation.windowClose
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -324,13 +325,16 @@ private fun SyncTaggingMode(
         }
     }
 
-    BackHandler { returnFromMode() }
+    val modeBack = rememberWindowCloseState(enabled = true, onBack = ::returnFromMode)
+    LaunchedEffect(previewFrom) { modeBack.reset() }
 
     // Тест: проиграть с подсветкой по текущей разметке (с выбранной строки).
     previewFrom?.let { from ->
         val ly = remember(from) { LyricsParser.parseLyrics(buildLrc(lines, times)) }
+        Box(Modifier.fillMaxSize().windowClose(modeBack)) {
         MarkupPreviewView(ly, from.coerceIn(0, (lines.size - 1).coerceAtLeast(0)), lc.accent,
-            onBackToEdit = ::returnFromMode)
+            onBackToEdit = modeBack::requestBack)
+        }
         return
     }
 
@@ -342,7 +346,7 @@ private fun SyncTaggingMode(
         runCatching { PlayerController.playFromList(context, listOf(track), 0) }
     }
 
-    Box(modifier = Modifier.fillMaxSize().background(lc.settingsBackground)) {
+    Box(modifier = Modifier.fillMaxSize().windowClose(modeBack).background(lc.settingsBackground)) {
         Column(modifier = Modifier.fillMaxSize().padding(horizontal = 20.dp)) {
             Spacer(Modifier.windowInsetsTopHeight(WindowInsets.statusBars))
             Spacer(Modifier.height(12.dp))
@@ -457,7 +461,8 @@ private fun SyncWordTaggingMode(
         }
     }
 
-    BackHandler { returnFromMode() }
+    val modeBack = rememberWindowCloseState(enabled = true, onBack = ::returnFromMode)
+    LaunchedEffect(previewFrom) { modeBack.reset() }
 
     // строка, содержащая глобальный индекс слова gi
     fun lineOf(gi: Int): Int {
@@ -469,8 +474,10 @@ private fun SyncWordTaggingMode(
     // Тест: проиграть с пословной подсветкой по текущей разметке (с выбранной строки).
     previewFrom?.let { from ->
         val ly = remember(from) { LyricsParser.parseLyrics(buildEnhancedLrc(wordRows, lineStart, times)) }
+        Box(Modifier.fillMaxSize().windowClose(modeBack)) {
         MarkupPreviewView(ly, from.coerceIn(0, (wordRows.size - 1).coerceAtLeast(0)), lc.accent,
-            onBackToEdit = ::returnFromMode)
+            onBackToEdit = modeBack::requestBack)
+        }
         return
     }
 
@@ -480,7 +487,7 @@ private fun SyncWordTaggingMode(
         runCatching { PlayerController.playFromList(context, listOf(track), 0) }
     }
 
-    Box(modifier = Modifier.fillMaxSize().background(lc.settingsBackground)) {
+    Box(modifier = Modifier.fillMaxSize().windowClose(modeBack).background(lc.settingsBackground)) {
         Column(modifier = Modifier.fillMaxSize().padding(horizontal = 20.dp)) {
             Spacer(Modifier.windowInsetsTopHeight(WindowInsets.statusBars))
             Spacer(Modifier.height(12.dp))

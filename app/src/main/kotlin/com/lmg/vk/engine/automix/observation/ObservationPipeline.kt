@@ -108,6 +108,7 @@ internal class ObservationPipeline<A : Any, R : Any>(
     private val checkOwner: () -> Unit = {},
     private val worker: CoroutineDispatcher = Dispatchers.Default,
     private val timeoutMs: Long = 10_000L,
+    private val onStatePublished: (ObservationState<R>, ObservationPair?, Long) -> Unit = { _, _, _ -> },
 ) {
     private val scope = CoroutineScope(ownerScope.coroutineContext + SupervisorJob(ownerScope.coroutineContext[Job]))
     private val workerMutex = Mutex()
@@ -129,6 +130,13 @@ internal class ObservationPipeline<A : Any, R : Any>(
 
     init { require(timeoutMs > 0) }
 
+    private fun publish(next: ObservationState<R>) {
+        // Revoke/publish the metadata gate synchronously BEFORE observable state changes.
+        // The callback must never control Player or perform blocking/native work.
+        try { onStatePublished(next, pair, bindingRevision) } catch (_: Exception) { }
+        mutableState.value = next
+    }
+
     fun update(newPair: ObservationPair?, reason: ObservationReason = ObservationReason.NO_PAIR, force: Boolean = false) {
         checkOwner()
         if (closed) return
@@ -142,7 +150,7 @@ internal class ObservationPipeline<A : Any, R : Any>(
         pair = newPair
         suspendedReason = reason
         if (newPair == null) {
-            mutableState.value = ObservationState(generation, ObservationPhase.SUSPENDED, reason)
+            publish(ObservationState(generation, ObservationPhase.SUSPENDED, reason))
             return
         }
         tickets = listOf(
@@ -236,13 +244,13 @@ internal class ObservationPipeline<A : Any, R : Any>(
         val revision = bindingRevision
         val boundSnapshot = snapshot.copy(selectionScope = resolvedScope,
             selectionGeneration = epoch, selectionRevision = revision)
-        mutableState.value = ObservationState(generation, ObservationPhase.CALCULATING)
+        publish(ObservationState(generation, ObservationPhase.CALCULATING))
         calculationJob = scope.launch {
             try {
                 val result = work { calculate(outgoing, incoming, boundSnapshot) }
                 currentCoroutineContext().ensureActive()
                 if (!closed && generation == epoch && bindingRevision == revision) {
-                    mutableState.value = ObservationState(epoch, ObservationPhase.OBSERVED, result = result)
+                    publish(ObservationState(epoch, ObservationPhase.OBSERVED, result = result))
                 }
             } catch (_: TimeoutCancellationException) {
                 rejectCalculation(epoch, revision, ObservationReason.TIMEOUT)
@@ -281,15 +289,15 @@ internal class ObservationPipeline<A : Any, R : Any>(
         } else {
             ObservationPhase.WAITING_FOR_ANALYSIS
         }
-        mutableState.value = ObservationState(generation, phase,
-            requests = Collections.unmodifiableList(outstanding))
+        publish(ObservationState(generation, phase,
+            requests = Collections.unmodifiableList(outstanding)))
     }
 
     private fun reject(epoch: Long, reason: ObservationReason, detail: String? = null) {
         if (closed || generation != epoch) return
         generation = Math.addExact(generation, 1L) // Revoke both response capabilities.
         cancelWork()
-        mutableState.value = ObservationState(generation, ObservationPhase.REJECTED, reason, detail)
+        publish(ObservationState(generation, ObservationPhase.REJECTED, reason, detail))
     }
 
     private fun cancelWork() {
@@ -313,7 +321,7 @@ internal class ObservationPipeline<A : Any, R : Any>(
         cancelWork()
         pair = null
         scope.cancel()
-        mutableState.value = ObservationState(generation, ObservationPhase.CLOSED, ObservationReason.CLOSED)
+        publish(ObservationState(generation, ObservationPhase.CLOSED, ObservationReason.CLOSED))
     }
 
     companion object { const val MAX_RESPONSE_BYTES = 4 * 1024 * 1024 }

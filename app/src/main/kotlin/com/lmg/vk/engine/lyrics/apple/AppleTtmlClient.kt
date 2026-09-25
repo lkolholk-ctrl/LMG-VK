@@ -68,6 +68,7 @@ class DefaultAppleTtmlClient(
                 .url(url)
                 .header("Accept", "text/plain, application/xml, application/ttml+xml, */*")
                 .header("User-Agent", "LMG-VK/1.1")
+                .header("X-API-Key", AppleLyricsConfig.API_KEY)
                 .build()
 
             val call = httpClient.newCall(request)

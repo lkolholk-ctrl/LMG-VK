@@ -8,6 +8,7 @@ import sys
 import xml.etree.ElementTree as ET
 from zipfile import BadZipFile, ZipFile
 from automix_verify_jni_export import ABI_IDENTITIES, verify_jni_exports, verify_schedule_jni_exports
+from automix_verify_owner_ingress import verify_owner_report, verify_owner_exports
 
 SHA256 = "fe3d0a36625ccb043c519bcc5119c98190893a9911cfa58412ad60cbab04d120"
 ABIS = ("arm64-v8a", "armeabi-v7a", "x86")
@@ -135,6 +136,7 @@ def verify(root: Path) -> None:
                 if archive.getinfo(name).file_size > 128 * 1024 * 1024:
                     raise ValueError(f"JNI verification size limit exceeded for {abi}")
                 verify_schedule_jni_exports(archive.read(name), *ABI_IDENTITIES[abi])
+                verify_owner_exports(archive.read(name), *ABI_IDENTITIES[abi])
             asset = archive.read("assets/automix/TransitionStyles.json")
             if asset != canonical or hashlib.sha256(asset).hexdigest() != SHA256:
                 raise ValueError("Packaged catalog differs from the verified source")
@@ -146,8 +148,9 @@ def verify(root: Path) -> None:
     binding_jni, binding_lifecycle = verify_selection_binding_reports(reports)
     source_jni, source_lifecycle = verify_source_context_reports(reports)
     schedule_jni = verify_schedule_report(reports)
+    owner_jni = verify_owner_report(reports)
     print(f"Verified {len(apks)} APK(s), {len(ABIS)} JNI ABIs, catalog SHA-256, "
-          f"{stage1 + stage2 + stage3a + binding_jni + source_jni + schedule_jni} real JNI tests and {lifecycle + binding_lifecycle + source_lifecycle} lifecycle tests")
+          f"{stage1 + stage2 + stage3a + binding_jni + source_jni + schedule_jni + owner_jni} real JNI tests and {lifecycle + binding_lifecycle + source_lifecycle} lifecycle tests")
 
 
 if __name__ == "__main__":

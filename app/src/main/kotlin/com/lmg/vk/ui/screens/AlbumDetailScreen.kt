@@ -463,6 +463,7 @@ fun AlbumDetailScreen(
                             durationMs = track.durationMs,
                             // Обложка здесь одна на все треки — номер полезнее.
                             coverUrl = null,
+                            showArtwork = false,
                             isDark = isDark,
                             // Перед заголовком следующего диска разделитель лишний:
                             // границу и без него видно, а вместе они дают двойную линию.

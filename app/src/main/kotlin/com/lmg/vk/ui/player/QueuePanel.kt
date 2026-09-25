@@ -55,6 +55,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import coil.compose.AsyncImage
+import com.lmg.vk.ui.effects.DustDissolve
+import kotlinx.coroutines.delay
 import com.lmg.vk.R
 import com.lmg.vk.engine.Track
 import com.lmg.vk.ui.icons.LmgDrawables
@@ -75,36 +77,56 @@ internal fun InlineQueue(
     onClear: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    var removal by remember { mutableStateOf<QueueDustSnapshot?>(null) }
+    val displayedQueue = removal?.rows ?: queue
+    val displayedCurrentIndex = removal?.currentIndex ?: currentIndex
     val listState = rememberLazyListState()
-    val keepScroll = remember(listState) { keepScrollInQueueList(listState) }
-    val autoplayStart = remember(queue, currentIndex) {
-        autoplaySectionStart(queue.map { it.second }, currentIndex)
+    LaunchedEffect(removal?.rows) {
+        if (removal != null) {
+            delay(1500)
+            removal = null
+        }
     }
-    LaunchedEffect(currentIndex) {
-        if (currentIndex in queue.indices) {
-            listState.scrollToItem(currentIndex + if (currentIndex >= autoplayStart) 1 else 0)
+    fun finishRemoval(index: Int) {
+        removal?.let { active ->
+            val remaining = active.remaining - index
+            removal = if (remaining.isEmpty()) null else active.copy(remaining = remaining)
+        }
+    }
+    fun removeRow(index: Int) {
+        if (removal != null || index !in queue.indices || index == currentIndex) return
+        removal = QueueDustSnapshot(queue.toList(), currentIndex, setOf(index))
+        onRemove(index)
+    }
+    val keepScroll = remember(listState) { keepScrollInQueueList(listState) }
+    val autoplayStart = remember(displayedQueue, displayedCurrentIndex) {
+        autoplaySectionStart(displayedQueue.map { it.second }, displayedCurrentIndex)
+    }
+    LaunchedEffect(displayedCurrentIndex) {
+        if (displayedCurrentIndex in displayedQueue.indices) {
+            listState.scrollToItem(displayedCurrentIndex + if (displayedCurrentIndex >= autoplayStart) 1 else 0)
         }
     }
 
-    val manualRows = queue.subList(0, autoplayStart)
-    val autoplayRows = queue.subList(autoplayStart, queue.size)
+    val manualRows = displayedQueue.subList(0, autoplayStart)
+    val autoplayRows = displayedQueue.subList(autoplayStart, displayedQueue.size)
     val manualKeys = remember(manualRows) { manualRows.stableQueueKeys() }
     val autoplayKeys = remember(autoplayRows) { autoplayRows.stableQueueKeys("autoplay/") }
 
-    val headingShown = autoplayEnabled || autoplayStart < queue.size
+    val headingShown = autoplayEnabled || autoplayStart < displayedQueue.size
     val headingCount = if (headingShown) 1 else 0
-    val firstMovable = (currentIndex + 1).coerceIn(0, autoplayStart)
+    val firstMovable = (displayedCurrentIndex + 1).coerceIn(0, autoplayStart)
     val manualDrag = rememberQueueDragState(
         listState = listState,
         lazyRange = firstMovable until autoplayStart,
         lazyOffset = 0,
-        onMove = onMove,
+        onMove = { from, to -> if (removal == null) onMove(from, to) },
     )
     val autoplayDrag = rememberQueueDragState(
         listState = listState,
         lazyRange = (autoplayStart + headingCount) until (autoplayStart + headingCount + autoplayRows.size),
         lazyOffset = headingCount,
-        onMove = onMove,
+        onMove = { from, to -> if (removal == null) onMove(from, to) },
     )
 
     Column(modifier.fillMaxWidth()) {
@@ -132,13 +154,24 @@ internal fun InlineQueue(
                 color = Color.White.copy(alpha = 0.75f),
                 modifier = Modifier
                     .clip(RoundedCornerShape(percent = 50))
-                    .clickable(onClick = onClear)
+                    .clickable(enabled = removal == null) {
+                        val indices = queueDustRemovalIndices(
+                            queue.size, currentIndex,
+                            listState.layoutInfo.visibleItemsInfo.map { it.index },
+                            autoplayStart, headingShown,
+                        )
+                        if (indices.isNotEmpty()) {
+                            removal = QueueDustSnapshot(queue.toList(), currentIndex, indices)
+                        }
+                        onClear()
+                    }
                     .padding(horizontal = 8.dp, vertical = 4.dp),
             )
         }
         Spacer(Modifier.height(4.dp))
         LazyColumn(
             state = listState,
+            userScrollEnabled = removal == null,
             modifier = Modifier
                 .fillMaxWidth()
                 .bleedHorizontally(QUEUE_GUTTER)
@@ -152,23 +185,31 @@ internal fun InlineQueue(
             ) { index, entry ->
                 val key = manualKeys[index]
                 val dragging = manualDrag.draggedKey == key
-                InlineQueueRow(
-                    track = entry.first,
-                    isCurrent = index == currentIndex,
-                    onClick = { onJumpTo(index) },
-                    onRemove = { onRemove(index) },
-                    draggable = index >= firstMovable,
-                    dragging = dragging,
-                    onDragStart = { manualDrag.onDragStart(key) },
-                    onDrag = manualDrag::onDrag,
-                    onDragEnd = manualDrag::onDragEnd,
+                DustDissolve(
+                    dissolving = removal?.indices?.contains(index) == true,
+                    onFinished = { finishRemoval(index) },
+                    durationMillis = 780,
+                    maxParticles = 2200,
                     modifier = Modifier
                         .zIndex(if (dragging) 1f else 0f)
                         .graphicsLayer { translationY = if (dragging) manualDrag.dragOffset else 0f }
-                        .then(if (dragging) Modifier else Modifier.animateItem()),
-                )
+                        .then(if (dragging) Modifier else Modifier.animateItem(fadeInSpec = null, fadeOutSpec = null)),
+                ) {
+                    InlineQueueRow(
+                        track = entry.first,
+                        isCurrent = index == displayedCurrentIndex,
+                        enabled = removal == null,
+                        onClick = { if (removal == null) onJumpTo(index) },
+                        onRemove = { removeRow(index) },
+                        draggable = index >= firstMovable,
+                        dragging = dragging,
+                        onDragStart = { manualDrag.onDragStart(key) },
+                        onDrag = manualDrag::onDrag,
+                        onDragEnd = manualDrag::onDragEnd,
+                    )
+                }
             }
-            if (autoplayEnabled || autoplayStart < queue.size) {
+            if (autoplayEnabled || autoplayStart < displayedQueue.size) {
                 item(key = "autoplay-heading") {
                     Row(
                         modifier = Modifier
@@ -194,7 +235,7 @@ internal fun InlineQueue(
                                 color = Color.White,
                             )
                             Text(
-                                text = if (autoplayStart < queue.size) {
+                                text = if (autoplayStart < displayedQueue.size) {
                                     stringResource(R.string.queue_autoplay_queued)
                                 } else {
                                     stringResource(R.string.queue_autoplay_continues)
@@ -217,25 +258,40 @@ internal fun InlineQueue(
                 val at = autoplayStart + index
                 val key = autoplayKeys[index]
                 val dragging = autoplayDrag.draggedKey == key
-                InlineQueueRow(
-                    track = entry.first,
-                    isCurrent = at == currentIndex,
-                    onClick = { onJumpTo(at) },
-                    onRemove = { onRemove(at) },
-                    draggable = true,
-                    dragging = dragging,
-                    onDragStart = { autoplayDrag.onDragStart(key) },
-                    onDrag = autoplayDrag::onDrag,
-                    onDragEnd = autoplayDrag::onDragEnd,
+                DustDissolve(
+                    dissolving = removal?.indices?.contains(at) == true,
+                    onFinished = { finishRemoval(at) },
+                    durationMillis = 780,
+                    maxParticles = 2200,
                     modifier = Modifier
                         .zIndex(if (dragging) 1f else 0f)
                         .graphicsLayer { translationY = if (dragging) autoplayDrag.dragOffset else 0f }
-                        .then(if (dragging) Modifier else Modifier.animateItem()),
-                )
+                        .then(if (dragging) Modifier else Modifier.animateItem(fadeInSpec = null, fadeOutSpec = null)),
+                ) {
+                    InlineQueueRow(
+                        track = entry.first,
+                        isCurrent = at == displayedCurrentIndex,
+                        enabled = removal == null,
+                        onClick = { if (removal == null) onJumpTo(at) },
+                        onRemove = { removeRow(at) },
+                        draggable = true,
+                        dragging = dragging,
+                        onDragStart = { autoplayDrag.onDragStart(key) },
+                        onDrag = autoplayDrag::onDrag,
+                        onDragEnd = autoplayDrag::onDragEnd,
+                    )
+                }
             }
         }
     }
 }
+
+private data class QueueDustSnapshot(
+    val rows: List<Pair<Track, Boolean>>,
+    val currentIndex: Int,
+    val indices: Set<Int>,
+    val remaining: Set<Int> = indices,
+)
 
 private fun List<Pair<Track, Boolean>>.stableQueueKeys(prefix: String = ""): List<String> {
     val seen = HashMap<String, Int>()
@@ -316,6 +372,7 @@ private fun InlineQueueRow(
     onClick: () -> Unit,
     onRemove: () -> Unit,
     modifier: Modifier = Modifier,
+    enabled: Boolean = true,
     draggable: Boolean = false,
     dragging: Boolean = false,
     onDragStart: () -> Unit = {},
@@ -327,7 +384,7 @@ private fun InlineQueueRow(
             .fillMaxWidth()
             .clip(RoundedCornerShape(8.dp))
             .background(if (dragging) Color.White.copy(alpha = 0.06f) else Color.Transparent)
-            .clickable(onClick = onClick)
+            .clickable(enabled = enabled, onClick = onClick)
             .padding(vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -339,7 +396,8 @@ private fun InlineQueueRow(
                 modifier = Modifier
                     .size(20.dp)
                     .offset(x = (-4).dp)
-                    .pointerInput(Unit) {
+                    .pointerInput(enabled) {
+                        if (!enabled) return@pointerInput
                         detectDragGestures(
                             onDragStart = { onDragStart() },
                             onDragEnd = { onDragEnd() },
@@ -353,8 +411,9 @@ private fun InlineQueueRow(
             )
             Spacer(Modifier.width(4.dp))
         }
-        AsyncImage(
-            model = track.coverUrl ?: track.albumArtUri,
+        com.lmg.vk.ui.glass.AlbumArtImage(
+            uri = track.albumArtUri, coverUrl = track.coverUrl,
+            artworkQuery = com.lmg.vk.artwork.ArtworkQuery(track.title, track.artist, track.durationMs),
             contentDescription = null,
             modifier = Modifier
                 .size(44.dp)
@@ -400,7 +459,7 @@ private fun InlineQueueRow(
             modifier = Modifier
                 .size(32.dp)
                 .clip(CircleShape)
-                .clickable(onClick = onRemove),
+                .clickable(enabled = enabled && !isCurrent, onClick = onRemove),
             contentAlignment = Alignment.Center,
         ) {
             Icon(

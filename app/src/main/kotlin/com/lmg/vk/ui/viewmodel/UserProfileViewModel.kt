@@ -281,7 +281,7 @@ class UserProfileViewModel : ViewModel() {
 
     private companion object {
         const val MUSIC_PREVIEW_TRACKS = 3
-        const val MUSIC_PREVIEW_PLAYLISTS = 2
+        const val MUSIC_PREVIEW_PLAYLISTS = 12
         const val FRIENDS_PREVIEW = 3
     }
 }

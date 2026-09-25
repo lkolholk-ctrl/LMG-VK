@@ -6,13 +6,9 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
-import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -20,27 +16,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.lmg.vk.R
-import com.lmg.vk.engine.LyricsFxController
 import com.lmg.vk.engine.LyricsParser
 import com.lmg.vk.engine.PlayerController
-import kotlinx.coroutines.isActive
 
-/**
- * Превью («Тест») разметки: проигрывает трек с подсветкой по ТЕКУЩЕЙ разметке
- * (как будет в реальном плеере — те же sweep/эффект/плавность), чтобы проверить
- * синхронность. Можно стартовать с конкретной строки. Внизу — выбор эффекта и
- * ползунок плавности (применяются глобально, сохраняются). Кнопка — назад к правке.
- *
- * Это ПРОВЕРОЧНЫЙ оверлей; ничего не сохраняет и не трогает движок/MediaSession,
- * кроме обычных seek/play (как и сама разметка).
- */
+/** Preview the edited timings with the same Accompanist renderer as the lyrics screen. */
 @Composable
 fun MarkupPreviewView(
     lyrics: LyricsParser.Lyrics,
@@ -49,54 +33,28 @@ fun MarkupPreviewView(
     onBackToEdit: () -> Unit
 ) {
     val context = LocalContext.current
-    val processor = remember(lyrics) {
-        if (lyrics.lines.isNotEmpty()) LyricsTimeProcessor(lyrics) else null
-    }
     val isPlaying by PlayerController.isPlaying.collectAsState()
-    var smoothPos by remember { mutableLongStateOf(0L) }
-    val currentProcessor by rememberUpdatedState(processor)
+    val coarse by PlayerController.currentPositionMs.collectAsState()
+    val duration by PlayerController.durationMs.collectAsState()
+    val position = rememberLyricsPosition(lyrics, coarse, isPlaying, durationMs = duration)
+    var data by remember(lyrics) { mutableStateOf<AccompanistLyrics?>(null) }
+    LaunchedEffect(lyrics, duration) {
+        data = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+            AccompanistLyricsAdapter.fromLegacy(lyrics, duration)
+        }
+    }
     val isWordLevel = lyrics.isWordLevel
+    val speed by PlayerController.playbackSpeed.collectAsState()
+    var seekRevision by remember { mutableIntStateOf(0) }
+    LaunchedEffect(Unit) {
+        PlayerController.positionDiscontinuity.collect { seekRevision++ }
+    }
 
     // Старт с выбранной строки.
     LaunchedEffect(startLineIndex, lyrics) {
         val t = lyrics.lines.getOrNull(startLineIndex)?.timeMs?.coerceAtLeast(0L) ?: 0L
         runCatching { PlayerController.seekTo(t) }
         if (!PlayerController.isPlaying.value) runCatching { PlayerController.togglePlayPause(context) }
-    }
-
-    // Покадровый тикер (как в реальном экране лирики).
-    LaunchedEffect(Unit) {
-        while (isActive) {
-            withFrameMillis {
-                if (PlayerController.isPlaying.value) {
-                    smoothPos = PlayerController.getSmoothPositionMs()
-                    currentProcessor?.updatePosition(smoothPos)
-                }
-            }
-        }
-    }
-    val coarse by PlayerController.currentPositionMs.collectAsState()
-    LaunchedEffect(coarse, isPlaying) {
-        if (!isPlaying) { smoothPos = coarse; processor?.updatePosition(coarse) }
-    }
-
-    val curIdx by processor?.currentLineIndex?.collectAsState() ?: remember { mutableIntStateOf(-1) }
-    val curProg by processor?.currentLineProgress?.collectAsState() ?: remember { mutableFloatStateOf(0f) }
-
-    val effect by LyricsFxController.effect.collectAsState()
-    val smooth by LyricsFxController.smoothness.collectAsState()
-    val speed by PlayerController.playbackSpeed.collectAsState()
-
-    val listState = rememberLazyListState()
-    val density = LocalDensity.current
-    val configuration = LocalConfiguration.current
-    val maxWidthPx = with(density) { (configuration.screenWidthDp.dp - 48.dp).toPx().toInt() }
-    val softPx = (0.02f + smooth * 0.16f) * maxWidthPx
-
-    LaunchedEffect(curIdx) {
-        if (curIdx >= 0) runCatching {
-            listState.animateScrollToItem(curIdx.coerceAtMost((lyrics.lines.size - 1).coerceAtLeast(0)))
-        }
     }
 
     Box(Modifier.fillMaxSize().background(Color(0xFF0A0A0C))) {
@@ -125,35 +83,14 @@ fun MarkupPreviewView(
                 Text(stringResource(R.string.test_label), color = Color.White.copy(alpha = 0.7f), fontSize = 13.sp, fontWeight = FontWeight.Bold)
             }
 
-            // ── Строки с подсветкой ──
-            LazyColumn(
-                state = listState,
-                modifier = Modifier.weight(1f).fillMaxWidth()
-            ) {
-                item { Spacer(Modifier.height(40.dp)) }
-                itemsIndexed(lyrics.lines) { index, line ->
-                    val isCurrent = index == curIdx
-                    val isPast = index < curIdx
-                    val fillProgress = when {
-                        isPast -> 1f
-                        isCurrent -> curProg
-                        else -> 0f
-                    }
-                    Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 10.dp)) {
-                        LyricLineSweep(
-                            text = line.text,
-                            fillProgress = fillProgress,
-                            sungColor = Color.White.copy(alpha = if (isCurrent) 0.94f else 0.55f),
-                            unsungColor = Color.White.copy(alpha = 0.18f),
-                            isActive = isCurrent,
-                            maxWidthPx = maxWidthPx,
-                            glowColor = accent,
-                            effect = if (isWordLevel) effect else LyricsFxController.WordEffect.FILL,
-                            edgeSoftPx = if (isCurrent && isWordLevel) softPx else 0f
-                        )
-                    }
+            Box(Modifier.weight(1f).fillMaxWidth()) {
+                data?.let { loaded ->
+                    AccompanistLyricsBody(
+                        data = loaded, position = position, seekRevision = seekRevision,
+                        onSeek = { PlayerController.seekTo(it.start.toLong()) },
+                        onShare = {},
+                    )
                 }
-                item { Spacer(Modifier.height(120.dp)) }
             }
 
             // ── Транспорт ──
@@ -200,51 +137,8 @@ fun MarkupPreviewView(
                 }
             }
 
-            // ── Эффекты + плавность (применяются глобально, сохраняются) ──
-            if (isWordLevel) {
-                Column(
-                    Modifier.fillMaxWidth()
-                        .background(Color.White.copy(alpha = 0.05f))
-                        .windowInsetsPadding(WindowInsets.navigationBars)
-                        .padding(horizontal = 20.dp, vertical = 12.dp)
-                ) {
-                    Text(stringResource(R.string.fill_effect), color = Color.White.copy(alpha = 0.7f), fontSize = 12.sp)
-                    Spacer(Modifier.height(6.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        EffectChip(stringResource(R.string.effect_fill), effect == LyricsFxController.WordEffect.FILL, accent) {
-                            LyricsFxController.setEffect(LyricsFxController.WordEffect.FILL)
-                        }
-                        EffectChip(stringResource(R.string.effect_fade), effect == LyricsFxController.WordEffect.FADE, accent) {
-                            LyricsFxController.setEffect(LyricsFxController.WordEffect.FADE)
-                        }
-                        EffectChip(stringResource(R.string.effect_running), effect == LyricsFxController.WordEffect.RUNNING, accent) {
-                            LyricsFxController.setEffect(LyricsFxController.WordEffect.RUNNING)
-                        }
-                    }
-                    Spacer(Modifier.height(8.dp))
-                    Text(stringResource(R.string.smoothness_percent, (smooth * 100).toInt()), color = Color.White.copy(alpha = 0.7f), fontSize = 12.sp)
-                    Slider(
-                        value = smooth,
-                        onValueChange = { LyricsFxController.setSmoothness(it) },
-                        valueRange = 0f..1f
-                    )
-                }
-            }
+            Spacer(Modifier.windowInsetsBottomHeight(WindowInsets.navigationBars))
         }
-    }
-}
-
-@Composable
-private fun EffectChip(label: String, selected: Boolean, accent: Color, onClick: () -> Unit) {
-    Box(
-        Modifier.clip(RoundedCornerShape(20.dp))
-            .background(if (selected) accent else Color.White.copy(alpha = 0.12f))
-            .clickable(remember { MutableInteractionSource() }, null, onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 7.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(label, color = Color.White, fontSize = 13.sp,
-            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal)
     }
 }
 

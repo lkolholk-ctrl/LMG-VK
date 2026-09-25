@@ -5,18 +5,27 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.animation.scaleOut
 import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.animation.AnimatedContentScope
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.navigation.NamedNavArgument
+import androidx.navigation.NavBackStackEntry
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
+import com.lmg.vk.engine.backend.HomeCatalogPage
+import com.lmg.vk.ui.viewmodel.HomeViewModel
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
-import androidx.navigation.compose.composable
+import androidx.navigation.compose.composable as navComposable
 import androidx.navigation.compose.navigation
 import androidx.navigation.navArgument
 import com.kyant.backdrop.backdrops.LayerBackdrop
@@ -76,19 +85,10 @@ fun LiquidNavHost(
             slideOutHorizontally(spring(dampingRatio = 0.9f, stiffness = 350f)) { -it / 6 } + fadeOut(tween(150))
         },
         popEnterTransition = {
-            fadeIn(tween(260))
+            fadeIn(tween(160, delayMillis = 60))
         },
         popExitTransition = {
-            slideOutHorizontally(
-                tween(320, easing = com.lmg.vk.ui.theme.AppleEasings.Standard)
-            ) { it } + scaleOut(
-                targetScale = 0.92f,
-                transformOrigin = TransformOrigin(0f, 0.5f),
-                animationSpec = tween(320, easing = com.lmg.vk.ui.theme.AppleEasings.Standard),
-            ) + fadeOut(
-                targetAlpha = 0.94f,
-                animationSpec = tween(320),
-            )
+            slideOutHorizontally(tween(160)) { it / 16 } + fadeOut(tween(160))
         }
     ) {
         // ═══════════ Граф ВОЛНЫ ═══════════
@@ -218,6 +218,7 @@ fun LiquidNavHost(
                     onOpenDetails = {
                         navController.navigate(NavRoutes.userProfileDetails(userId))
                     },
+                    onOpenHistory = { navController.navigate(NavRoutes.VK_HISTORY) },
                 )
             }
             composable(
@@ -283,21 +284,32 @@ fun LiquidNavHost(
         // ═══════════ Граф NEW ═══════════
         navigation(startDestination = NavRoutes.NEW_HOME, route = NavRoutes.GRAPH_NEW) {
             composable(NavRoutes.NEW_HOME) { entry ->
-                val homeViewModel = ViewModelProvider(entry)[com.lmg.vk.ui.viewmodel.HomeViewModel::class.java]
+                val homeViewModel = ViewModelProvider(entry, viewModelFactory {
+                    initializer { HomeViewModel(HomeCatalogPage.MAIN) }
+                })["new_main", HomeViewModel::class.java]
+                val exploreViewModel = ViewModelProvider(entry, viewModelFactory {
+                    initializer { HomeViewModel(HomeCatalogPage.EXPLORE) }
+                })["new_explore", HomeViewModel::class.java]
                 NewScreen(
                     viewModel = homeViewModel,
+                    exploreViewModel = exploreViewModel,
                     onNavigateToAlbum = { navController.navigate(NavRoutes.album(NavRoutes.TAB_NEW, it)) },
                     onNavigateToPlaylist = { navController.navigate(NavRoutes.playlist(NavRoutes.TAB_NEW, it)) },
                     onNavigateToArtist = { navController.navigate(NavRoutes.artist(NavRoutes.TAB_NEW, it)) },
                     onNavigateToMusicOwner = {
                         navController.navigate(NavRoutes.ownerAudio(NavRoutes.TAB_NEW, it))
                     },
-                    onOpenSnippets = { navController.navigate(NavRoutes.NEW_SNIPPETS) }
+                    onOpenSnippets = { navController.navigate(NavRoutes.NEW_SNIPPETS) },
+                    onTuneRecommendations = { navController.navigate(NavRoutes.NEW_RECOMMENDATIONS) },
+                    onOpenAuth = onOpenAuth,
                 )
             }
             // Лента сниппетов — полноэкранный фид, живёт в бэкстеке вкладки New.
             composable(NavRoutes.NEW_SNIPPETS) {
                 SnippetsScreen(onBack = { navController.popBackStack() })
+            }
+            composable(NavRoutes.NEW_RECOMMENDATIONS) {
+                RecommendationsOnboardingScreen(onBack = { navController.popBackStack() })
             }
             musicDetailDestinations(NavRoutes.TAB_NEW, navController)
         }
@@ -392,5 +404,17 @@ private fun NavGraphBuilder.musicDetailDestinations(
             onBack = { navController.popBackStack() },
             onNavigateToArtist = { navController.navigate(NavRoutes.artist(tab, it)) },
         )
+    }
+}
+
+private fun NavGraphBuilder.composable(
+    route: String,
+    arguments: List<NamedNavArgument> = emptyList(),
+    content: @Composable AnimatedContentScope.(NavBackStackEntry) -> Unit,
+) {
+    navComposable(route = route, arguments = arguments) { entry ->
+        Box(Modifier.fillMaxSize().background(com.lmg.vk.ui.theme.LiquidTheme.colors.settingsBackground)) {
+            content(entry)
+        }
     }
 }

@@ -8,6 +8,7 @@ import com.lmg.vk.network.VkParsedResponse
 import com.lmg.vk.network.VkResponseParser
 import com.lmg.vk.network.RawHttpResponse
 import com.lmg.vk.network.urlFragmentOrNull
+import com.lmg.vk.network.parseInBackground
 
 /**
  * Порт `C8221e.vip(appId, scope, sourceUrl)` из VK X 8.12.1 — получение
@@ -123,7 +124,7 @@ class VkMiniAppTokenProvider(
 
         // Парсер знает основной токен, чтобы никогда не выдать его за токен
         // мини-приложения (см. MiniAppTokenParser).
-        return parser.parse(raw).data
+        return parser.parseInBackground(raw).data
     }
 
     /**

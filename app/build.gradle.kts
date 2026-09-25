@@ -162,7 +162,9 @@ dependencies {
 
     // --- плеер: media3 из НАШЕГО форка (media3-lmg, 1.5.1-lmg30) ---
     implementation("com.liquidmusicglass.media3:media3-common:1.5.1-lmg30")
-    implementation("com.liquidmusicglass.media3:media3-exoplayer:1.5.1-lmg30")
+    implementation("com.liquidmusicglass.media3:media3-exoplayer") {
+        version { strictly(providers.gradleProperty("automixExoplayerVersion").getOrElse("1.5.1-lmg30")) }
+    }
     implementation("com.liquidmusicglass.media3:media3-exoplayer-hls:1.5.1-lmg30")
     implementation("com.liquidmusicglass.media3:media3-extractor:1.5.1-lmg30")
     implementation("com.liquidmusicglass.media3:media3-session:1.5.1-lmg30")

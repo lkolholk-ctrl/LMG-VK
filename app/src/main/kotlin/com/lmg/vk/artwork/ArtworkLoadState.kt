@@ -6,6 +6,6 @@ data class ArtworkLoadState(val isReady: Boolean, val coverUrl: String?) {
 
         fun initial(query: ArtworkQuery?, fallback: String?, cached: ArtworkLoadState?): ArtworkLoadState =
             if (query?.usable != true) ArtworkLoadState(true, fallback)
-            else cached?.let { it.copy(coverUrl = it.coverUrl ?: fallback) } ?: Pending
+            else cached?.let { it.copy(coverUrl = it.coverUrl ?: fallback) } ?: ArtworkLoadState(false, fallback)
     }
 }

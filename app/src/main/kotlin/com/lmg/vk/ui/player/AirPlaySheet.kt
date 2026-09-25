@@ -1,5 +1,7 @@
 package com.lmg.vk.ui.player
 
+import com.lmg.vk.ui.navigation.rememberWindowCloseState
+import com.lmg.vk.ui.navigation.windowClose
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -11,6 +13,9 @@ import android.net.Uri
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import androidx.compose.ui.graphics.graphicsLayer
+import com.lmg.vk.ui.effects.DustDissolve
+import com.lmg.vk.ui.effects.rememberDustDissolveState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.EaseIn
 import androidx.compose.animation.core.spring
@@ -264,10 +269,30 @@ fun AirPlaySheet(
     trackTitle: String,
     artistName: String,
     albumArtUri: Uri?,
+    coverUrl: String? = null,
+    audioFileUri: Uri? = null,
+    albumId: Long = -1L,
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
     val density = LocalDensity.current
+    val containerColor = Color(0xFF121212).copy(alpha = 0.18f)
+    val dimColor = Color(0xFF0E0E12).copy(alpha = 0.62f)
+    val enterProgress = remember { Animatable(1f) }
+
+    var mounted by remember { mutableStateOf(visible) }
+    val dust = rememberDustDissolveState()
+    LaunchedEffect(visible, mounted) {
+        if (visible) {
+            mounted = true
+            enterProgress.animateTo(0f, spring(0.85f, 250f))
+        } else if (!mounted) {
+            enterProgress.snapTo(1f)
+        }
+    }
+    val airBack = rememberWindowCloseState(enabled = visible, fadeOnCommit = false, onBack = onDismiss)
+    if (!mounted && !visible) return
+
     var devices by remember { mutableStateOf(emptyList<AudioOutputDevice>()) }
     val liveDevices = rememberAudioDevices()
 
@@ -276,18 +301,7 @@ fun AirPlaySheet(
         devices = liveDevices
     }
 
-    val containerColor = Color(0xFF121212).copy(alpha = 0.18f)
-    val dimColor = Color(0xFF0E0E12).copy(alpha = 0.62f)
-    val enterProgress = remember { Animatable(1f) }
 
-    LaunchedEffect(visible) {
-        if (visible) enterProgress.animateTo(0f, spring(0.85f, 250f))
-        else enterProgress.animateTo(1f, spring(0.88f, 350f))
-    }
-
-    if (enterProgress.value >= 0.99f && !visible) return
-
-    val progress = enterProgress.value
     val vis by remember { derivedStateOf { (1f - enterProgress.value).coerceIn(0f, 1f) } }
     val slideOffsetPx = with(density) { 360.dp.toPx() }
 
@@ -296,130 +310,143 @@ fun AirPlaySheet(
             .fillMaxSize()
             .drawWithContent {
                 drawContent()
-                drawRect(dimColor.copy(alpha = dimColor.alpha * vis))
+                drawRect(dimColor.copy(alpha = dimColor.alpha * vis * (1f - dust.progress.value)))
             }
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null
-            ) { onDismiss() }
+            ) { if (visible) onDismiss() }
     )
 
     Box(
         modifier = Modifier.fillMaxSize(),
         contentAlignment = Alignment.BottomCenter
     ) {
-        Box(
+        DustDissolve(
+            dissolving = !visible,
+            onFinished = { mounted = false },
+            state = dust,
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 36.dp)
                 .padding(bottom = 120.dp)
                 .height(260.dp)
-                .drawBackdrop(
-                    backdrop = backdrop,
-                    shape = { RoundedRectangle(28.dp) },
-                    effects = {
-                        vibrancy()
-                        blur(3f.dp.toPx())
-                        lens(
-                            refractionHeight = 52f.dp.toPx(),
-                            refractionAmount = 80f.dp.toPx(),
-                            depthEffect = true,
-                            chromaticAberration = true
-                        )
-                    },
-                    layerBlock = {
-                        translationY = progress * slideOffsetPx
-                        alpha = EaseIn.transform(vis)
-                    },
-                    shadow = { Shadow(radius = 12.dp, color = Color.Black.copy(alpha = 0.25f)) },
-                    innerShadow = { InnerShadow(radius = 4.dp, alpha = 0.3f) },
-                    onDrawSurface = {
-                        drawRect(containerColor)
-                        drawRect(
-                            color = Color.White.copy(alpha = 0.35f),
-                            style = Stroke(width = 1.5f.dp.toPx())
-                        )
-                    }
-                )
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null
-                ) {}
+                .windowClose(airBack)
+                .graphicsLayer {
+                    translationY = enterProgress.value * slideOffsetPx
+                    alpha = EaseIn.transform(vis)
+                },
         ) {
-            Column(
+            Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(horizontal = 14.dp, vertical = 14.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(46.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(Color.White.copy(alpha = 0.05f))
-                    ) {
-                        AlbumArtImage(
-                            uri = albumArtUri,
-                            contentDescription = null,
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier.fillMaxSize()
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = trackTitle,
-                            color = Color.White,
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        Text(
-                            text = artistName,
-                            color = Color.White.copy(alpha = 0.52f),
-                            fontSize = 12.sp,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                    Box(
-                        modifier = Modifier
-                            .size(34.dp)
-                            .clip(CircleShape)
-                            .background(Color.White.copy(alpha = 0.08f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = com.lmg.vk.ui.icons.LmgGlyphs.VolumeOutline28,
-                            contentDescription = null,
-                            tint = Color.White.copy(alpha = 0.92f),
-                            modifier = Modifier.size(16.dp)
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                devices.forEachIndexed { index, device ->
-                    DeviceRow(
-                        device = device,
-                        onClick = {
-                            switchOutput(context, device)
-                            // Мгновенно обновляем UI
-                            val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
-                            devices = buildDeviceList(audioManager)
+                    .drawBackdrop(
+                        backdrop = backdrop,
+                        shape = { RoundedRectangle(28.dp) },
+                        effects = {
+                            vibrancy()
+                            blur(3f.dp.toPx())
+                            lens(
+                                refractionHeight = 52f.dp.toPx(),
+                                refractionAmount = 80f.dp.toPx(),
+                                depthEffect = true,
+                                chromaticAberration = true
+                            )
+                        },
+                        shadow = { Shadow(radius = 12.dp, color = Color.Black.copy(alpha = 0.25f)) },
+                        innerShadow = { InnerShadow(radius = 4.dp, alpha = 0.3f) },
+                        onDrawSurface = {
+                            drawRect(containerColor)
+                            drawRect(
+                                color = Color.White.copy(alpha = 0.35f),
+                                style = Stroke(width = 1.5f.dp.toPx())
+                            )
                         }
                     )
-                    if (index != devices.lastIndex) {
-                        Spacer(modifier = Modifier.height(8.dp))
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null
+                    ) {}
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 14.dp, vertical = 14.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(46.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(Color.White.copy(alpha = 0.05f))
+                        ) {
+                            AlbumArtImage(
+                                uri = albumArtUri,
+                                coverUrl = coverUrl,
+                                audioFileUri = audioFileUri,
+                                albumId = albumId,
+                                contentDescription = null,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                            MotionArtworkSurface(Modifier.fillMaxSize())
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = trackTitle,
+                                color = Color.White,
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Text(
+                                text = artistName,
+                                color = Color.White.copy(alpha = 0.52f),
+                                fontSize = 12.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                        Box(
+                            modifier = Modifier
+                                .size(34.dp)
+                                .clip(CircleShape)
+                                .background(Color.White.copy(alpha = 0.08f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = com.lmg.vk.ui.icons.LmgGlyphs.VolumeOutline28,
+                                contentDescription = null,
+                                tint = Color.White.copy(alpha = 0.92f),
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
                     }
-                }
 
-                Spacer(modifier = Modifier.weight(1f))
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    devices.forEachIndexed { index, device ->
+                        DeviceRow(
+                            device = device,
+                            onClick = {
+                                switchOutput(context, device)
+                                // Мгновенно обновляем UI
+                                val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+                                devices = buildDeviceList(audioManager)
+                            }
+                        )
+                        if (index != devices.lastIndex) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.weight(1f))
+                }
             }
         }
     }

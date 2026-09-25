@@ -1,5 +1,8 @@
 package com.lmg.vk.ui.screens
 
+import com.lmg.vk.ui.navigation.WindowCloseSurface
+import com.lmg.vk.ui.navigation.rememberWindowCloseState
+import com.lmg.vk.ui.navigation.windowClose
 import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -110,7 +113,7 @@ fun LocalLibraryScreen(
         if (tab != 2 || query.isNotBlank()) exitSelection()
     }
 
-    BackHandler(enabled = bulkOpen) { bulkOpen = false }
+
     BackHandler(enabled = selectionMode && !bulkOpen) { exitSelection() }
 
     Box(Modifier.fillMaxSize().background(lc.settingsBackground)) {
@@ -186,7 +189,7 @@ fun LocalLibraryScreen(
 
         // оверлей массового редактирования
         if (bulkOpen) {
-            Box(Modifier.fillMaxSize()) {
+            WindowCloseSurface(onBack = { bulkOpen = false }) { _ ->
                 BulkTagEditScreen(
                     tracks = selected.values.map { LocalLibraryStore.toTrack(it) },
                     onBack = { bulkOpen = false; exitSelection() }
@@ -385,7 +388,7 @@ private fun SelectableTrackRow(
             }
             Spacer(Modifier.width(10.dp))
         }
-        ArtBox(albumArt(e.albumId), if (compact) 40.dp else 48.dp, 8.dp, lc, com.lmg.vk.ui.icons.LmgGlyphs.MusicNote24)
+        ArtBox(albumArt(e.albumId), if (compact) 40.dp else 48.dp, 8.dp, lc, com.lmg.vk.ui.icons.LmgGlyphs.MusicNote24, artworkQuery = com.lmg.vk.artwork.ArtworkQuery(e.title, e.artist, e.durationMs, e.albumName))
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(e.title, color = lc.textPrimary, fontSize = if (compact) 13.5.sp else 15.sp, fontWeight = FontWeight.Medium,
@@ -612,7 +615,7 @@ private fun TrackRow(e: LocalTrackEntity, lc: LiquidColors, paddingH: Dp = 8.dp,
             .padding(horizontal = paddingH, vertical = if (compact) 6.dp else 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        ArtBox(albumArt(e.albumId), if (compact) 40.dp else 48.dp, 8.dp, lc, com.lmg.vk.ui.icons.LmgGlyphs.MusicNote24)
+        ArtBox(albumArt(e.albumId), if (compact) 40.dp else 48.dp, 8.dp, lc, com.lmg.vk.ui.icons.LmgGlyphs.MusicNote24, artworkQuery = com.lmg.vk.artwork.ArtworkQuery(e.title, e.artist, e.durationMs, e.albumName))
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(e.title, color = lc.textPrimary, fontSize = if (compact) 13.5.sp else 15.sp, fontWeight = FontWeight.Medium,
@@ -643,12 +646,13 @@ private fun AlbumTrackRow(e: LocalTrackEntity, num: Int, lc: LiquidColors, compa
 private fun ArtBox(
     uri: Uri, size: Dp?, corner: Dp, lc: LiquidColors,
     fallback: androidx.compose.ui.graphics.vector.ImageVector,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    artworkQuery: com.lmg.vk.artwork.ArtworkQuery? = null,
 ) {
     val base = if (size != null) modifier.size(size) else modifier
     Box(base.clip(RoundedCornerShape(corner)).background(lc.glassTint), contentAlignment = Alignment.Center) {
         Icon(fallback, null, tint = lc.iconMuted, modifier = Modifier.size(22.dp))
-        AsyncImage(model = uri, contentDescription = null, modifier = Modifier.fillMaxSize(),
+        com.lmg.vk.ui.glass.AlbumArtImage(uri = uri, artworkQuery = artworkQuery, contentDescription = null, modifier = Modifier.fillMaxSize(),
             contentScale = androidx.compose.ui.layout.ContentScale.Crop)
     }
 }

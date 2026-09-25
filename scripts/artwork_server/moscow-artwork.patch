@@ -1,0 +1,215 @@
+--- a/am_ttml_proxy.py
++++ b/am_ttml_proxy.py
+@@ -20,6 +20,7 @@
+ import json, mimetypes, os, re, time, threading, urllib.error, urllib.parse, urllib.request
+ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+ from playwright.sync_api import sync_playwright
++from artwork_matching import clean_title, candidate_score
+ 
+ PORT = 8777
+ PLAYER_DIST = "/root/amll-player/dist"
+@@ -62,7 +63,7 @@
+     with _motion_lock:
+         item = _motion_cache.get(key)
+         if not item: return None
+-        ttl = 30 * 86400 if item.get("data", {}).get("has_motion") else 7 * 86400
++        ttl = 30 * 86400 if item.get("data", {}).get("has_motion") else 15 * 60
+         if time.time() - item.get("ts", 0) > ttl:
+             del _motion_cache[key]
+             return None
+@@ -152,6 +153,7 @@
+         return dict(_cache)
+ 
+ def api_get(path_qs, hdrs, retry=True):
++    hdrs = hdrs or (dict(_cache) if _cache.get("auth") else refresh_headers())
+     url = f"https://amp-api.music.apple.com{path_qs}"
+     h = {"authorization": hdrs["auth"], "origin": "https://music.apple.com", "User-Agent": UA}
+     if hdrs.get("mut"): h["media-user-token"] = hdrs["mut"]
+@@ -190,11 +192,12 @@
+         print(f"resolve_by_id error ({track_id}, {sf}): {e}", flush=True)
+         return None
+ 
+-def search_catalog(title, artist, hdrs, sf="us"):
++def search_catalog(title, artist, hdrs, sf="us", strict_errors=False):
++    catalog_failed = False
+     q = urllib.parse.quote(f"{title} {artist}".strip())
+     # 1. Official Apple Music Catalog Search via amp-api
+     try:
+-        url = f"/v1/catalog/{sf}/search?term={q}&types=songs&limit=10"
++        url = f"/v1/catalog/{sf}/search?term={q}&types=songs&limit=25"
+         d = api_get(url, hdrs)
+         songs = d.get("results", {}).get("songs", {}).get("data", [])
+         if songs:
+@@ -214,12 +217,13 @@
+                 })
+             return out
+     except Exception as e:
++        catalog_failed = True
+         print("amp-api search fallback:", e, flush=True)
+ 
+     # 2. iTunes Public Search Fallback
+     try:
+         req = urllib.request.Request(
+-            f"https://itunes.apple.com/search?term={q}&media=music&entity=song&limit=10",
++            f"https://itunes.apple.com/search?term={q}&media=music&entity=song&limit=25&country={sf}",
+             headers={"User-Agent": UA})
+         r = json.load(urllib.request.urlopen(req, timeout=15))
+         out = []
+@@ -234,9 +238,13 @@
+                 "dur": x.get("trackTimeMillis",0)/1000.0,
+                 "country": cc,
+             })
++        if strict_errors and catalog_failed and not out:
++            raise RuntimeError("Catalog unavailable; empty fallback is not a confirmed miss")
+         return out
+     except Exception as e:
+         print("itunes search failed:", e, flush=True)
++        if strict_errors:
++            raise
+         return []
+ 
+ def resolve_track(qs, hdrs):
+@@ -316,7 +324,7 @@
+         print("extract_mp4 error:", e, flush=True)
+     return None
+ 
+-def _build_motion_result(alb_id, alb_attrs, track_id=None, song_attrs=None, sf="us"):
++def _build_motion_result(alb_id, alb_attrs, track_id=None, song_attrs=None, sf="us", include_mp4=True):
+     ed_video = alb_attrs.get("editorialVideo", {})
+     sq = ed_video.get("motionDetailSquare") or ed_video.get("motionSquareVideo1x1")
+     tall = ed_video.get("motionDetailTall") or ed_video.get("motionTallVideo3x4")
+@@ -338,13 +346,14 @@
+         "album": alb_attrs.get("name") or (song_attrs.get("albumName") if song_attrs else None),
+         "static_artwork": static_url,
+         "storefront": sf,
++        "duration_ms": (song_attrs or {}).get("durationInMillis") or (song_attrs or {}).get("durationInMilliseconds"),
+     }
+     if not has_motion:
+         return res
+ 
+     if sq:
+         sq_m3u8 = sq.get("video")
+-        sq_mp4 = extract_mp4_from_m3u8(sq_m3u8)
++        sq_mp4 = extract_mp4_from_m3u8(sq_m3u8) if include_mp4 else None
+         sq_preview = sq.get("previewFrame", {}).get("url", "").replace("{w}x{h}", "1200x1200")
+         res["square"] = {
+             "m3u8": sq_m3u8,
+@@ -353,7 +362,7 @@
+         }
+     if tall:
+         tall_m3u8 = tall.get("video")
+-        tall_mp4 = extract_mp4_from_m3u8(tall_m3u8)
++        tall_mp4 = extract_mp4_from_m3u8(tall_m3u8) if include_mp4 else None
+         tall_preview = tall.get("previewFrame", {}).get("url", "").replace("{w}x{h}", "1200x1600")
+         res["tall"] = {
+             "m3u8": tall_m3u8,
+@@ -371,15 +380,10 @@
+     return res
+ 
+ def _clean_track_title(title):
+-    if not title: return ""
+-    t = re.sub(r"\[(?:https?://)?(?:vk\.com|vkontakte)[^\]]*\]", "", title, flags=re.I)
+-    t = re.sub(r"\((?:https?://)?(?:vk\.com|vkontakte)[^\)]*\)", "", t, flags=re.I)
+-    t = re.sub(r"\[(?:320\s*kbps|flac|mp3|exclusive|hit|new|bass)\]", "", t, flags=re.I)
+-    t = re.sub(r"\b(Electronic|House|Club|Trap|Dubstep|Bass)\b", "", t, flags=re.I)
+-    t = re.sub(r"\s+", " ", t).strip()
+-    return t
++    return clean_title(title or "")
+ 
+ def resolve_motion_artwork(qs, hdrs):
++    include_mp4 = qs.get("include_mp4", ["1"])[0] != "0"
+     sf = (qs.get("sf", [""])[0] or "us").strip().lower()
+     album_id = (qs.get("album_id", [""])[0]).strip()
+     track_id = (qs.get("id", [""])[0] or qs.get("track_id", [""])[0]).strip()
+@@ -398,14 +402,16 @@
+ 
+     cache_key = None
+     if album_id:
+-        cache_key = f"alb_{sf}_{album_id}"
++        cache_key = f"alb3_{sf}_{album_id}"
+     elif track_id:
+-        cache_key = f"trk_{sf}_{track_id}"
++        cache_key = f"trk3_{sf}_{track_id}"
+     elif title:
+         clean_q = f"{_sanitize(artist)}_{_sanitize(title)}"
+         if album: clean_q += f"_{_sanitize(album)}"
+-        cache_key = f"q_{sf}_{clean_q}"
+-
++        cache_key = "q3_" + json.dumps([sf, artist, title, album, want_dur], ensure_ascii=False)
++
++    if cache_key and not include_mp4:
++        cache_key += "_hls"
+     if cache_key:
+         cached = get_cached_motion(cache_key)
+         if cached is not None:
+@@ -419,7 +425,7 @@
+             res = {"has_motion": False, "error": "album_not_found", "album_id": album_id}
+         else:
+             alb = items[0]
+-            res = _build_motion_result(alb["id"], alb.get("attributes", {}), sf=sf)
++            res = _build_motion_result(alb["id"], alb.get("attributes", {}), sf=sf, include_mp4=include_mp4)
+         if cache_key: set_cached_motion(cache_key, res)
+         return res
+ 
+@@ -435,28 +441,21 @@
+             albums = song.get("relationships", {}).get("albums", {}).get("data", [])
+             alb_id = albums[0]["id"] if albums else None
+             alb_attrs = albums[0].get("attributes", {}) if albums else {}
+-            res = _build_motion_result(alb_id, alb_attrs, track_id=song["id"], song_attrs=s_attrs, sf=sf)
++            res = _build_motion_result(alb_id, alb_attrs, track_id=song["id"], song_attrs=s_attrs, sf=sf, include_mp4=include_mp4)
+         if cache_key: set_cached_motion(cache_key, res)
+         return res
+ 
+-    cands = search_catalog(title, artist, hdrs, sf)
++    cands = search_catalog(title, artist, hdrs, sf, strict_errors=True)
++    cands = [c for c in cands if candidate_score(c, title, artist, want_dur, album) is not None]
+     if not cands:
+         res = {"has_motion": False, "error": "not_found", "title": title, "artist": artist}
+         if cache_key: set_cached_motion(cache_key, res)
+         return res
+ 
+-    def score(c):
+-        s = 0.0
+-        if want_dur is not None:
+-            s += abs(c["dur"] - want_dur)
+-        if album and album.lower() not in c["album"]:
+-            s += 1000
+-        return s
+-
+-    cands_sorted = sorted(cands, key=score)
++    cands_sorted = sorted(cands, key=lambda c: candidate_score(c, title, artist, want_dur, album))
+     best_res = None
+     for cand in cands_sorted[:5]:
+-        c_res = resolve_motion_artwork({"id": [cand["id"]], "sf": [sf]}, hdrs)
++        c_res = resolve_motion_artwork({"id": [cand["id"]], "sf": [sf], "include_mp4": ["1" if include_mp4 else "0"]}, hdrs)
+         if c_res.get("has_motion"):
+             best_res = c_res
+             break
+@@ -590,8 +589,7 @@
+                 if not title and not track_id and not album_id and not isrc:
+                     self._json(400, {"error": "need title/artist, track_id, album_id or isrc", "has_motion": False})
+                     return
+-                hdrs = refresh_headers()
+-                res = resolve_motion_artwork(qs, hdrs)
++                res = resolve_motion_artwork(qs, None)
+                 self._json(200, res)
+                 return
+ 
+--- a/lyrics_service/server.py
++++ b/lyrics_service/server.py
+@@ -293,12 +293,12 @@
+                 self._send_json(502, {"error": "Upstream error", "detail": str(e)})
+                 return
+ 
+-        # Route /v2/motion (Proxy through to NY)
++        # Route /v2/motion (local authenticated Apple catalog proxy)
+         if u.path in ("/v2/motion", "/v2/artwork/motion"):
+-            upstream_motion = f"{UPSTREAM_MOTION_URL}?{urllib.parse.quote(u.query, safe='=&?+')}"
++            upstream_motion = f"{UPSTREAM_MOTION_URL}?{u.query}"
+             try:
+                 req = urllib.request.Request(upstream_motion)
+-                with urllib.request.urlopen(req, timeout=10) as resp:
++                with urllib.request.urlopen(req, timeout=25) as resp:
+                     data = json.loads(resp.read().decode("utf-8"))
+                     self._send_json(200, data)
+                     return

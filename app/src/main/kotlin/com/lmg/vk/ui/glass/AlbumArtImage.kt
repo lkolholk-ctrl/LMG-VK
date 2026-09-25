@@ -56,12 +56,29 @@ fun AlbumArtImage(
     resolvedArtwork: ResolvedArtworkSource? = null,
     placeholderIconSize: androidx.compose.ui.unit.Dp = 44.dp,
     colorFilter: ColorFilter? = null,
+    artworkQuery: com.lmg.vk.artwork.ArtworkQuery? = null,
 ) {
-    val artwork = resolvedArtwork
-        ?: remember(uri, coverUrl) { ArtworkSourceResolver.resolve(uri, coverUrl) }
+    val selection = if (artworkQuery == null) null else rememberTrackArtwork(artworkQuery, coverUrl)
+    if (selection?.isReady == false && selection.coverUrl.isNullOrBlank() && uri == null) {
+        Box(modifier.background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f)))
+        return
+    }
+    val preferredCover = if (selection == null) coverUrl else selection.coverUrl
+    var failedPreferred by remember(preferredCover) { mutableStateOf(false) }
+    val effectiveCover = if (failedPreferred) coverUrl else preferredCover
+    val artwork = if (effectiveCover != coverUrl) {
+        remember(uri, effectiveCover) { ArtworkSourceResolver.resolve(uri, effectiveCover) }
+    } else resolvedArtwork ?: remember(uri, coverUrl) { ArtworkSourceResolver.resolve(uri, coverUrl) }
     val coverArtwork = artwork?.takeIf { it.coverUrl != null }
 
     if (coverArtwork != null) {
+        val context = LocalContext.current
+        val request = remember(context, coverArtwork.cacheKey) {
+            ImageRequest.Builder(context)
+                .data(coverArtwork.model)
+                .crossfade(artworkQuery == null)
+                .build()
+        }
         var coverLoadFailed by remember(coverArtwork.cacheKey) { mutableStateOf(false) }
         if (coverLoadFailed) {
             MissingArtwork(
@@ -71,10 +88,7 @@ fun AlbumArtImage(
             )
         } else {
             AsyncImage(
-                model = ImageRequest.Builder(LocalContext.current)
-                    .data(coverArtwork.model)
-                    .crossfade(true)
-                    .build(),
+                model = request,
                 contentDescription = contentDescription,
                 modifier = modifier,
                 contentScale = contentScale,
@@ -97,7 +111,8 @@ fun AlbumArtImage(
                                 state.result.throwable.message,
                         )
                     }
-                    coverLoadFailed = true
+                    if (effectiveCover != coverUrl) failedPreferred = true
+                    else coverLoadFailed = true
                 },
             )
         }

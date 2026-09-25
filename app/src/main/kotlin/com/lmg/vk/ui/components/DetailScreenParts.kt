@@ -323,6 +323,7 @@ fun DetailTrackRow(
     coverUrl: String?,
     isDark: Boolean,
     showDivider: Boolean,
+    showArtwork: Boolean = true,
     enabled: Boolean = true,
     onMore: (() -> Unit)? = null,
     onClick: () -> Unit
@@ -334,13 +335,14 @@ fun DetailTrackRow(
                 .alpha(if (enabled) 1f else 0.42f)
                 .clip(LiquidMetrics.CoverShapeSmall)
                 .liquidClickable(enabled = enabled, pressedScale = LiquidMotion.PressButton, onClick = onClick)
-                .padding(vertical = if (coverUrl != null) 8.dp else 12.dp),
+                .padding(vertical = if (showArtwork) 8.dp else 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            if (coverUrl != null) {
+            if (showArtwork) {
                 AlbumArtImage(
                     uri = null,
                     coverUrl = coverUrl,
+                    artworkQuery = com.lmg.vk.artwork.ArtworkQuery(title, subtitle.orEmpty(), durationMs),
                     contentDescription = title,
                     modifier = Modifier
                         .size(LiquidMetrics.TrackCoverSize)

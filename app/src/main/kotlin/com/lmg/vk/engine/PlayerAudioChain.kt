@@ -25,7 +25,10 @@ object PlayerAudioChain {
     /** Сколько раз собирался аудио-синк за жизнь процесса (см. лог в buildAudioSink). */
     private val sinkCount = java.util.concurrent.atomic.AtomicInteger(0)
 
-    fun renderersFactory(context: Context): DefaultRenderersFactory =
+    fun renderersFactory(
+        context: Context,
+        renderBoundary: com.lmg.vk.engine.automix.render.RenderBoundaryController? = null,
+    ): DefaultRenderersFactory =
         object : DefaultRenderersFactory(context) {
             override fun buildAudioSink(
                 context: Context,
@@ -54,7 +57,7 @@ object PlayerAudioChain {
                 // поедет пульсация ауры или определение «уходящего» трека в
                 // DjStreamFx, причина здесь, и правка на нашей стороне.
                 com.lmg.vk.debug.DebugLog.add("buildAudioSink #$n (с lmg30 два — норма)")
-                return DefaultAudioSink.Builder(context)
+                val originalSink = DefaultAudioSink.Builder(context)
                     .setAudioProcessors(
                         arrayOf(
                             BassAudioProcessor(),
@@ -63,6 +66,7 @@ object PlayerAudioChain {
                         )
                     )
                     .build()
+                return com.lmg.vk.engine.automix.render.RenderBoundarySinkFactory.wrap(originalSink, renderBoundary)
             }
 
             // Видео-рендерер НУЖЕН: видеоклипы Apple Music играют этим же

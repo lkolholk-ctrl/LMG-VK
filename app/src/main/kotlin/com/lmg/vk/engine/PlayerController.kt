@@ -607,6 +607,12 @@ object PlayerController {
         return lastPlayerPositionMs + (elapsed * _playbackSpeed.value).toLong()
     }
 
+    /** Authoritative media position, including pauses, buffering and backwards corrections. */
+    @androidx.annotation.MainThread
+    fun getPlaybackPositionMs(): Long = audioServiceRef?.currentPlaybackPositionMs()
+        ?: controller?.takeIf { it.isConnected }?.currentPosition?.coerceAtLeast(0L)
+        ?: _currentPositionMs.value
+
     /** Переякорить интерполяцию на текущей сглаженной позиции (play/pause/seek/speed). */
     private fun reanchorSmoothPosition() {
         lastPlayerPositionMs = getSmoothPositionMs()
@@ -2122,6 +2128,14 @@ object PlayerController {
     }
 
     private suspend fun resolveStreamUrl(trackId: String): StreamResult {
+        val local = withContext(Dispatchers.IO) {
+            appContext?.let { ctx ->
+                com.lmg.vk.data.local.db.FavoriteTrackDatabase.getInstance(ctx).getDownloadedTrack(trackId)
+                    ?.takeIf { com.lmg.vk.data.local.PublicDownloads.exists(ctx, it.localPath) }
+                    ?.let { com.lmg.vk.data.local.PublicDownloads.toPlayableUri(it.localPath) }
+            }
+        }
+        if (local != null) return StreamResult.Success(local)
         val cached = streamUrlCache[trackId]
         if (cached != null) {
             return StreamResult.Success(cached.uri)
@@ -2610,7 +2624,12 @@ object PlayerController {
     val videoAspect: StateFlow<Float> = _videoAspect
 
     private fun buildMediaItem(track: Track, uri: Uri = track.uri): MediaItem {
-        val mediaUri = if (track.isOnlineTrack && uri.scheme != "file") {
+        val effectiveUri = if (uri == Uri.EMPTY) appContext?.let { ctx ->
+            com.lmg.vk.data.local.db.FavoriteTrackDatabase.getInstance(ctx).cachedDownloadedTrack(track.id)
+                ?.let { com.lmg.vk.data.local.PublicDownloads.toPlayableUri(it.localPath) }
+        } ?: uri else uri
+        val localAudio = effectiveUri.scheme in setOf("file", "content", "asset", "android.resource", "rawresource")
+        val mediaUri = if (track.isOnlineTrack && !localAudio) {
             Uri.Builder()
                 .scheme(StreamingDataSource.SCHEME_LIQUID)
                 .authority("track")
@@ -2629,7 +2648,7 @@ object PlayerController {
                 }
                 .build()
         } else {
-            uri
+            effectiveUri
         }
 
         val metaBuilder = MediaMetadata.Builder()
@@ -2671,7 +2690,7 @@ object PlayerController {
                 // onPlaybackError → handleUnsupportedContainer).
                 val known = streamUrlCache[track.id]?.uri?.toString()
                     ?: uri.toString().takeIf { it.startsWith("http") }
-                if (known != null && com.lmg.vk.audio.HlsDownloader.isHlsUrl(known)) {
+                if (!localAudio && known != null && com.lmg.vk.audio.HlsDownloader.isHlsUrl(known)) {
                     setMimeType(androidx.media3.common.MimeTypes.APPLICATION_M3U8)
                 }
             }

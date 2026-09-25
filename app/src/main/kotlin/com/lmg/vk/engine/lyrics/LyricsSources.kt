@@ -13,20 +13,25 @@ enum class LyricsSource(
         title = "Apple TTML",
         description = "Оригинальная послоговая синхронизация",
     ),
+    BINI_LYRICS(
+        id = "bini_lyrics",
+        title = "BiniLyrics",
+        description = "Пословная и построчная лирика TTML",
+    ),
     LYRICS_PLUS(
         id = "lyrics_plus",
         title = "LyricsPlus",
         description = "Плавная пословная синхронизация",
     ),
-    BETTER_LYRICS(
-        id = "better_lyrics",
-        title = "BetterLyrics",
-        description = "Тайминги слов из Apple Music",
-    ),
     LRCLIB(
         id = "lrclib",
         title = "LRCLIB",
         description = "Надежная построчная синхронизация",
+    ),
+    BETTER_LYRICS(
+        id = "better_lyrics",
+        title = "BetterLyrics",
+        description = "Тайминги слов из Apple Music",
     ),
 }
 
@@ -34,6 +39,7 @@ object LyricsSourceStore {
     private const val PREFS = "lyrics_sources"
     private const val KEY = "enabled"
     private const val KEY_APPLE_TTML_ADDED = "apple_ttml_added"
+    private const val KEY_BINI_LYRICS_ADDED = "bini_lyrics_added"
 
     fun enabled(context: Context): Set<LyricsSource> {
         val preferences = context.applicationContext
@@ -50,6 +56,13 @@ object LyricsSourceStore {
                 .putBoolean(KEY_APPLE_TTML_ADDED, true)
                 .apply()
         }
+        if (!preferences.getBoolean(KEY_BINI_LYRICS_ADDED, false)) {
+            result += LyricsSource.BINI_LYRICS
+            preferences.edit()
+                .putStringSet(KEY, result.mapTo(linkedSetOf()) { it.id })
+                .putBoolean(KEY_BINI_LYRICS_ADDED, true)
+                .apply()
+        }
         return result
     }
 
@@ -59,6 +72,7 @@ object LyricsSourceStore {
             .edit()
             .putStringSet(KEY, sources.mapTo(linkedSetOf()) { it.id })
             .putBoolean(KEY_APPLE_TTML_ADDED, true)
+            .putBoolean(KEY_BINI_LYRICS_ADDED, true)
             .apply()
         LyricsParser.trimCache()
     }
@@ -91,6 +105,7 @@ object LyricsDisplayStore {
 fun String.lyricsSourceTitle(): String = when (this) {
     "vk" -> "VK Музыка"
     LyricsSource.APPLE_TTML.id -> LyricsSource.APPLE_TTML.title
+    LyricsSource.BINI_LYRICS.id -> LyricsSource.BINI_LYRICS.title
     LyricsSource.LYRICS_PLUS.id -> LyricsSource.LYRICS_PLUS.title
     LyricsSource.BETTER_LYRICS.id -> LyricsSource.BETTER_LYRICS.title
     LyricsSource.LRCLIB.id -> LyricsSource.LRCLIB.title

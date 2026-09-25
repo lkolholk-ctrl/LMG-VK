@@ -7,6 +7,12 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.lazy.items
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -84,6 +90,7 @@ import java.text.DateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.flow.first
 
 /**
  * Public VK user profile based on the official client's `users.get` model.
@@ -98,6 +105,7 @@ fun UserProfileScreen(
     onOpenConnections: (String) -> Unit,
     onOpenPlaylist: (String) -> Unit,
     onOpenDetails: () -> Unit,
+    onOpenHistory: () -> Unit,
     viewModel: UserProfileViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
 ) {
     val context = LocalContext.current
@@ -105,29 +113,33 @@ fun UserProfileScreen(
     val state by viewModel.state.collectAsState()
     val activeAccountId by com.lmg.vk.engine.backend.MusicAuth.profileId.collectAsState()
     val listState = rememberLazyListState()
-    val compact = com.lmg.vk.ui.rememberWindowInfo().useSideBySide
+    var selectedSection by rememberSaveable(userId) { mutableStateOf(0) }
+    LaunchedEffect(selectedSection) { listState.scrollToItem(0) }
     var showRemoveFriendConfirm by remember { mutableStateOf(false) }
     var showEditProfile by remember { mutableStateOf(false) }
-    var editStatus by remember { mutableStateOf("") }
-    var editAbout by remember { mutableStateOf("") }
-    val avatarPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-        uri?.let { viewModel.uploadOwnProfileImage(context, it, ProfileImageKind.AVATAR) }
-    }
-    val coverPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-        uri?.let { viewModel.uploadOwnProfileImage(context, it, ProfileImageKind.COVER) }
-    }
 
     LaunchedEffect(userId, activeAccountId) {
         viewModel.load(userId, force = true)
     }
 
-    val showTopTitle by remember {
-        derivedStateOf {
-            listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 120
-        }
-    }
 
-    Box(modifier = Modifier.fillMaxSize().background(LiquidSurfaces.sheet(colors.isDark))) {
+    Column(modifier = Modifier.fillMaxSize().background(LiquidSurfaces.sheet(colors.isDark)).statusBarsPadding()) {
+        MusicProfileToolbar(
+            onBack = onBack,
+            actions = listOf<Pair<String, () -> Unit>>(
+                stringResource(R.string.profile_about_title) to onOpenDetails,
+                stringResource(R.string.share_profile) to {
+                    state.profile?.let { profile ->
+                        val intent = Intent(Intent.ACTION_SEND).apply {
+                            type = "text/plain"
+                            putExtra(Intent.EXTRA_TEXT, "https://vk.com/${profile.addressSlug.ifBlank { "id$userId" }}")
+                        }
+                        runCatching { context.startActivity(Intent.createChooser(intent, context.getString(R.string.share_vk_profile))) }
+                    }
+                },
+            ),
+        )
+    Box(Modifier.weight(1f).fillMaxWidth()) {
         when {
             state.isLoading && state.profile == null -> UserProfileLoading()
             state.notFound -> UserProfileMessage(
@@ -142,7 +154,7 @@ fun UserProfileScreen(
             )
             state.profile != null -> {
                 val profile = state.profile!!
-                val profileUrl = "https://vk.com/${profile.addressSlug.ifBlank { "id$userId" }}"
+
                 val friendLabel = when {
                     state.isOwnProfile && state.isSavingProfile -> stringResource(R.string.status_saving_short)
                     state.isOwnProfile -> stringResource(R.string.edit_profile)
@@ -152,40 +164,20 @@ fun UserProfileScreen(
                     profile.friendStatus == 3 || profile.isFriend == 1 -> stringResource(R.string.friends_title)
                     else -> stringResource(R.string.add_friend)
                 }
-                val friendIcon = when {
-                    state.isOwnProfile -> lmgVector(LmgDrawables.UserPenOutline28)
-                    profile.friendStatus == 1 -> lmgVector(LmgDrawables.UserMinusOutline28)
-                    profile.friendStatus == 2 || profile.friendStatus == 3 || profile.isFriend == 1 ->
-                        lmgVector(LmgDrawables.UserAddedOutline28)
-                    else -> lmgVector(LmgDrawables.UserAddOutline28)
-                }
 
-                LazyColumn(
-                    state = listState,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .widthIn(max = 640.dp)
-                        .align(Alignment.TopCenter),
-                    contentPadding = PaddingValues(bottom = 140.dp),
-                ) {
-                    item {
-                        UserProfileHeader(
+                Column(Modifier.widthIn(max = 640.dp).fillMaxSize().align(Alignment.TopCenter)) {
+                        MusicProfileHeader(
                             profile = profile,
-                            compact = compact,
-                            canOpenMusic = profile.isAccessible && profile.isAudioVisible &&
-                                profile.deactivated.isNullOrBlank(),
+                            musicTotal = state.musicTotal.takeUnless { state.isMusicPreviewLoading },
+                            playlistTotal = state.playlistTotal.takeUnless { state.isMusicPreviewLoading },
+                            friendsTotal = profile.counters?.friends,
                             friendshipLabel = friendLabel,
-                            friendshipIcon = friendIcon,
                             friendshipEnabled = !state.isFriendActionLoading &&
                                 !state.isSavingProfile && profile.deactivated.isNullOrBlank() &&
                                 (state.isOwnProfile || profile.friendStatus != 0 ||
                                     profile.canSendFriendRequest != 0),
-                            onOpenMusic = { onOpenMusic(profile.id) },
-                            onOpenDetails = onOpenDetails,
                             onFriendship = {
                                 if (state.isOwnProfile) {
-                                    editStatus = profile.status
-                                    editAbout = profile.about.orEmpty()
                                     showEditProfile = true
                                 } else if (profile.friendStatus == 3 || profile.isFriend == 1) {
                                     showRemoveFriendConfirm = true
@@ -193,18 +185,14 @@ fun UserProfileScreen(
                                     viewModel.changeFriendship()
                                 }
                             },
-                            onShare = {
-                                val intent = Intent(Intent.ACTION_SEND).apply {
-                                    type = "text/plain"
-                                    putExtra(Intent.EXTRA_TEXT, profileUrl)
-                                }
-                                runCatching {
-                                    context.startActivity(Intent.createChooser(intent, context.getString(R.string.share_vk_profile)))
-                                }
-                            },
-                        )
-                    }
 
+                        )
+                        MusicProfileTabs(selectedSection) { selectedSection = it }
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                    contentPadding = PaddingValues(top = 6.dp, bottom = 140.dp),
+                ) {
                     profile.deactivated?.takeIf(String::isNotBlank)?.let { reason ->
                         item {
                             UserProfileNotice(
@@ -225,108 +213,86 @@ fun UserProfileScreen(
                         item { UserProfileNotice(error) }
                     }
 
-                    val friendPreview = profile.friendsBlock?.friends.orEmpty()
-                    val friendCount = profile.counters?.friends ?: friendPreview.size
-                    if (friendCount > 0 || friendPreview.isNotEmpty()) {
+                    if (selectedSection == 0) {
                         item {
-                            CompactFriendsCard(
-                                count = friendCount,
-                                mutualCount = profile.commonCount ?: 0,
-                                friends = friendPreview,
-                                onOpenAll = { onOpenConnections("friends") },
-                            )
-                        }
-                    }
-
-                    profile.actualStatusAudio?.let { statusAudio ->
-                        item { UserProfileSectionTitle(stringResource(R.string.section_status_track)) }
-                        item {
-                            MusicPreviewRow(
-                                title = statusAudio.title,
-                                subtitle = statusAudio.artist,
-                                imageUrl = statusAudio.album?.thumb?.bestUrl
-                                    ?: statusAudio.thumb?.bestUrl,
-                                icon = LmgGlyphs.Play28,
-                                onClick = {
-                                    val tracks = MusicBackend.adoptAudioDtos(listOf(statusAudio))
-                                        .map { it.toTrack() }
-                                        .filter { it.isAvailable }
-                                    if (tracks.isNotEmpty()) PlayerController.play(context, tracks, 0)
+                            MusicProfileHero(
+                                title = if (state.isOwnProfile) stringResource(R.string.my_music_label) else stringResource(R.string.music_label),
+                                musicTotal = state.musicTotal.takeUnless { state.isMusicPreviewLoading },
+                                playlistTotal = state.playlistTotal.takeUnless { state.isMusicPreviewLoading },
+                                enabled = profile.isAccessible && profile.isAudioVisible && profile.deactivated.isNullOrBlank(),
+                                onOpenMusic = { onOpenMusic(profile.id) },
+                                onPlay = {
+                                    if (!playProfileTracks(context, state.musicTracks)) onOpenMusic(profile.id)
                                 },
                             )
+                            MusicProfileLinks(
+                                friendCount = profile.counters?.friends,
+                                onFriends = { onOpenConnections("friends") },
+                                onDetails = { selectedSection = 2 },
+                            )
+                            MusicProfileSection(stringResource(R.string.playlists_title), stringResource(R.string.profile_all)) { selectedSection = 1 }
+                            MusicProfilePlaylists(state.musicPlaylists.take(2), onOpenPlaylist)
+                        }
+                        if (state.isOwnProfile) {
+                            item { MusicProfileRecentHistory(onOpenHistory) }
+                        } else if (profile.isAccessible && profile.isAudioVisible) {
+                            item {
+                                MusicProfileSection(stringResource(R.string.music_label), stringResource(R.string.profile_all)) { onOpenMusic(profile.id) }
+                            }
+                            items(state.musicTracks, key = { it.fullId }) { track ->
+                                MusicPreviewRow(track.title, track.artist, track.coverUrl(), LmgGlyphs.Play28,
+                                    onClick = { playProfileTracks(context, state.musicTracks, track.fullId) })
+                            }
                         }
                     }
-
-                    if (state.isMusicPreviewLoading || state.musicTracks.isNotEmpty() ||
-                        state.musicPlaylists.isNotEmpty()
-                    ) {
-                        item { UserProfileSectionTitle(stringResource(R.string.section_music)) }
+                    if (selectedSection == 1) {
+                        item {
+                            MusicProfileSection(stringResource(R.string.playlists_title), stringResource(R.string.profile_all_playlists)) { onOpenMusic(profile.id) }
+                        }
                         if (state.isMusicPreviewLoading) {
                             item {
-                                Box(Modifier.fillMaxWidth().padding(20.dp), contentAlignment = Alignment.Center) {
-                                    CircularProgressIndicator(color = colors.iconMuted, modifier = Modifier.size(24.dp))
+                                Box(Modifier.fillMaxWidth().height(80.dp), contentAlignment = Alignment.Center) {
+                                    CircularProgressIndicator(Modifier.size(24.dp), color = colors.accent)
                                 }
                             }
-                        } else {
-                            state.musicTracks.forEach { track ->
-                                item(key = "profile-track:${track.fullId}") {
-                                    MusicPreviewRow(
-                                        title = track.title,
-                                        subtitle = track.artist,
-                                        imageUrl = track.coverUrl(),
-                                        icon = LmgGlyphs.Play28,
-                                        onClick = {
-                                            val tracks = MusicBackend.adoptTracks(state.musicTracks)
-                                                .map { it.toTrack() }
-                                                .filter { it.isAvailable }
-                                            val selectedId = track.fullId
-                                            val selected = tracks.indexOfFirst { it.id == selectedId }.coerceAtLeast(0)
-                                            if (tracks.isNotEmpty()) PlayerController.play(context, tracks, selected)
-                                        },
-                                    )
-                                }
-                            }
-                            state.musicPlaylists.forEach { playlist ->
-                                item(key = "profile-playlist:${playlist.fullId}") {
-                                    MusicPreviewRow(
-                                        title = playlist.title.ifBlank { stringResource(R.string.playlist_fallback) },
-                                        subtitle = pluralStringResource(R.plurals.track_count, playlist.count, playlist.count),
-                                        imageUrl = playlistPreviewUrl(playlist),
-                                        icon = LmgGlyphs.ChevronRightOutline24,
-                                        onClick = { onOpenPlaylist(playlist.fullId) },
-                                    )
-                                }
-                            }
-                            if (state.musicTotal > state.musicTracks.size ||
-                                state.playlistTotal > state.musicPlaylists.size
-                            ) {
-                                item {
-                                    UserProfileLinkRow(
-                                        title = stringResource(R.string.all_music),
-                                        value = stringResource(
-                                            R.string.tracks_playlists_summary,
-                                            formatProfileCount(state.musicTotal),
-                                            formatProfileCount(state.playlistTotal),
-                                        ),
-                                        onClick = { onOpenMusic(profile.id) },
-                                    )
-                                }
+                        } else if (state.musicPlaylists.isEmpty()) {
+                            item { UserProfileNotice(stringResource(R.string.profile_playlists_empty)) }
+                        }
+                        items(state.musicPlaylists.chunked(2), key = { it.first().fullId }) { pair ->
+                            MusicProfilePlaylistPair(pair, onOpenPlaylist)
+                        }
+                    }
+                    if (selectedSection == 2) {
+                        item {
+                            profile.status.takeIf(String::isNotBlank)?.let { UserProfileNotice(it) }
+                            MusicProfileInformation(profileFacts(context, profile).map {
+                                MusicProfileFact(it.label, it.value, LmgGlyphs.InfoCircleOutline28)
+                            })
+                            MusicProfileInformation(profileDetails(context, profile).map {
+                                MusicProfileFact(it.label, it.value, LmgGlyphs.InfoCircleOutline28)
+                            })
+                        }
+                        profile.actualStatusAudio?.let { statusAudio ->
+                            item {
+                                UserProfileSectionTitle(stringResource(R.string.section_status_track))
+                                MusicPreviewRow(statusAudio.title, statusAudio.artist,
+                                    statusAudio.album?.thumb?.bestUrl ?: statusAudio.thumb?.bestUrl,
+                                    LmgGlyphs.Play28, onClick = {
+                                        val tracks = MusicBackend.adoptAudioDtos(listOf(statusAudio)).map { it.toTrack() }.filter { it.isAvailable }
+                                        if (tracks.isNotEmpty()) PlayerController.play(context, tracks, 0)
+                                    })
                             }
                         }
                     }
-                    state.musicPreviewError?.let { error ->
-                        item { UserProfileNotice(error) }
-                    }
+                    state.musicPreviewError?.let { error -> item { UserProfileNotice(error) } }
+
                 }
             }
         }
 
-        DetailTopBar(
-            title = state.profile?.displayName.orEmpty(),
-            showTitle = showTopTitle,
-            isDark = colors.isDark,
-            onBack = onBack,
-        )
+
+    }
+    }
     }
 
     if (showRemoveFriendConfirm) {
@@ -353,13 +319,45 @@ fun UserProfileScreen(
     }
 
     if (showEditProfile) {
+        state.profile?.let { profile ->
+            OwnProfileEditor(profile, onDismiss = { showEditProfile = false }, viewModel = viewModel)
+        }
+    }
+}
+
+@Composable
+internal fun OwnProfileEditor(
+    profile: VkAccountProfile,
+    onDismiss: () -> Unit,
+    viewModel: UserProfileViewModel = androidx.lifecycle.viewmodel.compose.viewModel(key = "own-profile-editor"),
+) {
+    val context = LocalContext.current
+    val state by viewModel.state.collectAsState()
+    LaunchedEffect(profile.id) { viewModel.load(profile.id, loadMusic = false) }
+    var saveRequested by remember { mutableStateOf(false) }
+    LaunchedEffect(saveRequested) {
+        if (saveRequested) {
+            val result = viewModel.state.first { !it.isSavingProfile }
+            saveRequested = false
+            if (result.saveProfileError == null) onDismiss()
+        }
+    }
+    var editStatus by remember(profile.id) { mutableStateOf(profile.status) }
+    var editAbout by remember(profile.id) { mutableStateOf(profile.about.orEmpty()) }
+    val avatarPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        uri?.let { viewModel.uploadOwnProfileImage(context, it, ProfileImageKind.AVATAR) }
+    }
+    val coverPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        uri?.let { viewModel.uploadOwnProfileImage(context, it, ProfileImageKind.COVER) }
+    }
+
         val colors = LiquidTheme.colors
         val isDark = colors.isDark
 
         GlassCustomDialog(
-            visible = showEditProfile,
+            visible = true,
             onDismiss = {
-                if (!state.isSavingProfile && !state.isUploadingImage) showEditProfile = false
+                if (!state.isSavingProfile && !state.isUploadingImage) onDismiss()
             },
             icon = lmgVector(LmgDrawables.EditOutline28),
             iconTint = colors.accent,
@@ -369,16 +367,16 @@ fun UserProfileScreen(
             primaryButton = GlassDialogButton(
                 text = stringResource(R.string.action_save),
                 backgroundColor = colors.accent,
-                enabled = !state.isSavingProfile && !state.isUploadingImage,
+                enabled = !state.isSavingProfile && !state.isUploadingImage && !state.isLoading && state.isOwnProfile,
                 onClick = {
+                    saveRequested = true
                     viewModel.saveOwnProfile(editStatus.trim(), editAbout.trim())
-                    showEditProfile = false
                 },
             ),
             secondaryButton = GlassDialogButton(
                 text = stringResource(R.string.action_cancel),
                 enabled = !state.isSavingProfile && !state.isUploadingImage,
-                onClick = { showEditProfile = false },
+                onClick = { onDismiss() },
             ),
         ) {
             Column(
@@ -524,6 +522,8 @@ fun UserProfileScreen(
                     }
                 }
 
+                state.saveProfileError?.let { UserProfileNotice(it) }
+                state.imageUploadError?.let { UserProfileNotice(it) }
                 Text(
                     text = stringResource(R.string.cover_format_hint),
                     color = colors.textTertiary,
@@ -533,7 +533,6 @@ fun UserProfileScreen(
                 )
             }
         }
-    }
 }
 
 /** Separate information sheet matching the original VK profile structure. */
@@ -764,304 +763,6 @@ private fun profileDetails(context: Context, profile: VkAccountProfile): List<Pr
 }
 
 @Composable
-private fun UserProfileHeader(
-    profile: VkAccountProfile,
-    compact: Boolean,
-    canOpenMusic: Boolean,
-    friendshipLabel: String?,
-    friendshipIcon: ImageVector,
-    friendshipEnabled: Boolean,
-    onOpenMusic: () -> Unit,
-    onOpenDetails: () -> Unit,
-    onFriendship: () -> Unit,
-    onShare: () -> Unit,
-) {
-    val context = LocalContext.current
-    val colors = LiquidTheme.colors
-    val coverPhoto = profile.coverUrl
-    val avatarPhoto = profile.animatedAvatarUrl ?: profile.largePhotoUrl.takeIf(String::isNotBlank)
-    val presence = profilePresence(context, profile)
-    val bannerHeight = if (coverPhoto != null) 132.dp else 70.dp
-    val avatarSize = if (compact) 82.dp else 92.dp
-
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(LiquidSurfaces.sheet(colors.isDark)),
-    ) {
-        Box(modifier = Modifier.fillMaxWidth().height(bannerHeight + avatarSize / 2)) {
-            Box(modifier = Modifier.fillMaxWidth().height(bannerHeight).clipToBounds()) {
-                if (coverPhoto != null) {
-                    AsyncImage(
-                        model = ImageRequest.Builder(LocalContext.current).data(coverPhoto).crossfade(true).build(),
-                        contentDescription = null,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize(),
-                    )
-                    Box(
-                        Modifier.fillMaxSize().background(
-                            Brush.verticalGradient(
-                                listOf(Color.Black.copy(alpha = 0.12f), Color.Black.copy(alpha = 0.38f)),
-                            ),
-                        ),
-                    )
-                } else {
-                    Box(
-                        Modifier.fillMaxSize().background(
-                            Brush.horizontalGradient(
-                                listOf(
-                                    colors.textTertiary.copy(alpha = 0.12f),
-                                    colors.textTertiary.copy(alpha = 0.04f),
-                                ),
-                            ),
-                        ),
-                    )
-                }
-            }
-            Box(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .size(avatarSize)
-                    .clip(CircleShape)
-                    .background(colors.textTertiary.copy(alpha = 0.14f)),
-                contentAlignment = Alignment.Center,
-            ) {
-                if (avatarPhoto != null) {
-                    AsyncImage(
-                        model = ImageRequest.Builder(LocalContext.current).data(avatarPhoto).crossfade(true).build(),
-                        contentDescription = profile.displayName,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize(),
-                    )
-                } else {
-                    Icon(LmgGlyphs.UserOutline28, null, tint = colors.iconMuted, modifier = Modifier.size(36.dp))
-                }
-                if (profile.isOnline) {
-                    Box(
-                        Modifier
-                            .align(Alignment.BottomEnd)
-                            .size(14.dp)
-                            .clip(CircleShape)
-                            .background(Color(0xFF4BB34B)),
-                    )
-                }
-            }
-        }
-
-        Column(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = LiquidMetrics.ScreenPadding),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = profile.displayName.ifBlank { "id${profile.id}" },
-                    color = colors.textPrimary,
-                    fontFamily = VkSansDisplay,
-                    fontSize = if (compact) 22.sp else 24.sp,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                if (profile.isVerified) {
-                    Spacer(Modifier.width(7.dp))
-                    Icon(
-                        lmgVector(LmgDrawables.CheckCircleOutline28),
-                        contentDescription = stringResource(R.string.verified_badge),
-                        tint = Color(0xFF2787F5),
-                        modifier = Modifier.size(19.dp),
-                    )
-                }
-            }
-            profile.status.takeIf(String::isNotBlank)?.let { status ->
-                Spacer(Modifier.height(7.dp))
-                Text(
-                    text = status,
-                    color = colors.textPrimary,
-                    fontFamily = VkSansText,
-                    fontSize = 13.sp,
-                    lineHeight = 18.sp,
-                    textAlign = TextAlign.Center,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-            val subtitle = listOfNotNull(
-                profile.addressSlug.takeIf(String::isNotBlank)?.let { "@$it" },
-                presence,
-            ).joinToString(" · ")
-            if (subtitle.isNotBlank()) {
-                Spacer(Modifier.height(5.dp))
-                Text(
-                    subtitle,
-                    color = colors.textSecondary,
-                    fontFamily = VkSansText,
-                    fontSize = 12.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-            Row(
-                modifier = Modifier
-                    .clip(CircleShape)
-                    .liquidClickable(onClick = onOpenDetails)
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Icon(LmgGlyphs.InfoCircleOutline28, null, tint = colors.iconMuted, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(6.dp))
-                Text(stringResource(R.string.more_information), color = colors.textSecondary, fontFamily = VkSansText, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-            }
-        }
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = LiquidMetrics.ScreenPadding)
-                .padding(bottom = 12.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            UserProfileActionButton(
-                label = if (profile.canSeeAudio == 0) stringResource(R.string.music_closed_label) else stringResource(R.string.music_label),
-                icon = if (profile.canSeeAudio == 0) LmgGlyphs.LockOutline28 else LmgGlyphs.MusicNote24,
-                enabled = canOpenMusic,
-                filled = true,
-                modifier = Modifier.weight(1f),
-                onClick = onOpenMusic,
-            )
-            UserProfileActionButton(
-                label = friendshipLabel ?: stringResource(R.string.action_share),
-                icon = friendshipIcon.takeIf { friendshipLabel != null } ?: LmgGlyphs.ShareOutline28,
-                enabled = if (friendshipLabel != null) friendshipEnabled else true,
-                filled = false,
-                modifier = Modifier.weight(1f),
-                onClick = if (friendshipLabel != null) onFriendship else onShare,
-            )
-        }
-    }
-}
-
-@Composable
-private fun UserProfileActionButton(
-    label: String,
-    icon: ImageVector,
-    enabled: Boolean,
-    filled: Boolean,
-    modifier: Modifier,
-    onClick: () -> Unit,
-) {
-    val colors = LiquidTheme.colors
-    val contentColor = when {
-        !enabled -> colors.textTertiary
-        filled -> Color.White
-        else -> colors.textPrimary
-    }
-    Row(
-        modifier = modifier
-            .height(40.dp)
-            .shadow(
-                elevation = if (filled) LiquidMetrics.ButtonElevation else 2.dp,
-                shape = CircleShape,
-                ambientColor = Color.Black,
-                spotColor = Color.Black,
-            )
-            .clip(CircleShape)
-            .background(
-                when {
-                    !enabled -> colors.textTertiary.copy(alpha = 0.08f)
-                    filled -> Color(0xFF2787F5)
-                    else -> colors.textTertiary.copy(alpha = 0.12f)
-                },
-            )
-            .liquidClickable(
-                enabled = enabled,
-                pressedScale = LiquidMotion.PressButton,
-                onClick = onClick,
-            ),
-        horizontalArrangement = Arrangement.Center,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(icon, null, tint = contentColor, modifier = Modifier.size(18.dp))
-        Spacer(Modifier.width(8.dp))
-        Text(
-            text = label,
-            fontFamily = VkSansText,
-            color = contentColor,
-            fontSize = LiquidMetrics.ActionLabel,
-            fontWeight = FontWeight.SemiBold,
-            maxLines = 1,
-        )
-    }
-}
-
-@Composable
-private fun CompactFriendsCard(
-    count: Int,
-    mutualCount: Int,
-    friends: List<com.lmg.vk.network.dto.VkFriend>,
-    onOpenAll: () -> Unit,
-) {
-    val colors = LiquidTheme.colors
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = LiquidMetrics.ScreenPadding, vertical = 8.dp)
-            .clip(RoundedCornerShape(18.dp))
-            .background(colors.textTertiary.copy(alpha = 0.08f))
-            .liquidClickable(onClick = onOpenAll)
-            .padding(horizontal = 16.dp, vertical = 14.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                "${formatProfileCount(count)} friends",
-                fontFamily = VkSansText,
-                color = colors.textPrimary,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.SemiBold,
-            )
-            Text(
-                if (mutualCount > 0) "${formatProfileCount(mutualCount)} mutual"
-                else stringResource(R.string.no_mutual_friends),
-                fontFamily = VkSansText,
-                color = colors.textSecondary,
-                fontSize = 12.sp,
-            )
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-            friends.take(3).forEach { friend ->
-                Box(
-                    modifier = Modifier
-                        .size(36.dp)
-                        .clip(CircleShape)
-                        .background(colors.textTertiary.copy(alpha = 0.12f)),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    if (friend.avatarUrl.isNotBlank()) {
-                        AsyncImage(
-                            model = ImageRequest.Builder(LocalContext.current)
-                                .data(friend.avatarUrl)
-                                .crossfade(true)
-                                .build(),
-                            contentDescription = friend.displayName,
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier.fillMaxSize(),
-                        )
-                    } else {
-                        Icon(LmgGlyphs.UserOutline28, null, tint = colors.iconMuted, modifier = Modifier.size(18.dp))
-                    }
-                }
-            }
-            Icon(
-                LmgGlyphs.ChevronRightOutline24,
-                null,
-                tint = colors.textTertiary,
-                modifier = Modifier.align(Alignment.CenterVertically).size(18.dp),
-            )
-        }
-    }
-}
-
-@Composable
 private fun UserProfileFacts(facts: List<ProfileFact>) {
     val colors = LiquidTheme.colors
     Column(
@@ -1172,12 +873,13 @@ private fun UserProfileLinkRow(title: String, value: String, onClick: () -> Unit
 }
 
 @Composable
-private fun MusicPreviewRow(
+internal fun MusicPreviewRow(
     title: String,
     subtitle: String,
     imageUrl: String?,
     icon: ImageVector,
     onClick: () -> Unit,
+    onAction: (() -> Unit)? = null,
 ) {
     val colors = LiquidTheme.colors
     Row(
@@ -1189,7 +891,7 @@ private fun MusicPreviewRow(
     ) {
         Box(
             modifier = Modifier
-                .size(48.dp)
+                .size(56.dp)
                 .clip(RoundedCornerShape(10.dp))
                 .background(colors.textTertiary.copy(alpha = 0.12f)),
             contentAlignment = Alignment.Center,
@@ -1211,7 +913,11 @@ private fun MusicPreviewRow(
             Spacer(Modifier.height(3.dp))
             Text(subtitle, fontFamily = VkSansText, color = colors.textSecondary, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
-        Icon(icon, null, tint = colors.iconMuted, modifier = Modifier.size(19.dp))
+        Box(Modifier.size(40.dp).clip(CircleShape)
+            .liquidClickable(onClick = onAction ?: onClick), contentAlignment = Alignment.Center) {
+            Icon(icon, if (onAction == null) stringResource(R.string.action_listen) else stringResource(R.string.profile_actions),
+                tint = colors.iconMuted, modifier = Modifier.size(20.dp))
+        }
     }
 }
 

@@ -183,7 +183,7 @@ object LyricsParser {
 
     /**
      * Полный поиск.
-     * ЛОКАЛЬНОЕ аудио → LRCLIB (синхро-текст) + локальный кэш, потом embedded.
+     * ЛОКАЛЬНОЕ аудио → встроенный TTML/LRC, затем сетевые источники и кэш.
      * Y-трек → текст из Яндекса. СТРИМИНГ/backend → как было.
      */
     suspend fun loadLyrics(
@@ -195,9 +195,11 @@ object LyricsParser {
         trackId: String? = null,
         excludedSources: Set<com.lmg.vk.engine.lyrics.LyricsSource> = emptySet(),
         preferExternalBeforeOfficial: Boolean = false,
+        sourceSnapshot: Set<com.lmg.vk.engine.lyrics.LyricsSource>? = null,
     ): Lyrics {
-        val enabledSources = com.lmg.vk.engine.lyrics.LyricsSourceStore.enabled(context) - excludedSources
+        val enabledSources = (sourceSnapshot ?: com.lmg.vk.engine.lyrics.LyricsSourceStore.enabled(context)) - excludedSources
         if (isLocalTrack(uri, trackId)) {
+            if (uri != null) extractLyrics(context, uri).takeIf { it.lines.isNotEmpty() }?.let { return it }
             val wordTimed = kotlinx.coroutines.withTimeoutOrNull(30_000L) {
                 com.lmg.vk.engine.lyrics.ExternalLyricsRepository.findWordTimed(
                     context = context,
@@ -332,7 +334,8 @@ object LyricsParser {
         if (title.isBlank() && artist.isBlank()) return@withContext Lyrics.EMPTY
 
         // Память: уже искали этот трек в сессии (в т.ч. негатив EMPTY) — не дёргаем снова.
-        if (!trackId.isNullOrBlank()) lyricsCache[trackId]?.let { return@withContext it }
+        if (!trackId.isNullOrBlank()) lyricsCache[trackId]?.takeIf { it.source == "lrclib" }
+            ?.let { return@withContext it }
 
         val album = readAlbumTag(context, uri)
         val durationSec = (durationMs / 1000L).toInt()
@@ -575,35 +578,16 @@ object LyricsParser {
     //  Embedded & Parsing
     // ═══════════════════════════════════════════════════════════
 
-    private fun tryExtractEmbedded(context: Context, uri: Uri): String? {
-        var temporary: File? = null
-        return try {
-            val source = if (uri.scheme == "file") {
-                uri.path?.let(::File)?.takeIf(File::isFile)
-            } else {
-                val suffix = uri.lastPathSegment
-                    ?.substringAfterLast('.', missingDelimiterValue = "")
-                    ?.takeIf { it.length in 2..5 }
-                    ?.let { ".$it" }
-                    ?: ".audio"
-                File.createTempFile("embedded_lyrics_", suffix, context.cacheDir).also { target ->
-                    temporary = target
-                    context.contentResolver.openInputStream(uri)?.use { input ->
-                        target.outputStream().use { output -> input.copyTo(output) }
-                    } ?: return null
-                }
-            } ?: return null
-            AudioFileIO.read(source).tag
-                ?.getFirst(FieldKey.LYRICS)
-                ?.takeIf(String::isNotBlank)
-        } catch (_: Exception) {
-            null
-        } finally {
-            temporary?.delete()
-        }
-    }
+    private fun tryExtractEmbedded(context: Context, uri: Uri): String? =
+        com.lmg.vk.audio.EmbeddedLyrics.read(context, uri)
 
     fun parseLyrics(raw: String): Lyrics {
+        com.lmg.vk.audio.EmbeddedLyrics.validTtml(raw)?.let {
+            val doc = com.lmg.vk.engine.lyrics.apple.AppleTtmlParser.parse(it) ?: return Lyrics.EMPTY
+            return com.lmg.vk.engine.lyrics.apple.AppleLyricsProjector.toLegacy(doc, source = "embedded")
+        }
+        // Invalid XML is not plain lyrics and must not appear on screen as markup.
+        if (raw.trimStart().startsWith("<")) return Lyrics.EMPTY
         val lines = raw.lines().filter { it.isNotBlank() }
         if (lines.isEmpty()) return Lyrics.EMPTY
 

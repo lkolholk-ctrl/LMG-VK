@@ -51,6 +51,7 @@ object VkProfileRepository {
         val playlistsTotal: Int? = null,
         val playlistsError: String? = null,
         val audioTotal: Int? = null,
+        val musicPreview: List<AudioTrack> = emptyList(),
         val musicError: String? = null,
         val error: String? = null,
     ) {
@@ -144,8 +145,7 @@ object VkProfileRepository {
                 val friendsTask = async { registry.friendsGet(offset = 0, count = PAGE_SIZE) }
                 val groupsTask = async { registry.groupsGet(offset = 0, count = PAGE_SIZE) }
                 val playlistsTask = async { audio.getPlaylistsPage(userId, offset = 0, count = 50) }
-                // Треки не нужны целиком — берём только реальное count из ответа.
-                val audioCountTask = async { audio.getAudiosPage(userId, offset = 0, count = 1) }
+                val audioCountTask = async { audio.getAudiosPage(userId, offset = 0, count = 3) }
 
                 Loaded(
                     profile = profileTask.await(),
@@ -174,6 +174,7 @@ object VkProfileRepository {
                 playlistsTotal = loaded.playlists.countOrNull() ?: _state.value.playlistsTotal,
                 playlistsError = loaded.playlists.errorMessage(),
                 audioTotal = loaded.audioCount.countOrNull() ?: _state.value.audioTotal,
+                musicPreview = loaded.audioCount.itemsOrPrevious(_state.value.musicPreview),
                 musicError = loaded.playlists.errorMessage() ?: loaded.audioCount.errorMessage(),
                 error = profileError.takeIf { profile == null },
             )

@@ -97,6 +97,7 @@ class VkApiClient(
     // Публичный вход: выполнение метода (в jadx: `license(C5577e, cont)`)
     // ------------------------------------------------------------------
     suspend fun <T> execute(method: VkMethod<T>): VkResult<T> {
+        val startup = com.lmg.vk.debug.AppStartupTrace.beginElapsed("vk_request.${method.name}")
         return try {
             val usesImplicitSession = method.endpoint == VkEndpoint.API_METHOD &&
                 method.name != "auth.refreshTokens" &&
@@ -136,7 +137,7 @@ class VkApiClient(
                 return VkResult.Error(VkErrorCodes.NO_CONTENT, "BH.VkApi - One-Shot methods have no content")
             }
 
-            val parsed = method.parser.parse(raw)
+            val parsed = method.parser.parseInBackground(raw)
 
             // Для oauth-методов ошибка лежит прямо в конверте; для обычных —
             // проверяем ещё и data-as-error случаи.
@@ -258,6 +259,8 @@ class VkApiClient(
                 // -1: «локальный сбой обработки ответа», не сетевой.
                 VkResult.Error(-1, "$label: ${e.message ?: "неизвестная ошибка"}")
             }
+        } finally {
+            startup?.end()
         }
     }
 

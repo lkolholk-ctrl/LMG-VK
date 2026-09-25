@@ -18,6 +18,8 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import com.lmg.vk.ui.navigation.LocalDialogCloseState
+import com.lmg.vk.ui.navigation.windowClose
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -29,7 +31,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
+import com.lmg.vk.ui.navigation.WindowDialog as Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.lmg.vk.ui.theme.LiquidMotion
 import com.lmg.vk.ui.theme.LiquidSurfaces
@@ -57,12 +59,16 @@ fun GlassDialog(
     if (!visible) return
 
     Dialog(
+        transformContent = false,
         onDismissRequest = { if (dismissible) onDismiss() },
         properties = DialogProperties(
+            dismissOnBackPress = dismissible,
+            dismissOnClickOutside = dismissible,
             usePlatformDefaultWidth = false,
             decorFitsSystemWindows = false,
         ),
     ) {
+        val dialogBack = LocalDialogCloseState.current
         val colors = LiquidTheme.colors
         val isDark = colors.isDark
         val dialogBg = if (isDark) Color(0xFF1C1C1E) else Color.White
@@ -84,6 +90,7 @@ fun GlassDialog(
                     .widthIn(max = 420.dp)
                     .fillMaxWidth()
                     .padding(horizontal = 24.dp)
+                    .then(if (dialogBack != null) Modifier.windowClose(dialogBack) else Modifier)
                     .clip(RoundedCornerShape(28.dp))
                     .background(dialogBg)
                     .border(1.dp, dialogBorder, RoundedCornerShape(28.dp))
@@ -238,12 +245,16 @@ fun GlassCustomDialog(
     if (!visible) return
 
     Dialog(
+        transformContent = false,
         onDismissRequest = { if (dismissible) onDismiss() },
         properties = DialogProperties(
+            dismissOnBackPress = dismissible,
+            dismissOnClickOutside = dismissible,
             usePlatformDefaultWidth = false,
             decorFitsSystemWindows = false,
         ),
     ) {
+        val dialogBack = LocalDialogCloseState.current
         val colors = LiquidTheme.colors
         val isDark = colors.isDark
         val dialogBg = if (isDark) Color(0xFF1C1C1E) else Color.White
@@ -265,6 +276,7 @@ fun GlassCustomDialog(
                     .widthIn(max = 420.dp)
                     .fillMaxWidth()
                     .padding(horizontal = 24.dp)
+                    .then(if (dialogBack != null) Modifier.windowClose(dialogBack) else Modifier)
                     .clip(RoundedCornerShape(28.dp))
                     .background(dialogBg)
                     .border(1.dp, dialogBorder, RoundedCornerShape(28.dp))

@@ -1,12 +1,18 @@
 package com.lmg.vk.ui.screens
 
+import com.lmg.vk.ui.navigation.WindowCloseSurface
 import android.content.Context
-import androidx.activity.compose.BackHandler
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
@@ -78,6 +84,7 @@ import com.lmg.vk.engine.backend.MusicAuth
 import com.lmg.vk.engine.backend.VkProfileRepository
 import com.lmg.vk.network.dto.VkFriend
 import com.lmg.vk.network.dto.VkGroup
+import com.lmg.vk.network.dto.music.coverUrl
 import com.lmg.vk.network.dto.music.AudioPlaylist
 import com.lmg.vk.ui.components.DetailTopBar
 import com.lmg.vk.ui.glass.AlbumArtImage
@@ -101,6 +108,9 @@ private val OnlineGreen = Color(0xFF34C759)
  */
 @Composable
 fun ProfileScreen(
+    onBack: () -> Unit = {},
+    onOpenHistory: () -> Unit = {},
+    onSelectMainTab: (Int) -> Unit = {},
     onOpenSettings: () -> Unit = {},
     onLogout: () -> Unit = {},
     onOpenAuth: () -> Unit = {},
@@ -125,6 +135,11 @@ fun ProfileScreen(
     val vk by VkProfileRepository.state.collectAsState()
     val ownerAudio by VkProfileRepository.ownerAudio.collectAsState()
 
+    var showProfileEditor by remember { mutableStateOf(false) }
+    var selectedSection by rememberSaveable(profileId) { mutableStateOf(0) }
+    val profileListState = rememberLazyListState()
+    LaunchedEffect(selectedSection) { profileListState.scrollToItem(0) }
+    var accountActionsExpanded by remember { mutableStateOf(false) }
     var showSignOutConfirmation by remember { mutableStateOf(false) }
     var accountActionError by remember { mutableStateOf<String?>(null) }
     var friendsExpanded by remember { mutableStateOf(false) }
@@ -214,6 +229,7 @@ fun ProfileScreen(
                 onlineFriendsOnly = false
                 friendsQuery = ""
             }
+            accountActionsExpanded -> accountActionsExpanded = false
             groupsExpanded -> {
                 groupsExpanded = false
                 groupsQuery = ""
@@ -227,15 +243,18 @@ fun ProfileScreen(
                 !friendsExpanded &&
                 !groupsExpanded &&
                 !playlistsExpanded &&
-                !showSignOutConfirmation
+                !showSignOutConfirmation && !showProfileEditor && !accountActionsExpanded
         )
     }
 
-    BackHandler(
-        enabled = backHandlingEnabled &&
-            (ownerAudio != null || friendsExpanded || groupsExpanded || playlistsExpanded),
-    ) {
-        returnFromInnerProfile()
+
+    if (showProfileEditor) {
+        profile?.let { p ->
+            OwnProfileEditor(p, onDismiss = {
+                showProfileEditor = false
+                scope.launch { VkProfileRepository.refresh(p.id) }
+            })
+        }
     }
 
     if (showSignOutConfirmation) {
@@ -284,183 +303,132 @@ fun ProfileScreen(
         // настроек, а не таким же экраном, как остальные.
         modifier = Modifier.fillMaxSize().background(LiquidSurfaces.sheet(colors.isDark)),
     ) {
-        LazyColumn(
-            modifier = if (window.useSideBySide) {
-                Modifier.fillMaxHeight().widthIn(max = 640.dp).align(Alignment.TopCenter)
-            } else {
-                Modifier.fillMaxSize()
-            },
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            // Шапка идёт ПОД статус-бар, как у артиста: фотография должна доходить
-            // до верхнего края экрана, иначе наезжающий лист теряет смысл.
-            item {
-                ProfileHeaderWithSheet(
-                    avatarUrl = avatarUrl,
-                    displayName = displayName,
-                    subtitle = accountSubtitle,
-                    status = profile?.status?.takeIf(String::isNotBlank),
-                    presence = lastSeenLabel,
-                    isVerified = profile?.isVerified == true,
-                    isOnline = profile?.isOnline == true,
-                    isDark = colors.isDark,
-                    compact = compact,
-                    onOpenLibrary = onOpenLibrary,
-                    onOpenSettings = onOpenSettings,
+        Column(Modifier.widthIn(max = 640.dp).fillMaxSize().align(Alignment.TopCenter).statusBarsPadding()) {
+        MusicProfileToolbar(
+            onBack = onBack,
+            actions = listOf<Pair<String, () -> Unit>>(
+                stringResource(R.string.tab_settings) to onOpenSettings,
+                stringResource(R.string.profile_account_actions) to {
+                    accountActionsExpanded = true
+                },
+                stringResource(R.string.refresh_profile) to {
+                    profileId?.let { id -> scope.launch { VkProfileRepository.refresh(id) } }
+                },
+            ),
+        )
+                MusicProfileHeader(
+                    profile = profile,
+                    fallbackName = displayName,
+                    fallbackAvatar = avatarUrl,
+                    musicTotal = vk.audioTotal,
+                    playlistTotal = vk.playlistsTotal,
+                    friendsTotal = vk.friendsTotal ?: profile?.counters?.friends,
+                    friendshipLabel = if (isLoggedIn) stringResource(R.string.edit_profile) else stringResource(R.string.auth_sign_in_action),
+                    friendshipEnabled = !isLoggedIn || profile != null,
+                    onFriendship = { if (isLoggedIn) showProfileEditor = true else onOpenAuth() },
                 )
-            }
-
+                MusicProfileTabs(selectedSection) { selectedSection = it }
+        LazyColumn(
+            state = profileListState,
+            modifier = Modifier.weight(1f).fillMaxWidth(),
+            contentPadding = PaddingValues(top = 6.dp, bottom = 92.dp),
+        ) {
             if (isLoggedIn) {
-                vk.error?.let { message ->
+                vk.error?.let { message -> item { ProfileCard { ProfileNoticeRow(message) } } }
+                if (selectedSection == 0) {
                     item {
-                        ProfileCard {
-                            ProfileNoticeRow(message)
-                        }
-                    }
-                    item { Spacer(Modifier.height(16.dp)) }
-                }
-
-                // Факты аккаунта плитками 2-в-ряд: строками они занимали пять
-                // экранных полос ради нескольких слов на каждой.
-                //
-                // «VK session» убрана совсем: срок жизни токена — наша
-                // внутренняя механика, пользователю знать про рефреш незачем.
-                item {
-                    val facts = buildList {
-                        add(com.lmg.vk.ui.icons.LmgGlyphs.UserOutline28 to (stringResource(R.string.vk_id_label) to
-                            ((profile?.id ?: profileId)?.toString() ?: "…")))
-                        if (!slug.isNullOrBlank()) {
-                            add(com.lmg.vk.ui.icons.LmgGlyphs.LinkOutline28 to (stringResource(R.string.address_label) to "vk.com/$slug"))
-                        }
-                        profile?.locationLabel?.takeIf(String::isNotBlank)?.let {
-                            add(lmgVector(LmgDrawables.PlaceOutline28) to (stringResource(R.string.fact_location) to it))
-                        }
-                        profile?.bdate?.takeIf(String::isNotBlank)?.let {
-                            add(com.lmg.vk.ui.icons.LmgGlyphs.CakeOutline28 to (stringResource(R.string.fact_birthday) to formatBirthday(it)))
-                        }
-                    }
-                    ProfileFactGrid(facts = facts, compact = compact)
-                }
-                item { Spacer(Modifier.height(16.dp)) }
-
-                item {
-                    ProfileCard {
-                        ProfileSectionLabel(stringResource(R.string.section_my_music))
-                        ProfileMetricsRow(
-                            firstValue = vk.audioTotal.orDash(),
-                            firstLabel = stringResource(R.string.tracks_in_vk),
-                            secondValue = (vk.playlistsTotal ?: vk.playlists.size.takeIf { it > 0 }).orDash(),
-                            secondLabel = stringResource(R.string.playlists_title),
-                            compact = compact,
-                            onFirstClick = {
-                                val p = profile
-                                if (p != null && p.id != 0L) {
-                                    scope.launch { VkProfileRepository.openMyAudio(p) }
-                                } else {
-                                    onOpenLibrary()
-                                }
+                        MusicProfileHero(
+                            title = stringResource(R.string.my_music_label),
+                            musicTotal = vk.audioTotal,
+                            playlistTotal = vk.playlistsTotal,
+                            enabled = profile != null,
+                            onOpenMusic = {
+                                profile?.let { p -> scope.launch { VkProfileRepository.openMyAudio(p) } } ?: onOpenLibrary()
                             },
-                            onSecondClick = {
-                                if (vk.playlists.isNotEmpty()) {
-                                    playlistsExpanded = true
-                                } else {
-                                    onOpenLibrary()
+                            onPlay = {
+                                if (!playProfileTracks(context, vk.musicPreview)) {
+                                    profile?.let { p -> scope.launch { VkProfileRepository.openMyAudio(p) } } ?: onOpenLibrary()
                                 }
                             },
                         )
-                        vk.musicError?.let {
-                            ProfileDivider()
-                            ProfileNoticeRow(it)
-                        }
-                        if (playlistPreview.isNotEmpty()) {
-                            ProfileDivider()
-                            ProfilePlaylistPreviewRow(
-                                playlists = playlistPreview,
-                                compact = compact,
-                                onOpenAll = { playlistsExpanded = true },
-                                onPlaylistClick = { playlist ->
-                                    onOpenPlaylist(playlist.fullId)
-                                },
-                            )
-                        }
-                        ProfileDivider()
-                        ProfileNavigationRow(
-                            icon = com.lmg.vk.ui.icons.LmgGlyphs.ListPlayOutline28,
-                            label = stringResource(R.string.my_tracks_on_vk),
-                            value = when {
-                                vk.audioTotal != null -> stringResource(R.string.tracks_open_list, formatCount(vk.audioTotal!!))
-                                else -> stringResource(R.string.open_vk_audio)
-                            },
-                            compact = compact,
-                            onClick = {
-                                val p = profile
-                                if (p != null && p.id != 0L) {
-                                    scope.launch { VkProfileRepository.openMyAudio(p) }
-                                } else {
-                                    onOpenLibrary()
-                                }
-                            },
+                        MusicProfileLinks(
+                            friendCount = vk.friendsTotal ?: profile?.counters?.friends,
+                            onFriends = { onlineFriendsOnly = false; friendsExpanded = true },
+                            onDetails = { selectedSection = 2 },
                         )
-                        ProfileDivider()
-                        ProfileNavigationRow(
-                            icon = com.lmg.vk.ui.icons.LmgGlyphs.ListOutline28,
-                            label = stringResource(R.string.my_library),
-                            value = stringResource(R.string.library_summary_line),
-                            compact = compact,
-                            onClick = onOpenLibrary,
-                        )
+                        MusicProfileSection(stringResource(R.string.playlists_title), stringResource(R.string.profile_all)) { selectedSection = 1 }
+                        MusicProfilePlaylists(playlistPreview.take(2), onOpenPlaylist)
+                    }
+                    item { MusicProfileRecentHistory(onOpenHistory) }
+                }
+                if (selectedSection == 1) {
+                    item {
+                        MusicProfileSection(stringResource(R.string.playlists_title), stringResource(R.string.profile_all_playlists)) { playlistsExpanded = true }
+                    }
+                    if (vk.playlists.isEmpty()) {
+                        item { ProfileCard { ProfileNoticeRow(stringResource(R.string.profile_playlists_empty)) } }
+                    }
+                    items(vk.playlists.chunked(2), key = { it.first().fullId }) { pair ->
+                        MusicProfilePlaylistPair(pair, onOpenPlaylist)
+                    }
+                    vk.playlistsError?.let { message -> item { ProfileCard { ProfileNoticeRow(message) } } }
+                }
+                if (selectedSection == 2) {
+                    item {
+                        val facts = buildList {
+                            add(MusicProfileFact(stringResource(R.string.vk_id_label), (profile?.id ?: profileId)?.toString().orEmpty(), com.lmg.vk.ui.icons.LmgGlyphs.UserOutline28))
+                            slug?.takeIf(String::isNotBlank)?.let {
+                                add(MusicProfileFact(stringResource(R.string.address_label), "vk.com/$it", com.lmg.vk.ui.icons.LmgGlyphs.LinkOutline28))
+                            }
+                            profile?.locationLabel?.takeIf(String::isNotBlank)?.let {
+                                add(MusicProfileFact(stringResource(R.string.fact_location), it, lmgVector(LmgDrawables.PlaceOutline28)))
+                            }
+                            profile?.bdate?.takeIf(String::isNotBlank)?.let {
+                                add(MusicProfileFact(stringResource(R.string.fact_birthday), formatBirthday(it), com.lmg.vk.ui.icons.LmgGlyphs.CakeOutline28))
+                            }
+                            profile?.status?.takeIf(String::isNotBlank)?.let {
+                                add(MusicProfileFact(stringResource(R.string.field_status), it, com.lmg.vk.ui.icons.LmgGlyphs.InfoCircleOutline28))
+                            }
+                        }
+                        MusicProfileInformation(facts)
+                    }
+                    item {
+                        MusicProfileInformation(listOf(
+                            MusicProfileFact(stringResource(R.string.communities_title), (vk.groupsTotal ?: profile?.counters?.groups).orDash(), com.lmg.vk.ui.icons.LmgGlyphs.UsersOutline28) { groupsExpanded = true },
+                            MusicProfileFact(stringResource(R.string.followers_title), (profile?.followersCount ?: profile?.counters?.followers).orDash(), com.lmg.vk.ui.icons.LmgGlyphs.UserOutline28),
+                            MusicProfileFact(stringResource(R.string.subscriptions_title), profile?.counters?.subscriptions.orDash(), com.lmg.vk.ui.icons.LmgGlyphs.UsersOutline28),
+                            MusicProfileFact(stringResource(R.string.online_friends), onlineFriends.size.toString(), com.lmg.vk.ui.icons.LmgGlyphs.UserOutline28) { onlineFriendsOnly = true; friendsExpanded = true },
+                        ))
+                        lastSeenLabel?.let {
+                            Text(it, Modifier.fillMaxWidth().padding(horizontal = LiquidMetrics.ScreenPadding, vertical = 12.dp),
+                                color = colors.textTertiary, fontFamily = VkSansText, fontSize = 12.sp)
+                        }
                     }
                 }
-                item { Spacer(Modifier.height(16.dp)) }
-
-                // SOCIAL: плитки кликабельные — тап открывает полный список.
-                // Online-strip сверху — быстрый вход в профили друзей, которые
-                // сейчас в сети (из уже загруженной первой страницы friends.get).
+            } else {
                 item {
-                    ProfileCard {
-                        ProfileSectionLabel(stringResource(R.string.section_social))
-                        if (onlineFriends.isNotEmpty()) {
-                            ProfileOnlineFriendsStrip(
-                                friends = onlineFriends,
-                                compact = compact,
-                                onOpenAll = {
-                                    onlineFriendsOnly = true
-                                    friendsExpanded = true
-                                },
-                                onFriendClick = { friend ->
-                                    onOpenUserProfile(friend.id)
-                                },
-                            )
-                            ProfileDivider()
-                        }
-                        ProfileMetricsRow(
-                            firstValue = (vk.friendsTotal ?: vk.profile?.counters?.friends).orDash(),
-                            firstLabel = stringResource(R.string.friends_title),
-                            secondValue = (vk.groupsTotal ?: vk.profile?.counters?.groups).orDash(),
-                            secondLabel = stringResource(R.string.communities_title),
-                            compact = compact,
-                            onFirstClick = {
-                                onlineFriendsOnly = false
-                                friendsExpanded = true
-                            },
-                            onSecondClick = { groupsExpanded = true },
-                        )
-                        ProfileDivider()
-                        // Подписчики и подписки — счётчики без своего экрана:
-                        // VK не даёт метода для их списков этому токену, и
-                        // делать плитку кликабельной «в никуда» нельзя.
-                        ProfileMetricsRow(
-                            firstValue = (profile?.followersCount ?: profile?.counters?.followers).orDash(),
-                            firstLabel = stringResource(R.string.followers_title),
-                            secondValue = (profile?.counters?.subscriptions).orDash(),
-                            secondLabel = stringResource(R.string.subscriptions_title),
-                            compact = compact,
-                        )
-                    }
+                    MusicProfileInfoRow(stringResource(R.string.auth_sign_in_action), onOpenAuth)
                 }
-                item { Spacer(Modifier.height(16.dp)) }
             }
+        }
+        }
+        if (!window.useSideBySide) {
+            Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth()
+                .background(LiquidSurfaces.sheet(colors.isDark)).navigationBarsPadding()) {
+                com.lmg.vk.ui.navigation.BottomBar(selectedIndex = 2, onItemSelected = onSelectMainTab)
+            }
+        }
 
+        if (accountActionsExpanded) {
+            WindowCloseSurface(
+                enabled = backHandlingEnabled && !showSignOutConfirmation && !showProfileEditor,
+                onBack = { accountActionsExpanded = false },
+            ) { requestBack ->
+                Box(Modifier.fillMaxSize().background(LiquidSurfaces.sheet(colors.isDark))) {
+                    LazyColumn(contentPadding = PaddingValues(
+                        top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 68.dp,
+                        bottom = 32.dp,
+                    )) {
             item {
                 ProfileCard {
                     if (isLoggedIn) {
@@ -508,7 +476,7 @@ fun ProfileScreen(
                                 label = stringResource(R.string.edit_vk_profile),
                                 value = stringResource(R.string.edit_profile_value),
                                 compact = compact,
-                                onClick = { onOpenUserProfile(editableProfileId) },
+                                onClick = { showProfileEditor = true },
                             )
                             ProfileDivider()
                         }
@@ -605,25 +573,21 @@ fun ProfileScreen(
                 }
             }
 
-            item { Spacer(Modifier.height(if (compact) 20.dp else 32.dp)) }
-            item {
-                Text(
-                    text = stringResource(R.string.app_version_line, com.lmg.vk.BuildConfig.VERSION_NAME),
-                    fontFamily = VkSansText,
-                    color = colors.textTertiary,
-                    fontSize = 10.sp,
-                    textAlign = TextAlign.Center,
-                    letterSpacing = 1.sp,
-                    modifier = Modifier.fillMaxWidth(),
-                )
+
+                    }
+                    DetailTopBar(stringResource(R.string.profile_account_actions), true, colors.isDark, requestBack)
+                }
             }
-            item { Spacer(Modifier.height(24.dp)) }
         }
 
         // Списки друзей и сообществ — оверлеи по тапу на плитку SOCIAL.
         // Порядок важен: аудио владельца рисуется ПОСЛЕ них, потому что
         // открывается изнутри списка и должно лежать выше.
         if (friendsExpanded) {
+            WindowCloseSurface(
+                enabled = backHandlingEnabled && ownerAudio == null && !showSignOutConfirmation,
+                onBack = ::returnFromInnerProfile,
+            ) { requestBack ->
             ProfileOwnerListOverlay(
                 title = if (onlineFriendsOnly) stringResource(R.string.online_friends) else stringResource(R.string.friends_title),
                 total = when {
@@ -648,7 +612,7 @@ fun ProfileScreen(
                 onLoadMore = {
                     scope.launch { VkProfileRepository.loadMoreFriends() }
                 },
-                onBack = ::returnFromInnerProfile,
+                onBack = requestBack,
                 compact = compact,
                 searchQuery = friendsQuery,
                 searchHint = stringResource(R.string.search_friends),
@@ -676,9 +640,14 @@ fun ProfileScreen(
                     },
                 )
             }
+            }
         }
 
         if (groupsExpanded) {
+            WindowCloseSurface(
+                enabled = backHandlingEnabled && ownerAudio == null && !showSignOutConfirmation,
+                onBack = ::returnFromInnerProfile,
+            ) { requestBack ->
             ProfileOwnerListOverlay(
                 title = stringResource(R.string.communities_title),
                 total = if (groupsQuery.isNotBlank()) groupsForOverlay.size else vk.groupsTotal,
@@ -697,7 +666,7 @@ fun ProfileScreen(
                 onLoadMore = {
                     scope.launch { VkProfileRepository.loadMoreGroups() }
                 },
-                onBack = ::returnFromInnerProfile,
+                onBack = requestBack,
                 compact = compact,
                 searchQuery = groupsQuery,
                 searchHint = stringResource(R.string.search_communities),
@@ -712,9 +681,14 @@ fun ProfileScreen(
                     },
                 )
             }
+            }
         }
 
         if (playlistsExpanded) {
+            WindowCloseSurface(
+                enabled = backHandlingEnabled && ownerAudio == null && !showSignOutConfirmation,
+                onBack = ::returnFromInnerProfile,
+            ) { requestBack ->
             ProfileOwnerListOverlay(
                 title = stringResource(R.string.playlists_title),
                 total = if (playlistsQuery.isNotBlank()) {
@@ -737,7 +711,7 @@ fun ProfileScreen(
                 onLoadMore = {
                     scope.launch { VkProfileRepository.loadMorePlaylists() }
                 },
-                onBack = ::returnFromInnerProfile,
+                onBack = requestBack,
                 compact = compact,
                 searchQuery = playlistsQuery,
                 searchHint = stringResource(R.string.search_playlists),
@@ -752,13 +726,16 @@ fun ProfileScreen(
                     },
                 )
             }
+            }
         }
 
         ownerAudio?.let { audioState ->
-            OwnerAudioScreen(
-                state = audioState,
+            WindowCloseSurface(
+                enabled = backHandlingEnabled && !showSignOutConfirmation,
                 onBack = ::returnFromInnerProfile,
-            )
+            ) { requestBack ->
+                OwnerAudioScreen(state = audioState, onBack = requestBack)
+            }
         }
     }
 }
@@ -1149,295 +1126,12 @@ private fun OwnerRow(
  * числами: смена ритма приложения должна оставаться правкой одного файла.
  */
 @Composable
-private fun ProfileHeaderWithSheet(
-    avatarUrl: String?,
-    displayName: String,
-    subtitle: String,
-    status: String?,
-    presence: String?,
-    isVerified: Boolean,
-    isOnline: Boolean,
-    isDark: Boolean,
-    compact: Boolean,
-    onOpenLibrary: () -> Unit,
-    onOpenSettings: () -> Unit,
-) {
-    Box(modifier = Modifier.fillMaxWidth()) {
-        ProfileHeader(
-            avatarUrl = avatarUrl,
-            displayName = displayName,
-            subtitle = subtitle,
-            status = status,
-            presence = presence,
-            isVerified = isVerified,
-            isOnline = isOnline,
-            compact = compact,
-            onOpenLibrary = onOpenLibrary,
-            onOpenSettings = onOpenSettings,
-        )
-        ProfileSheetTop(
-            isDark = isDark,
-            modifier = Modifier.align(Alignment.BottomCenter),
-        )
-    }
-}
-
-/**
- * Фотография профиля на всю ширину, поверх неё — имя, адрес и действия.
- *
- * ПОЧЕМУ ФОТО НА ВСЮ ШИРИНУ, А НЕ КРУЖОК. У артиста и альбома шапка именно
- * такая, и профиль был единственным экраном с центрированным кружком: разный
- * приём для одной и той же роли («кто это») читается как два приложения.
- *
- * Аватар — квадратная картинка, растянутая по ширине с обрезкой по центру
- * (ContentScale.Crop). VK отдаёт для photo_max квадрат, поэтому кадрирование
- * попадает по лицу; на нестандартном фото обрежется по краям, а не исказится.
- *
- * Текст поверх фото всегда светлый (LiquidSurfaces.onHeader*), как у артиста:
- * под ним затемняющий градиент, и в обеих темах шапка остаётся тёмной.
- */
-@Composable
-private fun ProfileHeader(
-    avatarUrl: String?,
-    displayName: String,
-    subtitle: String,
-    status: String?,
-    presence: String?,
-    isVerified: Boolean,
-    isOnline: Boolean,
-    compact: Boolean,
-    onOpenLibrary: () -> Unit,
-    onOpenSettings: () -> Unit,
-) {
-    // Шапка КВАДРАТНАЯ, как на экране друга: аватар у VK квадратный, и при
-    // фиксированной высоте 300dp на ~410dp ширины ContentScale.Crop срезал ему
-    // верх и низ. aspectRatio(1f) считает высоту от ФАКТИЧЕСКОЙ ширины
-    // контейнера, поэтому на широком экране (список ограничен 640dp) квадрат
-    // остаётся квадратом, а не тянется во всю ширину устройства.
-    Box(modifier = Modifier.fillMaxWidth().aspectRatio(1f)) {
-        Box(modifier = Modifier.fillMaxSize().clipToBounds()) {
-            if (!avatarUrl.isNullOrBlank()) {
-                AsyncImage(
-                    // ImageRequest, а не просто model: нужен crossfade, иначе
-                    // фото «вщёлкивается» поверх тёмной плашки.
-                    model = ImageRequest.Builder(LocalContext.current)
-                        .data(avatarUrl)
-                        .crossfade(true)
-                        .build(),
-                    contentDescription = displayName,
-                    contentScale = ContentScale.Crop,
-                    // Фото растягивается под ширину экрана, и дефолтная Low
-                    // даёт на апскейле заметную ступеньку по краям.
-                    filterQuality = FilterQuality.High,
-                    modifier = Modifier.fillMaxSize(),
-                )
-            } else {
-                // Фото нет — ровная тёмная плашка со значком. Светлую здесь
-                // ставить нельзя: белый текст поверх неё исчезнет.
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(Color(0xFF2A2A2E)),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        imageVector = com.lmg.vk.ui.icons.LmgGlyphs.UserOutline28,
-                        contentDescription = null,
-                        tint = Color.White.copy(alpha = 0.30f),
-                        modifier = Modifier.size(96.dp),
-                    )
-                }
-            }
-
-            // Затемнение снизу: имя поверх светлого кадра иначе не читается.
-            // Сверху тоже немного — под статус-баром иначе теряются часы.
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        Brush.verticalGradient(
-                            0f to Color.Black.copy(alpha = 0.35f),
-                            0.30f to Color.Transparent,
-                            0.60f to Color.Black.copy(alpha = 0.25f),
-                            1f to Color.Black.copy(alpha = 0.88f),
-                        ),
-                    ),
-            )
-        }
-
-        Column(
-            modifier = Modifier
-                .align(Alignment.BottomStart)
-                .fillMaxWidth()
-                .padding(
-                    start = LiquidMetrics.ScreenPadding,
-                    end = LiquidMetrics.ScreenPadding,
-                    // Ровно столько, чтобы кнопки не ушли под кромку листа.
-                    bottom = LiquidMetrics.SheetOverlap + 8.dp,
-                ),
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = displayName,
-                    color = LiquidSurfaces.onHeaderPrimary,
-                    fontSize = if (compact) 32.sp else LiquidMetrics.TitleHuge,
-                    fontWeight = LiquidMetrics.TitleHugeWeight,
-                    fontFamily = VkSansDisplay,
-                    letterSpacing = LiquidMetrics.TitleHugeSpacing,
-                    lineHeight = if (compact) 36.sp else 44.sp,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f, fill = false),
-                )
-                if (isVerified) {
-                    Spacer(Modifier.width(8.dp))
-                    Icon(
-                        imageVector = lmgVector(LmgDrawables.CheckShieldOutline28),
-                        contentDescription = stringResource(R.string.verified_badge),
-                        tint = Color(0xFF0077FF),
-                        modifier = Modifier.size(22.dp),
-                    )
-                }
-            }
-
-            Spacer(Modifier.height(6.dp))
-
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                if (isOnline) {
-                    // Онлайн — точкой перед адресом. Строки «Presence» в списке
-                    // ниже больше нет: одно и то же дважды не сообщаем.
-                    Box(
-                        modifier = Modifier
-                            .size(7.dp)
-                            .clip(CircleShape)
-                            .background(OnlineGreen),
-                    )
-                    Spacer(Modifier.width(7.dp))
-                }
-                Text(
-                    text = listOfNotNull(
-                        subtitle.takeIf(String::isNotBlank),
-                        presence?.takeIf(String::isNotBlank),
-                    ).joinToString(" · "),
-                    color = LiquidSurfaces.onHeaderSecondary,
-                    fontFamily = VkSansText,
-                    fontSize = LiquidMetrics.HeaderCaption,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-
-            status?.let {
-                Spacer(Modifier.height(6.dp))
-                Text(
-                    text = it,
-                    color = LiquidSurfaces.onHeaderSecondary,
-                    fontFamily = VkSansText,
-                    fontSize = 12.5.sp,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-
-            Spacer(Modifier.height(16.dp))
-
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                ProfileHeaderButton(
-                    label = stringResource(R.string.my_music_label),
-                    icon = com.lmg.vk.ui.icons.LmgGlyphs.ListPlayOutline28,
-                    filled = true,
-                    onClick = onOpenLibrary,
-                )
-                ProfileHeaderButton(
-                    label = stringResource(R.string.tab_settings),
-                    icon = com.lmg.vk.ui.icons.LmgGlyphs.GearOutline24,
-                    filled = false,
-                    onClick = onOpenSettings,
-                )
-            }
-        }
-    }
-}
-
-/**
- * Кнопка действия в шапке — тот же контракт, что у артиста: главная сплошная
- * белая (под ней фотография, только плотная заливка гарантирует читаемость),
- * вторая стеклянная, чтобы не спорить за внимание.
- */
-@Composable
-private fun RowScope.ProfileHeaderButton(
-    label: String,
-    icon: ImageVector,
-    filled: Boolean,
-    onClick: () -> Unit,
-) {
-    val contentColor = if (filled) Color.Black else Color.White
-    Row(
-        modifier = Modifier
-            .weight(1f)
-            .height(LiquidMetrics.ActionButtonHeight)
-            .shadow(
-                elevation = if (filled) LiquidMetrics.ButtonElevation else 2.dp,
-                shape = CircleShape,
-                ambientColor = Color.Black,
-                spotColor = Color.Black,
-            )
-            .clip(CircleShape)
-            .background(if (filled) Color.White else LiquidSurfaces.glassAction)
-            .liquidClickable(pressedScale = LiquidMotion.PressButton, onClick = onClick),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.Center,
-    ) {
-        Icon(icon, null, tint = contentColor, modifier = Modifier.size(18.dp))
-        Spacer(Modifier.width(8.dp))
-        Text(
-            text = label,
-            color = contentColor,
-            fontFamily = VkSansText,
-            fontSize = LiquidMetrics.ActionLabel,
-            fontWeight = FontWeight.SemiBold,
-        )
-    }
-}
-
-/** Верхушка листа: наезжает на шапку, скруглена сверху, с полоской-ручкой. */
-@Composable
-private fun ProfileSheetTop(isDark: Boolean, modifier: Modifier = Modifier) {
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(LiquidMetrics.SheetShape)
-            .background(LiquidSurfaces.sheet(isDark))
-            .padding(top = 12.dp, bottom = 4.dp),
-        contentAlignment = Alignment.TopCenter,
-    ) {
-        Box(
-            modifier = Modifier
-                .size(width = 36.dp, height = 5.dp)
-                .clip(CircleShape)
-                .background(LiquidSurfaces.grabber(isDark)),
-        )
-    }
-}
-
-@Composable
 private fun ProfileCard(content: @Composable ColumnScope.() -> Unit) {
     val isDark = LiquidTheme.colors.isDark
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = LiquidMetrics.ScreenPadding)
-            // Карточки — из общего словаря: радиус CardRadius, заливка
-            // LiquidSurfaces.card, тень CardElevation с подсветкой (на тёмном
-            // фоне чёрная тень не видна, и карточка выглядит плоской).
-            // Свой dimensionalSurface здесь убран: он был вторым визуальным
-            // языком рядом с тем, по которому сделаны артист и альбом.
-            .shadow(
-                elevation = LiquidMetrics.CardElevation,
-                shape = LiquidMetrics.CardShape,
-                ambientColor = LiquidSurfaces.shadowTint(isDark),
-                spotColor = LiquidSurfaces.shadowTint(isDark),
-            )
             .clip(LiquidMetrics.CardShape)
             .background(LiquidSurfaces.card(isDark)),
         content = content,
@@ -1708,221 +1402,6 @@ private fun ProfileDivider() {
  * Горизонтальные обложки плейлистов из уже загруженного `audio.getPlaylists`.
  * Тап открывает выбранный серверный плейлист через существующий playlist route.
  */
-@Composable
-private fun ProfilePlaylistPreviewRow(
-    playlists: List<AudioPlaylist>,
-    compact: Boolean,
-    onOpenAll: () -> Unit,
-    onPlaylistClick: (AudioPlaylist) -> Unit,
-) {
-    val colors = LiquidTheme.colors
-    val cover = if (compact) 72.dp else 84.dp
-    Column(modifier = Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 10.dp)) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 18.dp)
-                .padding(bottom = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = stringResource(R.string.playlists_title),
-                fontFamily = VkSansText,
-                color = LiquidSurfaces.textSecondary(colors.isDark),
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Medium,
-                modifier = Modifier.weight(1f),
-            )
-            Text(
-                text = stringResource(R.string.see_all),
-                fontFamily = VkSansText,
-                color = LiquidSurfaces.textTertiary(colors.isDark),
-                fontSize = 12.sp,
-                modifier = Modifier.liquidClickable(onClick = onOpenAll),
-            )
-        }
-        LazyRow(
-            contentPadding = PaddingValues(horizontal = 18.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            items(playlists, key = { it.fullId }) { playlist ->
-                ProfilePlaylistCover(
-                    playlist = playlist,
-                    size = cover,
-                    onClick = { onPlaylistClick(playlist) },
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun ProfilePlaylistCover(
-    playlist: AudioPlaylist,
-    size: androidx.compose.ui.unit.Dp,
-    onClick: () -> Unit,
-) {
-    val colors = LiquidTheme.colors
-    val coverTargetPx = with(LocalDensity.current) { size.roundToPx() }
-    val coverUrl = remember(playlist, coverTargetPx) {
-        playlist.profileCoverUrl(coverTargetPx)
-    }
-    Column(
-        modifier = Modifier
-            .width(size)
-            .liquidClickable(pressedScale = LiquidMotion.PressCard, onClick = onClick),
-    ) {
-        Box(
-            modifier = Modifier
-                .size(size)
-                .clip(LiquidMetrics.CoverShape)
-                .background(LiquidSurfaces.cardPressed(colors.isDark)),
-        ) {
-            AlbumArtImage(
-                uri = null,
-                coverUrl = coverUrl,
-                contentDescription = playlist.title,
-                modifier = Modifier.fillMaxSize(),
-                placeholderIconSize = 28.dp,
-            )
-        }
-        Spacer(Modifier.height(6.dp))
-        Text(
-            text = playlist.title.ifBlank { stringResource(R.string.playlist_fallback) },
-            fontFamily = VkSansText,
-            color = LiquidSurfaces.textPrimary(colors.isDark),
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Medium,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-        if (playlist.count > 0) {
-            Text(
-                text = pluralStringResource(R.plurals.track_count, playlist.count, playlist.count),
-                fontFamily = VkSansText,
-                color = LiquidSurfaces.textTertiary(colors.isDark),
-                fontSize = 11.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-    }
-}
-
-/**
- * Аватары друзей online из первой страницы `friends.get`.
- * Не отдельный API: фильтр уже загруженного списка.
- */
-@Composable
-private fun ProfileOnlineFriendsStrip(
-    friends: List<VkFriend>,
-    compact: Boolean,
-    onOpenAll: () -> Unit,
-    onFriendClick: (VkFriend) -> Unit,
-) {
-    val colors = LiquidTheme.colors
-    val avatar = if (compact) 44.dp else 48.dp
-    Column(modifier = Modifier.fillMaxWidth().padding(top = 2.dp, bottom = 10.dp)) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 18.dp)
-                .padding(bottom = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(7.dp)
-                    .clip(CircleShape)
-                    .background(OnlineGreen),
-            )
-            Spacer(Modifier.width(8.dp))
-            Text(
-                text = stringResource(R.string.online_count, friends.size),
-                fontFamily = VkSansText,
-                color = LiquidSurfaces.textSecondary(colors.isDark),
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Medium,
-                modifier = Modifier.weight(1f),
-            )
-            Text(
-                text = stringResource(R.string.see_all),
-                fontFamily = VkSansText,
-                color = LiquidSurfaces.textTertiary(colors.isDark),
-                fontSize = 12.sp,
-                modifier = Modifier.liquidClickable(onClick = onOpenAll),
-            )
-        }
-        LazyRow(
-            contentPadding = PaddingValues(horizontal = 18.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            items(friends.take(16), key = { it.id }) { friend ->
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier
-                        .width(avatar + 8.dp)
-                        .liquidClickable(
-                            pressedScale = LiquidMotion.PressCard,
-                            onClick = { onFriendClick(friend) },
-                        ),
-                ) {
-                    Box(contentAlignment = Alignment.BottomEnd) {
-                        Box(
-                            modifier = Modifier
-                                .size(avatar)
-                                .clip(CircleShape)
-                                .background(colors.textTertiary.copy(alpha = 0.16f)),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            val url = friend.avatarUrl
-                            if (url.isNotBlank()) {
-                                AsyncImage(
-                                    model = url,
-                                    contentDescription = friend.displayName,
-                                    contentScale = ContentScale.Crop,
-                                    modifier = Modifier.fillMaxSize(),
-                                )
-                            } else {
-                                Text(
-                                    text = initialsOf(friend.displayName),
-                                    fontFamily = VkSansText,
-                                    color = colors.textSecondary,
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Medium,
-                                )
-                            }
-                        }
-                        Box(
-                            modifier = Modifier
-                                .size(12.dp)
-                                .clip(CircleShape)
-                                .background(LiquidSurfaces.card(colors.isDark))
-                                .padding(2.dp),
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .clip(CircleShape)
-                                    .background(OnlineGreen),
-                            )
-                        }
-                    }
-                    Spacer(Modifier.height(6.dp))
-                    Text(
-                        text = friend.firstName.ifBlank { friend.displayName },
-                        fontFamily = VkSansText,
-                        color = LiquidSurfaces.textPrimary(colors.isDark),
-                        fontSize = 11.sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-            }
-        }
-    }
-}
-
 @Composable
 private fun ProfileFilterChip(
     label: String,

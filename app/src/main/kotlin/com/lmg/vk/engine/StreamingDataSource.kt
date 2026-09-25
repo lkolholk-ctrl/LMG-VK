@@ -134,6 +134,10 @@ class StreamingDataSource private constructor(
         val embeddedUrl = uri.getQueryParameter(PARAM_URL)?.takeIf { it.isNotEmpty() }
 
         if (trackId != null) {
+            com.lmg.vk.data.local.db.FavoriteTrackDatabase.getInstance(context).getDownloadedTrack(trackId)?.let { saved ->
+                if (com.lmg.vk.data.local.PublicDownloads.exists(context, saved.localPath))
+                    return com.lmg.vk.data.local.PublicDownloads.toPlayableUri(saved.localPath)
+            }
             // Check downloaded offline files first (regardless of premium status)
             val offlineMp3 = File(context.filesDir, "downloads/$trackId.mp3")
             val offlineM4a = File(context.filesDir, "downloads/$trackId.m4a")

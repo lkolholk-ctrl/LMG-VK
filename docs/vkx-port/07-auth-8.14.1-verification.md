@@ -124,8 +124,10 @@ is_sound_captcha_available`.
 - В `VkApiClient` Bearer отделён от параметров метода. Для
   `validateAccount`/`ecosystem.*` анонимный токен идёт только в Bearer;
   явный `access_token` других methods по-прежнему остаётся и в form-body.
-- `oauth/token` теперь всегда передаёт `sid`, `anonymous_token` и `code`,
-  включая пустой `code`, как исходный builder.
+- Уточнение от 2026-09-07: `oauth/token` передаёт `sid` и `anonymous_token`.
+  После SMS, на шаге пароля, `code` отсутствует и в VK X, и в LMG:
+  вызов передаёт null, а builder пропускает null. Прежнее утверждение об
+  обязательном пустом `code` было ошибочным; см. `docs/AUTH-PASSWORD-DIAGNOSTICS.md`.
 - Ошибка auth/ecosystem показывает код VK вместе с текстом, чтобы
   следующая полевая проверка не теряла server error code.
 

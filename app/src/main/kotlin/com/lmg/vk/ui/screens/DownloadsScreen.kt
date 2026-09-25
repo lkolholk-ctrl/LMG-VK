@@ -1,6 +1,14 @@
 package com.lmg.vk.ui.screens
 
 import android.content.Context
+import android.widget.Toast
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateMapOf
+import com.lmg.vk.ui.effects.DustDissolve
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.delay
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -160,6 +168,43 @@ fun DownloadsScreen(onBack: () -> Unit = {}) {
     // заново открывать БД и пересчитывать размеры файлов.
     val downloadsFlow = remember(context) { DownloadsRegistryBridge.observe(context) }
     val downloads by downloadsFlow.collectAsState(initial = emptyList())
+    val listState = rememberLazyListState()
+    val dismissals = remember { mutableStateMapOf<String, DownloadDismissal>() }
+    val displayedDownloads = mergeDismissingDownloads(downloads, dismissals.values)
+    fun finishDismissal(id: String) {
+        dismissals[id]?.let { dismissals[id] = it.copy(finished = true) }
+    }
+    fun retainForDismissal(items: List<DownloadedItem>) {
+        items.forEach { item ->
+            dismissals[item.trackId] = DownloadDismissal(item, downloads.indexOfFirst { it.trackId == item.trackId })
+        }
+        scope.launch {
+            delay(1500)
+            items.forEach { finishDismissal(it.trackId) }
+        }
+    }
+    fun deleteDownloads(items: List<DownloadedItem>, clearAll: Boolean = false) {
+        retainForDismissal(items)
+        scope.launch {
+            try {
+                withContext(NonCancellable) {
+                    if (clearAll) DownloadsRegistryBridge.removeAll(context.applicationContext)
+                    else items.forEach { DownloadsRegistryBridge.remove(context.applicationContext, it.trackId) }
+                }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (_: Exception) {
+                items.forEach { dismissals.remove(it.trackId) }
+                Toast.makeText(context, R.string.download_delete_failed, Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+    LaunchedEffect(downloads, dismissals.toMap()) {
+        val ids = downloads.mapTo(hashSetOf()) { it.trackId }
+        dismissals.values.filter { it.finished && it.item.trackId !in ids }
+            .forEach { dismissals.remove(it.item.trackId) }
+    }
+
 
     // Активные загрузки берём из менеджера — единственного, кто знает прогресс.
     val downloadStates by TrackDownloadManager.states.collectAsState()
@@ -174,6 +219,7 @@ fun DownloadsScreen(onBack: () -> Unit = {}) {
 
     Box(modifier = Modifier.fillMaxSize().background(lc.settingsBackground)) {
         LazyColumn(
+            state = listState,
             modifier = Modifier
                 .fillMaxSize()
                 // Диалог поверх размытого контента — тот же приём, что в Библиотеке.
@@ -193,9 +239,8 @@ fun DownloadsScreen(onBack: () -> Unit = {}) {
                     },
                     isDark = lc.isDark,
                     onBack = onBack,
-                    actions = if (downloads.isNotEmpty()) {
+                    trailing = if (downloads.isNotEmpty()) {
                         {
-                            Spacer(Modifier.weight(1f))
                             DownloadsHeaderAction(
                                 onClick = { confirmClearAll = true },
                             )
@@ -268,7 +313,7 @@ fun DownloadsScreen(onBack: () -> Unit = {}) {
                 }
             }
 
-            if (downloads.isEmpty()) {
+            if (displayedDownloads.isEmpty()) {
                 item(key = "downloads_empty") {
                     Box(
                         modifier = Modifier.fillMaxWidth().height(240.dp),
@@ -299,9 +344,13 @@ fun DownloadsScreen(onBack: () -> Unit = {}) {
                     }
                 }
             } else {
-                items(downloads, key = { it.trackId }) { item ->
-                    Box(
-                        modifier = Modifier.padding(
+                items(displayedDownloads, key = { it.trackId }) { item ->
+                    DustDissolve(
+                        dissolving = item.trackId in dismissals,
+                        onFinished = { finishDismissal(item.trackId) },
+                        durationMillis = 780,
+                        maxParticles = 2200,
+                        modifier = Modifier.animateItem(fadeInSpec = null, fadeOutSpec = null).padding(
                             horizontal = if (compact) 24.dp else 20.dp,
                         ),
                     ) {
@@ -329,7 +378,7 @@ fun DownloadsScreen(onBack: () -> Unit = {}) {
                     text = stringResource(R.string.action_delete),
                     onClick = {
                         itemToDelete = null
-                        scope.launch { DownloadsRegistryBridge.remove(context, target.trackId) }
+                        deleteDownloads(listOf(target))
                     },
                     backgroundColor = lc.accentRed,
                     textColor = Color.White
@@ -360,7 +409,8 @@ fun DownloadsScreen(onBack: () -> Unit = {}) {
                     text = stringResource(R.string.clear_all),
                     onClick = {
                         confirmClearAll = false
-                        scope.launch { DownloadsRegistryBridge.removeAll(context) }
+                        val visibleIds = listState.layoutInfo.visibleItemsInfo.mapTo(hashSetOf()) { it.key }
+                        deleteDownloads(downloads.filter { it.trackId in visibleIds }, clearAll = true)
                     },
                     backgroundColor = lc.accentRed,
                     textColor = Color.White
@@ -383,6 +433,7 @@ private fun RowScope.DownloadsHeaderAction(
     val lc = LiquidTheme.colors
     Row(
         modifier = Modifier
+            .align(Alignment.Top)
             .height(40.dp)
             .liquidClickable(
                 pressedScale = LiquidMotion.PressButton,
@@ -466,6 +517,7 @@ private fun DownloadedRow(
         AlbumArtImage(
             uri = null,
             coverUrl = item.coverUrl,
+            artworkQuery = com.lmg.vk.artwork.ArtworkQuery(item.title, item.artist, item.durationMs, item.albumName),
             contentDescription = item.title,
             contentScale = ContentScale.Crop,
             modifier = Modifier

@@ -5,6 +5,10 @@ import android.content.Context
 import android.net.Uri
 import android.os.Environment
 import android.provider.MediaStore
+import android.util.LruCache
+import com.airbnb.lottie.LottieComposition
+import com.airbnb.lottie.LottieCompositionFactory
+import java.util.zip.ZipInputStream
 import com.lmg.vk.R
 import com.lmg.vk.debug.DebugLog
 import com.lmg.vk.network.applyVkRequestIdentity
@@ -23,6 +27,30 @@ import java.security.MessageDigest
  * available until the user clears app data or uninstalls the application.
  */
 object VkMixLottieStore {
+    private val compositions = LruCache<String, LottieComposition>(24)
+    private val locks = Array(32) { Any() }
+
+    fun cachedComposition(optionId: String, url: String): LottieComposition? =
+        compositions.get(stableKey(optionId, url))
+
+    fun loadComposition(context: Context, optionId: String, url: String): LottieComposition? {
+        val key = stableKey(optionId, url)
+        return synchronized(locks[(key.hashCode() and Int.MAX_VALUE) % locks.size]) {
+            compositions.get(key)?.let { return@synchronized it }
+            val file = getOrDownload(context, optionId, url) ?: return@synchronized null
+            val zipped = file.inputStream().use { it.read() == 0x50 && it.read() == 0x4B }
+            val result = if (zipped) {
+                LottieCompositionFactory.fromZipStreamSync(ZipInputStream(file.inputStream()), "catalog_$key")
+            } else {
+                LottieCompositionFactory.fromJsonInputStreamSync(file.inputStream(), "catalog_$key")
+            }
+            result.value?.also { compositions.put(key, it) } ?: run {
+                quarantine(file)
+                null
+            }
+        }
+    }
+
     private const val DIRECTORY = "vk_mix_lottie"
     private const val DOWNLOAD_DIRECTORY = "LMG VK/VK Mix Lottie"
     private const val CONNECT_TIMEOUT_MS = 15_000
@@ -44,7 +72,14 @@ object VkMixLottieStore {
         else -> null
     }
 
-    fun getOrDownload(context: Context, optionId: String, url: String): File? = runCatching {
+    fun getOrDownload(context: Context, optionId: String, url: String): File? {
+        val key = stableKey(optionId, url)
+        return synchronized(locks[(key.hashCode() and Int.MAX_VALUE) % locks.size]) {
+            downloadIfMissing(context, optionId, url)
+        }
+    }
+
+    private fun downloadIfMissing(context: Context, optionId: String, url: String): File? = runCatching {
         require(url.startsWith("https://", ignoreCase = true) || url.startsWith("http://", ignoreCase = true))
         val directory = File(context.filesDir, DIRECTORY).also { dir ->
             check(dir.isDirectory || dir.mkdirs()) { "Cannot create ${dir.absolutePath}" }

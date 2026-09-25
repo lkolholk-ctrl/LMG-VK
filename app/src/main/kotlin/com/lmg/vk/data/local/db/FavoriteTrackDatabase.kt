@@ -35,6 +35,8 @@ class FavoriteTrackDatabase private constructor(context: Context) : SQLiteOpenHe
     // --- Downloaded Tracks flows ---
     private val _downloadsFlow = MutableStateFlow<List<DownloadedTrackEntity>>(emptyList())
     val downloadsFlow: Flow<List<DownloadedTrackEntity>> = _downloadsFlow
+    @Volatile private var downloadedSnapshot: Map<String, DownloadedTrackEntity> = emptyMap()
+    fun cachedDownloadedTrack(id: String): DownloadedTrackEntity? = downloadedSnapshot[id]
 
     private val _downloadedIdsFlow = MutableStateFlow<Set<String>>(emptySet())
     val downloadedIdsFlow: Flow<Set<String>> = _downloadedIdsFlow
@@ -254,6 +256,7 @@ class FavoriteTrackDatabase private constructor(context: Context) : SQLiteOpenHe
             }
             result
         }
+        downloadedSnapshot = list.associateBy { it.trackId }
         _downloadsFlow.value = list
         val ids = list.map { it.trackId }.toSet()
         _downloadedIdsFlow.value = ids
@@ -522,10 +525,10 @@ class FavoriteTrackDatabase private constructor(context: Context) : SQLiteOpenHe
             put("quality", entity.quality)
             put("downloadedAt", entity.downloadedAt)
         }
-        writableDatabase.insertWithOnConflict(
+        check(writableDatabase.insertWithOnConflict(
             "downloaded_tracks", null, values,
             SQLiteDatabase.CONFLICT_REPLACE
-        )
+        ) != -1L) { "Cannot register downloaded track" }
         reloadDownloads()
     }
 

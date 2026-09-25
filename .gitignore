@@ -21,3 +21,8 @@ network-config.json
 
 # Local dependencies used only to regenerate the embedded AMLL renderer.
 tools/amll-renderer/node_modules/
+
+# Stage zip bundles and intermediate builds
+*.zip
+build_native_stage*/
+apple_music_analysis_example.json

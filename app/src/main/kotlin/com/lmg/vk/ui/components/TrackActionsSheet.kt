@@ -87,6 +87,7 @@ fun TrackActionsSheet(
                     uri = track.albumArtUri,
                     contentDescription = null,
                     coverUrl = track.coverUrl,
+                    artworkQuery = com.lmg.vk.artwork.ArtworkQuery(track.title, track.artist, track.durationMs),
                     contentScale = ContentScale.Crop,
                     modifier = Modifier
                         .size(52.dp)

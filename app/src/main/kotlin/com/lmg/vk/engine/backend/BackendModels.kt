@@ -1115,6 +1115,9 @@ data class HomeBlock(
     @SerialName("signalInfo") val signalInfo: HomeSignalInfo? = null,
     /** Server actions belong to a block, independently from its visual layout. */
     val actions: HomeCatalogActions = HomeCatalogActions(),
+    val subtitle: String? = null,
+    val layoutStyle: String? = null,
+    val gridLayout: List<List<String>> = emptyList(),
 )
 
 @Serializable
@@ -1205,6 +1208,10 @@ data class HomeItem(
     @SerialName("catalogBlockId") val catalogBlockId: String? = null,
     /** Supported server CatalogLink URL; navigation remains server-owned. */
     @SerialName("catalogUrl") val catalogUrl: String? = null,
+    val catalogSectionId: String? = null,
+    val recommendation: HomeRecommendation? = null,
+    val catalogStyle: String? = null,
+    val foregroundCover: String? = null,
 ) {
     /** A CatalogKit Mix is custom content, but unlike a promo card it is playable. */
     val isStreamMix: Boolean
@@ -1213,9 +1220,9 @@ data class HomeItem(
     val isMusicOwner: Boolean
         get() = musicOwnerId != null
 
-    /** Keep action-less custom cards disabled while allowing server Mix cards. */
+    /** Every visible card can open its destination or explain missing server metadata. */
     val isInteractive: Boolean
-        get() = !isCustom || isStreamMix || isMusicOwner || isRadio || !catalogUrl.isNullOrBlank()
+        get() = true
 
     /** Трек = не альбом, не артист и не видеоклип (клип не стримится). */
     val isTrack: Boolean
@@ -1232,6 +1239,15 @@ data class HomeItem(
     val durationMs: Long
         get() = normalizeDurationMs(duration, source)
 }
+
+@Serializable
+data class HomeRecommendation(
+    val percentage: Float? = null,
+    val percentageTitle: String? = null,
+    val ownerName: String? = null,
+    val ownerAvatar: String? = null,
+    val tracks: List<HomeItem> = emptyList(),
+)
 
 /**
  * Full home screen response — a list of content blocks.

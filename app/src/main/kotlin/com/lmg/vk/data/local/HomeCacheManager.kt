@@ -3,6 +3,8 @@ package com.lmg.vk.data.local
 import android.content.Context
 import android.content.SharedPreferences
 import com.lmg.vk.data.local.db.AppDatabase
+import com.lmg.vk.engine.backend.HomeCatalogPage
+import com.lmg.vk.engine.backend.homeCatalogCacheKey
 import com.lmg.vk.engine.backend.HomeBlock
 import com.lmg.vk.engine.backend.HomeCatalogActions
 import com.lmg.vk.engine.backend.HomeCatalogSection
@@ -30,7 +32,7 @@ object HomeCacheManager {
     private const val LEGACY_ACCOUNT_ID = "account_id"
     // v6 also stores actionable CatalogLink URLs. Older caches would turn
     // server artist/curator cards back into disabled grey placeholders.
-    private const val CACHE_SCHEMA_VERSION = 6
+    private const val CACHE_SCHEMA_VERSION = 9
 
     private var prefs: SharedPreferences? = null
 
@@ -41,7 +43,7 @@ object HomeCacheManager {
     /**
      * Save home response to cache.
      */
-    suspend fun save(response: HomeResponse, accountId: Long) = withContext(Dispatchers.IO) {
+    suspend fun save(response: HomeResponse, accountId: Long, catalogPage: HomeCatalogPage? = null) = withContext(Dispatchers.IO) {
         val p = prefs ?: return@withContext
         val json = JSONObject().apply {
             put("version", CACHE_SCHEMA_VERSION)
@@ -126,6 +128,7 @@ object HomeCacheManager {
                                     put("musicOwnerId", item.musicOwnerId ?: JSONObject.NULL)
                                     put("catalogBlockId", item.catalogBlockId ?: JSONObject.NULL)
                                     put("catalogUrl", item.catalogUrl ?: JSONObject.NULL)
+                                    put("catalogSectionId", item.catalogSectionId ?: JSONObject.NULL)
                                     put("radioStreamUrl", item.radioStreamUrl ?: JSONObject.NULL)
                                     put("isRadio", item.isRadio)
                                     put("streamMixId", item.streamMixId ?: JSONObject.NULL)
@@ -148,8 +151,8 @@ object HomeCacheManager {
             })
         }
         p.edit().apply {
-            putString(accountKey(KEY_BLOCKS, accountId), json.toString())
-            putLong(accountKey(KEY_TIMESTAMP, accountId), System.currentTimeMillis())
+            putString(homeCatalogCacheKey(KEY_BLOCKS, accountId, catalogPage), json.toString())
+            putLong(homeCatalogCacheKey(KEY_TIMESTAMP, accountId, catalogPage), System.currentTimeMillis())
             apply()
         }
     }
@@ -158,14 +161,14 @@ object HomeCacheManager {
      * Load cached home response.
      * @return Cached response or null if expired/missing.
      */
-    suspend fun load(accountId: Long): HomeResponse? = withContext(Dispatchers.IO) {
+    suspend fun load(accountId: Long, catalogPage: HomeCatalogPage? = null): HomeResponse? = withContext(Dispatchers.IO) {
         val startedAt = System.currentTimeMillis()
         try {
             val p = prefs ?: return@withContext null
-            val blocksKey = accountKey(KEY_BLOCKS, accountId)
-            val timestampKey = accountKey(KEY_TIMESTAMP, accountId)
+            val blocksKey = homeCatalogCacheKey(KEY_BLOCKS, accountId, catalogPage)
+            val timestampKey = homeCatalogCacheKey(KEY_TIMESTAMP, accountId, catalogPage)
             val jsonStr = p.getString(blocksKey, null) ?: p.getString(KEY_BLOCKS, null)
-                ?.takeIf { p.getLong(LEGACY_ACCOUNT_ID, Long.MIN_VALUE) == accountId }
+                ?.takeIf { catalogPage == null && p.getLong(LEGACY_ACCOUNT_ID, Long.MIN_VALUE) == accountId }
                 ?.also {
                     p.edit()
                         .putString(blocksKey, it)
@@ -215,6 +218,7 @@ object HomeCacheManager {
                             ?.takeIf { it != "null" && it.isNotBlank() }?.toLongOrNull(),
                         catalogBlockId = itemObj.optString("catalogBlockId", null)
                             ?.takeIf { it != "null" },
+                        catalogSectionId = itemObj.optString("catalogSectionId", null)?.takeIf { it != "null" && it.isNotBlank() },
                         catalogUrl = itemObj.optString("catalogUrl", null)
                             ?.takeIf { it != "null" },
                         radioStreamUrl = itemObj.optString("radioStreamUrl", null)
@@ -337,19 +341,18 @@ object HomeCacheManager {
 
     fun isFresh(): Boolean {
         val p = prefs ?: return false
-        return p.contains(accountKey(KEY_BLOCKS, AppDatabase.activeAccountId()))
+        return p.contains(homeCatalogCacheKey(KEY_BLOCKS, AppDatabase.activeAccountId()))
     }
 
     /**
      * Clear cache.
      */
-    fun clear() {
+    fun clear(catalogPage: HomeCatalogPage? = null) {
         val accountId = AppDatabase.activeAccountId()
         prefs?.edit()
-            ?.remove(accountKey(KEY_BLOCKS, accountId))
-            ?.remove(accountKey(KEY_TIMESTAMP, accountId))
+            ?.remove(homeCatalogCacheKey(KEY_BLOCKS, accountId, catalogPage))
+            ?.remove(homeCatalogCacheKey(KEY_TIMESTAMP, accountId, catalogPage))
             ?.apply()
     }
 
-    private fun accountKey(key: String, accountId: Long): String = "${key}_account_$accountId"
 }

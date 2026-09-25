@@ -6,16 +6,15 @@ import org.junit.Test
 class ItunesArtworkQualityTest {
     private val base = "Music114/v4/aa/bb/cc/asset/cover.rgb.jpg"
 
-    @Test fun originalAssetPrecedesLargeRenditionAndApiFallback() {
+    @Test fun displayRenditionPrecedesApiFallback() {
         val url = "https://is1-ssl.mzstatic.com/image/thumb/$base/100x100bb.jpg"
-        assertEquals(listOf("https://a5.mzstatic.com/us/r1000/0/$base",
-            "https://is1-ssl.mzstatic.com/image/thumb/$base/10000x10000bb.jpg", url),
+        assertEquals(listOf("https://is1-ssl.mzstatic.com/image/thumb/$base/1200x1200bb.jpg", url),
             ItunesArtworkQuality.urls(url))
     }
 
     @Test fun oldCached600PixelArtworkUpgradesWithoutAnotherSearch() {
         val url = "https://is1-ssl.mzstatic.com/image/thumb/$base/600x600bb.jpg"
-        assertEquals("https://a5.mzstatic.com/us/r1000/0/$base", ItunesArtworkQuality.urls(url).first())
+        assertEquals("https://is1-ssl.mzstatic.com/image/thumb/$base/1200x1200bb.jpg", ItunesArtworkQuality.urls(url).first())
     }
 
     @Test fun originalAndUnrelatedUrlsAreNotRewritten() {

@@ -16,6 +16,8 @@ import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
+import com.lmg.vk.artwork.ItunesArtworkRepository
 
 /**
  * ViewModel for the Search screen.
@@ -89,6 +91,12 @@ class SearchViewModel : ViewModel() {
      * Update search query. Triggers debounced search automatically.
      */
     fun setQuery(newQuery: String) {
+        if (newQuery != _query.value) {
+            searchJob?.cancel()
+            loadMoreJob?.cancel()
+            _isLoading.value = false
+            _isLoadingMore.value = false
+        }
         _query.value = newQuery
         if (newQuery.isBlank()) {
             loadMoreJob?.cancel()
@@ -102,6 +110,8 @@ class SearchViewModel : ViewModel() {
      * Clear search query and results.
      */
     fun clearQuery() {
+        searchJob?.cancel()
+        _isLoading.value = false
         _query.value = ""
         loadMoreJob?.cancel()
         _searchResults.value = emptyList()
@@ -130,6 +140,7 @@ class SearchViewModel : ViewModel() {
             _isLoading.value = true
             _error.value = null
             try {
+                val artworkJob = launch { ItunesArtworkRepository.prefetchSearch(q) }
                 var result = MusicBackend.searchAll(q)
                 // Транзиент от быстрого ввода: один ТИХИЙ повтор через 1.2с при сбое
                 if (result == null && q == _query.value.trim()) {
@@ -137,10 +148,17 @@ class SearchViewModel : ViewModel() {
                     if (q == _query.value.trim())
                         result = MusicBackend.searchAll(q)
                 }
-                if (q != _query.value.trim() && _query.value.trim().length >= 2)
+                if (q != _query.value.trim())
                     return@launch
 
-                val items = result?.items ?: emptyList()
+                val items = enrichDurations(result?.items ?: emptyList())
+                if (q != _query.value.trim()) return@launch
+                if (items.any { it.isTrack }) {
+                    withTimeoutOrNull(150) { artworkJob.join() }
+                } else {
+                    artworkJob.cancel()
+                }
+                if (!isActive || q != _query.value.trim()) return@launch
                 _searchResults.value = items
                 nextOffset = result?.nextOffset
                 _pagingKey.value = nextOffset
@@ -149,8 +167,6 @@ class SearchViewModel : ViewModel() {
                     // Человекочитаемое сообщение вместо сырого JSON тела ответа.
                     _error.value = backendUserMessage(MusicBackend.lastApiException.value)
                 }
-                // Длительности треков дотягиваем батчем /tracks/meta и вливаем в выдачу
-                enrichDurations(q, items)
             } catch (ce: CancellationException) {
                 throw ce   // отмена — не ошибка, не показываем её пользователю
             } catch (e: Exception) {
@@ -182,7 +198,8 @@ class SearchViewModel : ViewModel() {
                     return@launch
                 }
 
-                val pageItems = result.items
+                val pageItems = enrichDurations(result.items)
+                if (!isActive || q != _query.value.trim()) return@launch
                 val pageKeys = pageItems.filter { it.isTrack }.map { it.pagingKey() }
                 val repeatedPage = pageKeys.isNotEmpty() && pageKeys == previousPageKeys
                 previousPageKeys = pageKeys
@@ -190,7 +207,6 @@ class SearchViewModel : ViewModel() {
                 nextOffset = result.nextOffset
                 _pagingKey.value = nextOffset
                 _hasMore.value = result.hasMore && nextOffset != null && !repeatedPage
-                enrichDurations(q, pageItems)
             } catch (ce: CancellationException) {
                 throw ce
             } catch (e: Exception) {
@@ -227,28 +243,24 @@ class SearchViewModel : ViewModel() {
     /**
      * Дотянуть длительности треков, у которых их нет в выдаче, батчем.
      */
-    private fun enrichDurations(q: String, items: List<SearchItem>) {
-        val needIds = items
-            .filter { it.isTrack && it.durationMs <= 0L }
-            .map { it.id }
-            .distinct()
-            .take(50)
-        if (needIds.isEmpty()) return
-        viewModelScope.launch {
-            try {
-                val meta = com.lmg.vk.engine.backend.MusicBackend.getInstance()
-                    .getBatchTrackMeta(needIds).getOrNull() ?: return@launch
-                if (q != _query.value.trim()) return@launch
-                val byId = meta.items
-                    .filter { it.isSuccess && it.durationMs > 0L }
-                    .associateBy { it.trackId ?: it.id }
-                if (byId.isEmpty()) return@launch
-                _searchResults.value = _searchResults.value.map { item ->
-                    val m = byId[item.id]
-                    if (m != null && item.durationMs <= 0L) item.copy(duration = m.durationMs)
-                    else item
-                }
-            } catch (_: Exception) { /* тихо — время появится в детальных экранах */ }
+    private suspend fun enrichDurations(items: List<SearchItem>): List<SearchItem> {
+        val needIds = items.filter { it.isTrack && it.durationMs <= 0L }
+            .map { it.id }.distinct().take(50)
+        if (needIds.isEmpty()) return items
+        return try {
+            val meta = withTimeoutOrNull(1_200) {
+                MusicBackend.getInstance().getBatchTrackMeta(needIds).getOrNull()
+            } ?: return items
+            val byId = meta.items.filter { it.isSuccess && it.durationMs > 0L }
+                .associateBy { it.trackId ?: it.id }
+            items.map { item ->
+                val m = byId[item.id]
+                if (m != null && item.durationMs <= 0L) item.copy(duration = m.durationMs) else item
+            }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            items
         }
     }
 

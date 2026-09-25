@@ -38,6 +38,15 @@ recovered_project/  (rootProject = "lmg-recovered")
 # Требуется media3-m2/ с форком media3-lmg (как в LMG: zip релиза)
 ```
 
+## Lyrics Screen
+
+Экран текстов и предпросмотр ручной разметки используют нативный Compose-рендерер
+Accompanist из `Lyrics-Apache2-0.zip`. Исходники ядра и UI находятся в `third_party/`;
+происхождение, лицензии Apache 2.0 и изменения описаны в
+[`third_party/ACCOMPANIST.md`](third_party/ACCOMPANIST.md).
+
+Проверка: `./gradlew :app:testDebugUnitTest :app:assembleDebug`.
+
 ## Примечания ребренда
 
 - Пакет везде `com.lmg.vk` (+ `com.lmg.vk.jni` для нативного моста)

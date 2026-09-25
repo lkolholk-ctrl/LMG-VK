@@ -91,6 +91,24 @@ class AudioService : MediaSessionService() {
     // Metadata-only AutoMix observation. Never owns PCM, gain, timing or playback.
     @Volatile private var autoMixObservation: Media3ObservationPipeline? = null
 
+    // One passive boundary controller for the existing streaming ExoPlayer.
+    private val autoMixRenderBoundary = com.lmg.vk.engine.automix.render.RenderBoundaryController()
+    val autoMixRenderBoundaryState: com.lmg.vk.engine.automix.render.RenderBoundaryReport
+        get() = autoMixRenderBoundary.snapshot()
+
+    /** Manual debug-only transport probe. May temporarily buffer audio; it never enables DSP. */
+    val autoMixCueProbeState: com.lmg.vk.engine.automix.render.CueProbeReport
+        get() = autoMixRenderBoundary.cueProbeSnapshot()
+
+    fun requestAutoMixCueProbe(generation: Long, revision: Long, maxWaitMs: Int = 100):
+        com.lmg.vk.engine.automix.render.CueProbeRequest {
+        if (!com.lmg.vk.BuildConfig.DEBUG)
+            return com.lmg.vk.engine.automix.render.CueProbeRequest.DISABLED
+        return autoMixRenderBoundary.requestCueProbe(generation, revision, maxWaitMs)
+    }
+
+    fun releaseAutoMixCueProbe() = autoMixRenderBoundary.releaseCueProbe()
+
     /** Available after onCreate; collect with a service-bound scope. */
     val autoMixObservationState: StateFlow<ObservationState<MetadataProbeReport>>?
         get() = autoMixObservation?.state
@@ -649,6 +667,7 @@ class AudioService : MediaSessionService() {
             isActiveBackend = { exoOwnsSession() },
             ownerScope = mainScope,
             openAsset = applicationContext.assets::open,
+            renderBoundary = autoMixRenderBoundary,
         ).also { it.refresh() }
 
         // ── Нотификация ──
@@ -774,7 +793,7 @@ class AudioService : MediaSessionService() {
         // Единая цепочка (Bass-анализ → DJ FX перехода → нормализация) —
         // PlayerAudioChain: та же фабрика у secondary-плеера AutoMix, чтобы
         // после свапа плееров цепочка не терялась.
-        val renderersFactory = PlayerAudioChain.renderersFactory(this)
+        val renderersFactory = PlayerAudioChain.renderersFactory(this, autoMixRenderBoundary)
 
         return ExoPlayer.Builder(this)
             .setRenderersFactory(renderersFactory)
@@ -923,6 +942,7 @@ class AudioService : MediaSessionService() {
     }
 
     override fun onDestroy() {
+        autoMixRenderBoundary.close()
         autoMixObservation?.close()
         autoMixObservation = null
         PlayerController.logFinalPlayback()

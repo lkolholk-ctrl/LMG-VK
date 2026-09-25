@@ -1,0 +1,25 @@
+{
+  "has_motion": true,
+  "track_id": "1832593586",
+  "album_id": "1832593364",
+  "title": "ANTIDOTE",
+  "artist": "HEALTH",
+  "album": "CONFLICT DLC",
+  "static_artwork": "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/00/60/10/00601067-bfad-a548-fab1-cb190624c3ed/25CRGIM51072.rgb.jpg/3000x3000bb.jpg",
+  "storefront": "us",
+  "square": {
+    "m3u8": "https://mvod.itunes.apple.com/itunes-assets/HLSVideo221/v4/a5/cf/3f/a5cf3f25-b64a-c480-e854-4969f833f675/P1180585341_default.m3u8",
+    "mp4": "https://mvod.itunes.apple.com/itunes-assets/HLSVideo221/v4/a5/cf/3f/a5cf3f25-b64a-c480-e854-4969f833f675/P1180585341_Anull_video_gr240_sdr_768x768-.mp4",
+    "preview": "https://is1-ssl.mzstatic.com/image/thumb/Video211/v4/71/e5/16/71e51658-a874-1990-dff6-2df23893dd22/Jobe9046150-3a1f-4d7b-aea5-93027498163c-202713983-PreviewImage_Preview_Image_Intermediate_nonvideo_sdr_396507713_2332867207-Time1757526360300.png/1200x1200bb.jpg"
+  },
+  "tall": {
+    "m3u8": "https://mvod.itunes.apple.com/itunes-assets/HLSVideo221/v4/18/b8/95/18b89547-36bf-1062-a686-72b0e0ee12c7/P1180567427_default.m3u8",
+    "mp4": "https://mvod.itunes.apple.com/itunes-assets/HLSVideo221/v4/18/b8/95/18b89547-36bf-1062-a686-72b0e0ee12c7/P1180567427_Anull_video_gr240_sdr_664x886-.mp4",
+    "preview": "https://is1-ssl.mzstatic.com/image/thumb/Video221/v4/8b/d8/78/8bd87810-be55-817d-0ce6-beae153855c1/Job78305230-e73c-407b-863e-7cd2a7fae6ed-202713982-PreviewImage_Preview_Image_Intermediate_nonvideo_sdr_396507714_2332867208-Time1757524877971.png/1200x1600bb.jpg"
+  },
+  "colors": {
+    "bg": "000000",
+    "text1": "ffffff",
+    "text2": "dbdbdb"
+  }
+}

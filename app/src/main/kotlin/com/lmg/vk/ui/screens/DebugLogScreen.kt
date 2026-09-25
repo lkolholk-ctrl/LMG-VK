@@ -264,6 +264,8 @@ fun DebugLogScreen(onBack: () -> Unit = {}) {
 
             Spacer(Modifier.height(12.dp))
 
+            PerformanceCaptureCard()
+
             if (visible.isEmpty()) {
                 // Пусто — честный текст, никаких примеров-заглушек: увидев
                 // выдуманные строки, пользователь решил бы, что лог работает.

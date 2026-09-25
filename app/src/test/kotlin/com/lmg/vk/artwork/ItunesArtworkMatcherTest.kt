@@ -4,6 +4,20 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class ItunesArtworkMatcherTest {
+    @Test fun mixedAlphabetRepairPreservesCyrillicAndVersions() {
+        assertEquals("bruised sky", ItunesArtworkMatcher.normalize("Bruised Sk\u0443"))
+        assertEquals("poppy", ItunesArtworkMatcher.normalize("P\u043eppy"))
+        for (text in listOf("рок", "море", "кино", "русскиеRock")) {
+            assertEquals(text.lowercase(), ItunesArtworkMatcher.normalize(text))
+        }
+        assertEquals("bruised sky live", ItunesArtworkMatcher.normalize("Bruised Sk\u0443 (Live)"))
+        val mixed = ArtworkQuery("Bruised Sk\u0443", "Poppy", 221000)
+        val original = ItunesArtworkCandidate("Bruised Sky", "Poppy", 220837, "Empty Hands",
+            "https://is1-ssl.mzstatic.com/cover.jpg", "https://music.apple.com/track")
+        assertEquals(original, ItunesArtworkMatcher.match(mixed, listOf(original)))
+        assertNull(ItunesArtworkMatcher.match(mixed.copy(title = "Bruised Sk\u0443 (Live)"), listOf(original)))
+        assertNull(ItunesArtworkMatcher.match(mixed.copy(artist = "Other"), listOf(original)))
+    }
     private val query = ArtworkQuery("No Love", "Eminem п.у. Lil Wayne", 299_000)
     private fun candidate(title: String = "No Love (feat. Lil Wayne)", artist: String = "Eminem", duration: Long = 299_100) =
         ItunesArtworkCandidate(title, artist, duration, "Recovery", "https://is1-ssl.mzstatic.com/image.jpg", "https://music.apple.com/track")
@@ -34,7 +48,7 @@ class ItunesArtworkMatcherTest {
         val album = candidate().copy(album = "Recovery")
         val compilation = album.copy(album = "Hits", durationMs = 299_000)
         assertEquals(album, ItunesArtworkMatcher.match(query.copy(album = "Recovery"), listOf(compilation, album)))
-        assertNull(ItunesArtworkMatcher.match(query.copy(durationMs = 0), listOf(album)))
+        assertEquals(album, ItunesArtworkMatcher.match(query.copy(durationMs = 0), listOf(album)))
     }
 
     @Test fun missingOrUnsafeArtworkFallsBack() {

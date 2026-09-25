@@ -2,7 +2,7 @@
 if(NOT TARGET lmg_automix)
   message(FATAL_ERROR "Add native/automix before its Android JNI bridge")
 endif()
-add_library(lmg_automix_jni SHARED planner_schedule_jni.cpp track_effects_jni.cpp time_pitch_jni.cpp processed_track_jni.cpp observation_jni.cpp metadata_probe_jni.cpp planner_observation_jni.cpp planner_selection_binding_jni.cpp planner_source_context_jni.cpp)
+add_library(lmg_automix_jni SHARED pcm_owner_ingress_jni.cpp planner_schedule_jni.cpp track_effects_jni.cpp time_pitch_jni.cpp processed_track_jni.cpp observation_jni.cpp metadata_probe_jni.cpp planner_observation_jni.cpp planner_selection_binding_jni.cpp planner_source_context_jni.cpp)
 target_link_libraries(lmg_automix_jni PRIVATE lmg_automix)
 target_compile_features(lmg_automix_jni PRIVATE cxx_std_17)
 target_compile_options(lmg_automix_jni PRIVATE -Wall -Wextra -Wpedantic)

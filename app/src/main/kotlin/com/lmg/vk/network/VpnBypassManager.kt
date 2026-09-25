@@ -38,8 +38,16 @@ object VpnBypassManager {
     private var physicalNetworkCallback: ConnectivityManager.NetworkCallback? = null
     private var defaultNetworkCallback: ConnectivityManager.NetworkCallback? = null
     private val callbackPhysicalNetworks = ConcurrentHashMap.newKeySet<Network>()
+    private val blockedPhysicalNetworks = ConcurrentHashMap.newKeySet<Network>()
     private val bindingMutex = Mutex()
+    private var physicalRequestRegistered = false
+    private var lastEffectiveNetwork: Network? = null
+    private var routeInitialized = false
+    @Volatile
     private var boundNetwork: Network? = null
+
+    internal fun currentNetwork(): Network? =
+        boundNetwork.takeIf { AppSettings.vpnBypassEnabled.value && _isBypassApplied.value }
 
     fun init(context: Context) {
         if (connectivityManager != null) return
@@ -70,10 +78,6 @@ object VpnBypassManager {
             cm.registerNetworkCallback(request, callback)
         }
 
-        val physicalRequest = NetworkRequest.Builder()
-            .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
-            .addCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN)
-            .build()
         val physicalCallback = object : ConnectivityManager.NetworkCallback() {
             override fun onAvailable(network: Network) {
                 callbackPhysicalNetworks.add(network)
@@ -88,13 +92,16 @@ object VpnBypassManager {
 
             override fun onLost(network: Network) {
                 callbackPhysicalNetworks.remove(network)
+                blockedPhysicalNetworks.remove(network)
+                updateStateAndApply()
+            }
+
+            override fun onBlockedStatusChanged(network: Network, blocked: Boolean) {
+                if (blocked) blockedPhysicalNetworks.add(network) else blockedPhysicalNetworks.remove(network)
                 updateStateAndApply()
             }
         }
         physicalNetworkCallback = physicalCallback
-        runCatching {
-            cm.registerNetworkCallback(physicalRequest, physicalCallback)
-        }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             val defCallback = object : ConnectivityManager.NetworkCallback() {
@@ -127,22 +134,16 @@ object VpnBypassManager {
     }
 
     fun applyMode(enabled: Boolean) {
-        val cm = connectivityManager ?: return
-        if (enabled) {
-            updateStateAndApply()
-        } else {
-            scope.launch {
-                bindingMutex.withLock {
-                    applyBinding(cm, null)
-                }
-            }
-        }
+        // Re-read the persisted setting under the same mutex as callbacks: rapid toggles cannot
+        // let an old queued disable operation undo a newer enable operation.
+        updateStateAndApply()
     }
 
     fun updateStateAndApply() {
         val cm = connectivityManager ?: return
         scope.launch {
             bindingMutex.withLock {
+                updatePhysicalRequest(cm, AppSettings.vpnBypassEnabled.value)
                 val networks = cm.allNetworks.mapNotNull { network ->
                     runCatching { cm.getNetworkCapabilities(network) }.getOrNull()?.let { network to it }
                 }
@@ -160,17 +161,40 @@ object VpnBypassManager {
                         runCatching { cm.getNetworkCapabilities(network) }.getOrNull()
                             ?.let { network to it }
                     }
-                val physicalNetwork = physicalNetworks
-                    .asSequence()
-                    .filter { (_, caps) -> isPhysical(caps) }
-                    .maxByOrNull { (_, caps) -> physicalScore(caps) }
-                    ?.first
+                val physicalNetwork = selectPhysicalNetwork(physicalNetworks.map { (network, caps) ->
+                    PhysicalNetworkRoute(network, isPhysical(caps), network in blockedPhysicalNetworks,
+                        !caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_SUSPENDED),
+                        caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED),
+                        transportPriority(caps))
+                }, boundNetwork)
 
                 val target = physicalNetwork.takeIf {
                     vpnFound && AppSettings.vpnBypassEnabled.value
                 }
                 applyBinding(cm, target)
             }
+        }
+    }
+
+    private fun updatePhysicalRequest(cm: ConnectivityManager, enabled: Boolean) {
+        val callback = physicalNetworkCallback ?: return
+        if (enabled == physicalRequestRegistered) return
+        try {
+            if (enabled) {
+                // A passive callback only observes networks; it does not keep the underlying
+                // connection available while a VPN owns the default route.
+                cm.requestNetwork(NetworkRequest.Builder()
+                    .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                    .addCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN)
+                    .build(), callback)
+            } else {
+                cm.unregisterNetworkCallback(callback)
+                callbackPhysicalNetworks.clear()
+                blockedPhysicalNetworks.clear()
+            }
+            physicalRequestRegistered = enabled
+        } catch (error: Exception) {
+            Log.w(TAG, "Physical network request failed: ${error.javaClass.simpleName}")
         }
     }
 
@@ -181,10 +205,8 @@ object VpnBypassManager {
                 capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) ||
                 capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET))
 
-    private fun physicalScore(capabilities: NetworkCapabilities): Int {
+    private fun transportPriority(capabilities: NetworkCapabilities): Int {
         var score = 0
-        if (capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)) score += 100
-        if (capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_SUSPENDED)) score += 20
         if (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) score += 30
         if (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET)) score += 25
         if (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR)) score += 10
@@ -192,18 +214,19 @@ object VpnBypassManager {
     }
 
     private fun applyBinding(cm: ConnectivityManager, target: Network?) {
-        if (boundNetwork == target && _isBypassApplied.value == (target != null)) return
-        val applied = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            runCatching { cm.bindProcessToNetwork(target) }.getOrDefault(false)
-        } else {
-            target == null
-        }
+        val actual = cm.boundNetworkForProcess
+        val applied = actual == target || runCatching { cm.bindProcessToNetwork(target) }.getOrDefault(false)
         if (!applied) {
+            _isBypassApplied.value = false
             Log.w(TAG, "Failed to apply VPN bypass network")
             return
         }
         boundNetwork = target
         _isBypassApplied.value = target != null
+        val effectiveNetwork = target ?: cm.activeNetwork
+        if (routeInitialized && lastEffectiveNetwork == effectiveNetwork) return
+        routeInitialized = true
+        lastEffectiveNetwork = effectiveNetwork
         Log.d(TAG, if (target == null) "Using default network" else "Using physical network $target")
         com.lmg.vk.debug.DebugLog.add(
             if (target == null) "VPN BYPASS route=default" else "VPN BYPASS route=physical",

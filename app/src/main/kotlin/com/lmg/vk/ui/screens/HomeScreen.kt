@@ -677,11 +677,9 @@ private fun BannerCard(
             .liquidClickable(onClick = onClick)
     ) {
         // Background image
-        AsyncImage(
-            model = ImageRequest.Builder(LocalContext.current)
-                .data(item.cover)
-                .crossfade(true)
-                .build(),
+        com.lmg.vk.ui.glass.AlbumArtImage(
+            uri = null, coverUrl = item.cover,
+            artworkQuery = if (item.isTrack) com.lmg.vk.artwork.ArtworkQuery(item.title, item.displayArtist, item.durationMs, item.album.orEmpty()) else null,
             contentDescription = item.title,
             contentScale = ContentScale.Crop,
             modifier = Modifier.fillMaxSize()
@@ -751,11 +749,9 @@ private fun AlbumCard(
             .width(140.dp)
             .liquidClickable(onClick = onClick)
     ) {
-        AsyncImage(
-            model = ImageRequest.Builder(LocalContext.current)
-                .data(item.cover)
-                .crossfade(true)
-                .build(),
+        com.lmg.vk.ui.glass.AlbumArtImage(
+            uri = null, coverUrl = item.cover,
+            artworkQuery = if (item.isTrack) com.lmg.vk.artwork.ArtworkQuery(item.title, item.displayArtist, item.durationMs, item.album.orEmpty()) else null,
             contentDescription = item.title,
             contentScale = ContentScale.Crop,
             modifier = Modifier
@@ -803,11 +799,9 @@ private fun ChartTrackRow(
             modifier = Modifier.width(28.dp)
         )
         // Mini cover
-        AsyncImage(
-            model = ImageRequest.Builder(LocalContext.current)
-                .data(item.cover)
-                .crossfade(true)
-                .build(),
+        com.lmg.vk.ui.glass.AlbumArtImage(
+            uri = null, coverUrl = item.cover,
+            artworkQuery = com.lmg.vk.artwork.ArtworkQuery(item.title, item.displayArtist, item.durationMs),
             contentDescription = item.title,
             contentScale = ContentScale.Crop,
             modifier = Modifier
@@ -909,11 +903,9 @@ private fun RecommendationCard(
             .width(160.dp)
             .liquidClickable(onClick = onClick)
     ) {
-        AsyncImage(
-            model = ImageRequest.Builder(LocalContext.current)
-                .data(item.cover)
-                .crossfade(true)
-                .build(),
+        com.lmg.vk.ui.glass.AlbumArtImage(
+            uri = null, coverUrl = item.cover,
+            artworkQuery = if (item.isTrack) com.lmg.vk.artwork.ArtworkQuery(item.title, item.displayArtist, item.durationMs, item.album.orEmpty()) else null,
             contentDescription = item.title,
             contentScale = ContentScale.Crop,
             modifier = Modifier
@@ -1128,6 +1120,7 @@ private fun RecentTrackCard(
         AlbumArtImage(
             uri = track.displayArtUri,
             coverUrl = track.coverUrl,
+            artworkQuery = com.lmg.vk.artwork.ArtworkQuery(track.title, track.artist, track.durationMs),
             modifier = Modifier
                 .size(140.dp)
                 .clip(RoundedCornerShape(8.dp))

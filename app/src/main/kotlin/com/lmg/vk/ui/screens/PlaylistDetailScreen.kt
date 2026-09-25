@@ -1,5 +1,7 @@
 package com.lmg.vk.ui.screens
 
+import com.lmg.vk.ui.effects.DustDissolve
+import com.lmg.vk.ui.effects.rememberDustRemovalList
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -120,6 +122,7 @@ fun PlaylistDetailScreen(
     // Локальные плейлисты живут в приложении, облачные — на сервере. Отличаются
     // по префиксу идентификатора.
     val isLocalPlaylist = playlistId.startsWith("pl_")
+    val dustTracks = rememberDustRemovalList(tracks, playlistId) { it.id }
     val localPlaylist = remember(playlistId, managedPlaylists) {
         managedPlaylists.firstOrNull { it.id == playlistId }
     }
@@ -426,7 +429,7 @@ fun PlaylistDetailScreen(
                         }
                     }
 
-                    if (tracks.isEmpty() && !isLoading) {
+                    if (dustTracks.items.isEmpty() && !isLoading) {
                         item {
                             Text(
                                 text = stringResource(R.string.playlist_empty),
@@ -437,32 +440,40 @@ fun PlaylistDetailScreen(
                         }
                     }
 
-                    itemsIndexed(tracks, key = { index, track -> "${track.id}-$index" }) { index, track ->
-                        DetailTrackRow(
-                            position = index + 1,
-                            title = track.title,
-                            subtitle = track.artist,
-                            durationMs = track.durationMs,
-                            // В плейлисте песни разные — обложка узнаётся быстрее номера.
-                            coverUrl = track.coverUrl,
-                            isDark = isDark,
-                            showDivider = index < tracks.lastIndex,
-                            enabled = track.isAvailable,
-                            onMore = if (track.isAvailable) {
-                                { actionsTrack = track }
-                            } else null,
-                            onClick = {
-                                val playableIndex = playableTracks.indexOfFirst { it.id == track.id }
-                                if (playableIndex >= 0) {
-                                    PlayerController.play(
-                                        context,
-                                        playableTracks,
-                                        playableIndex,
-                                        playbackContext = PlaybackContext.Playlist(playlistId),
-                                    )
+                    itemsIndexed(dustTracks.items, key = { _, track -> track.id }) { index, track ->
+                        DustDissolve(
+                            dissolving = track.id in dustTracks.dissolvingKeys,
+                            onFinished = { dustTracks.finish(track.id) },
+                            durationMillis = 780,
+                            maxParticles = 2200,
+                            modifier = Modifier.animateItem(fadeInSpec = null, fadeOutSpec = null),
+                        ) {
+                            DetailTrackRow(
+                                position = index + 1,
+                                title = track.title,
+                                subtitle = track.artist,
+                                durationMs = track.durationMs,
+                                // В плейлисте песни разные — обложка узнаётся быстрее номера.
+                                coverUrl = track.coverUrl,
+                                isDark = isDark,
+                                showDivider = index < tracks.lastIndex,
+                                enabled = track.isAvailable,
+                                onMore = if (track.isAvailable) {
+                                    { actionsTrack = track }
+                                } else null,
+                                onClick = {
+                                    val playableIndex = playableTracks.indexOfFirst { it.id == track.id }
+                                    if (playableIndex >= 0) {
+                                        PlayerController.play(
+                                            context,
+                                            playableTracks,
+                                            playableIndex,
+                                            playbackContext = PlaybackContext.Playlist(playlistId),
+                                        )
+                                    }
                                 }
-                            }
-                        )
+                            )
+                        }
                     }
 
                     if (isLoading && tracks.isNotEmpty()) {
@@ -519,7 +530,10 @@ fun PlaylistDetailScreen(
                 } else null,
                 onAddToPlaylist = { playlistPickerTrack = selected },
                 onRemoveFromPlaylist = if (isLocalPlaylist) {
-                    { PlaylistManager.removeTrack(playlistId, selected.id) }
+                    {
+                        dustTracks.retain(selected)
+                        PlaylistManager.removeTrack(playlistId, selected.id)
+                    }
                 } else null,
                 onMoveUp = if (isLocalPlaylist && selectedIndex > 0) {
                     { PlaylistManager.moveTrack(playlistId, selectedIndex, selectedIndex - 1) }

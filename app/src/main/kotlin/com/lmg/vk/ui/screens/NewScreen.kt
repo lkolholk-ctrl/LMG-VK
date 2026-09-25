@@ -1,5 +1,6 @@
 package com.lmg.vk.ui.screens
 
+import com.lmg.vk.ui.effects.DustDissolve
 import android.widget.ImageView
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.foundation.background
@@ -20,7 +21,16 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.windowInsetsTopHeight
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.ui.semantics.Role
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
+import com.lmg.vk.engine.backend.HomeCatalogPage
+import com.lmg.vk.engine.backend.HomeCatalogSection
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -31,6 +41,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -73,12 +84,75 @@ import java.util.Date
 import java.util.Locale
 import java.util.zip.ZipInputStream
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 @Composable
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 fun NewScreen(
     viewModel: HomeViewModel,
+    exploreViewModel: HomeViewModel,
+    onNavigateToAlbum: (String) -> Unit = {},
+    onNavigateToPlaylist: (String) -> Unit = {},
+    onNavigateToArtist: (String) -> Unit = {},
+    onNavigateToMusicOwner: (Long) -> Unit = {},
+    onOpenSnippets: () -> Unit = {},
+    onTuneRecommendations: () -> Unit = {},
+    onOpenAuth: () -> Unit = {},
+) {
+    val accountId by com.lmg.vk.engine.backend.MusicAuth.profileId.collectAsState()
+    var selectedPage by rememberSaveable(accountId) { mutableStateOf(HomeCatalogPage.MAIN) }
+    val pageState = rememberSaveableStateHolder()
+    val context = LocalContext.current
+    var showMixSettings by remember(accountId) { mutableStateOf(false) }
+    val mixState by viewModel.vkMixState.collectAsState()
+    pageState.SaveableStateProvider("$accountId/${selectedPage.section}") {
+        CompositionLocalProvider(
+            LocalVkMainCatalog provides (selectedPage == HomeCatalogPage.MAIN),
+            LocalMainMixSettings provides {
+                showMixSettings = true
+                viewModel.prepareVkMixSettings(personal = true)
+            },
+            LocalMainPlaylistPlayer provides { item, seed -> viewModel.playCatalogPlaylist(context, item, seed) },
+            LocalMainTuneRecommendations provides onTuneRecommendations,
+        ) {
+            NewCatalogScreen(
+                viewModel = if (selectedPage == HomeCatalogPage.MAIN) viewModel else exploreViewModel,
+                page = selectedPage,
+                onSelectPage = { selectedPage = it },
+                onNavigateToAlbum = onNavigateToAlbum,
+                onNavigateToPlaylist = onNavigateToPlaylist,
+                onNavigateToArtist = onNavigateToArtist,
+                onNavigateToMusicOwner = onNavigateToMusicOwner,
+                onOpenSnippets = onOpenSnippets,
+            )
+        }
+    }
+    if (showMixSettings) {
+        ModalBottomSheet(
+            onDismissRequest = { showMixSettings = false },
+            containerColor = Color(0xFF151718),
+        ) {
+            VkMixSettingsSheet(
+                state = mixState,
+                accent = LiquidTheme.colors.accent,
+                onToggle = viewModel::toggleVkMixOption,
+                onReset = viewModel::resetVkMixOptions,
+                onApply = { viewModel.applyVkMixSettings(context); showMixSettings = false },
+                onRetry = { viewModel.prepareVkMixSettings(personal = true) },
+                onAuth = { showMixSettings = false; onOpenAuth() },
+            )
+        }
+    }
+}
+
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+@Composable
+private fun NewCatalogScreen(
+    viewModel: HomeViewModel,
+    page: HomeCatalogPage,
+    onSelectPage: (HomeCatalogPage) -> Unit,
     onNavigateToAlbum: (String) -> Unit = {},
     onNavigateToPlaylist: (String) -> Unit = {},
     onNavigateToArtist: (String) -> Unit = {},
@@ -86,9 +160,10 @@ fun NewScreen(
     onOpenSnippets: () -> Unit = {},
 ) {
     val context = LocalContext.current
+    val listState = rememberLazyListState()
     val activeAccountId by com.lmg.vk.engine.backend.MusicAuth.profileId.collectAsState()
     LaunchedEffect(viewModel, activeAccountId) {
-        viewModel.loadHomeContent(force = activeAccountId != null)
+        viewModel.loadHomeContent()
     }
     // Список скрытых баннеров нужен до первой отрисовки блоков, иначе закрытый
     // баннер мигнёт при заходе на экран.
@@ -109,7 +184,6 @@ fun NewScreen(
     val isLoadingHomeSection by viewModel.isLoadingHomeSection.collectAsState()
     val isLoadingMoreHomeSection by viewModel.isLoadingMoreHomeSection.collectAsState()
     val homeSectionError by viewModel.homeSectionError.collectAsState()
-    val selectedHomeSectionId by viewModel.selectedHomeSectionId.collectAsState()
     val catalogSectionState by viewModel.catalogSectionState.collectAsState()
     val homeBlocks = remember(homeContent) {
         homeContent?.blocks?.filter {
@@ -119,8 +193,20 @@ fun NewScreen(
                 // выдаче есть, но карточками не рисуются. Раньше они отсекались
                 // ниже, уже при отрисовке, и попадали в счётчик «N разделов» —
                 // число в шапке не совпадало с тем, что видно на экране.
-                it.layoutName !in NEW_SKIPPED_LAYOUTS
+                it.layoutName !in NEW_SKIPPED_LAYOUTS && !it.isPodcastCatalogBlock()
         } ?: emptyList()
+    }
+    LaunchedEffect(homeBlocks) {
+        withContext(Dispatchers.IO) {
+            homeBlocks.asSequence().flatMap { it.items.asSequence() }
+                .filter { !it.streamMixAnimationUrl.isNullOrBlank() }
+                .distinctBy { it.streamMixAnimationUrl }.take(16).forEach { item ->
+                    VkMixLottieStore.loadComposition(
+                        context.applicationContext, "background_${item.streamMixCatalogItemId ?: item.id}",
+                        item.streamMixAnimationUrl.orEmpty(),
+                    )
+                }
+        }
     }
     var sectionSheetBlock by remember { mutableStateOf<com.lmg.vk.engine.backend.HomeBlock?>(null) }
 
@@ -133,7 +219,26 @@ fun NewScreen(
     val compact = win.useSideBySide
     val sectionGap = if (compact) 18.dp else 28.dp
     val rowGap = if (compact) 10.dp else 14.dp
+    val cardScope = rememberCoroutineScope()
+    var cardJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+    var unavailableCard by remember { mutableStateOf<com.lmg.vk.engine.backend.HomeItem?>(null) }
+    var cardError by remember { mutableStateOf<String?>(null) }
+    unavailableCard?.let { card ->
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { unavailableCard = null },
+            title = { Text(card.title) },
+            text = { Text(listOfNotNull(card.subtitle ?: card.artist,
+                cardError ?: "VK не передал адрес этой карточки. Обновите раздел и попробуйте ещё раз.").joinToString("\n\n")) },
+            confirmButton = { androidx.compose.material3.TextButton(onClick = {
+                unavailableCard = null; viewModel.loadHomeContent(force = true)
+            }) { Text("Обновить") } },
+            dismissButton = { androidx.compose.material3.TextButton(onClick = { unavailableCard = null }) { Text("Закрыть") } },
+        )
+    }
     val onItemClick: (com.lmg.vk.engine.backend.HomeItem) -> Unit = { homeItem ->
+        cardJob?.cancel()
+        cardError = null
+        unavailableCard = null
         when {
             homeItem.isStreamMix -> viewModel.startCatalogVkMix(
                 context = context,
@@ -155,33 +260,42 @@ fun NewScreen(
                     ?.let { PlaybackContext.Catalog(it) },
             )
             homeItem.isMusicOwner -> homeItem.musicOwnerId?.let(onNavigateToMusicOwner)
-            !homeItem.catalogUrl.isNullOrBlank() -> {
-                val uri = android.net.Uri.parse(homeItem.catalogUrl)
-                val path = uri.path.orEmpty()
-                val curatorId = Regex("""/music/curator/([-_a-zA-Z0-9]+)""")
-                    .find(path)
-                    ?.groupValues
-                    ?.getOrNull(1)
-                if (!curatorId.isNullOrBlank()) {
-                    viewModel.openCatalogCurator(curatorId, homeItem.title)
-                } else {
-                    when (val target = com.lmg.vk.engine.VkLinkResolver.parseOffline(uri)) {
-                        is com.lmg.vk.engine.VkLinkTarget.Artist ->
-                            onNavigateToArtist(target.idOrDomain)
-                        is com.lmg.vk.engine.VkLinkTarget.Album ->
-                            onNavigateToAlbum(target.navId)
-                        is com.lmg.vk.engine.VkLinkTarget.Playlist ->
-                            onNavigateToPlaylist(target.navId)
-                        is com.lmg.vk.engine.VkLinkTarget.OwnerAudio ->
-                            onNavigateToMusicOwner(target.ownerId)
-                        else -> Unit
-                    }
-                }
-            }
-            homeItem.isCustom -> Unit
             homeItem.isArtist -> onNavigateToArtist(homeItem.artistId ?: homeItem.id)
             homeItem.isPlaylist -> onNavigateToPlaylist(homeItem.collectionId ?: homeItem.id)
             homeItem.isAlbum -> onNavigateToAlbum(homeItem.collectionId ?: homeItem.id)
+            !homeItem.catalogSectionId.isNullOrBlank() -> viewModel.openCatalogSection(homeItem.catalogSectionId, homeItem.title)
+            !homeItem.catalogUrl.isNullOrBlank() -> {
+                val url = com.lmg.vk.engine.backend.catalogWebUrl(homeItem.catalogUrl)
+                val sectionId = com.lmg.vk.engine.backend.catalogSectionFromUrl(url)
+                if (url == null) unavailableCard = homeItem
+                else if (sectionId != null) viewModel.openCatalogSection(sectionId, homeItem.title)
+                else {
+                    val uri = android.net.Uri.parse(url)
+                    val curatorId = if (com.lmg.vk.engine.VkLinkResolver.isVkLink(uri))
+                        Regex("""/music/curator/([-_a-zA-Z0-9]+)""").find(uri.path.orEmpty())?.groupValues?.getOrNull(1)
+                        else null
+                    if (curatorId != null) viewModel.openCatalogCurator(curatorId, homeItem.title)
+                    else if (com.lmg.vk.engine.backend.catalogApiUrl(url) != null &&
+                        (com.lmg.vk.engine.backend.catalogUrlNeedsApi(url) ||
+                            com.lmg.vk.engine.VkLinkResolver.parseOffline(uri) == null)) {
+                        viewModel.openCatalogUrl(url, homeItem.title)
+                    } else cardJob = cardScope.launch {
+                        val error = try {
+                            com.lmg.vk.engine.VkLinkResolver.handleInApp(context, uri)
+                        } catch (e: kotlinx.coroutines.CancellationException) {
+                            throw e
+                        } catch (e: Exception) {
+                            com.lmg.vk.engine.backend.backendUserMessage(e)
+                        }
+                        kotlinx.coroutines.currentCoroutineContext().ensureActive()
+                        if (error != null) {
+                            cardError = error
+                            unavailableCard = homeItem
+                        }
+                    }
+                }
+            }
+            homeItem.isCustom -> unavailableCard = homeItem
             else -> PlayerController.playFromList(
                 context = context,
                 tracks = listOf(homeItem.toTrack()),
@@ -192,38 +306,28 @@ fun NewScreen(
         }
     }
 
-    Box(modifier = Modifier.fillMaxSize().background(lc.settingsBackground)) {
-        LazyColumn(
-            modifier = if (win.useSideBySide)
-                Modifier.fillMaxHeight().widthIn(max = 900.dp).fillMaxWidth().align(Alignment.TopCenter)
-            else Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(bottom = 178.dp)
+    NewCatalogRefreshContainer(
+        isRefreshing = isLoading,
+        onRefresh = { viewModel.loadHomeContent(force = true) },
+        modifier = Modifier.fillMaxSize().background(lc.settingsBackground)
+            .windowInsetsPadding(WindowInsets.statusBars),
+    ) {
+        Column(
+            modifier = Modifier.fillMaxSize().widthIn(max = 900.dp).align(Alignment.TopCenter),
         ) {
-            item { Spacer(Modifier.windowInsetsTopHeight(WindowInsets.statusBars)) }
-            item {
-                NewScreenHeader(
-                    compact = compact,
-                    sectionTitle = homeContent?.sections
-                        ?.firstOrNull { it.id == selectedHomeSectionId }
-                        ?.title,
-                    updatedAt = homeContent?.updatedAt,
-                    isLoading = isLoading,
-                    onRefresh = { viewModel.loadHomeContent(force = true) },
-                )
-            }
-
-            if (homeContent?.sections.orEmpty().size > 1) {
-                item(key = "root_sections") {
-                    NewRootSectionTabs(
-                        sections = homeContent?.sections.orEmpty(),
-                        selectedId = selectedHomeSectionId,
-                        enabled = !isLoadingHomeSection,
-                        compact = compact,
-                        onSelect = viewModel::selectHomeSection,
-                    )
-                    Spacer(Modifier.height(if (compact) 12.dp else 18.dp))
-                }
-            }
+            NewScreenHeader(
+                compact = compact,
+                sectionTitle = stringResource(if (page == HomeCatalogPage.MAIN) R.string.new_main else R.string.new_explore),
+                updatedAt = homeContent?.updatedAt,
+                isLoading = isLoading,
+                onRefresh = { viewModel.loadHomeContent(force = true) },
+            )
+            NewPageTabs(page, compact, onSelectPage)
+            LazyColumn(
+                state = listState,
+                modifier = Modifier.fillMaxWidth().weight(1f),
+                contentPadding = PaddingValues(bottom = 178.dp),
+            ) {
 
             // При обновлении не прячем уже полученную VK-выдачу: тонкая полоса
             // даёт понять, что запрос идёт, но экран остаётся полезным.
@@ -364,6 +468,7 @@ fun NewScreen(
                 }
             }
         }
+        }
         sectionSheetBlock?.let { block ->
             NewSectionSheet(
                 block = block,
@@ -427,9 +532,13 @@ private fun NewCatalogBlock(
     onOpenSnippets: () -> Unit = {},
     allowTabs: Boolean = true,
 ) {
+    if (block.isPodcastCatalogBlock()) return
     val context = LocalContext.current
-    val title = block.title.takeUnless {
-        it == stringResource(R.string.vk_music_brand) && block.layoutName.isNotBlank()
+    val displayTitle = com.lmg.vk.engine.backend.catalogTitleResource(block.title, block.type)
+        ?.let { stringResource(it) } ?: block.title
+    val title = displayTitle.takeUnless {
+        (it == stringResource(R.string.vk_music_brand) && block.layoutName.isNotBlank()) ||
+            (LocalVkMainCatalog.current && it == block.type)
     }
     val openBlock: () -> Unit = {
         val sectionId = block.actions.openSectionId
@@ -437,10 +546,10 @@ private fun NewCatalogBlock(
         if (!sectionId.isNullOrBlank()) {
             onOpenSection(
                 sectionId,
-                block.actions.openSectionTitle ?: block.signalInfo?.title ?: block.title,
+                block.actions.openSectionTitle ?: block.signalInfo?.title ?: displayTitle,
             )
         } else {
-            onOpenSheet(block)
+            onOpenSheet(block.copy(title = displayTitle))
         }
     }
     val playBlock: (() -> Unit)? = block.actions.playBlockId
@@ -451,7 +560,69 @@ private fun NewCatalogBlock(
     val canOpenBlock = !block.actions.openSectionId.isNullOrBlank() ||
         !block.signalInfo?.openSectionId.isNullOrBlank() ||
         !block.nextFrom.isNullOrBlank()
+    val showcaseKind = catalogShowcaseKind(
+        block = block,
+        isMainCatalog = LocalVkMainCatalog.current,
+        isFeaturedSection = displayTitle == stringResource(R.string.catalog_featured),
+    )
     when {
+        showcaseKind != MainShowcaseKind.NONE -> {
+            val kind = showcaseKind
+            if (kind != MainShowcaseKind.PRIMARY_MIX) {
+                NewSectionHeader(title, compact, block.items.size, false)
+            }
+            MainShowcase(block, compact, kind, onItemClick)
+            if (kind == MainShowcaseKind.POSTERS && block.layoutName == "recomms_slider") {
+                MainShowAll(label = stringResource(R.string.tune_recommendations), onClick = LocalMainTuneRecommendations.current)
+            } else if (canOpenBlock && kind != MainShowcaseKind.PRIMARY_MIX) {
+                MainShowAll(onClick = openBlock)
+            }
+        }
+
+        LocalVkMainCatalog.current && block.signalInfo == null &&
+            block.layoutName !in setOf("subsection_tabs", "snippets_banner", "close_catalog_banner") &&
+            (block.isAudioCatalogBlock() || block.isCollectionCatalogBlock()) -> {
+            NewSectionHeader(
+                title = title,
+                compact = compact,
+                itemCount = block.items.size,
+                showOpenButton = canOpenBlock,
+                onPlay = playBlock,
+                playShuffled = block.actions.shuffled,
+                isPlayLoading = isBlockLoading,
+                onClick = openBlock,
+            )
+            block.subtitle?.takeIf(String::isNotBlank)?.let {
+                Text(
+                    text = it,
+                    color = LiquidTheme.colors.textSecondary,
+                    fontSize = 13.sp,
+                    fontFamily = AppFontFamily,
+                    modifier = Modifier.padding(horizontal = 20.dp).padding(bottom = 12.dp),
+                )
+            }
+            MainCatalogItems(
+                block = block,
+                compact = compact,
+                onItemClick = { item ->
+                    if (item.isTrack && item.isAvailable) {
+                        val tracks = block.items.filter { it.isTrack && it.isAvailable }
+                        val index = tracks.indexOfFirst { it.id == item.id }
+                        if (index >= 0) {
+                            PlayerController.playFromList(
+                                context = context,
+                                tracks = tracks.map { it.toTrack() },
+                                startIndex = index,
+                                playbackContext = PlaybackContext.Catalog(block.id),
+                            )
+                        }
+                    } else {
+                        onItemClick(item)
+                    }
+                },
+            )
+        }
+
         block.signalInfo != null -> {
             val signal = block.signalInfo
             NewSignalCard(
@@ -525,6 +696,7 @@ private fun NewCatalogBlock(
                         subtitle = item.subtitle ?: item.artist
                             ?: if (item.isRadio) stringResource(R.string.vk_radio) else item.displayArtist,
                         coverUrl = item.cover,
+                        artworkQuery = if (item.isTrack) com.lmg.vk.artwork.ArtworkQuery(item.title, item.displayArtist, item.durationMs, item.album.orEmpty()) else null,
                         compact = compact,
                         enabled = item.isInteractive && item.isAvailable,
                         onClick = {
@@ -551,21 +723,34 @@ private fun NewCatalogBlock(
         block.layoutName == "close_catalog_banner" -> {
             // Закрытый баннер не рисуем вовсе — вместе с заголовком,
             // иначе на экране останется пустая секция.
-            if (!NewDismissedBanners.isDismissed(block.id)) {
-                NewSectionHeader(
-                    title = title,
-                    compact = compact,
-                    itemCount = block.items.size,
-                    showOpenButton = canOpenBlock,
-                    onClick = openBlock,
-                )
-                block.items.firstOrNull()?.let { homeItem ->
-                    NewCloseableBanner(
-                        item = homeItem,
-                        compact = compact,
-                        onClick = { onItemClick(homeItem) },
-                        onDismiss = { NewDismissedBanners.dismiss(block.id) },
-                    )
+            var dissolving by remember(block.id) { mutableStateOf(false) }
+            var dissolved by remember(block.id) { mutableStateOf(false) }
+            if ((!NewDismissedBanners.isDismissed(block.id) || dissolving) && !dissolved) {
+                DustDissolve(
+                    dissolving = dissolving,
+                    onFinished = { dissolved = true; dissolving = false },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Column {
+                        NewSectionHeader(
+                            title = title,
+                            compact = compact,
+                            itemCount = block.items.size,
+                            showOpenButton = canOpenBlock,
+                            onClick = openBlock,
+                        )
+                        block.items.firstOrNull()?.let { homeItem ->
+                            NewCloseableBanner(
+                                item = homeItem,
+                                compact = compact,
+                                onClick = { onItemClick(homeItem) },
+                                onDismiss = {
+                                    dissolving = true
+                                    NewDismissedBanners.dismiss(block.id)
+                                },
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -777,6 +962,7 @@ private fun NewCatalogBlock(
                                 ?: homeItem.artist
                                 ?: if (homeItem.isCustom) stringResource(R.string.vk_music_brand) else homeItem.displayArtist,
                             coverUrl = homeItem.cover,
+                            artworkQuery = if (homeItem.isTrack) com.lmg.vk.artwork.ArtworkQuery(homeItem.title, homeItem.displayArtist, homeItem.durationMs, homeItem.album.orEmpty()) else null,
                             compact = compact,
                             // `slider` — самый частый layout VK Музыки, им отдаётся
                             // основная часть подборок. У VK карточка здесь заметно
@@ -921,6 +1107,22 @@ private fun NewSignalCard(
 
 /** Root Catalog2 sections: one selected showcase, as in the official client. */
 @Composable
+private fun NewPageTabs(page: HomeCatalogPage, compact: Boolean, onSelect: (HomeCatalogPage) -> Unit) {
+    Column(Modifier.fillMaxWidth().background(LiquidTheme.colors.settingsBackground).padding(vertical = 12.dp)) {
+        NewRootSectionTabs(
+            sections = listOf(
+                HomeCatalogSection(HomeCatalogPage.MAIN.section, stringResource(R.string.new_main)),
+                HomeCatalogSection(HomeCatalogPage.EXPLORE.section, stringResource(R.string.new_explore)),
+            ),
+            selectedId = page.section,
+            enabled = true,
+            compact = compact,
+            onSelect = { section -> onSelect(HomeCatalogPage.entries.first { it.section == section }) },
+        )
+    }
+}
+
+@Composable
 private fun NewRootSectionTabs(
     sections: List<com.lmg.vk.engine.backend.HomeCatalogSection>,
     selectedId: String?,
@@ -930,6 +1132,7 @@ private fun NewRootSectionTabs(
 ) {
     val lc = LiquidTheme.colors
     LazyRow(
+        modifier = Modifier.fillMaxWidth().selectableGroup(),
         contentPadding = PaddingValues(horizontal = 20.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
@@ -948,7 +1151,12 @@ private fun NewRootSectionTabs(
                         if (selected) lc.accent.copy(alpha = 0.14f)
                         else LiquidSurfaces.card(lc.isDark),
                     )
-                    .clickable(enabled = enabled && !selected) { onSelect(section.id) }
+                    .selectable(
+                        selected = selected,
+                        enabled = enabled,
+                        role = Role.Tab,
+                        onClick = { if (!selected) onSelect(section.id) },
+                    )
                     .padding(horizontal = 14.dp, vertical = if (compact) 8.dp else 9.dp),
             )
         }
@@ -1559,7 +1767,7 @@ private fun NewCatalogSectionSheet(
 }
 
 @Composable
-private fun NewTrackCard(
+internal fun NewTrackCard(
     title: String,
     subtitle: String,
     coverUrl: String?,
@@ -1569,10 +1777,12 @@ private fun NewTrackCard(
     rank: Int? = null,
     enabled: Boolean = true,
     dimWhenDisabled: Boolean = true,
+    artworkSize: androidx.compose.ui.unit.Dp? = null,
+    artworkQuery: com.lmg.vk.artwork.ArtworkQuery? = null,
     onClick: () -> Unit
 ) {
     val lc = LiquidTheme.colors
-    val cardSize = when {
+    val cardSize = artworkSize ?: when {
         compact && wide -> 138.dp
         compact -> 110.dp
         wide -> 172.dp
@@ -1590,6 +1800,7 @@ private fun NewTrackCard(
                 uri = null,
                 contentDescription = title,
                 coverUrl = coverUrl,
+                artworkQuery = artworkQuery,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.size(cardSize).clip(RoundedCornerShape(12.dp)),
             )
@@ -1616,15 +1827,17 @@ private fun NewTrackCard(
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
-        Spacer(Modifier.height(2.dp))
-        Text(
-            text = subtitle,
-            color = lc.textSecondary,
-            fontSize = if (compact) 11.sp else 12.sp,
-            fontFamily = AppFontFamily,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
+        if (subtitle.isNotBlank()) {
+            Spacer(Modifier.height(2.dp))
+            Text(
+                text = subtitle,
+                color = lc.textSecondary,
+                fontSize = if (compact) 11.sp else 12.sp,
+                fontFamily = AppFontFamily,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
     }
 }
 
@@ -1644,6 +1857,7 @@ private fun NewHeroBanner(
             uri = null,
             contentDescription = item.title,
             coverUrl = item.cover,
+            artworkQuery = if (item.isTrack) com.lmg.vk.artwork.ArtworkQuery(item.title, item.displayArtist, item.durationMs, item.album.orEmpty()) else null,
             contentScale = ContentScale.Crop,
             modifier = Modifier
                 .fillMaxWidth()
@@ -1703,7 +1917,7 @@ private fun NewTrackColumns(
 }
 
 @Composable
-private fun NewTrackRow(
+internal fun NewTrackRow(
     item: com.lmg.vk.engine.backend.HomeItem,
     rank: Int?,
     compact: Boolean,
@@ -1734,6 +1948,7 @@ private fun NewTrackRow(
             uri = null,
             contentDescription = item.title,
             coverUrl = item.cover,
+            artworkQuery = if (item.isTrack) com.lmg.vk.artwork.ArtworkQuery(item.title, item.displayArtist, item.durationMs, item.album.orEmpty()) else null,
             contentScale = ContentScale.Crop,
             modifier = Modifier.size(imageSize).clip(RoundedCornerShape(10.dp)),
         )
@@ -1793,6 +2008,7 @@ private fun NewLargeCard(
                 uri = null,
                 contentDescription = item.title,
                 coverUrl = item.cover,
+                artworkQuery = if (item.isTrack) com.lmg.vk.artwork.ArtworkQuery(item.title, item.displayArtist, item.durationMs, item.album.orEmpty()) else null,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
                     .width(cardWidth)
@@ -1862,92 +2078,12 @@ private class NewMixAnimationViewState {
 
 /** Official VK renders `background_animation_url` as a looping remote Lottie. */
 @Composable
-private fun NewMixBackgroundAnimation(
+internal fun NewMixBackgroundAnimation(
     url: String,
     animationId: String,
     modifier: Modifier = Modifier,
 ) {
-    val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-    val sourceFile by produceState<File?>(initialValue = null, url, animationId) {
-        value = withContext(Dispatchers.IO) {
-            VkMixLottieStore.getOrDownload(
-                context = context.applicationContext,
-                optionId = "background_$animationId",
-                url = url,
-            )
-        }
-    }
-    val file = sourceFile ?: return
-
-    AndroidView(
-        factory = { viewContext ->
-            LottieAnimationView(viewContext).apply {
-                scaleType = ImageView.ScaleType.CENTER_CROP
-                repeatCount = LottieDrawable.INFINITE
-                setSafeMode(true)
-                tag = NewMixAnimationViewState()
-                setFailureListener { error ->
-                    val state = tag as? NewMixAnimationViewState
-                    state?.sourceFile?.let(VkMixLottieStore::quarantine)
-                    setImageDrawable(null)
-                    DebugLog.add(
-                        "VK MIX background failed: id=${state?.animationId.orEmpty()}, " +
-                            error.javaClass.simpleName,
-                    )
-                }
-                addLottieOnCompositionLoadedListener {
-                    val state = tag as? NewMixAnimationViewState ?: return@addLottieOnCompositionLoadedListener
-                    repeatCount = LottieDrawable.INFINITE
-                    playAnimation()
-                    val path = state.sourcePath ?: return@addLottieOnCompositionLoadedListener
-                    val localFile = state.sourceFile ?: return@addLottieOnCompositionLoadedListener
-                    if (state.exportedPath != path) {
-                        state.exportedPath = path
-                        scope.launch(Dispatchers.IO) {
-                            VkMixLottieStore.exportValidated(
-                                context = viewContext.applicationContext,
-                                optionId = "background_${state.animationId}",
-                                url = state.remoteUrl,
-                                source = localFile,
-                            )
-                        }
-                    }
-                }
-            }
-        },
-        update = { view ->
-            val state = (view.tag as? NewMixAnimationViewState)
-                ?: NewMixAnimationViewState().also { view.tag = it }
-            state.remoteUrl = url
-            state.animationId = animationId
-            state.sourceFile = file
-            if (state.sourcePath != file.absolutePath) {
-                state.sourcePath = file.absolutePath
-                view.cancelAnimation()
-                view.setNewMixAnimation(file)
-            }
-        },
-        onRelease = { view ->
-            view.cancelAnimation()
-            view.removeAllLottieOnCompositionLoadedListener()
-            view.setFailureListener(null)
-            view.setImageDrawable(null)
-        },
-        modifier = modifier,
-    )
-}
-
-private fun LottieAnimationView.setNewMixAnimation(file: File) {
-    val zipped = FileInputStream(file).use { input ->
-        input.read() == 0x50 && input.read() == 0x4B
-    }
-    val cacheKey = "vk_mix_background_${file.nameWithoutExtension}"
-    if (zipped) {
-        setAnimation(ZipInputStream(FileInputStream(file)), cacheKey)
-    } else {
-        setAnimation(FileInputStream(file), cacheKey)
-    }
+    CachedCatalogLottie(url, "background_$animationId", modifier)
 }
 
 /**
@@ -1974,6 +2110,7 @@ private fun NewExtendedCard(
             uri = null,
             contentDescription = item.title,
             coverUrl = item.cover,
+            artworkQuery = if (item.isTrack) com.lmg.vk.artwork.ArtworkQuery(item.title, item.displayArtist, item.durationMs, item.album.orEmpty()) else null,
             contentScale = ContentScale.Crop,
             modifier = Modifier.size(cardWidth).clip(RoundedCornerShape(14.dp)),
         )
@@ -2010,7 +2147,7 @@ private fun NewExtendedCard(
  * порядок читался слева-вниз-вправо, как в оригинале.
  */
 @Composable
-private fun NewDoubleGrid(
+internal fun NewDoubleGrid(
     blockId: String,
     items: List<com.lmg.vk.engine.backend.HomeItem>,
     compact: Boolean,
@@ -2055,6 +2192,7 @@ private fun NewGridTile(
             uri = null,
             contentDescription = item.title,
             coverUrl = item.cover,
+            artworkQuery = if (item.isTrack) com.lmg.vk.artwork.ArtworkQuery(item.title, item.displayArtist, item.durationMs, item.album.orEmpty()) else null,
             contentScale = ContentScale.Crop,
             modifier = Modifier.size(artSize).clip(RoundedCornerShape(10.dp)),
         )
@@ -2117,6 +2255,7 @@ private fun NewBannerRow(
                     uri = null,
                     contentDescription = item.title,
                     coverUrl = item.cover,
+                    artworkQuery = if (item.isTrack) com.lmg.vk.artwork.ArtworkQuery(item.title, item.displayArtist, item.durationMs, item.album.orEmpty()) else null,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier
                         .width(bannerWidth)
@@ -2171,6 +2310,7 @@ private fun NewCloseableBanner(
                 uri = null,
                 contentDescription = item.title,
                 coverUrl = item.cover,
+                artworkQuery = if (item.isTrack) com.lmg.vk.artwork.ArtworkQuery(item.title, item.displayArtist, item.durationMs, item.album.orEmpty()) else null,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
                     .fillMaxWidth()
@@ -2363,6 +2503,7 @@ private fun NewCuratorCard(
             uri = null,
             contentDescription = item.title,
             coverUrl = item.cover,
+            artworkQuery = if (item.isTrack) com.lmg.vk.artwork.ArtworkQuery(item.title, item.displayArtist, item.durationMs, item.album.orEmpty()) else null,
             contentScale = ContentScale.Crop,
             modifier = Modifier.size(size).clip(RoundedCornerShape(50)),
         )

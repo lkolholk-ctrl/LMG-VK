@@ -8,6 +8,7 @@ import coil.disk.DiskCache
 import coil.memory.MemoryCache
 import com.kyant.fishnet.Fishnet
 import com.lmg.vk.debug.UiWatchdog
+import com.lmg.vk.debug.AppStartupTrace
 import com.lmg.vk.data.local.HomeCacheManager
 import com.lmg.vk.engine.AppSettings
 import com.lmg.vk.engine.AccountSyncManager
@@ -47,6 +48,7 @@ import io.ktor.client.engine.okhttp.OkHttp as KtorOkHttp
 import okhttp3.ConnectionPool
 import okhttp3.Dispatcher
 import okhttp3.OkHttpClient
+import com.lmg.vk.network.installVpnBypass
 import java.io.File
 import java.security.SecureRandom
 import java.util.concurrent.TimeUnit
@@ -55,6 +57,7 @@ class LmgApplication : Application(), ImageLoaderFactory {
 
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val vkHttpConnectionPool = ConnectionPool(8, 60, TimeUnit.SECONDS)
+    private val vkHttpDispatcher = Dispatcher()
 
     // Свой OkHttp для обложек с таймаутами: зависший CDN не должен копить
     // потоки (в ANR-дампе обложки висели в TLS-handshake). Пул эвиктим при
@@ -66,6 +69,7 @@ class LmgApplication : Application(), ImageLoaderFactory {
             .callTimeout(12, TimeUnit.SECONDS)
             .dispatcher(Dispatcher().apply { maxRequests = 6; maxRequestsPerHost = 4 })
             .connectionPool(vkHttpConnectionPool)
+            .installVpnBypass()
             // Картинки живут на тех же заблокированных доменах, что и API с
             // медиа (`*.userapi.com`, `*.vk-cdn.net`), поэтому обход нужен и им.
             // Без этого при включённом обходе получалась ровно жалоба «иконки не
@@ -79,6 +83,7 @@ class LmgApplication : Application(), ImageLoaderFactory {
     fun evictImageConnections() {
         runCatching {
             coverHttpClient.dispatcher.cancelAll()
+            vkHttpDispatcher.cancelAll()
             coverHttpClient.connectionPool.evictAll()
         }
     }
@@ -97,7 +102,7 @@ class LmgApplication : Application(), ImageLoaderFactory {
                 override fun onAvailable(network: android.net.Network) {
                     if (currentNetwork == network) return
                     currentNetwork = network
-                    NetworkVitality.onDefaultNetworkChanged()
+                    com.lmg.vk.network.VpnBypassManager.updateStateAndApply()
                     MusicAuth.onNetworkAvailable()
                     WaveSignalQueue.onNetworkAvailable()
                 }
@@ -129,12 +134,17 @@ class LmgApplication : Application(), ImageLoaderFactory {
 
     override fun onCreate() {
         super.onCreate()
+        com.lmg.vk.debug.AppPerformanceCapture.initialize(this)
+        AppStartupTrace.start(this)
+        val startup = AppStartupTrace.beginElapsed("application_create")
 
         VkUserAgents.init(this)
         MusicBackend.appContext = this
         connectivityManager = getSystemService(ConnectivityManager::class.java)
 
-        appScope.launch { runCatching { com.lmg.vk.engine.lyrics.ExternalLyricsRepository.warmUp() } }
+        appScope.launch { runCatching {
+            AppStartupTrace.elapsed("lyrics_service_ping") { com.lmg.vk.engine.lyrics.ExternalLyricsRepository.warmUp() }
+        } }
 
         // Java-крэши: синхронно и ПЕРВЫМ — Fishnet ниже подшивается к уже
         // установленному дефолтному хендлеру.
@@ -144,7 +154,7 @@ class LmgApplication : Application(), ImageLoaderFactory {
 
         // Native/ANR крэши — в отдельном потоке (не в критическом пути 1-го кадра).
         val logDir = File(filesDir, "crash_logs").apply { mkdirs() }
-        Thread { Fishnet.init(this@LmgApplication, logDir.absolutePath) }
+        Thread { AppStartupTrace.measure("fishnet_init") { Fishnet.init(this@LmgApplication, logDir.absolutePath) } }
             .apply { name = "fishnet-init"; start() }
 
         // Ловушка зависаний UI: Fishnet-дампы ANR приходят БЕЗ стека main —
@@ -152,18 +162,16 @@ class LmgApplication : Application(), ImageLoaderFactory {
         UiWatchdog.start(this)
 
         // Удалённая карта аудио-причуд — ДО AppSettings.
-        RemoteQuirks.preload(this)
-        AudioTelemetry.init(this)
-
-        // Инициализация менеджера обхода VPN (привязка к физическому интерфейсу)
-        com.lmg.vk.network.VpnBypassManager.init(this)
+        AppStartupTrace.measure("remote_quirks_init") { RemoteQuirks.preload(this) }
+        AppStartupTrace.measure("audio_telemetry_init") { AudioTelemetry.init(this) }
 
         // Настройки (SharedPreferences/DataStore) — лёгкие, можно на main.
-        AppSettings.init(this)
+        AppStartupTrace.measure("app_settings_init") { AppSettings.init(this) }
+        AppStartupTrace.measure("vpn_init") { com.lmg.vk.network.VpnBypassManager.init(this) }
         HomeCacheManager.init(this)
-        PlayerSettings.init(this)
-        AudioFxController.init(this)
-        LyricsFxController.init(this)
+        AppStartupTrace.measure("player_settings_init") { PlayerSettings.init(this) }
+        AppStartupTrace.measure("audio_fx_init") { AudioFxController.init(this) }
+        AppStartupTrace.measure("lyrics_fx_init") { LyricsFxController.init(this) }
 
         // Железо/энергосбережение → режимы эффектов.
         AudioRouteMonitor.init(this)
@@ -172,31 +180,33 @@ class LmgApplication : Application(), ImageLoaderFactory {
 
         // PlayerController — просто сохраняет context.
         PlayerController.init(this)
-        PlaylistManager.init(this)
+        AppStartupTrace.measure("local_playlists_init") { PlaylistManager.init(this) }
         AccountSyncManager.init(this)
 
         // Обход блокировок: конфиг с адресами и сертификатами. Поднимаем до
         // создания Ktor-клиента — интерцептор читает состояние на каждом запросе,
         // но кэш должен быть уже в памяти к первому из них.
-        VkProxyRepository.init(this)
+        AppStartupTrace.measure("vk_proxy_init") { VkProxyRepository.init(this) }
 
         // VK API: Ktor-клиент + зашифрованная сессия + доменный фасад UI.
-        val vkSessionStore = EncryptedVkSessionStore(this)
+        val vkSessionStore = AppStartupTrace.measure("vk_session_restore") { EncryptedVkSessionStore(this) }
         // Клиент вынесен в переменную, потому что он нужен двум потребителям:
         // самому VkApiClient и загрузке медиа-байтов (треки, обложки). Байты
         // идут напрямую по подписанному URL с CDN, но обходной слой им нужен
         // так же — иначе при блокировке userapi.com воспроизведение работает, а
         // скачивание молча падает. Отдельный клиент для медиа пошёл бы мимо
         // installVkProxy, поэтому переиспользуем этот.
-        val vkNetworkClient = KtorHttpClient(KtorOkHttp) {
+        val vkNetworkClient = AppStartupTrace.measure("vk_http_init") { KtorHttpClient(KtorOkHttp) {
             expectSuccess = false
             engine {
                 config {
                     connectionPool(vkHttpConnectionPool)
+                    dispatcher(vkHttpDispatcher)
+                    installVpnBypass()
                     installVkProxy()
                 }
             }
-        }
+        } }
         val vkApiClient = VkApiClient(
             httpClient = vkNetworkClient,
             sessionStore = vkSessionStore,
@@ -211,9 +221,9 @@ class LmgApplication : Application(), ImageLoaderFactory {
         }
         VkApiLocator.init(vkApiClient)
         VkApiLocator.initMediaClient(vkNetworkClient)
-        MusicBackend.init(vkApiClient, vkSessionStore)
-        WaveSignalQueue.init(this)
-        VkTokenRefreshWorker.schedule(this)
+        AppStartupTrace.measure("music_backend_init") { MusicBackend.init(vkApiClient, vkSessionStore) }
+        AppStartupTrace.measure("wave_signal_init") { WaveSignalQueue.init(this) }
+        AppStartupTrace.measure("token_worker_schedule") { VkTokenRefreshWorker.schedule(this) }
 
         // ── Сетевая живучесть ─────────────────────────────────────────────
         NetworkVitality.registerReviver("vk-http") { evictImageConnections() }
@@ -227,23 +237,26 @@ class LmgApplication : Application(), ImageLoaderFactory {
         appScope.launch {
             PlaylistManager.changes.collectLatest {
                 delay(900)
-                if (MusicAuth.isLoggedIn.value) runCatching { PlaylistSyncManager.sync() }
+                if (MusicAuth.isLoggedIn.value) runCatching {
+                    AppStartupTrace.elapsed("playlist_sync") { PlaylistSyncManager.sync() }
+                }
             }
         }
         appScope.launch {
             MusicAuth.profileId.collectLatest { profileId ->
-                VkMusicWidget.refreshAll(this@LmgApplication)
-                profileId?.let { WaveSignalQueue.drain(it) }
+                AppStartupTrace.elapsed("widget_refresh") { VkMusicWidget.refreshAll(this@LmgApplication) }
+                profileId?.let { AppStartupTrace.elapsed("wave_signal_drain.profile") { WaveSignalQueue.drain(it) } }
             }
         }
         appScope.launch {
             // C9616e: api.vk.com/ping.txt -> api.vk.ru/ping.txt.
-            vkApiClient.probeAndSelectApiDomain()
+            AppStartupTrace.elapsed("vk_domain_probe") { vkApiClient.probeAndSelectApiDomain() }
             // Дослать сигналы волны, не доставленные в прошлой сессии.
-            runCatching { WaveSignalQueue.drain() }
+            runCatching { AppStartupTrace.elapsed("wave_signal_drain.startup") { WaveSignalQueue.drain() } }
         }
 
         isInitialized = true
+        startup?.end()
     }
 
     /**

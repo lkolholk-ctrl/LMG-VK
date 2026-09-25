@@ -10,7 +10,7 @@ data class ArtworkQuery(
     val durationMs: Long,
     val album: String = "",
 ) {
-    val usable: Boolean get() = title.isNotBlank() && artist.isNotBlank() && durationMs > 0
+    val usable: Boolean get() = title.isNotBlank() && artist.isNotBlank()
 }
 
 data class ItunesArtworkCandidate(
@@ -27,6 +27,9 @@ object ItunesArtworkMatcher {
     private val punctuation = Regex("[^\\p{L}\\p{N}]+")
     private val marks = Regex("\\p{M}+")
     private val spaces = Regex("\\s+")
+    private val words = Regex("[\\p{L}\\p{N}]+")
+    private val latinLookalikes = mapOf('а' to 'a', 'е' to 'e', 'о' to 'o', 'р' to 'p',
+        'с' to 'c', 'у' to 'y', 'х' to 'x', 'і' to 'i', 'ј' to 'j', 'ѕ' to 's')
     private val featuredTitle = Regex("""(?i)\s+(?:\(|\[)?(?:feat\.?|ft\.?|featuring)\s+(.+?)(?:\)|\])?\s*$""")
     private val noiseTag = """[\[(]\s*(?:(?:https?://)?(?:www\.)?(?:vk\.com|vk\.ru|vkontakte\.ru)/[^\s\])]+|\d{2,4}\s*(?:kbps|kb/s|кбит/с))\s*[\])]"""
     private val taggedGenre = Regex("""(?i)$noiseTag\s*[-–—|:]?\s*(?:electronic|electronica|hip[ -]?hop|rap|pop|rock|dance|house|techno|trance|dubstep|metal|r&b)(?:\s*$noiseTag)*\s*$""")
@@ -37,6 +40,14 @@ object ItunesArtworkMatcher {
 
     internal fun normalize(value: String): String = Normalizer.normalize(value, Normalizer.Form.NFKD)
         .replace(marks, "").lowercase(Locale.ROOT).replace('ё', 'е')
+        // VK uploads sometimes mix alphabets: Sk\u0443 looks like Sky. Repair only
+        // otherwise Latin words; never transliterate an entirely Cyrillic title.
+        .replace(words) { match ->
+            val word = match.value
+            if (word.any { it in 'a'..'z' } && word.all {
+                    it in 'a'..'z' || it in '0'..'9' || it in latinLookalikes
+                }) word.map { latinLookalikes[it] ?: it }.joinToString("") else word
+        }
         .replace(punctuation, " ").trim().replace(spaces, " ")
 
     internal fun artists(value: String): Set<String> = featuring.replace(value, " & ")
@@ -70,7 +81,7 @@ object ItunesArtworkMatcher {
         val matches = candidates.mapNotNull { cand ->
             val candSig = signature(cand.title, cand.artist)
             if (candSig.first != expected.first || cand.durationMs <= 0) return@mapNotNull null
-            val durationDiff = abs(cand.durationMs - query.durationMs)
+            val durationDiff = if (query.durationMs > 0) abs(cand.durationMs - query.durationMs) else 0
             if (durationDiff > 3_500) return@mapNotNull null
             if (!cand.artworkUrl.startsWith("https://") || !cand.trackUrl.startsWith("https://")) return@mapNotNull null
             val artistScore = matchArtists(expected.second, candSig.second) ?: return@mapNotNull null

@@ -39,6 +39,7 @@ jobs:
             -DCMAKE_BUILD_TYPE=Debug \
             -DLMG_AUTOMIX_JNI=ON \
             -DLMG_AUTOMIX_TESTS=ON \
+            -DLMG_AUTOMIX_PCM_BENCH=ON \
             -DLMG_AUTOMIX_SANITIZERS=OFF
 
       - name: Build Native Tests and host JNI
@@ -98,19 +99,33 @@ jobs:
 
       - name: Fetch pinned forked media3 AARs
         run: |
-          VER=1.5.1-lmg30
+          VER="$(python3 scripts/automix_fetch_boundary_artifact.py --print-base)"
           curl --fail --silent --show-error --location --retry 2 -o media3-m2.zip \
             "https://github.com/lkolholk-ctrl/media3-lmg/releases/download/v${VER}/media3-${VER}-m2.zip"
           mkdir -p media3-m2
           unzip -q media3-m2.zip -d media3-m2
 
+      - name: Install pinned output-boundary fork artifact
+        env:
+          AUTOMIX_BOUNDARY_AAR_URL: ${{ vars.AUTOMIX_BOUNDARY_AAR_URL }}
+          AUTOMIX_BOUNDARY_AAR_SHA256: ${{ vars.AUTOMIX_BOUNDARY_AAR_SHA256 }}
+          AUTOMIX_BOUNDARY_EXOPLAYER_VERSION: ${{ vars.AUTOMIX_BOUNDARY_EXOPLAYER_VERSION }}
+        run: python3 scripts/automix_fetch_boundary_artifact.py
+
       - name: Run Kotlin and real host JNI tests, then build APK
         run: |
           ./gradlew :app:testDebugUnitTest :app:assembleDebug --stacktrace \
-            -PautomixHostLibraryPath="$PWD/build_native_host"
+            -PautomixHostLibraryPath="$PWD/build_native_host" \
+            -PautomixExoplayerVersion="$AUTOMIX_EXOPLAYER_VERSION"
 
       - name: Verify packaged JNI, canonical asset and non-skipped JNI tests
-        run: python3 scripts/automix_verify_observation_apk.py
+        run: |
+          python3 scripts/automix_verify_observation_apk.py
+          python3 scripts/automix_verify_render_boundary_reports.py
+          python3 scripts/automix_verify_cue_gate_reports.py
+
+      - name: Verify native owner ingress reports and exports
+        run: python3 scripts/automix_verify_owner_ingress.py
 
       - name: Preserve Android test reports
         if: always()

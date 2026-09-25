@@ -30,6 +30,7 @@ import androidx.compose.material.icons.rounded.MoreHoriz
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.State
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -39,8 +40,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -76,17 +80,24 @@ fun QueueSheet(
     onMoreClick: () -> Unit = {},
     modifier: Modifier = Modifier,
     splitMode: Boolean = false,
+    sharedBackground: Boolean = false,
+    transitionProgress: State<Float>? = null,
+    onArtworkPositioned: ((LayoutCoordinates) -> Unit)? = null,
 ) {
     val context = LocalContext.current
-    val progress by animateFloatAsState(
+    val ownProgress = animateFloatAsState(
         targetValue = if (visible) 1f else 0f,
-        animationSpec = tween(420),
+        animationSpec = tween(500, easing = com.lmg.vk.ui.theme.AppleEasings.Standard),
         label = "queueProgress",
     )
-    if (progress <= 0.001f) return
+    val progress = transitionProgress ?: ownProgress
+    if (!visible && progress.value <= 0.001f) return
 
     val queue by PlayerController.queueFlow.collectAsState()
     val sections by PlayerController.queueSections.collectAsState()
+    val queueRows = remember(queue, sections.autoStart) {
+        queue.mapIndexed { index, track -> track to (index >= sections.autoStart) }
+    }
     val autoplayEnabled by PlayerController.autoplayEnabled.collectAsState()
     val shuffleEnabled by PlayerController.shuffleEnabled.collectAsState()
     val repeatMode by PlayerController.repeatMode.collectAsState()
@@ -105,15 +116,10 @@ fun QueueSheet(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .graphicsLayer { alpha = progress },
+            .graphicsLayer { alpha = progress.value },
     ) {
-        if (!splitMode) {
-            if (albumColors != null) {
-                AnimatedPlayerBackground(albumColors = albumColors)
-            } else {
-                Box(Modifier.fillMaxSize().background(Color(0xFF1C1C2E)))
-            }
-            Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.35f)))
+        if (!splitMode && !sharedBackground) {
+            SharedArtworkBackground(albumArtUri, coverUrl, audioFileUri, albumId)
         }
 
         Column(
@@ -156,31 +162,36 @@ fun QueueSheet(
                         .coerceAtLeast(QueueThumbSize)
                     val groupTop = ((maxHeight - fullArt - QueueArtTitleGap - QueueHeaderHeight) / 2)
                         .coerceAtLeast(0.dp)
-                    val artSize = lerp(fullArt, QueueThumbSize, progress)
-                    val artTop = lerp(groupTop, 0.dp, progress)
-                    val artStart = lerp((maxWidth - fullArt) / 2, 0.dp, progress)
-                    val titleTop = lerp(groupTop + fullArt + QueueArtTitleGap, 0.dp, progress)
-                    val titleStart = lerp(0.dp, QueueThumbSize + 12.dp, progress)
-                    val corner = lerp(10.dp, 7.dp, progress)
-
                     currentTrack?.let { track ->
                         Box(
                             modifier = Modifier
-                                .offset(x = artStart, y = artTop)
-                                .size(artSize)
-                                .shadow(lerp(14.dp, 6.dp, progress), RoundedCornerShape(corner))
-                                .clip(RoundedCornerShape(corner))
+                                .size(fullArt)
+                                .graphicsLayer {
+                                    // Shared FullPlayer already owns the large cover. Do not
+                                    // animate a second, unrelated square cover over tall video.
+                                    val p = if (sharedBackground) 1f else progress.value
+                                    val scale = lerp(fullArt, QueueThumbSize, p) / fullArt
+                                    transformOrigin = TransformOrigin(0f, 0f)
+                                    scaleX = scale
+                                    scaleY = scale
+                                    translationX = (lerp((maxWidth - fullArt) / 2, 0.dp, p)).toPx()
+                                    translationY = lerp(groupTop, 0.dp, p).toPx()
+                                    shape = RoundedCornerShape(lerp(10.dp, 7.dp, p) / scale)
+                                    shadowElevation = lerp(14.dp, 6.dp, p).toPx() / scale
+                                    clip = true
+                                }
+                                .onGloballyPositioned { onArtworkPositioned?.invoke(it) }
                                 .background(Color.Black.copy(alpha = 0.18f))
                                 .clickable(
                                     interactionSource = remember { MutableInteractionSource() },
                                     indication = null,
-                                    enabled = progress > 0.5f,
-                                    onClick = onDismiss,
+                                    onClick = { if (progress.value > 0.5f) onDismiss() },
                                 ),
                         ) {
                             AlbumArtImage(
                                 uri = track.albumArtUri.takeIf { track.albumId >= 0 } ?: albumArtUri,
-                                coverUrl = track.coverUrl ?: coverUrl,
+                                coverUrl = coverUrl ?: track.coverUrl,
+                                artworkQuery = com.lmg.vk.artwork.ArtworkQuery(track.title, track.artist, track.durationMs),
                                 audioFileUri = track.uri.takeIf { it != Uri.EMPTY } ?: audioFileUri,
                                 albumId = track.albumId.takeIf { it >= 0 } ?: albumId,
                                 modifier = Modifier.fillMaxSize(),
@@ -191,12 +202,16 @@ fun QueueSheet(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .offset(y = titleTop)
-                                .padding(start = titleStart)
+                                .graphicsLayer {
+                                    val p = if (sharedBackground) 1f else progress.value
+                                    translationX = -(QueueThumbSize + 12.dp).toPx() * (1f - p)
+                                    translationY = (groupTop + fullArt + QueueArtTitleGap).toPx() * (1f - p)
+                                }
+                                .padding(start = QueueThumbSize + 12.dp)
                                 .height(QueueHeaderHeight),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            val titleSize = (20f - 4f * progress).sp
+                            val titleSize = 16.sp
                             Column(Modifier.weight(1f)) {
                                 Text(
                                     text = track.title,
@@ -231,18 +246,20 @@ fun QueueSheet(
                         }
                     }
 
-                    if (progress > 0.01f) {
+                    run {
                         Column(
                             modifier = Modifier
                                 .fillMaxSize()
                                 .padding(top = QueueHeaderHeight + 10.dp)
                                 .graphicsLayer {
-                                    alpha = ((progress - 0.45f) / 0.55f).coerceIn(0f, 1f)
-                                    translationY = (1f - progress) * 26.dp.toPx()
+                                    alpha = if (sharedBackground) 1f else
+                                        ((progress.value - 0.45f) / 0.55f).coerceIn(0f, 1f)
+                                    translationY = if (sharedBackground) 0f else
+                                        (1f - progress.value) * 26.dp.toPx()
                                 },
                         ) {
                             InlineQueue(
-                                queue = queue.mapIndexed { index, track -> track to (index >= sections.autoStart) },
+                                queue = queueRows,
                                 currentIndex = currentIndex,
                                 autoplayEnabled = autoplayEnabled,
                                 onJumpTo = { PlayerController.playTrack(context, it) },

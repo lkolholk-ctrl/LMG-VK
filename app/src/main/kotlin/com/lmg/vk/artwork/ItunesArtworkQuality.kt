@@ -10,8 +10,7 @@ internal object ItunesArtworkQuality {
         val source = uri.rawPath.removePrefix("/image/thumb/").substringBeforeLast('/')
         if (source.isBlank()) return listOf(url)
         return listOf(
-            "https://a5.mzstatic.com/us/r1000/0/$source",
-            "https://${uri.host}/image/thumb/$source/10000x10000bb.jpg",
+            "https://${uri.host}/image/thumb/$source/1200x1200bb.jpg",
             url,
         ).distinct()
     }

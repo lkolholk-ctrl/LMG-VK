@@ -8,10 +8,10 @@ class ArtworkLoadingTest {
     private val vk = "https://userapi.com/vk.jpg"
     private val apple = "https://is1-ssl.mzstatic.com/apple.jpg"
 
-    @Test fun coldLookupDoesNotExposeVkWhileAppleIsPending() {
+    @Test fun coldLookupKeepsExistingCoverWhileAppleIsPending() {
         val firstFrame = ArtworkLoadState.initial(query, vk, null)
         assertFalse(firstFrame.isReady)
-        assertNull(firstFrame.coverUrl)
+        assertEquals(vk, firstFrame.coverUrl)
     }
 
     @Test fun warmLookupHasAppleInItsFirstFrame() {
@@ -28,7 +28,7 @@ class ArtworkLoadingTest {
     }
 
     @Test fun unavailableMetadataPreservesLocalAndVkFallbacks() {
-        assertEquals(ArtworkLoadState(true, vk), ArtworkLoadState.initial(query.copy(durationMs = 0), vk, null))
+        assertEquals(ArtworkLoadState(true, vk), ArtworkLoadState.initial(query.copy(artist = ""), vk, null))
         assertEquals(ArtworkLoadState(true, null), ArtworkLoadState.initial(null, null, null))
     }
 

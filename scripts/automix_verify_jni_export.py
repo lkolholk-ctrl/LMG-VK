@@ -7,6 +7,17 @@ import struct
 SYMBOL = b'Java_com_lmg_vk_engine_automix_nativecore_NativeObservationBridge_selectResolvedPairV2'
 SOURCE_SYMBOL = b'Java_com_lmg_vk_engine_automix_nativecore_NativeObservationBridge_selectMusicKitSourcePairV1'
 SCHEDULE_SYMBOL = b'Java_com_lmg_vk_engine_automix_nativecore_NativeObservationBridge_compileMusicKitScheduleV1'
+OWNER_SYMBOLS = tuple(b"Java_com_lmg_vk_engine_automix_nativecore_NativePcmOwnerIngress_" + name for name in (
+    b"nativeProtocol",
+    b"nativeCreate",
+    b"nativeStage",
+    b"nativeCommit",
+    b"nativeAbort",
+    b"nativePush",
+    b"nativeRead",
+    b"nativeStats",
+    b"nativeDestroy",
+))
 ABI_IDENTITIES = {'armeabi-v7a': (1, 40), 'arm64-v8a': (2, 183), 'x86': (1, 3)}
 
 def verify_jni_export(data: bytes, elf_class: int, machine: int, symbol: bytes = SYMBOL) -> None:
@@ -16,7 +27,7 @@ def verify_jni_export(data: bytes, elf_class: int, machine: int, symbol: bytes =
     def integer(fmt: str, offset: int) -> int:
         need(offset >= 0 and offset + struct.calcsize(fmt) <= len(data))
         return struct.unpack_from('<' + fmt, data, offset)[0]
-    need(symbol in (SYMBOL, SOURCE_SYMBOL, SCHEDULE_SYMBOL))
+    need(symbol in (SYMBOL, SOURCE_SYMBOL, SCHEDULE_SYMBOL) + OWNER_SYMBOLS)
     need(len(data) >= (64 if elf_class == 2 else 52) and data[:4] == b'\x7fELF')
     need(elf_class in (1, 2) and data[4] == elf_class and data[5] == 1 and data[6] == 1)
     need(integer('H', 16) == 3 and integer('H', 18) == machine)

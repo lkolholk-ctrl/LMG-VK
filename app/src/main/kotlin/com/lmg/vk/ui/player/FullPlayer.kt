@@ -1,5 +1,7 @@
 package com.lmg.vk.ui.player
 
+import com.lmg.vk.ui.navigation.rememberWindowCloseState
+import com.lmg.vk.ui.navigation.windowClose
 import android.content.Context
 import android.media.AudioManager
 import android.net.Uri
@@ -10,6 +12,9 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.updateTransition
+import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -64,7 +69,8 @@ import com.lmg.vk.engine.backend.MusicAuth
 import com.lmg.vk.engine.AppSettings
 import com.lmg.vk.engine.AudioDownloadManager
 import com.lmg.vk.data.local.db.FavoriteTrackDatabase
-import androidx.activity.compose.BackHandler
+import androidx.compose.runtime.State
+import androidx.compose.runtime.key
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -78,6 +84,12 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -85,6 +97,8 @@ import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.unit.offset
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.platform.LocalContext
@@ -116,10 +130,12 @@ import com.lmg.vk.ui.lyrics.LyricsScreen
 import com.lmg.vk.ui.theme.VkSansDisplay
 import kotlinx.coroutines.launch
 
+private enum class PlayerPage { Song, Lyrics, Queue }
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FullPlayer(
-    expandProgress: Float,
+    expandProgress: State<Float>,
     trackTitle: String,
     artistName: String,
     artists: List<MiniArtist> = emptyList(),
@@ -144,17 +160,21 @@ fun FullPlayer(
     onPublishLyrics: (com.lmg.vk.engine.Track) -> Unit = {},
     onEditTags: (com.lmg.vk.engine.Track) -> Unit = {}
 ) {
-    if (expandProgress <= 0.005f) return
+    val mounted by remember(expandProgress) { derivedStateOf { expandProgress.value > 0.005f } }
+    if (!mounted) return
 
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val libraryRepo = remember { com.lmg.vk.data.local.db.LibraryRepository.getInstance(context) }
     val currentTrackObj by PlayerController.currentTrack.collectAsState()
     val trackId = currentTrackObj?.id ?: ""
-    val isFavorite by libraryRepo.isFavoriteFlow(trackId).collectAsState(initial = false)
+    com.lmg.vk.debug.ObservePlayerStartup(trackId, "FullPlayer")
+    val favoriteFlow = remember(libraryRepo, trackId) { libraryRepo.isFavoriteFlow(trackId) }
+    val isFavorite by favoriteFlow.collectAsState(initial = false)
     val isPremium by MusicAuth.isPremium.collectAsState()
     val db = remember { FavoriteTrackDatabase.getInstance(context) }
-    val isDownloaded by db.isDownloadedFlow(trackId).collectAsState(initial = false)
+    val downloadedFlow = remember(db, trackId) { db.isDownloadedFlow(trackId) }
+    val isDownloaded by downloadedFlow.collectAsState(initial = false)
     val downloadProgressMap by AudioDownloadManager.downloadProgress.collectAsState()
     val progress = downloadProgressMap[trackId]
     val isDownloading = progress != null
@@ -199,7 +219,7 @@ fun FullPlayer(
             }
         }
     }
-    BackHandler(enabled = clipFullscreen) { clipFullscreen = false }
+    val clipBack = rememberWindowCloseState(enabled = clipFullscreen) { clipFullscreen = false }
 
     var showAirPlay by remember { mutableStateOf(false) }
     var showQueue by remember { mutableStateOf(false) }
@@ -217,14 +237,15 @@ fun FullPlayer(
     // Видимость контролов плеера. Когда открыта лирика — скрываются (как в Apple Music).
     // Тап по области лирики временно показывает их снова.
     var controlsVisible by remember { mutableStateOf(true) }
-    BackHandler(enabled = showQueue) {
+    val queueBack = rememberWindowCloseState(enabled = showQueue && !showAirPlay, fadeOnCommit = false) {
         showQueue = false
         controlsVisible = true
     }
-    BackHandler(enabled = showLyrics) {
+    val lyricsBack = rememberWindowCloseState(enabled = showLyrics && !showAirPlay, fadeOnCommit = false) {
         showLyrics = false
         controlsVisible = true
     }
+    val debugBack = rememberWindowCloseState(enabled = showDebugPanel, fadeOnCommit = false) { showDebugPanel = false }
     val playerBackdrop: LayerBackdrop = rememberLayerBackdrop()
 
     val shuffleEnabled by PlayerController.shuffleEnabled.collectAsState()
@@ -249,11 +270,18 @@ fun FullPlayer(
         )
     }
     val albumColors = rememberAlbumColors(resolvedArtwork)
+    val motionReady = motionArtworkReady()
 
     // Широкое окно (телефон-альбом ИЛИ планшет): обложка слева, контролы/
     // лирика/очередь — справа (side-by-side). Компактный портрет не меняется.
     // Через единый rememberWindowInfo — так же адаптируются все экраны.
     val isLandscape = com.lmg.vk.ui.rememberWindowInfo().useSideBySide
+    val tallMotion = motionArtworkTall() && !isLandscape && !isVideoClip
+    val tallMotionFraction by animateFloatAsState(
+        targetValue = if (tallMotion && motionReady) 1f else 0f,
+        animationSpec = tween(450),
+        label = "tallMotionFraction",
+    )
 
     // ── Gesture: horizontal swipe for skip ──
     val swipeOffsetX = remember { Animatable(0f) }
@@ -295,37 +323,66 @@ fun FullPlayer(
         }
     }
 
-    val controlsAlpha = ((expandProgress - 0.4f) / 0.6f).coerceIn(0f, 1f)
-    val bgAlpha = (expandProgress * 1.5f).coerceIn(0f, 1f)
-    val controlsMounted = expandProgress > 0.35f || showLyrics || showQueue ||
+    val controlsReady by remember(expandProgress) { derivedStateOf { expandProgress.value > 0.35f } }
+    val backgroundReady by remember(expandProgress) { derivedStateOf { expandProgress.value > 0.01f } }
+    val density = LocalDensity.current
+    val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
+    val statusBarTop = WindowInsets.statusBars.getTop(density).toFloat()
+    var playerCoordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
+    var lyricsThumbnail by remember { mutableStateOf<Rect?>(null) }
+    var queueThumbnail by remember { mutableStateOf<Rect?>(null) }
+    var lastMotionSheet by remember { mutableStateOf(PlayerPage.Lyrics) }
+    if (showLyrics) lastMotionSheet = PlayerPage.Lyrics
+    else if (showQueue) lastMotionSheet = PlayerPage.Queue
+    // Apple b9.f owns the 300 ms shared-element curve; the page's fade is separately 500 ms.
+    val motionCollapse = animateFloatAsState(
+        targetValue = if (!isLandscape && (showLyrics || showQueue)) 1f else 0f,
+        animationSpec = tween(300, easing = CubicBezierEasing(0.2f, 0.06f, 0f, 1f)),
+        label = "motionToSheetThumbnail",
+    )
+    val motionReveal = animateFloatAsState(
+        targetValue = if (motionReady) 1f else 0f,
+        animationSpec = tween(450), label = "motionFrameReveal",
+    )
+    // One interruptible clock owns both overlays. Reversing a transition continues from
+    // its current opacity instead of starting a second, differently timed animation.
+    val sheetTransition = updateTransition(
+        targetState = when { showLyrics -> PlayerPage.Lyrics; showQueue -> PlayerPage.Queue; else -> PlayerPage.Song },
+        label = "playerPage",
+    )
+    val lyricsOpacity = sheetTransition.animateFloat(
+        transitionSpec = { tween(500, easing = com.lmg.vk.ui.theme.AppleEasings.Standard) },
+        label = "lyricsOpacity",
+    ) { if (it == PlayerPage.Lyrics) 1f else 0f }
+    val queueOpacity = sheetTransition.animateFloat(
+        transitionSpec = { tween(500, easing = com.lmg.vk.ui.theme.AppleEasings.Standard) },
+        label = "queueOpacity",
+    ) { if (it == PlayerPage.Queue) 1f else 0f }
+    val showStaticSheetBackground = showLyrics || showQueue
+    // Keep the current ordinary artwork until the new motion has submitted a frame.
+    val staticBackgroundVisible = showStaticSheetBackground || !motionReady
+    val staticBackgroundAlpha by animateFloatAsState(
+        targetValue = if (staticBackgroundVisible) 1f else 0f,
+        animationSpec = tween(500, easing = com.lmg.vk.ui.theme.AppleEasings.Standard),
+        label = "staticPlayerBackground",
+    )
+    val staticBackgroundEnabled = backgroundReady &&
+        (staticBackgroundVisible || staticBackgroundAlpha > 0.001f)
+    val backgroundGeneration = remember { ArtworkBackgroundGeneration() }
+        .update(trackId to resolvedArtwork?.cacheKey, staticBackgroundEnabled)
+    val gesturesEnabled by remember(expandProgress) { derivedStateOf { expandProgress.value >= 0.9f } }
+    val controlsMounted = controlsReady || showLyrics || showQueue ||
         showAirPlay || showDebugPanel || showArtistSheet || showTrackMenu
-
-    // ── Morphing parameters ──
-    // Album art: 44dp → fullscreen, corners 10dp → 0dp
-    // Controls stagger: each element appears with slight delay
-    val titleAlpha = ((expandProgress - 0.25f) / 0.5f).coerceIn(0f, 1f)
-    val sliderAlpha = ((expandProgress - 0.35f) / 0.5f).coerceIn(0f, 1f)
-    val buttonsAlpha = ((expandProgress - 0.45f) / 0.5f).coerceIn(0f, 1f)
-    val bottomAlpha = ((expandProgress - 0.55f) / 0.4f).coerceIn(0f, 1f)
-    // Controls slide up offset
-    val controlsOffsetY = ((1f - expandProgress) * 80f)
-
-    // ── Card morphing: плеер СЖИМАЕТСЯ к мини-плееру при вытягивании (как у
-    //    Apple: BottomSheet + m5048c — контент масштабируется между размером
-    //    мини и полного по offset слайда). expandProgress: 1=фулл, 0=мини.
-    val e = expandProgress.coerceIn(0f, 1f)
-    // Масштаб от полного (1.0) к «мини» (0.86) — карточка уезжает вниз и мельчает.
-    val dismissScale = 0.86f + 0.14f * e
-    // Пивот ближе к низу-центру → сжимается В СТОРОНУ мини-бара, а не в центр.
-    val cardCorner = ((1f - e) * 28f).coerceIn(0f, 28f)
-    val cardOffsetY = ((1f - e).coerceAtLeast(0f) * 90f)
 
     Box(
         modifier = Modifier
             .fillMaxSize()
             .graphicsLayer {
-                alpha = bgAlpha
-                translationY = cardOffsetY
+                val e = expandProgress.value.coerceIn(0f, 1f)
+                val dismissScale = 0.86f + 0.14f * e
+                val cardCorner = (1f - e) * 28f
+                alpha = (e * 1.5f).coerceIn(0f, 1f)
+                translationY = (1f - e) * 90f
                 scaleX = dismissScale
                 scaleY = dismissScale
                 transformOrigin = TransformOrigin(0.5f, 0.96f)
@@ -354,15 +411,63 @@ fun FullPlayer(
             }
     ) {
         // ═══ All visual content captured by playerBackdrop for glass sheets ═══
-        Box(modifier = Modifier.fillMaxSize().layerBackdrop(playerBackdrop)) {
+        Box(modifier = Modifier.fillMaxSize()
+            .onGloballyPositioned { playerCoordinates = it }
+            .layerBackdrop(playerBackdrop)) {
             // ═══ Apple Music style animated gradient background ═══
             // Клип: фон чисто чёрный (как у Apple при видео) — без градиента.
             if (isVideoClip) {
                 Box(modifier = Modifier.fillMaxSize().background(Color.Black))
             } else {
-                AnimatedPlayerBackground(
-                    albumColors = albumColors,
-                    modifier = Modifier.fillMaxSize()
+                // Static backdrop is underneath the moving motion container, not a veil
+                // above it. Otherwise the shared-element motion is obscured by the fade.
+                key(backgroundGeneration) {
+                    SharedArtworkBackground(
+                        albumArtUri = albumArtUri,
+                        coverUrl = resolvedCoverUrl,
+                        audioFileUri = audioFileUri,
+                        albumId = albumId,
+                        enabled = staticBackgroundEnabled,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
+                MotionArtworkSurface(
+                    Modifier.fillMaxSize().graphicsLayer {
+                        // Keep an incoming native TextureView drawable while waiting for its
+                        // first frame; alpha==0 may skip its first draw/surface creation.
+                        alpha = (motionReveal.value * if (tallMotion) 1f else (1f - staticBackgroundAlpha))
+                            .coerceAtLeast(0.001f)
+                    },
+                    blurred = true,
+                    enabled = backgroundReady,
+                    presentation = tallMotion,
+                    portraitTransform = {
+                        val lyrics = lastMotionSheet == PlayerPage.Lyrics
+                        // Actual thumbnail coordinates win. Fallback is needed only during
+                        // the first layout of a sheet, before onGloballyPositioned arrives.
+                        val thumbSize = with(density) { (if (lyrics) 48.dp else 54.dp).toPx() }
+                        val start = with(density) {
+                            if (lyrics) 64.dp.toPx()
+                            else maxOf(30.dp.toPx(), (size.width - 560.dp.toPx()) / 2f)
+                        }
+                        val left = if (rtl) size.width - start - thumbSize else start
+                        val top = statusBarTop + with(density) { (if (lyrics) 10.dp else 58.dp).toPx() }
+                        val target = (if (lyrics) lyricsThumbnail else queueThumbnail)
+                            ?: Rect(left, top, left + thumbSize, top + thumbSize)
+                        val frame = motionSheetFrame(size, target, motionCollapse.value,
+                            with(density) { (if (lyrics) 10.dp else 7.dp).toPx() })
+                        val scale = frame.scale(size.width)
+                        translationX = frame.left
+                        translationY = frame.top
+                        scaleX = scale
+                        scaleY = scale
+                        transformOrigin = TransformOrigin(0f, 0f)
+                        // Keep the native output drawable even if a network-loaded motion
+                        // first arrives while a sheet is open. No surface/startup gate.
+                        alpha = frame.alpha.coerceAtLeast(0.001f)
+                        clip = true
+                        shape = MotionSheetClip(frame.height / scale, frame.radius / scale)
+                    },
                 )
             }
 
@@ -378,15 +483,13 @@ fun FullPlayer(
                     // половине. Когда при открытой лирике/очереди всплыли контролы
                     // — обложку прячем, чтобы кнопки/прогресс читались чисто (не
                     // мешались поверх обложки). Контролы ушли — обложка вернулась.
-                    isLandscape && (showLyrics || showQueue) && controlsVisible -> 0f
+                    isLandscape && showQueue && controlsVisible -> 0f
                     else -> 1f
                 },
-                animationSpec = tween(420),
+                animationSpec = tween(500, easing = com.lmg.vk.ui.theme.AppleEasings.Standard),
                 label = "artAlpha"
             )
-            val artPaddingH = (24f * expandProgress.coerceIn(0f, 1f)).coerceIn(0f, 24f)
-            val artCornerR = (16f * expandProgress.coerceIn(0f, 1f)).coerceIn(0f, 16f)
-            val artShape = RoundedCornerShape(artCornerR.dp)
+
 
             // Обложка «дышит»: на паузе ужимается (как в Apple Music), на плей —
             // упруго распахивается. Буферизацию не считаем паузой — иначе обложка
@@ -418,10 +521,15 @@ fun FullPlayer(
                         else
                             Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = artPaddingH.dp)
-                                // Клип: карточка 16:9 ниже (центр верхней зоны, как у
-                                // Apple), а не прижата к верху — обложка как раньше.
-                                .padding(top = ((if (isVideoClip) 190 else 80).dp * expandProgress))
+                                .layout { measurable, constraints ->
+                                    val e = expandProgress.value.coerceIn(0f, 1f)
+                                    val horizontal = (24.dp.toPx() * e).toInt()
+                                    val top = ((if (isVideoClip) 190 else 80).dp.toPx() * e).toInt()
+                                    val child = measurable.measure(constraints.offset(-2 * horizontal, -top))
+                                    layout(child.width + 2 * horizontal, child.height + top) {
+                                        child.placeRelative(horizontal, top)
+                                    }
+                                }
                                 .aspectRatio(if (isVideoClip) videoAspect else 1f)
                     )
                     .graphicsLayer {
@@ -429,10 +537,10 @@ fun FullPlayer(
                         scaleX = artScale
                         scaleY = artScale
                         shadowElevation = (24f - 10f * (1f - artScale) / 0.14f) *
-                            expandProgress.coerceIn(0f, 1f)
-                        alpha = artAlpha
+                            expandProgress.value.coerceIn(0f, 1f)
+                        alpha = (1f - tallMotionFraction) * artAlpha
                         clip = true
-                        shape = artShape
+                        shape = RoundedCornerShape((16f * expandProgress.value.coerceIn(0f, 1f)).dp)
                     }
             ) {
                 // Видеоклип (Apple Music): вместо обложки — Surface с видео
@@ -494,6 +602,8 @@ fun FullPlayer(
                         modifier = Modifier.fillMaxSize()
                     )
                 }
+                MotionArtworkSurface(Modifier.fillMaxSize(),
+                    enabled = backgroundReady && !tallMotion)
                 }
             }
         }
@@ -502,8 +612,8 @@ fun FullPlayer(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .pointerInput(expandProgress) {
-                    if (expandProgress < 0.9f) return@pointerInput
+                .pointerInput(gesturesEnabled) {
+                    if (!gesturesEnabled) return@pointerInput
                     detectHorizontalDragGestures(
                         onDragEnd = {
                             val threshold = size.width * 0.25f
@@ -541,8 +651,8 @@ fun FullPlayer(
                         }
                     )
                 }
-                .pointerInput(expandProgress) {
-                    if (expandProgress < 0.9f) return@pointerInput
+                .pointerInput(gesturesEnabled) {
+                    if (!gesturesEnabled) return@pointerInput
                     detectTapGestures(
                         onDoubleTap = {
                             currentTrackObj?.let { track ->
@@ -564,46 +674,54 @@ fun FullPlayer(
 
         // ═══ Lyrics ═══
         // Рисуется ДО контролов — чтобы контролы (по тапу) всплывали поверх лирики.
-        AnimatedVisibility(
-            visible = showLyrics,
-            // Морф-переход к лирике (как у Apple song↔lyrics): fade + лёгкий
-            // масштаб на их кривой, а не сухой fade.
-            enter = fadeIn(tween(360, easing = com.lmg.vk.ui.theme.AppleEasings.Standard)) +
-                scaleIn(initialScale = 0.94f, animationSpec = tween(360, easing = com.lmg.vk.ui.theme.AppleEasings.Standard)),
-            exit = fadeOut(tween(280, easing = com.lmg.vk.ui.theme.AppleEasings.Sharp)) +
-                scaleOut(targetScale = 0.94f, animationSpec = tween(280, easing = com.lmg.vk.ui.theme.AppleEasings.Sharp)),
-            // Landscape: лирика в ПРАВОЙ половине (обложка остаётся слева).
-            modifier = if (isLandscape)
-                Modifier.align(Alignment.CenterEnd).fillMaxWidth(0.5f).fillMaxHeight()
-            else Modifier
-        ) {
-            LyricsScreen(
-                audioFileUri = audioFileUri,
-                lrcText = null,
-                currentPositionMs = currentPositionMs,
-                trackTitle = trackTitle,
-                trackArtist = artistName,
-                trackDurationMs = durationMs,
-                albumArtUri = albumArtUri,
-                coverUrl = resolvedCoverUrl,
-                albumId = albumId,
-                trackId = currentTrackObj?.id,
-                albumColors = albumColors,
-                isFavorite = isFavorite,
-                onFavoriteClick = {
-                    currentTrackObj?.let { track ->
-                        scope.launch { libraryRepo.toggleFavorite(track, "lyrics") }
-                    }
-                },
-                onMoreClick = { showTrackMenu = true },
-                onClose = { showLyrics = false },
-                splitMode = isLandscape
-            )
+        if (showLyrics || lyricsOpacity.value > 0.001f) {
+            Box(
+                // Landscape: лирика в ПРАВОЙ половине (обложка остаётся слева).
+                modifier = (if (isLandscape)
+                    Modifier.align(Alignment.CenterEnd).fillMaxWidth(0.5f).fillMaxHeight()
+                else Modifier).windowClose(lyricsBack).graphicsLayer { alpha = lyricsOpacity.value }
+            ) {
+                LyricsScreen(
+                    onArtworkPositioned = { coordinates ->
+                        playerCoordinates?.takeIf { it.isAttached && coordinates.isAttached }?.let {
+                            lyricsThumbnail = it.localBoundingBoxOf(coordinates, clipBounds = false)
+                        }
+                    },
+                    contentReady = !sheetTransition.isRunning,
+                    audioFileUri = audioFileUri,
+                    lrcText = null,
+                    currentPositionMs = currentPositionMs,
+                    trackTitle = trackTitle,
+                    trackArtist = artistName,
+                    trackDurationMs = durationMs,
+                    albumArtUri = albumArtUri,
+                    coverUrl = resolvedCoverUrl,
+                    albumId = albumId,
+                    trackId = currentTrackObj?.id,
+                    albumColors = albumColors,
+                    isFavorite = isFavorite,
+                    onFavoriteClick = {
+                        currentTrackObj?.let { track ->
+                            scope.launch { libraryRepo.toggleFavorite(track, "lyrics") }
+                        }
+                    },
+                    onMoreClick = { showTrackMenu = true },
+                    onClose = { showLyrics = false },
+                    splitMode = isLandscape,
+                    sharedBackground = true
+                )
+            }
         }
 
         // ═══ Queue ═══
         QueueSheet(
+            onArtworkPositioned = { coordinates ->
+                playerCoordinates?.takeIf { it.isAttached && coordinates.isAttached }?.let {
+                    queueThumbnail = it.localBoundingBoxOf(coordinates, clipBounds = false)
+                }
+            },
             visible = showQueue,
+            transitionProgress = queueOpacity,
             onDismiss = { showQueue = false },
             albumArtUri = albumArtUri,
             coverUrl = resolvedCoverUrl,
@@ -613,19 +731,20 @@ fun FullPlayer(
             currentTrack = currentTrackObj,
             onMoreClick = { showTrackMenu = true },
             // Landscape: очередь в ПРАВОЙ половине (обложка/контролы — слева).
-            modifier = if (isLandscape)
+            modifier = (if (isLandscape)
                 Modifier.align(Alignment.CenterEnd).fillMaxWidth(0.5f).fillMaxHeight()
-            else Modifier,
-            splitMode = isLandscape
+            else Modifier).windowClose(queueBack),
+            splitMode = isLandscape,
+            sharedBackground = true
         )
 
         // ═══ Controls ═══
         // Видны всегда, когда лирика и очередь закрыты. Когда открыты — только
         // если controlsVisible (по тапу), и автоматически прячутся через 3 сек.
         AnimatedVisibility(
-            visible = controlsMounted && ((!showLyrics && !showQueue) || controlsVisible),
-            enter = fadeIn(tween(250)),
-            exit = fadeOut(tween(250))
+            visible = controlsMounted && !showLyrics && (!showQueue || controlsVisible),
+            enter = fadeIn(tween(500, easing = com.lmg.vk.ui.theme.AppleEasings.Standard)),
+            exit = fadeOut(tween(500, easing = com.lmg.vk.ui.theme.AppleEasings.Standard))
         ) {
         Box(modifier = Modifier.fillMaxSize()) {
         Column(
@@ -652,7 +771,7 @@ fun FullPlayer(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .graphicsLayer { alpha = controlsAlpha }
+                    .graphicsLayer { alpha = ((expandProgress.value - 0.4f) / 0.6f).coerceIn(0f, 1f) }
                     .pointerInput(Unit) {
                         detectTapGestures(
                             onTap = { onClose() },
@@ -681,7 +800,7 @@ fun FullPlayer(
                     .fillMaxWidth()
                     .padding(horizontal = 24.dp)
                     .padding(bottom = 36.dp)
-                    .graphicsLayer { translationY = controlsOffsetY }
+                    .graphicsLayer { translationY = (1f - expandProgress.value) * 80f }
             ) {
                 // Track Info — скрыта в режиме лирики и очереди
                 AnimatedVisibility(visible = !showLyrics && !showQueue) {
@@ -689,7 +808,7 @@ fun FullPlayer(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .graphicsLayer { alpha = titleAlpha },
+                        .graphicsLayer { alpha = ((expandProgress.value - 0.25f) / 0.5f).coerceIn(0f, 1f) },
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
@@ -789,7 +908,7 @@ fun FullPlayer(
                 // Progress (stagger: sliderAlpha)
                 Box(
                     Modifier
-                        .graphicsLayer { alpha = sliderAlpha }
+                        .graphicsLayer { alpha = ((expandProgress.value - 0.35f) / 0.5f).coerceIn(0f, 1f) }
                         .pointerInput(Unit) {
                         detectVerticalDragGestures(
                             onVerticalDrag = { change, _ -> change.consume() }
@@ -841,7 +960,7 @@ fun FullPlayer(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .graphicsLayer { alpha = buttonsAlpha },
+                        .graphicsLayer { alpha = ((expandProgress.value - 0.45f) / 0.5f).coerceIn(0f, 1f) },
                     horizontalArrangement = Arrangement.SpaceEvenly,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -914,7 +1033,7 @@ fun FullPlayer(
                     Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 40.dp)
-                        .graphicsLayer { alpha = bottomAlpha },
+                        .graphicsLayer { alpha = ((expandProgress.value - 0.55f) / 0.4f).coerceIn(0f, 1f) },
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -926,6 +1045,7 @@ fun FullPlayer(
                             showLyrics = false
                             controlsVisible = true
                         } else {
+                            com.lmg.vk.debug.PlayerOpeningTrace.request()
                             showLyrics = true
                             controlsVisible = false
                             showQueue = false // Close queue if open
@@ -956,12 +1076,16 @@ fun FullPlayer(
             trackTitle = trackTitle,
             artistName = artistName,
             albumArtUri = albumArtUri,
+            coverUrl = resolvedCoverUrl,
+            audioFileUri = audioFileUri,
+            albumId = albumId,
             onDismiss = { showAirPlay = false }
         )
 
         // ═══ Debug Panel ═══
         AnimatedVisibility(
             visible = showDebugPanel,
+            modifier = Modifier.windowClose(debugBack),
             enter = fadeIn(tween(250)),
             exit = fadeOut(tween(200))
         ) {
@@ -974,7 +1098,7 @@ fun FullPlayer(
         // Активная ориентация — альбом (LaunchedEffect выше); тап по видео или
         // значок сворачивают обратно, back тоже (BackHandler выше).
         if (isVideoClip && clipFullscreen) {
-            BoxWithConstraints(modifier = Modifier.fillMaxSize().background(Color.Black)) {
+            BoxWithConstraints(modifier = Modifier.fillMaxSize().windowClose(clipBack).background(Color.Black)) {
                 // Экран шире видео → упираемся в высоту (рамки по бокам); уже —
                 // в ширину (рамки сверху/снизу). Аспект — реальный из потока.
                 val heightFirst = maxWidth / maxHeight > videoAspect
@@ -1460,7 +1584,7 @@ fun FullPlayer(
                 text = stringResource(R.string.action_delete),
                 onClick = {
                     showDeleteConfirmDialog = false
-                    AudioDownloadManager.deleteDownloadedTrack(context, trackId)
+                    scope.launch(kotlinx.coroutines.Dispatchers.IO) { AudioDownloadManager.deleteDownloadedTrack(context, trackId) }
                 },
                 backgroundColor = Color(0xFFFF5252)
             ),

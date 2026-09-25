@@ -1,6 +1,5 @@
 package com.lmg.vk.ui.screens
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
@@ -13,7 +12,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.material3.AlertDialog
+import com.lmg.vk.ui.navigation.WindowAlertDialog as AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -57,7 +56,6 @@ fun HistoryScreen(
     val listState = rememberLazyListState()
     var pendingRemoval by remember { mutableStateOf<Track?>(null) }
 
-    BackHandler(onBack = onBack)
 
     LaunchedEffect(listState, state.accountId) {
         snapshotFlow {

@@ -5,9 +5,8 @@ import com.lmg.vk.engine.lyrics.apple.AppleLyricsDocument
 
 sealed interface LyricsContent {
     /**
-     * Untouched Apple Music TTML. It is deliberately parsed only by AMLL in
-     * the WebView so the native compatibility projection cannot reject syntax
-     * that AMLL supports.
+     * Untouched Apple Music TTML, parsed by Accompanist at the display boundary.
+     * Keep the original document in the cache to preserve all timing and vocal layers.
      */
     data class RawTtml(
         val value: String,

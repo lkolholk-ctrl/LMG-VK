@@ -28,6 +28,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.lmg.vk.R
+import com.lmg.vk.debug.AppStartupTrace
 import com.lmg.vk.engine.NotificationRouter
 import com.lmg.vk.engine.PlayerController
 import com.lmg.vk.engine.PlayerSettings
@@ -60,6 +61,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val startup = AppStartupTrace.beginElapsed("activity_create")
 
         // JUCE инициализируется через Activity-контекст.
         JuceContextHolder.set(this)
@@ -69,6 +71,7 @@ class MainActivity : ComponentActivity() {
         if (CrashHandler.hasCrashLog(this)) {
             startActivity(Intent(this, CrashActivity::class.java))
             finish()
+            startup?.end()
             return
         }
 
@@ -84,7 +87,7 @@ class MainActivity : ComponentActivity() {
         authScope.launch {
             if (MusicAuth.isLoggedIn.value) {
                 kotlinx.coroutines.withTimeoutOrNull(5_000) {
-                    MusicAuth.fetchUserData()
+                    AppStartupTrace.elapsed("profile_refresh") { MusicAuth.fetchUserData() }
                 }
             }
         }
@@ -127,6 +130,7 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+        startup?.end()
     }
 
     override fun onNewIntent(intent: Intent) {

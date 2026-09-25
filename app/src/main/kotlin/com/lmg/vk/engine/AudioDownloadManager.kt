@@ -13,6 +13,15 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.runInterruptible
+import kotlinx.coroutines.sync.withLock
+import com.lmg.vk.audio.DownloadQueue
+import com.lmg.vk.artwork.OfflineMotionStore
+import com.lmg.vk.artwork.OfflineMotionIndex
+import java.io.IOException
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
@@ -40,75 +49,107 @@ object AudioDownloadManager {
         return _downloadProgress.value[trackId]
     }
 
+    private val warnings = java.util.concurrent.ConcurrentHashMap<String, String>()
+    internal fun reportWarning(id: String, message: String?) { if (message == null) warnings.remove(id) else warnings[id] = message }
+    fun warning(id: String): String? = warnings[id]
+    internal fun reportProgress(id: String, value: Float?) = updateProgress(id, value)
+
     fun downloadTrack(context: Context, track: Track, onComplete: (Boolean) -> Unit = {}) {
-        // Enforce aggregator rule: PREMIUM ONLY
-        if (!MusicAuth.isPremium.value) {
-            onComplete(false)
-            return
+        if (!MusicAuth.isPremium.value) { onComplete(false); return }
+        DownloadQueue.enqueue(context.applicationContext, track, onComplete)
+    }
+    fun cancel(context: Context, id: String) = DownloadQueue.cancel(context.applicationContext, id)
+
+    /** Worker owns cancellation, retries and the per-track lock. Publish only a complete audio file. */
+    internal suspend fun downloadAndStore(context: Context, track: Track) {
+        val db = FavoriteTrackDatabase.getInstance(context)
+        val dir = File(context.filesDir, "downloads").apply { mkdirs() }
+        val key = OfflineMotionIndex.key(track.id)
+        val ready = File(dir, ".ready/$key")
+        val existing = db.getDownloadedTrack(track.id)?.takeIf {
+            com.lmg.vk.data.local.PublicDownloads.exists(context, it.localPath)
         }
-
-        val trackId = track.id
-        // Атомарный барьер (P1, аудит): прежний check-then-act по прогресс-мапе
-        // (isDownloading → флаг ставился уже ВНУТРИ корутины) пропускал два
-        // быстрых тапа Download → два конкурентных writer'а в один temp-файл =
-        // битый файл в downloads/ и в БД.
-        if (!activeDownloads.add(trackId)) return
-
-        CoroutineScope(Dispatchers.IO).launch {
-            try {
-            // Диск-проверки — на IO, не на потоке вызывающего (main из
-            // onCustomCommand нотификации; P2, аудит).
-            val db = FavoriteTrackDatabase.getInstance(context)
-            if (db.isDownloaded(trackId)) {
-                onComplete(true)
-                return@launch
-            }
-
-            val quality = MusicAuth.maxQuality.value ?: "256K"
-            val ext = if (quality.uppercase() == "ALAC") ".m4a" else ".mp3"
-
-            updateProgress(trackId, 0.0f)
-            // performDownload возвращает ФАКТИЧЕСКОЕ расширение: у HLS без
-            // FFmpeg результат может оказаться m4a вместо mp3, и искать файл по
-            // ожидаемому имени было бы ошибкой.
-            val actualExt = performDownload(context, track, ext)
-            if (actualExt != null) {
-                val downloadsDir = File(context.filesDir, "downloads")
-                val finalFile = File(downloadsDir, "$trackId$actualExt")
-                // Публичные Загрузки (MediaStore) — основной путь; при неудаче
-                // остаёмся на приватном файле (см. PublicDownloads).
-                val publicUri = com.lmg.vk.data.local.PublicDownloads.exportAudio(
-                    context, finalFile,
-                    com.lmg.vk.data.local.PublicDownloads
-                        .displayName(track.artist, track.title).ifBlank { trackId },
-                    actualExt,
-                )
-                val storedPath = if (publicUri != null) {
-                    finalFile.delete()
-                    publicUri
-                } else finalFile.absolutePath
-                db.insertDownloaded(
-                    DownloadedTrackEntity(
-                        trackId = trackId,
-                        title = track.title,
-                        artistName = track.artist,
-                        albumTitle = track.albumName,
-                        durationMs = track.durationMs,
-                        imageUrl = track.coverUrl,
-                        localPath = storedPath,
-                        localCoverPath = null, // Single-track download doesn't cache cover locally yet
-                        quality = quality
-                    )
-                )
-                updateProgress(trackId, null) // remove from active downloading map
-                onComplete(true)
+        if (existing != null && ready.isFile && ready.readText() == "3") return
+        updateProgress(track.id, 0f)
+        val quality = MusicAuth.maxQuality.value ?: "256K"
+        var file: File? = null
+        var published: String? = null
+        var committed = false
+        var staging: File? = null
+        try {
+            file = if (existing != null) {
+                // Work on a private copy. Cancellation or tag failure cannot damage the saved song.
+                val extension = existing.localPath.substringAfterLast('.', "mp3").takeIf { it.length <= 5 } ?: "mp3"
+                val copy = File(dir, "$key.repair.$extension").also { staging = it }
+                context.contentResolver.openInputStream(com.lmg.vk.data.local.PublicDownloads.toPlayableUri(existing.localPath))?.use { input ->
+                    copy.outputStream().use { output ->
+                        val buffer = ByteArray(64 * 1024)
+                        while (true) {
+                            currentCoroutineContext().ensureActive()
+                            val count = input.read(buffer)
+                            if (count < 0) break
+                            output.write(buffer, 0, count)
+                        }
+                    }
+                } ?: throw IOException("Saved audio is unreadable")
+                runInterruptible { com.lmg.vk.audio.AudioContainer.normalize(copy) }
             } else {
-                updateProgress(trackId, null)
-                onComplete(false)
+                var ext: String? = null
+                for (attempt in 0..1) {
+                    ext = performDownload(context, track, ".mp3", attempt > 0)
+                    if (ext != null) break
+                    currentCoroutineContext().ensureActive()
+                    if (attempt == 0) kotlinx.coroutines.delay(750)
+                }
+                File(dir, "$key${ext ?: throw IOException("Audio download failed")}")
             }
-            } finally {
-                activeDownloads.remove(trackId)
+            currentCoroutineContext().ensureActive()
+            val query = com.lmg.vk.artwork.ArtworkQuery(track.title, track.artist, track.durationMs, track.albumName)
+            var assetFailure: Exception? = null
+            val catalog = try { com.lmg.vk.artwork.AppleArtworkRepository.find(context, query) }
+                catch (e: CancellationException) { throw e }
+                catch (e: Exception) { assetFailure = e; null }
+            val artwork = try {
+                com.lmg.vk.artwork.DownloadedArtwork.load(context, query,
+                    com.lmg.vk.ui.glass.ArtworkSourceResolver.realCoverOrNull(track.coverUrl), File(dir, ".covers/$key.jpg"))
+            } catch (e: CancellationException) { throw e }
+              catch (e: Exception) { assetFailure = e; null }
+            if (com.lmg.vk.artwork.ItunesArtworkRepository.cached(query) == null)
+                assetFailure = IOException("Cover lookup did not complete")
+            if (catalog?.cover != null && (artwork == null || artwork.localPath == null || !artwork.preferred))
+                assetFailure = IOException("Cover was found but could not be saved")
+            val lyrics = com.lmg.vk.audio.EmbeddedLyrics.validTtml(com.lmg.vk.audio.EmbeddedLyrics.read(file))
+                ?: com.lmg.vk.audio.DownloadLyrics.fetch(context, track)
+            val tagged = writeTagsForDownload(file, track, artwork?.bytes, lyrics)
+            if (!tagged) assetFailure = IOException("Audio tags could not be written")
+            currentCoroutineContext().ensureActive()
+            updateProgress(track.id, .92f)
+            published = com.lmg.vk.data.local.PublicDownloads.exportAudio(context, file,
+                com.lmg.vk.data.local.PublicDownloads.displayName(track.artist, track.title), "." + file.extension)
+            val stored = published ?: file.absolutePath
+            currentCoroutineContext().ensureActive()
+            db.insertDownloaded(DownloadedTrackEntity(trackId = track.id, title = track.title, artistName = track.artist,
+                albumTitle = track.albumName, durationMs = track.durationMs, imageUrl = artwork?.url ?: existing?.imageUrl ?: track.coverUrl,
+                localPath = stored, localCoverPath = artwork?.localPath ?: existing?.localCoverPath, quality = quality))
+            committed = true
+            if (published != null) file.delete()
+            if (existing != null && existing.localPath != stored) com.lmg.vk.data.local.PublicDownloads.delete(context, existing.localPath)
+            try { OfflineMotionStore.save(context, track.id, query, catalog?.motion) }
+                catch (e: CancellationException) { throw e }
+                catch (e: Exception) { assetFailure = e }
+            assetFailure?.let { throw it }
+            // Missing lyrics must never fail a saved audio download. Permit a later explicit retry.
+            ready.parentFile?.mkdirs(); ready.writeText(if (lyrics != null) "3" else "2")
+            updateProgress(track.id, 1f)
+        } finally {
+            if (!committed) {
+                published?.let { com.lmg.vk.data.local.PublicDownloads.delete(context, it) }
+                file?.delete()
+                staging?.delete()
             }
+            val preserved = if (committed && published == null) file?.absolutePath else existing?.localPath
+            dir.listFiles { candidate -> candidate.isFile && candidate.name.startsWith("$key.") }
+                ?.filter { it.absolutePath != preserved }?.forEach { it.delete() }
         }
     }
 
@@ -183,7 +224,11 @@ object AudioDownloadManager {
         }
     }
 
-    fun deleteDownloadedTrack(context: Context, trackId: String) {
+    suspend fun deleteDownloadedTrack(context: Context, trackId: String) {
+        DownloadQueue.cancelAndWait(context, trackId)
+        DownloadQueue.lock(trackId).withLock {
+        OfflineMotionStore.remove(context, trackId)
+        File(context.filesDir, "downloads/.ready/${OfflineMotionIndex.key(trackId)}").delete()
         val db = FavoriteTrackDatabase.getInstance(context)
         val entity = db.getDownloadedTrack(trackId)
         val ext = if (entity?.quality?.uppercase() == "ALAC") ".m4a" else ".mp3"
@@ -209,6 +254,7 @@ object AudioDownloadManager {
 
         // Remove from database
         db.deleteDownloaded(trackId)
+        }
     }
 
     /**
@@ -217,6 +263,12 @@ object AudioDownloadManager {
      * Runs on Dispatchers.IO to avoid ANR when deleting thousands of files.
      */
     suspend fun clearAllDownloads(context: Context) = withContext(Dispatchers.IO) {
+        DownloadQueue.cancelAll(context)
+        DownloadQueue.slots.acquire()
+        try {
+        DownloadQueue.slots.acquire()
+        try {
+        OfflineMotionStore.clear(context)
         val db = FavoriteTrackDatabase.getInstance(context)
 
         // 1. Delete every tracked file: content:// (публичные Загрузки, через
@@ -242,6 +294,8 @@ object AudioDownloadManager {
 
         // 3. Clear the database table
         db.clearAllDownloads()
+        } finally { DownloadQueue.slots.release() }
+        } finally { DownloadQueue.slots.release() }
     }
 
     /**
@@ -251,9 +305,10 @@ object AudioDownloadManager {
      * (см. HlsDownloader): вернуть true и оставить вызывающего с неверным именем
      * файла означало бы «успешную» загрузку, которой нет на диске.
      */
-    private suspend fun performDownload(context: Context, track: Track, ext: String): String? = withContext(Dispatchers.IO) {
+    private suspend fun performDownload(context: Context, track: Track, ext: String, refresh: Boolean = false): String? = withContext(Dispatchers.IO) {
         val trackId = track.id
-        val tempFile = File(context.filesDir, "downloads/${trackId}.temp")
+        val diskKey = OfflineMotionIndex.key(trackId)
+        val tempFile = File(context.filesDir, "downloads/${diskKey}.temp")
 
         android.util.Log.d("DOWNLOAD", "performDownload START trackId=$trackId ext=$ext")
 
@@ -268,14 +323,20 @@ object AudioDownloadManager {
             }
 
             // 1. Resolve signed streaming URL
-            val resolvedUri = PlayerController.resolveStreamUrlSync(trackId)
-            android.util.Log.d("DOWNLOAD", "resolvedUri=$resolvedUri")
+            val resolvedUri = if (track.isOnlineTrack) {
+                (if (!refresh) PlayerController.getValidCachedUri(trackId) else null)
+                    ?: kotlinx.coroutines.withTimeoutOrNull(15_000) {
+                        android.net.Uri.parse(com.lmg.vk.engine.backend.MusicBackend.getTrackInfo(
+                            trackId, quality = MusicAuth.maxQuality.value ?: "lossless").url)
+                    }
+            } else track.uri
+
             if (resolvedUri == null) {
                 android.util.Log.e("DOWNLOAD", "resolveStreamUrlSync returned null for $trackId")
                 return@withContext null
             }
             val urlString = resolvedUri.toString()
-            android.util.Log.d("DOWNLOAD", "urlString=$urlString")
+
 
             // 1.5. HLS-ветка.
             //
@@ -305,37 +366,16 @@ object AudioDownloadManager {
                 downloadViaKtor(mediaClient, urlString, tempFile, trackId)
             } else {
                 android.util.Log.w("DOWNLOAD", "медиа-клиент не готов, качаю без обхода")
-                downloadViaUrlConnection(urlString, tempFile, trackId)
+                runInterruptible { downloadViaUrlConnection(urlString, tempFile, trackId) }
             }
             if (!downloaded) {
                 if (tempFile.exists()) tempFile.delete()
                 return@withContext null
             }
 
-            // 2.5. ID3-теги и обложка — только для mp3.
-            //
-            // Пишем ДО переноса в итоговое место: если запись тега сорвётся, у
-            // пользователя останется корректный mp3 без тегов, а не битый файл в
-            // его музыке. Сам `Mp3TagWriter.write` тоже атомарен (пишет рядом и
-            // подменяет), так что двойная страховка ничего не стоит.
-            //
-            // m4a/mp4 пропускаем осознанно: ID3 туда не пишется, там MP4-атомы —
-            // другой формат тегов, и попытка дописать ID3 сделала бы файл битым.
-            if (ext.equals(".mp3", ignoreCase = true) && tempFile.length() > 0L) {
-                runCatching { writeTagsForDownload(tempFile, track) }
-                    .onFailure {
-                        android.util.Log.w("DOWNLOAD", "теги не записались: ${it.message}")
-                    }
-            }
-
-            // 3. Move temp file to final location
-            val finalFile = File(downloadsDir, "$trackId$ext")
-            if (finalFile.exists()) {
-                finalFile.delete()
-            }
-            val renamed = tempFile.renameTo(finalFile)
-            android.util.Log.d("DOWNLOAD", "Download complete trackId=$trackId finalFile=${finalFile.absolutePath} size=${finalFile.length()} renamed=$renamed")
-            if (renamed) ext else null
+            val finalFile = runInterruptible { com.lmg.vk.audio.AudioContainer.normalize(tempFile) }
+            "." + finalFile.extension
+        } catch (e: CancellationException) { tempFile.delete(); throw e
         } catch (e: Exception) {
             android.util.Log.e("DOWNLOAD", "Download failed trackId=$trackId error=${e.message}")
             e.printStackTrace()
@@ -353,9 +393,6 @@ object AudioDownloadManager {
      * тут другой транспорт (плейлисты, ключи, ремукс), и в общий поток шагов
      * 1-2-2.5-3 он не укладывается.
      *
-     * Возвращает фактическое расширение или null. Теги пишем только для mp3 —
-     * ровно по той же причине, что и в прямой ветке: в m4a нужен MP4-атом, а не
-     * ID3, и дописанный ID3 сделал бы файл битым.
      */
     private suspend fun performHlsDownload(
         context: Context,
@@ -375,13 +412,13 @@ object AudioDownloadManager {
             return null
         }
 
-        val base = File(downloadsDir, trackId)
+        val base = File(downloadsDir, OfflineMotionIndex.key(trackId))
         val outcome = com.lmg.vk.audio.HlsDownloader.download(
             context = context,
             client = client,
             url = url,
             destWithoutExt = base,
-            onProgress = { updateProgress(trackId, it) },
+            onProgress = { updateProgress(trackId, it * .85f) },
         )
 
         return when (outcome) {
@@ -390,48 +427,15 @@ object AudioDownloadManager {
                 null
             }
             is com.lmg.vk.audio.HlsDownloader.Outcome.Success -> {
-                if (outcome.ext.equals(".mp3", ignoreCase = true) && outcome.file.length() > 0L) {
-                    runCatching { writeTagsForDownload(outcome.file, track) }
-                        .onFailure {
-                            android.util.Log.w("DOWNLOAD", "HLS: теги не записались: ${it.message}")
-                        }
-                } else {
-                    android.util.Log.w(
-                        "DOWNLOAD",
-                        "HLS: сохранён как ${outcome.ext} без ID3 — FFmpeg недоступен, поток не MP3",
-                    )
-                }
                 // Файл уже лежит как <trackId><ext> в downloads/ — именно там его
                 // ждёт вызывающий, переносить нечего.
-                outcome.ext
+                "." + runInterruptible { com.lmg.vk.audio.AudioContainer.normalize(outcome.file) }.extension
             }
         }
     }
 
-    /**
-     * Дописывает ID3v2.3-тег и обложку в скачанный mp3.
-     *
-     * Зачем: без тегов файл в сторонних плеерах выглядит как «неизвестный
-     * исполнитель», а обложки нет вовсе — то есть скачанное фактически теряет
-     * половину смысла. Реализация тега — [com.lmg.vk.audio.Mp3TagWriter]
-     * (перенос из VK MP3 Mod), кириллица там пишется в UTF-16 с BOM, потому что
-     * ISO-8859-1 её не вмещает.
-     *
-     * Год и номер трека не заполняем: `Track` их не несёт, а у VK они приходят
-     * отдельным запросом. Пустое поле честнее выдуманного года — по нему
-     * сортируют библиотеку.
-     */
-    private suspend fun writeTagsForDownload(file: File, track: Track) {
-        val cover = track.coverUrl
-            ?.takeIf { it.isNotBlank() }
-            ?.let { url ->
-                val client = tagHttpClient ?: return@let null
-                // Обложка не обязательна: нет сети или VK отдал ошибку — трек
-                // всё равно получит текстовые теги.
-                runCatching { com.lmg.vk.audio.Mp3TagWriter.fetchCover(client, url) }
-                    .getOrNull()
-            }
-        com.lmg.vk.audio.Mp3TagWriter.write(
+    private fun writeTagsForDownload(file: File, track: Track, cover: ByteArray?, lyrics: String?): Boolean {
+        val written = com.lmg.vk.audio.DownloadedAudioTags.write(
             file = file,
             meta = com.lmg.vk.audio.Mp3TagWriter.Meta(
                 title = track.title.takeIf { it.isNotBlank() },
@@ -440,24 +444,14 @@ object AudioDownloadManager {
                 year = null,
                 trackNumber = null,
                 genre = track.genre?.takeIf { it.isNotBlank() },
-                lyrics = null,
+                lyrics = lyrics,
                 comment = null,
                 coverBytes = cover,
             ),
         )
+        if (!written) android.util.Log.w("DOWNLOAD", "Теги не записаны: ${file.name}")
+        return written
     }
-
-    /**
-     * HTTP-клиент для обложек — тот же, что обслуживает API, вместе с
-     * `installVkProxy`.
-     *
-     * Свой клиент здесь был бы ошибкой: он пошёл бы мимо интерцептора, то есть
-     * мимо обхода блокировок. Пока приложение не поднялось, локатор отдаёт
-     * `null` — тогда обложку просто не встраиваем, трек всё равно получит
-     * текстовые теги.
-     */
-    private val tagHttpClient: io.ktor.client.HttpClient?
-        get() = com.lmg.vk.network.VkApiLocator.mediaClientOrNull()
 
     /**
      * Скачивание через Ktor-клиент с обходом блокировок.
@@ -472,34 +466,10 @@ object AudioDownloadManager {
         trackId: String,
     ): Boolean {
         return try {
-            val response: io.ktor.client.statement.HttpResponse = client.get(url)
-            if (response.status.value !in 200..299) {
-                android.util.Log.e("DOWNLOAD", "HTTP ${response.status.value} для $trackId")
-                return false
-            }
-            // Длину берём из заголовка напрямую: extension-свойство
-            // `HttpResponse.contentLength()` в проекте нигде не используется, и
-            // ставить сборку на непроверенный импорт незачем — на `isSuccess`
-            // мы уже так обжигались.
-            val total = response.headers["Content-Length"]?.toLongOrNull() ?: -1L
-            val channel = response.bodyAsChannel()
-            FileOutputStream(dest).use { out ->
-                val buffer = ByteArray(64 * 1024)
-                var written = 0L
-                while (true) {
-                    val read = channel.readAvailable(buffer, 0, buffer.size)
-                    if (read <= 0) break
-                    out.write(buffer, 0, read)
-                    written += read
-                    if (total > 0) updateProgress(trackId, written.toFloat() / total)
-                }
-                out.flush()
-            }
-            dest.length() > 0L
-        } catch (e: Exception) {
-            android.util.Log.e("DOWNLOAD", "Ktor-загрузка сорвалась: ${e.message}")
-            false
-        }
+            com.lmg.vk.audio.StreamingAudioTransfer.download(client, url, dest) { updateProgress(trackId, it * .85f) }
+            true
+        } catch (e: CancellationException) { throw e }
+          catch (e: Exception) { android.util.Log.w("DOWNLOAD", "Audio transfer failed: ${e.message}"); false }
     }
 
     /**
@@ -507,38 +477,33 @@ object AudioDownloadManager {
      * поднялось. Обхода блокировок здесь нет, поэтому это именно фолбэк.
      */
     private fun downloadViaUrlConnection(url: String, dest: File, trackId: String): Boolean {
+        val connection = (URL(url).openConnection() as HttpURLConnection).applyVkRequestIdentity()
         return try {
-            val connection = (URL(url).openConnection() as HttpURLConnection)
-                .applyVkRequestIdentity()
             connection.connectTimeout = 15000
             connection.readTimeout = 15000
-            connection.requestMethod = "GET"
             connection.connect()
-            if (connection.responseCode != HttpURLConnection.HTTP_OK) {
-                connection.disconnect()
-                return false
-            }
-            val fileLength = connection.contentLength
+            if (connection.responseCode != HttpURLConnection.HTTP_OK) return false
+            val fileLength = connection.contentLengthLong
             connection.inputStream.use { input ->
-                FileOutputStream(dest).use { out ->
+                dest.outputStream().use { out ->
                     val data = ByteArray(64 * 1024)
                     var total = 0L
                     while (true) {
+                        if (Thread.currentThread().isInterrupted) throw InterruptedException()
                         val count = input.read(data)
-                        if (count == -1) break
+                        if (count < 0) break
                         total += count
-                        if (fileLength > 0) updateProgress(trackId, total.toFloat() / fileLength)
+                        if (fileLength > 0) updateProgress(trackId, .85f * total / fileLength)
                         out.write(data, 0, count)
                     }
-                    out.flush()
                 }
             }
-            connection.disconnect()
-            dest.length() > 0L
+            com.lmg.vk.audio.StreamingAudioTransfer.requireComplete(dest.length(), fileLength)
+            true
         } catch (e: Exception) {
-            android.util.Log.e("DOWNLOAD", "HttpURLConnection-загрузка сорвалась: ${e.message}")
+            dest.delete()
             false
-        }
+        } finally { connection.disconnect() }
     }
 
     private fun updateProgress(trackId: String, progress: Float?) {

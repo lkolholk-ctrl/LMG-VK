@@ -100,8 +100,8 @@ data class AudioStreamMixTitles(
 @JsonClass(generateAdapter = true)
 data class AudioStreamMix(
     val id: String,
-    val title: String,
-    val description: String,
+    val title: String = "",
+    val description: String = "",
     val background_animation_url: String? = null,
     val image_url: String? = null,
     val settings: AudioStreamMixSettings? = null,
@@ -115,6 +115,11 @@ data class AudioStreamMix(
      */
     val playbackMixId: String
         get() = stream_mix?.id?.takeIf(String::isNotBlank) ?: id
+
+    val displayTitle: String?
+        get() = title.takeIf(String::isNotBlank)
+            ?: titles?.common_state?.takeIf(String::isNotBlank)
+            ?: stream_mix?.title?.takeIf(String::isNotBlank)
 }
 
 @JsonClass(generateAdapter = true)
@@ -272,7 +277,6 @@ data class VkCatalogSection(
     val icon: String? = null,
     val icon_url: String? = null,
     val session_id: String? = null,
-    val style: String? = null,
     val subsections: List<VkCatalogSection>? = null,
     val url: String? = null,
 )
@@ -388,6 +392,7 @@ data class VkCatalogReplacementOption(
 @JsonClass(generateAdapter = true)
 data class VkCatalogBanner(
     val id: Int = 0,
+    val click_action: VkCatalogBannerClickAction? = null,
     val images: List<VkArtistPhoto>? = null,
     val text: String? = null,
     val title: String? = null,
@@ -401,6 +406,9 @@ data class VkCatalogBanner(
 }
 
 @JsonClass(generateAdapter = true)
+data class VkCatalogBannerClickAction(val action: VkCatalogButtonAction? = null)
+
+@JsonClass(generateAdapter = true)
 data class VkAudioContentCard(
     val editor_annotation: String? = null,
     val editor_background_image: List<VkArtistPhoto>? = null,
@@ -412,10 +420,11 @@ data class VkAudioContentCard(
 ) {
     val fullId: String get() = "${entity_owner_id}_${entity_id}"
 
-    fun coverUrl(): String? = (editor_background_image.orEmpty() + editor_gradient_image.orEmpty())
+    fun coverUrl(): String? = editor_background_image.orEmpty()
         .filter { it.url.isNotBlank() }
-        .maxByOrNull { it.width * it.height }
-        ?.url
+        .maxByOrNull { it.width * it.height }?.url
+        ?: editor_gradient_image.orEmpty().filter { it.url.isNotBlank() }
+            .maxByOrNull { it.width * it.height }?.url
 }
 
 @JsonClass(generateAdapter = true)
@@ -493,10 +502,11 @@ data class VkCatalogLink(
     val title: String = "",
     val subtitle: String = "",
     val image: List<VkArtistPhoto>? = null,
+    val images: List<List<VkArtistPhoto>>? = null,
     val url: String = "",
     val id: String = "",
 ) {
-    fun coverUrl(): String? = image.orEmpty()
+    fun coverUrl(): String? = (image.orEmpty() + images.orEmpty().flatten())
         .filter { it.url.isNotBlank() }
         .maxByOrNull { it.width * it.height }
         ?.url

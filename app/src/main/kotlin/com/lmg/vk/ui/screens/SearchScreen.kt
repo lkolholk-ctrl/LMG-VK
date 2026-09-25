@@ -898,34 +898,15 @@ private fun SearchResultRow(
             .padding(horizontal = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        if (coverUrl != null) {
-            AsyncImage(
-                model = ImageRequest.Builder(LocalContext.current)
-                    .data(coverUrl)
-                    .crossfade(true)
-                    .build(),
+        com.lmg.vk.ui.glass.AlbumArtImage(
+            uri = null, coverUrl = coverUrl,
+            artworkQuery = com.lmg.vk.artwork.ArtworkQuery(title, subtitle, durationMs),
                 contentDescription = title,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
                     .size(artSize)
                     .clip(RoundedCornerShape(6.dp))
             )
-        } else {
-            Box(
-                modifier = Modifier
-                    .size(artSize)
-                    .clip(RoundedCornerShape(6.dp))
-                    .background(if (LiquidTheme.colors.isDark) Color(0xFF2A2A2A) else Color(0xFFF2F2F7)),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    tint = LiquidTheme.colors.iconMuted,
-                    modifier = Modifier.size(if (compact) 20.dp else 24.dp)
-                )
-            }
-        }
         Spacer(modifier = Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {

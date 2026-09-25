@@ -13,14 +13,7 @@ object AppleTtmlParser {
     fun parse(rawTtml: String): AppleLyricsDocument? = runCatching {
         if (rawTtml.isBlank()) return null
 
-        val factory = DocumentBuilderFactory.newInstance().apply {
-            isNamespaceAware = true
-            setFeature("http://apache.org/xml/features/disallow-doctype-decl", true)
-            setFeature("http://xml.org/sax/features/external-general-entities", false)
-            setFeature("http://xml.org/sax/features/external-parameter-entities", false)
-        }
-
-        val document = factory.newDocumentBuilder().parse(InputSource(StringReader(rawTtml)))
+        val document = readDocument(rawTtml)
         val root = document.documentElement ?: return null
 
         val timingAttr = root.getAttrOrNull("itunes:timing")
@@ -138,21 +131,26 @@ object AppleTtmlParser {
         return agents
     }
 
+    fun readSongwriters(rawTtml: String): List<String> = runCatching {
+        parseSongwriters(readDocument(rawTtml)).map { it.name }
+    }.getOrDefault(emptyList())
+
+    private fun readDocument(rawTtml: String): Document {
+        require(!rawTtml.contains("<!DOCTYPE", ignoreCase = true))
+        return DocumentBuilderFactory.newInstance().apply {
+            isNamespaceAware = true
+        }.newDocumentBuilder().apply {
+            setEntityResolver { _, _ -> throw org.xml.sax.SAXException("External XML entities are disabled") }
+        }.parse(InputSource(StringReader(rawTtml)))
+    }
+
     private fun parseSongwriters(document: Document): List<AppleSongwriter> {
-        val writers = mutableListOf<AppleSongwriter>()
-        val nodes = document.getElementsByTagName("songwriter")
-        for (i in 0 until nodes.length) {
-            val text = nodes.item(i)?.textContent?.trim()?.takeIf { it.isNotEmpty() } ?: continue
-            writers += AppleSongwriter(name = text)
-        }
-        if (writers.isEmpty()) {
-            val ttmNodes = document.getElementsByTagName("ttm:songwriter")
-            for (i in 0 until ttmNodes.length) {
-                val text = ttmNodes.item(i)?.textContent?.trim()?.takeIf { it.isNotEmpty() } ?: continue
-                writers += AppleSongwriter(name = text)
-            }
-        }
-        return writers
+        val head = document.getElementsByTagNameNS("*", "head").item(0) as? Element
+            ?: return emptyList()
+        val nodes = head.getElementsByTagNameNS("*", "songwriter")
+        return (0 until nodes.length).mapNotNull { index ->
+            nodes.item(index)?.textContent?.replace(Regex("\\s+"), " ")?.trim()?.takeIf { it.isNotEmpty() }
+        }.distinct().map(::AppleSongwriter)
     }
 
     private fun parseBodySections(document: Document): List<AppleLyricsSection> {

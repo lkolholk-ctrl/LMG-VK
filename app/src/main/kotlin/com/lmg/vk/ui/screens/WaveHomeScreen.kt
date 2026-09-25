@@ -169,7 +169,10 @@ fun WaveHomeScreen(
     val waveContext by PlayerController.waveRefillContext.collectAsState()
     val activeStationName = waveContext?.name?.takeIf { it.isNotBlank() }
 
-    val albumColors = rememberAlbumColors(currentTrack?.displayArtUri, currentTrack?.coverUrl)
+    val waveArtwork = com.lmg.vk.ui.glass.rememberTrackArtwork(currentTrack)
+    val waveTrackCover = waveArtwork.coverUrl
+    val waveArtUri = currentTrack?.displayArtUri
+    val albumColors = rememberAlbumColors(waveArtUri, waveTrackCover)
 
     val track = currentTrack
     val isFavorite = track?.id
@@ -427,8 +430,8 @@ fun WaveHomeScreen(
                             contentAlignment = Alignment.Center
                         ) {
                             AlbumArtImage(
-                                uri = track.displayArtUri,
-                                coverUrl = track.coverUrl,
+                                uri = waveArtUri,
+                                coverUrl = waveTrackCover,
                                 albumId = track.albumId,
                                 contentDescription = track.title,
                                 contentScale = ContentScale.Crop,
@@ -719,7 +722,7 @@ private fun VkMixInlineStatus(
 }
 
 @Composable
-private fun VkMixSettingsSheet(
+internal fun VkMixSettingsSheet(
     state: VkMixUiState,
     accent: Color,
     onToggle: (String, String) -> Unit,
@@ -1736,6 +1739,7 @@ private fun UpNextRow(upNext: List<Pair<Int, Track>>, onPlay: (Int) -> Unit) {
             AlbumArtImage(
                 uri = t.displayArtUri,
                 coverUrl = t.coverUrl,
+                artworkQuery = com.lmg.vk.artwork.ArtworkQuery(t.title, t.artist, t.durationMs),
                 albumId = t.albumId,
                 contentDescription = t.title,
                 contentScale = ContentScale.Crop,

@@ -3,11 +3,17 @@ package com.lmg.vk.audio
 import android.content.Context
 import io.ktor.client.HttpClient
 import io.ktor.client.request.get
+import io.ktor.client.request.prepareGet
 import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsChannel
 import io.ktor.client.statement.bodyAsText
 import io.ktor.utils.io.readAvailable
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.runInterruptible
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
 import java.io.File
@@ -98,6 +104,7 @@ object HlsDownloader {
 
             tsFile.outputStream().buffered().use { out ->
                 playlist.segments.forEachIndexed { index, seg ->
+                    currentCoroutineContext().ensureActive()
                     val bytes = fetchSegmentWithRetry(client, seg, keyCache)
                         ?: return@withContext Outcome.Failure("сегмент ${index + 1}/${playlist.segments.size} не скачался")
                     out.write(bytes)
@@ -109,6 +116,7 @@ object HlsDownloader {
 
             // 4. Контейнер → mp3. Сначала FFmpeg (он всеяднее), если он реально
             //    есть; иначе — собственный ремуксер.
+            currentCoroutineContext().ensureActive()
             val mp3File = File(destWithoutExt.parentFile, destWithoutExt.name + ".mp3")
             if (mp3File.exists()) mp3File.delete()
 
@@ -129,10 +137,9 @@ object HlsDownloader {
             }
 
             // 5. Свой ремукс MPEG-TS → mp3.
-            val demuxed = runCatching { remuxTsToMp3(tsFile, mp3File) }
-                .onFailure { android.util.Log.w(TAG, "ремукс упал: ${it.message}") }
-                .getOrDefault(RemuxResult.Failed)
+            val demuxed = runInterruptible { remuxTsToMp3(tsFile, mp3File) }
 
+            currentCoroutineContext().ensureActive()
             when (demuxed) {
                 RemuxResult.Mp3 -> {
                     tsFile.delete()
@@ -151,9 +158,7 @@ object HlsDownloader {
                     mp3File.delete()
                     val aacFile = File(destWithoutExt.parentFile, destWithoutExt.name + ".aac")
                     if (aacFile.exists()) aacFile.delete()
-                    val extracted = runCatching { extractAacStream(tsFile, aacFile) }
-                        .onFailure { android.util.Log.w(TAG, "извлечение AAC упало: ${it.message}") }
-                        .getOrDefault(false)
+                    val extracted = runInterruptible { extractAacStream(tsFile, aacFile) }
                     onProgress(1f)
                     if (extracted) {
                         tsFile.delete()
@@ -168,11 +173,12 @@ object HlsDownloader {
                     Outcome.Failure("не удалось разобрать MPEG-TS (нужен FFmpeg)")
                 }
             }
-        } catch (t: Throwable) {
+        } catch (t: CancellationException) { throw t
+        } catch (t: Exception) {
             android.util.Log.e(TAG, "HLS-загрузка сорвалась: ${t.message}")
             if (tsFile.exists()) tsFile.delete()
             Outcome.Failure(t.message ?: "неизвестная ошибка")
-        }
+        } finally { tsFile.delete() }
     }
 
     // ------------------------------------------------------------------
@@ -217,6 +223,10 @@ object HlsDownloader {
      * явным IV мод расшифровал бы всё, кроме первого сегмента, в мусор.
      */
     private fun parseMediaPlaylist(text: String, baseUrl: String): Playlist {
+        if (!text.trimStart().startsWith("#EXTM3U") || !text.contains("#EXT-X-ENDLIST"))
+            throw java.io.IOException("Audio playlist is not complete VOD")
+        if (text.contains("#EXT-X-MAP") || text.contains("#EXT-X-BYTERANGE") || text.contains("#EXT-X-GAP"))
+            throw java.io.IOException("Unsupported audio HLS layout")
         val segments = ArrayList<Segment>()
         var currentKeyUri: String? = null
         var explicitIv: ByteArray? = null
@@ -237,12 +247,11 @@ object HlsDownloader {
                         explicitIv = null
                     } else if (method == "AES-128") {
                         currentKeyUri = attrs["URI"]?.let { resolveUrl(baseUrl, it) }
+                            ?: throw java.io.IOException("Missing HLS key URI")
                         explicitIv = attrs["IV"]?.let { hexToBytes(it) }
                     } else {
-                        // SAMPLE-AES и прочее мы не умеем — сегменты просто не
-                        // расшифруются, и загрузка честно упадёт, а не выдаст шум.
-                        currentKeyUri = attrs["URI"]?.let { resolveUrl(baseUrl, it) }
-                        explicitIv = attrs["IV"]?.let { hexToBytes(it) }
+                        throw java.io.IOException("Unsupported HLS encryption: $method")
+
                     }
                 }
 
@@ -323,25 +332,32 @@ object HlsDownloader {
             android.util.Log.e(TAG, "HTTP ${response.status.value} для плейлиста")
             null
         }
-    } catch (t: Throwable) {
+    } catch (t: CancellationException) { throw t
+    } catch (t: Exception) {
         android.util.Log.e(TAG, "плейлист не получен: ${t.message}")
         null
     }
 
     private suspend fun fetchBytes(client: HttpClient, url: String): ByteArray? = try {
-        val response: HttpResponse = client.get(url)
-        if (response.status.value !in 200..299) null else {
+        client.prepareGet(url).execute { response ->
+        if (response.status.value != 200) null else {
             val channel = response.bodyAsChannel()
             val buffer = ByteArray(64 * 1024)
             val acc = ByteArrayOutputStream()
             while (true) {
                 val read = channel.readAvailable(buffer, 0, buffer.size)
-                if (read <= 0) break
+                if (read < 0) break
+                if (read == 0) continue
+                currentCoroutineContext().ensureActive()
+                if (acc.size() + read > 32 * 1024 * 1024) throw java.io.IOException("HLS segment too large")
                 acc.write(buffer, 0, read)
             }
+            StreamingAudioTransfer.requireComplete(acc.size().toLong(), response.headers["Content-Length"]?.toLongOrNull() ?: -1)
             acc.toByteArray()
         }
-    } catch (t: Throwable) {
+        }
+    } catch (t: CancellationException) { throw t
+    } catch (t: Exception) {
         null
     }
 
@@ -351,6 +367,8 @@ object HlsDownloader {
         keyCache: MutableMap<String, ByteArray>,
     ): ByteArray? {
         repeat(SEGMENT_RETRIES) { attempt ->
+            currentCoroutineContext().ensureActive()
+            if (attempt > 0) delay(350L * attempt)
             val raw = fetchBytes(client, segment.url)
             if (raw != null && raw.isNotEmpty()) {
                 val key = segment.key
@@ -454,7 +472,8 @@ object HlsDownloader {
             dest.outputStream().buffered().use { out ->
                 val packet = ByteArray(TS_PACKET_SIZE)
                 while (readFully(input, packet)) {
-                    if ((packet[0].toInt() and 0xFF) != TS_SYNC_BYTE) break
+                    if ((packet[0].toInt() and 0xFF) != TS_SYNC_BYTE) throw java.io.IOException("Broken MPEG-TS sync")
+                    if ((packet[1].toInt() and 0x80) != 0) throw java.io.IOException("MPEG-TS transport error")
                     val pid = ((packet[1].toInt() and 0x1F) shl 8) or (packet[2].toInt() and 0xFF)
                     if (pid != audioPid) continue
                     val payload = payloadOf(packet) ?: continue
@@ -562,8 +581,12 @@ object HlsDownloader {
     private fun readFully(input: java.io.InputStream, buffer: ByteArray): Boolean {
         var read = 0
         while (read < buffer.size) {
+            if (Thread.currentThread().isInterrupted) throw InterruptedException()
             val n = input.read(buffer, read, buffer.size - read)
-            if (n < 0) return false
+            if (n < 0) {
+                if (read > 0) throw java.io.IOException("Truncated MPEG-TS packet")
+                return false
+            }
             read += n
         }
         return true

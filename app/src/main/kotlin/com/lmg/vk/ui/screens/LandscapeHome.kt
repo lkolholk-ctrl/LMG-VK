@@ -166,7 +166,7 @@ fun LandscapeHome(
                     itemsIndexed(favorites, key = { _, f -> f.trackId }) { _, fav ->
                         TrackRow(
                             fav.title, fav.artistName.orEmpty(), fav.imageUrl,
-                            duration = fmtDuration(fav.durationMs),
+                            duration = fmtDuration(fav.durationMs), durationMs = fav.durationMs,
                             enabled = fav.isAvailable,
                         ) {
                             val playableIndex = playableFavorites.indexOfFirst { it.id == fav.trackId }
@@ -206,6 +206,7 @@ fun LandscapeHome(
                         if (cur != null) {
                             TrackRow(
                                 cur.title, cur.artist, cur.coverUrl ?: cur.displayArtUri.toString(),
+                                durationMs = cur.durationMs,
                                 duration = fmtDuration(cur.durationMs), highlight = true, onClick = onOpenPlayer
                             )
                         } else {
@@ -226,6 +227,7 @@ fun LandscapeHome(
                     items(queue, key = { it.id }) { t ->
                         TrackRow(
                             t.title, t.artist, t.coverUrl ?: t.displayArtUri.toString(),
+                            durationMs = t.durationMs,
                             duration = fmtDuration(t.durationMs)
                         ) {
                             val idx = queue.indexOfFirst { it.id == t.id }
@@ -304,10 +306,12 @@ private fun TrackRow(
     artist: String,
     cover: String?,
     duration: String = "",
+    durationMs: Long = 0L,
     highlight: Boolean = false,
     enabled: Boolean = true,
     onClick: () -> Unit,
 ) {
+    val preferredCover = com.lmg.vk.ui.glass.rememberTrackCover(com.lmg.vk.artwork.ArtworkQuery(title, artist, durationMs), cover)
     val lc = LiquidTheme.colors
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -325,9 +329,9 @@ private fun TrackRow(
                 .clip(RoundedCornerShape(7.dp))
                 .background(if (lc.isDark) Color(0xFF242424) else Color(0xFFE3E3E8))
         ) {
-            if (!cover.isNullOrBlank()) {
+            if (!preferredCover.isNullOrBlank()) {
                 AsyncImage(
-                    model = cover, contentDescription = null,
+                    model = preferredCover, contentDescription = null,
                     contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize()
                 )
             }

@@ -1,10 +1,12 @@
 package com.lmg.vk.ui.screens
 
+import com.lmg.vk.ui.navigation.WindowPageHost
+import com.lmg.vk.ui.effects.DustDissolve
+import com.lmg.vk.ui.effects.rememberDustRemovalList
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.compose.BackHandler
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import androidx.compose.animation.AnimatedVisibility
@@ -139,9 +141,6 @@ fun LibraryScreen(
         currentView = LibraryView.MAIN
     }
 
-    BackHandler(enabled = currentView != LibraryView.MAIN) {
-        returnToMain()
-    }
 
     // Адаптив: в широком окне (телефон-альбом / планшет) сетка плейлистов
     // получает больше колонок, а вертикальные списки-строки центрируем узкой
@@ -306,7 +305,12 @@ fun LibraryScreen(
             .fillMaxSize()
             .background(Color.Transparent)
     ) {
-        when (currentView) {
+        WindowPageHost(
+            page = currentView,
+            enabled = currentView != LibraryView.MAIN,
+            onBack = ::returnToMain,
+        ) { visibleView, requestBack ->
+        when (visibleView) {
             LibraryView.MAIN -> {
                 var downloadsSize by remember { mutableStateOf<String?>(null) }
                 LaunchedEffect(downloadedTracks) {
@@ -519,7 +523,7 @@ fun LibraryScreen(
                             subtitle = stringResource(R.string.collections_count, allPlaylistCells.size),
                             isDark = lc.isDark,
                             modifier = Modifier.requiredWidth(screenWidth),
-                            onBack = ::returnToMain,
+                            onBack = requestBack,
                             actions = {
                                 if (isLoggedIn) {
                                     CompactLibraryAction(
@@ -639,7 +643,7 @@ fun LibraryScreen(
             LibraryView.LOCAL_AUDIO -> {
                 LocalAudioView(
                     context = context,
-                    onBack = ::returnToMain
+                    onBack = requestBack
                 )
             }
 
@@ -654,7 +658,7 @@ fun LibraryScreen(
                             subtitle = if (recentTracks.isEmpty()) stringResource(R.string.listening_history)
                                 else pluralStringResource(R.plurals.recent_tracks_count, recentTracks.size, recentTracks.size),
                             isDark = lc.isDark,
-                            onBack = ::returnToMain,
+                            onBack = requestBack,
                         )
                     }
                     if (recentTracks.isEmpty()) {
@@ -693,6 +697,9 @@ fun LibraryScreen(
                         FavoriteSort.ARTIST -> matchingFavorites.sortedBy { it.artistName.orEmpty().lowercase() }
                     }
                 }
+                val dustFavorites = rememberDustRemovalList(
+                    displayedFavorites, Triple(libraryQuery, favoriteSort, activeAccountId),
+                ) { it.trackId }
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(bottom = 178.dp),
@@ -706,7 +713,7 @@ fun LibraryScreen(
                                 pluralStringResource(R.plurals.search_results_count, matchingFavorites.size, matchingFavorites.size)
                             },
                             isDark = lc.isDark,
-                            onBack = ::returnToMain,
+                            onBack = requestBack,
                         )
                     }
 
@@ -738,7 +745,7 @@ fun LibraryScreen(
                         )
                     }
 
-                    if (displayedFavorites.isEmpty() && !isAnySyncing) {
+                    if (dustFavorites.items.isEmpty() && !isAnySyncing) {
                         item(key = "favorites_empty") {
                             Box(modifier = Modifier.fillMaxWidth().height(240.dp)) {
                                 EmptyState(
@@ -748,15 +755,19 @@ fun LibraryScreen(
                             }
                         }
                     } else {
-                        items(displayedFavorites, key = { it.trackId }) { track ->
+                        items(dustFavorites.items, key = { it.trackId }) { track ->
                             val stableTrackIds = listOfNotNull(track.trackId, track.cloudTrackId)
                                 .map(com.lmg.vk.engine.VkAudioIdentity::stableFullId)
-                            Box(
-                                modifier = if (win.useSideBySide) {
+                            DustDissolve(
+                                dissolving = track.trackId in dustFavorites.dissolvingKeys,
+                                onFinished = { dustFavorites.finish(track.trackId) },
+                                durationMillis = 780,
+                                maxParticles = 2200,
+                                modifier = Modifier.animateItem(fadeInSpec = null, fadeOutSpec = null).then(if (win.useSideBySide) {
                                     Modifier.padding(horizontal = wideSidePad)
                                 } else {
                                     Modifier
-                                },
+                                }),
                             ) {
                                 FavoriteTrackItem(
                                     track = track,
@@ -799,6 +810,10 @@ fun LibraryScreen(
                         isFavorite = com.lmg.vk.engine.VkAudioIdentity
                             .stableFullId(t.id) in favoriteIds,
                         onToggleFavorite = {
+                            displayedFavorites.firstOrNull {
+                                com.lmg.vk.engine.VkAudioIdentity.stableFullId(it.cloudTrackId ?: it.trackId) ==
+                                    com.lmg.vk.engine.VkAudioIdentity.stableFullId(t.id)
+                            }?.let(dustFavorites.retain)
                             scope.launch {
                                 LibraryRepository.getInstance(context).toggleFavorite(t, "my_music")
                             }
@@ -843,7 +858,7 @@ fun LibraryScreen(
                             title = stringResource(R.string.downloads_title),
                             subtitle = stringResource(R.string.offline_tracks_count, downloadedTracks.size),
                             isDark = lc.isDark,
-                            onBack = ::returnToMain,
+                            onBack = requestBack,
                             actions = {
                                 if (downloadedTracks.isNotEmpty()) {
                                     Spacer(Modifier.weight(1f))
@@ -986,7 +1001,7 @@ fun LibraryScreen(
                         primaryButton = GlassDialogButton(
                             text = removeText,
                             onClick = {
-                                AudioDownloadManager.deleteDownloadedTrack(context, track.trackId)
+                                scope.launch(kotlinx.coroutines.Dispatchers.IO) { AudioDownloadManager.deleteDownloadedTrack(context, track.trackId) }
                                 trackToDelete = null
                             },
                             backgroundColor = Color(0xFFFF5252),
@@ -1012,7 +1027,7 @@ fun LibraryScreen(
                         .fillMaxSize()
                         .then(if (isDialogActive) Modifier.blur(16.dp) else Modifier)
                 ) {
-                    SubHeader(stringResource(R.string.my_playlists), onBack = ::returnToMain) {
+                    SubHeader(stringResource(R.string.my_playlists), onBack = requestBack) {
                         IconButton(onClick = { showCreatePlaylistDialog = true }) {
                             Icon(lmgVector(LmgDrawables.ListPlusOutline20), null, tint = Color(0xFF30D158), modifier = Modifier.size(24.dp))
                         }
@@ -1085,7 +1100,7 @@ fun LibraryScreen(
                         .fillMaxSize()
                         .then(if (isDialogActive) Modifier.blur(16.dp) else Modifier)
                 ) {
-                    SubHeader(stringResource(R.string.imported_playlists), onBack = ::returnToMain) {
+                    SubHeader(stringResource(R.string.imported_playlists), onBack = requestBack) {
                         if (isLoggedIn) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 IconButton(onClick = { loadImportedPlaylists(syncPlaylists = true) }) {
@@ -1179,6 +1194,7 @@ fun LibraryScreen(
                     )
                 }
             }
+        }
         }
 
         if (showCreatePlaylistDialog) {
@@ -2371,6 +2387,7 @@ private fun LibraryTrackPreview(
             uri = null,
             contentDescription = null,
             coverUrl = track.imageUrl,
+            artworkQuery = com.lmg.vk.artwork.ArtworkQuery(track.title, track.artistName.orEmpty(), track.durationMs),
             modifier = Modifier.size(50.dp).clip(RoundedCornerShape(8.dp)),
             contentScale = ContentScale.Crop,
             placeholderIconSize = 21.dp,
@@ -2420,6 +2437,7 @@ private fun RecentTrackItem(
             uri = null,
             contentDescription = null,
             coverUrl = track.coverUrl,
+            artworkQuery = com.lmg.vk.artwork.ArtworkQuery(track.title, track.artist, track.durationMs),
             modifier = Modifier.size(if (compact) 48.dp else 54.dp).clip(RoundedCornerShape(8.dp)),
             contentScale = ContentScale.Crop,
             placeholderIconSize = if (compact) 20.dp else 23.dp,
@@ -2484,6 +2502,7 @@ private fun FavoriteTrackItem(
                 uri = null,
                 contentDescription = null,
                 coverUrl = coverToDisplay,
+                artworkQuery = com.lmg.vk.artwork.ArtworkQuery(track.title, track.artistName.orEmpty(), track.durationMs),
                 modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(7.dp)),
                 contentScale = ContentScale.Crop,
                 placeholderIconSize = if (compact) 18.dp else 21.dp,
@@ -2592,6 +2611,7 @@ private fun DownloadedTrackItem(
             uri = null,
             contentDescription = null,
             coverUrl = coverToLoad,
+            artworkQuery = com.lmg.vk.artwork.ArtworkQuery(track.title, track.artistName.orEmpty(), track.durationMs),
             modifier = Modifier
                 .size(itemArtSize)
                 .clip(RoundedCornerShape(6.dp)),

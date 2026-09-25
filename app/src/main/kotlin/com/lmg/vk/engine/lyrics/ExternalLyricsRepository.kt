@@ -17,7 +17,6 @@ import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
-import org.json.JSONArray
 import org.json.JSONObject
 import org.w3c.dom.Element
 import org.w3c.dom.Node
@@ -133,37 +132,65 @@ object ExternalLyricsRepository {
         get("${AppleLyricsConfig.PROXY_BASE_URL}/ping", appleClient)
     }
 
+    suspend fun fetchBiniLyricsContent(title: String, artist: String, durationMs: Long): LyricsContent.RawTtml? =
+        withTimeoutOrNull(8_000L) {
+            BiniLyricsProvider.fetch(title, artist, durationMs) {
+                get(it, accept = "application/json, application/ttml+xml, application/xml, text/xml")
+            }
+        }
+
     private suspend fun fetchLyricsPlus(
         title: String,
         artist: String,
         durationMs: Long,
-    ): LyricsParser.Lyrics? = coroutineScope {
-        val requests = lyricsPlusMirrors.map { mirror ->
-            mirror to async(Dispatchers.IO) {
-                val url = "$mirror/v2/lyrics/get".toHttpUrl().newBuilder()
-                    .addQueryParameter("title", title)
-                    .addQueryParameter("artist", artist)
-                    .apply {
-                        if (durationMs > 0) addQueryParameter("duration", (durationMs / 1000).toString())
-                    }
-                    .build()
-                get(url.toString())?.let(::parseLyricsPlus)
-            }
-        }.toMutableList()
-        try {
-            while (requests.isNotEmpty()) {
-                val completed = select<Pair<String, LyricsParser.Lyrics?>> {
-                    requests.forEach { (mirror, task) ->
-                        task.onAwait { mirror to it }
-                    }
-                }
-                requests.removeAll { it.first == completed.first }
-                completed.second?.let { return@coroutineScope it }
-            }
-            null
-        } finally {
-            requests.forEach { it.second.cancel() }
+    ): LyricsParser.Lyrics? = when (val result = fetchLyricsPlusContent(title, artist, durationMs)) {
+        is LyricsContent.Legacy -> result.lyrics
+        is LyricsContent.RawTtml -> com.lmg.vk.engine.lyrics.apple.AppleTtmlParser.parse(result.value)?.let {
+            LyricsRepository.toLegacyProjection(it, title, artist, LyricsSource.LYRICS_PLUS.id)
         }
+        else -> null
+    }
+
+    suspend fun fetchLyricsPlusContent(title: String, artist: String, durationMs: Long): LyricsContent? {
+        var fallback: LyricsContent? = null
+        return withTimeoutOrNull(8_000L) {
+            coroutineScope {
+                val requests = lyricsPlusMirrors.map { mirror ->
+                    mirror to async(Dispatchers.IO) {
+                        suspend fun fetch(path: String): LyricsContent? {
+                            val url = "$mirror$path".toHttpUrl().newBuilder()
+                                .addQueryParameter("title", title)
+                                .addQueryParameter("artist", artist)
+                                .apply {
+                                    if (durationMs > 0) addQueryParameter("duration", (durationMs / 1000.0).toString())
+                                }
+                                .build()
+                            return get(url.toString(), accept = "application/json, application/ttml+xml, application/xml")
+                                ?.let { LyricsPlusParser.parse(it, title, artist, durationMs) }
+                        }
+                        // v2 retains translations/background flags; older mirrors can serve TTML instead.
+                        fetch("/v2/lyrics/get") ?: fetch("/v1/ttml/get")
+                    }
+                }.toMutableList()
+                try {
+                    while (requests.isNotEmpty()) {
+                        val completed = select<Pair<String, LyricsContent?>> {
+                            requests.forEach { (mirror, task) ->
+                                task.onAwait { mirror to it }
+                            }
+                        }
+                        requests.removeAll { it.first == completed.first }
+                        completed.second?.let {
+                            if (it.hasWordTiming()) return@coroutineScope it
+                            if (fallback == null) fallback = it
+                        }
+                    }
+                    fallback
+                } finally {
+                    requests.forEach { it.second.cancel() }
+                }
+            }
+        } ?: fallback
     }
 
     private suspend fun fetchBetterLyrics(
@@ -254,6 +281,11 @@ object ExternalLyricsRepository {
             .url(url)
             .header("Accept", accept)
             .header("User-Agent", "LMG-VK/1.1")
+            .apply {
+                if (url.startsWith(AppleLyricsConfig.PROXY_BASE_URL)) {
+                    header("X-API-Key", AppleLyricsConfig.API_KEY)
+                }
+            }
             .build()
         val call = httpClient.newCall(request)
         continuation.invokeOnCancellation { call.cancel() }
@@ -272,65 +304,6 @@ object ExternalLyricsRepository {
                 if (continuation.isActive) continuation.resume(body)
             }
         })
-    }
-
-    private fun parseLyricsPlus(body: String): LyricsParser.Lyrics? = runCatching {
-        val root = JSONObject(body)
-        val rows = root.optJSONArray("lyrics") ?: JSONArray()
-        val lines = buildList {
-            for (index in 0 until rows.length()) {
-                val row = rows.optJSONObject(index) ?: continue
-                val start = row.optLongOrNull("time") ?: continue
-                val syllables = row.optJSONArray("syllabus")
-                val timedText = syllables?.let(::parseSyllables)
-                val words = timedText?.words.orEmpty()
-                val text = timedText?.text?.takeIf(String::isNotBlank)
-                    ?: row.optString("text").trim()
-                if (text.isBlank()) continue
-                val duration = row.optLongOrNull("duration") ?: 0L
-                add(
-                    LyricsParser.LyricLine(
-                        timeMs = minOf(start, words.firstOrNull()?.timeMs ?: start),
-                        text = text,
-                        words = words,
-                        endMs = if (duration > 0) start + duration else words.lastOrNull()?.endMs ?: 0L,
-                    )
-                )
-            }
-        }.sortedBy { it.timeMs }
-        if (lines.isEmpty()) return@runCatching null
-        LyricsParser.Lyrics(
-            lines = lines,
-            isSynced = true,
-            title = null,
-            artist = null,
-            source = LyricsSource.LYRICS_PLUS.id,
-        )
-    }.getOrNull()
-
-    private fun parseSyllables(syllables: JSONArray): TimedText {
-        val words = mutableListOf<LyricsParser.LyricWord>()
-        val output = StringBuilder()
-        for (index in 0 until syllables.length()) {
-            val syllable = syllables.optJSONObject(index) ?: continue
-            val raw = syllable.optString("text")
-            val time = syllable.optLongOrNull("time") ?: continue
-            if (raw.isEmpty()) continue
-            val leading = raw.indexOfFirst { !it.isWhitespace() }.let { if (it < 0) raw.length else it }
-            val trailing = raw.indexOfLast { !it.isWhitespace() }.let { if (it < 0) leading else it + 1 }
-            val charStart = output.length + leading
-            output.append(raw)
-            if (trailing > leading) {
-                words += LyricsParser.LyricWord(
-                    timeMs = time,
-                    text = raw.substring(leading, trailing),
-                    endMs = time + (syllable.optLongOrNull("duration") ?: 0L),
-                    charStart = charStart,
-                    charEnd = charStart + trailing - leading,
-                )
-            }
-        }
-        return trimTimedText(output.toString(), words)
     }
 
     private fun parseTtml(ttml: String): ParsedTtml? = runCatching {
@@ -565,11 +538,6 @@ object ExternalLyricsRepository {
             else -> null
         } ?: return null
         return (seconds * 1000).toLong()
-    }
-
-    private fun JSONObject.optLongOrNull(name: String): Long? {
-        if (!has(name) || isNull(name)) return null
-        return optLong(name)
     }
 
     private fun trimTimedText(

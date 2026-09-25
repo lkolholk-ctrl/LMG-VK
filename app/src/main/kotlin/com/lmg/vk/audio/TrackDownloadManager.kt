@@ -48,11 +48,14 @@ object TrackDownloadManager {
 
     /** Отменённые пользователем: их завершение игнорируем. */
     private val cancelled = mutableSetOf<String>()
+    private val requests = mutableMapOf<String, Long>()
 
     private var started = false
+    private var appContext: Context? = null
 
     /** Подписка на прогресс старого менеджера. Идемпотентно. */
     fun init(context: Context) {
+        appContext = context.applicationContext
         if (started) return
         started = true
         scope.launch {
@@ -63,6 +66,7 @@ object TrackDownloadManager {
                     // и исчезло.
                     putAll(_states.value.filterValues { it !is TrackDownloadState.Running })
                     progress.forEach { (trackId, fraction) ->
+                        if (trackId in cancelled) return@forEach
                         put(
                             trackId,
                             TrackDownloadState.Running(
@@ -88,8 +92,11 @@ object TrackDownloadManager {
     fun enqueue(context: Context, track: Track) {
         init(context)
         cancelled.remove(track.id)
+        val request = (requests[track.id] ?: 0L) + 1L
+        requests[track.id] = request
         _states.value = _states.value + (track.id to TrackDownloadState.Running(0, 0L, 0L))
         AudioDownloadManager.downloadTrack(context, track) { ok ->
+            if (requests[track.id] != request) return@downloadTrack
             if (cancelled.remove(track.id)) {
                 _states.value = _states.value - track.id
                 return@downloadTrack
@@ -100,19 +107,15 @@ object TrackDownloadManager {
                     // дублировать здесь нечего.
                     TrackDownloadState.Done(fileUri = "")
                 } else {
-                    TrackDownloadState.Failed("Не удалось скачать трек")
+                    TrackDownloadState.Failed(AudioDownloadManager.warning(track.id) ?: "Не удалось скачать трек")
                 }
                 )
         }
     }
 
-    /**
-     * Отмена. Прервать саму закачку старый менеджер не умеет, поэтому помечаем
-     * трек отменённым и убираем из состояния. Файл, если он всё же дойдёт,
-     * появится в «Загрузках» и удаляется оттуда — это честнее, чем делать вид,
-     * что поток оборван.
-     */
+    /** Cancel persistent work and its active transfer. */
     fun cancel(trackId: String) {
+        appContext?.let { AudioDownloadManager.cancel(it, trackId) }
         cancelled.add(trackId)
         _states.value = _states.value - trackId
     }
