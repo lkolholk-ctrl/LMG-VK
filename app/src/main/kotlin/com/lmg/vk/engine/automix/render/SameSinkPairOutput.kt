@@ -30,6 +30,9 @@ internal class SameSinkPairOutput private constructor(
         if (!controller.hasCommittedCueOwner(input)) { revoke(); throw OutputPortResetRequired() }
         return primary.write(a, packetId, firstFrame, pcm)
     }
+    fun prefixPreservesLegacyLevel(): Boolean = primary.livePrefixIsUnity()
+    val basePtsUs: Long get() = a.basePtsUs
+    fun drain(): Boolean = primary.drain(a)
     fun sampleSinkClock(): Long? = primary.sampleSinkClock(a)
     fun snapshot(): OutputPortSnapshot = primary.snapshot()
     fun revoke() { a.revoke(); b.revoke() }

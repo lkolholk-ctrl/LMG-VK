@@ -12,7 +12,7 @@ MUTATIONS = [
     ('cue-crossing-not-held', 'requireNotNull(end) > cue', 'false', 'oneBufferHeldNoSinkCalls'),
     ('prefix-consumed-before-commit', 'hold = h; return false',
      'buffer.position(h.position + h.info.prefixFrames * requireNotNull(f).bytesPerFrame); hold = h; return false', 'wholePrefixHeld'),
-    ('timeout-ignored', 'nowNanos() - a.startNanos >= a.maxWaitNanos', 'false', 'timeoutAtExactBoundary'),
+    ('timeout-ignored', 'nowNanos() - (if (a.deferredDeadline) a.firstHoldNanos!! else a.startNanos) >= a.maxWaitNanos', 'false', 'timeoutAtExactBoundary'),
     ('epoch-check-removed', 'attempt.get() !== a || e !== a.epoch', 'false', 'revisionChangeReleasesBoth'),
     ('probe-falsely-executable', 'val canExecute: Boolean get() = false', 'val canExecute: Boolean get() = true', 'snapshotIsRedactedAndNeverExecutable'),
     ('diagnostic-copy-consumes-codec', 'd0.put(h0.buffer.duplicate())', 'd0.put(h0.buffer)', 'copyPreservesOriginalBytesAndCursors'),

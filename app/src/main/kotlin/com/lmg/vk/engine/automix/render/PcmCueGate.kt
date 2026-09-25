@@ -87,12 +87,14 @@ internal class PcmCueGate(
     private val nowNanos: () -> Long,
 ) {
     internal class Attempt(val epoch: RenderBoundaryController.Epoch, val startNanos: Long,
-        val maxWaitNanos: Long) {
+        val maxWaitNanos: Long, val deferredDeadline: Boolean = false) {
+        @Volatile var firstHoldNanos: Long? = null
         val report = AtomicReference(CueProbeReport(epoch.generation, epoch.revision, CueProbePhase.ARMED))
         // Only playback-owner accesses these fields. Main only changes report to RELEASED.
         val holds = arrayOfNulls<Hold>(2)
         val ports = arrayOfNulls<Port>(2)
         var format: RenderPcmFormat? = null
+        var executionReservation: RenderBoundaryReservation? = null
         @Volatile var transfer: OwnerTransfer? = null
     }
     internal class Hold(val attempt: Attempt, val port: Port, val buffer: ByteBuffer,
@@ -106,9 +108,13 @@ internal class PcmCueGate(
     private val attempt = AtomicReference<Attempt?>()
     companion object { const val MAX_HELD_BYTES = 1_048_576 }
 
-    fun request(generation: Long, revision: Long, maxWaitMs: Int): CueProbeRequest {
+    internal fun requestLive(generation: Long, revision: Long): CueProbeRequest =
+        requestInternal(generation, revision, 5000, true)
+    fun request(generation: Long, revision: Long, maxWaitMs: Int): CueProbeRequest =
+        requestInternal(generation, revision, maxWaitMs, false)
+    private fun requestInternal(generation: Long, revision: Long, maxWaitMs: Int, deferred: Boolean): CueProbeRequest {
         require(generation > 0 && revision >= 0)
-        require(maxWaitMs in 1..500) { "Probe duration must be 1..500 ms" }
+        require(maxWaitMs in 1..(if (deferred) 5000 else 500)) { "Invalid cue hold budget" }
         while (true) {
             val e = controller.epoch()
             if (e.closed) return CueProbeRequest.CLOSED
@@ -118,7 +124,7 @@ internal class PcmCueGate(
             // At most ONE attempt per publication token; retries cannot extend a stalled cue forever.
             if (old?.epoch?.generation == e.generation && old.epoch.revision == e.revision)
                 return CueProbeRequest.ALREADY_ATTEMPTED
-            val next = Attempt(e, nowNanos(), maxWaitMs.toLong() * 1_000_000L)
+            val next = Attempt(e, nowNanos(), maxWaitMs.toLong() * 1_000_000L, deferred)
             if (attempt.compareAndSet(old, next)) {
                 old?.let { release(it, CueProbeReason.EPOCH_CHANGED) }
                 if (controller.epoch() !== e) {
@@ -130,6 +136,15 @@ internal class PcmCueGate(
         }
     }
     fun releaseRequested() { attempt.get()?.let { release(it, CueProbeReason.USER_RELEASE) } }
+    /** Owner-thread terminal cleanup: keep codec quarantine until actual flush. */
+    internal fun abortNativeOwner() {
+        check(controller.owner())
+        attempt.get()?.let { a ->
+            release(a, CueProbeReason.OWNER_FAILURE)
+            a.transfer?.let { abortTransfer(it) }
+        }
+    }
+
     fun snapshot(): CueProbeReport {
         val a = attempt.get() ?: return CueProbeReport(0, 0, CueProbePhase.IDLE)
         live(a)
@@ -159,12 +174,14 @@ internal class PcmCueGate(
         if (e.closed) release(a, CueProbeReason.CLOSED)
         else if (attempt.get() !== a || e !== a.epoch) release(a, CueProbeReason.EPOCH_CHANGED)
         // Signed subtraction intentionally handles System.nanoTime's wraparound for short intervals.
-        else if (a.transfer?.claimed != true && nowNanos() - a.startNanos >= a.maxWaitNanos)
+        else if (a.transfer?.claimed != true && (!a.deferredDeadline || a.firstHoldNanos != null) &&
+            nowNanos() - (if (a.deferredDeadline) a.firstHoldNanos!! else a.startNanos) >= a.maxWaitNanos)
             release(a, CueProbeReason.TIMEOUT)
         return a.report.get().phase != CueProbePhase.RELEASED
     }
     private fun markHeld(a: Attempt, side: Int, h: Hold): Boolean {
         if (!live(a)) return false
+        if (a.firstHoldNanos == null) a.firstHoldNanos = nowNanos()
         a.holds[side] = h
         while (true) {
             val old = a.report.get()
@@ -318,6 +335,26 @@ internal class PcmCueGate(
             throw failure
         }
     }
+    /** Exact sample-grid proof for a LIVE held pair. The passive ledger keeps a +1us
+     * upper bound and may conservatively reject a buffer ending exactly on cue. Do not
+     * weaken that ledger: mint a distinct instance-bound receipt from BOTH unoffered holds. */
+    internal fun executionReservation(): RenderBoundaryReservation? {
+        if (!controller.owner()) return null
+        val a=attempt.get() ?: return null
+        if (!a.deferredDeadline || a.report.get().phase!=CueProbePhase.PAIR_HELD || !heldPairValid(a))return null
+        val x=requireNotNull(a.holds[0]).port.endpoint
+        val y=requireNotNull(a.holds[1]).port.endpoint
+        if (x===y || x.format!=y.format || x.problem!=null || y.problem!=null) return null
+        return a.executionReservation ?: RenderBoundaryReservation(a.epoch,x,y,x.version,y.version).also{a.executionReservation=it}
+    }
+    internal fun executionReservationCurrent(r: RenderBoundaryReservation): Boolean {
+        val a=attempt.get() ?: return false
+        return a.executionReservation===r && a.deferredDeadline && heldPairValid(a) &&
+            a.report.get().phase==CueProbePhase.PAIR_HELD &&
+            (r.a as? RenderBoundaryEndpoint)?.version==r.aVersion &&
+            (r.b as? RenderBoundaryEndpoint)?.version==r.bVersion
+    }
+
     /** Read-only receipt check for a separately reserved output port; no output authority is granted. */
     /** Original output-buffer timestamps, not caller-supplied or reconstructed song time. */
     fun heldOutputAnchors(): CueOutputAnchors? {
@@ -345,7 +382,7 @@ internal class PcmCueGate(
 
     fun port(endpoint: RenderBoundaryEndpoint): Port = Port(endpoint)
 
-    internal inner class Port(private val endpoint: RenderBoundaryEndpoint) {
+    internal inner class Port(internal val endpoint: RenderBoundaryEndpoint) {
         private var token: Any? = null
         private var identity: RenderOutputIdentity? = null
         private var format: RenderPcmFormat? = null

@@ -20,6 +20,6 @@ internal fun publishRenderBoundary(controller: RenderBoundaryController,
             track.source.uri,track.source.customCacheKey,track.source.recordingRevision)
         controller.offer(RenderBoundaryPlan.create(state.generation,revision,source(pair.outgoing),
             source(pair.incoming),schedule.outgoing.startPlaybackSongTimeSeconds,
-            schedule.incoming.startPlaybackSongTimeSeconds,schedule.styleId))
+            schedule.incoming.startPlaybackSongTimeSeconds,schedule.styleId,encodeLiveSchedule(schedule)))
     }catch(_: Exception){controller.close()}
 }

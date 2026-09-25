@@ -96,6 +96,15 @@ class AudioService : MediaSessionService() {
     val autoMixRenderBoundaryState: com.lmg.vk.engine.automix.render.RenderBoundaryReport
         get() = autoMixRenderBoundary.snapshot()
 
+    /** Explicit experimental single-pair live request. Release builds do not arm it. */
+    val autoMixLivePlaybackState: com.lmg.vk.engine.automix.render.LivePlaybackReport
+        get() = autoMixRenderBoundary.livePlaybackReport()
+
+    fun requestAutoMixLiveTransition(generation: Long, revision: Long): Boolean {
+        if (!com.lmg.vk.BuildConfig.DEBUG) return false
+        return autoMixRenderBoundary.requestLivePlayback(generation, revision)
+    }
+
     /** Manual debug-only transport probe. May temporarily buffer audio; it never enables DSP. */
     val autoMixCueProbeState: com.lmg.vk.engine.automix.render.CueProbeReport
         get() = autoMixRenderBoundary.cueProbeSnapshot()

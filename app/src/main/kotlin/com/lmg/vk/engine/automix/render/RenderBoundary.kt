@@ -19,6 +19,21 @@ class RenderSourceKey(
     override fun toString(): String = "RenderSourceKey(redacted)"
 }
 
+/** Native plan attachment: bytes are owned, immutable to callers and contain no raw song analysis. */
+class RenderExecutionData internal constructor(words: LongArray) {
+    private val words = words.copyOf()
+    internal fun copyWords(): LongArray = words.copyOf()
+}
+data class LivePlaybackReport(val phase: String = "OFF", val generation: Long = 0,
+    val revision: Long = 0, val liveDspInstalled: Boolean = false,
+    val actualPlaybackLease: Boolean = false, val sourcePrerollDiscarded: Long = 0,
+    val reason: String? = null)
+internal interface RenderPlaybackAttachment {
+    fun requestLive(generation: Long, revision: Long): Boolean = false
+    fun liveReport(): LivePlaybackReport = LivePlaybackReport()
+    fun ignoreOwnedHandoff(windowUid: Any, mediaId: String): Boolean = false
+}
+
 /** Values already produced by Stage 4a. There is no styling, DSP or tempo math here. */
 class RenderBoundaryPlan private constructor(
     val generation: Long,
@@ -30,12 +45,13 @@ class RenderBoundaryPlan private constructor(
     val styleId: Int,
     val outgoingCueSeconds: Double,
     val incomingCueSeconds: Double,
+    val execution: RenderExecutionData?,
 ) {
     val canExecute: Boolean get() = false
     companion object {
         fun create(generation: Long, revision: Long, outgoing: RenderSourceKey,
             incoming: RenderSourceKey, outgoingCueSeconds: Double, incomingCueSeconds: Double,
-            styleId: Int): RenderBoundaryPlan {
+            styleId: Int, execution: RenderExecutionData? = null): RenderBoundaryPlan {
             require(generation > 0 && revision >= 0 && (styleId == 8 || styleId == 9 || styleId == 12))
             require(outgoing.mediaId.isNotBlank() && incoming.mediaId.isNotBlank())
             require(outgoing.uri.isNotBlank() && incoming.uri.isNotBlank())
@@ -46,7 +62,7 @@ class RenderBoundaryPlan private constructor(
             }
             return RenderBoundaryPlan(generation,revision,outgoing,incoming,
                 lowerBound(outgoingCueSeconds),lowerBound(incomingCueSeconds),styleId,
-                outgoingCueSeconds,incomingCueSeconds)
+                outgoingCueSeconds,incomingCueSeconds,execution)
         }
     }
 }
@@ -116,6 +132,11 @@ class RenderBoundaryController(cueClockNanos: () -> Long = System::nanoTime) {
         RenderBoundaryReport(0,0,RenderBoundaryStatus.NO_PLAN)))
     private val renderThread = AtomicReference<Thread?>()
     private val endpoints = arrayOfNulls<RenderBoundaryEndpoint>(2)
+    @Volatile internal var playbackAttachment: RenderPlaybackAttachment? = null
+    fun requestLivePlayback(generation: Long, revision: Long): Boolean =
+        playbackAttachment?.requestLive(generation, revision) ?: false
+    fun livePlaybackReport(): LivePlaybackReport = playbackAttachment?.liveReport() ?: LivePlaybackReport()
+
     internal val cueGate = PcmCueGate(this, cueClockNanos)
     fun requestCueProbe(generation: Long, revision: Long, maxWaitMs: Int = 100): CueProbeRequest =
         cueGate.request(generation, revision, maxWaitMs)
@@ -177,6 +198,8 @@ class RenderBoundaryController(cueClockNanos: () -> Long = System::nanoTime) {
     internal fun cueOwnerSnapshot(): CueOwnerReport? = cueGate.ownerSnapshot()
     internal fun hasCommittedCueOwner(ticket: CueOwnerTicket): Boolean = cueGate.hasCommittedOwner(ticket)
     internal fun heldCueOutputAnchors(): CueOutputAnchors? = cueGate.heldOutputAnchors()
+    internal fun reserveExecutionCue(): RenderBoundaryReservation? = cueGate.executionReservation()
+    internal fun abortNativeCueOwner() { check(owner()); cueGate.abortNativeOwner() }
     internal fun epoch(): Epoch = mail.get().epoch
     internal fun owner(): Boolean {
         val current=Thread.currentThread()
@@ -247,6 +270,7 @@ class RenderBoundaryController(cueClockNanos: () -> Long = System::nanoTime) {
         val a=receipt.a as? RenderBoundaryEndpoint ?: return false
         val b=receipt.b as? RenderBoundaryEndpoint ?: return false
         if(a.version!=receipt.aVersion || b.version!=receipt.bVersion)return false
+        if(cueGate.executionReservationCurrent(receipt))return true
         evaluate(e)
         return mail.get().epoch===e && snapshot().status==RenderBoundaryStatus.BOTH_STREAMS_BOUND
     }
@@ -256,7 +280,7 @@ class RenderBoundaryController(cueClockNanos: () -> Long = System::nanoTime) {
 // Marker keeps the existing pure ledger independent of Android/output implementation files.
 internal interface RenderOutputAttachment
 
-class RenderBoundaryEndpoint internal constructor(private val controller: RenderBoundaryController) {
+class RenderBoundaryEndpoint internal constructor(internal val controller: RenderBoundaryController) {
     internal var sameSinkOutputPort: RenderOutputAttachment? = null
     internal var seenEpoch: RenderBoundaryController.Epoch?=null
     internal var identity: RenderOutputIdentity?=null

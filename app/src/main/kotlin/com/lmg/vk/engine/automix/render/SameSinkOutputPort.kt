@@ -9,6 +9,8 @@ internal interface PcmOutputBackend {
     fun volume(value: Float)
     fun positionUs(): Long
     fun pending(): Boolean
+    /** Return false when the backend does not implement an actual drain operation. */
+    fun finish(): Boolean = false
 }
 
 internal enum class OutputPortPhase { IDLE, RESERVED, ACTIVE, WRITING, RESET_REQUIRED }
@@ -83,6 +85,8 @@ internal class SameSinkOutputPort(private val backend: PcmOutputBackend) : Rende
         ticket?.revoke()
         throw OutputPortResetRequired()
     }
+    /** Live prefix must preserve legacy amplitude even when the old device queue is empty. */
+    internal fun livePrefixIsUnity(): Boolean { thread(); return splitGainObserved && fade == 1f }
     fun bindOutput(token: Any?, pcm: RenderPcmFormat?) {
         thread(bind = true)
         if (token !== context || pcm != format) {
@@ -235,6 +239,13 @@ internal class SameSinkOutputPort(private val backend: PcmOutputBackend) : Rende
         thread(); ticket?.revoke(); ticket = null; pending = null; offered = false
         version = Math.addExact(version, 1); context = null; format = null; splitGainObserved = false; gainDetached = false
         phase = OutputPortPhase.IDLE; fault = OutputPortFault.NONE; acceptedBytes = 0; lastSinkPosition = null
+    }
+    fun drain(t: Ticket): Boolean {
+        valid(t)
+        if (pending != null) return false
+        if (!backend.finish()) return false
+        valid(t)
+        return !backend.pending()
     }
     fun snapshot(): OutputPortSnapshot {
         thread()

@@ -11,6 +11,8 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.audio.AudioSink
 import androidx.media3.exoplayer.audio.LmgPcmBoundaryListener
 import androidx.media3.exoplayer.audio.LmgTransitionGainSink
+import androidx.media3.exoplayer.audio.LmgLivePlaybackSink
+import androidx.media3.exoplayer.LmgLivePlaybackClient
 import androidx.media3.exoplayer.source.MediaSource.MediaPeriodId
 import java.nio.ByteBuffer
 
@@ -20,13 +22,16 @@ import java.nio.ByteBuffer
 class Media3BoundaryAudioSink internal constructor(
     private val delegate: AudioSink,
     private val boundary: RenderBoundaryEndpoint,
-) : AudioSink by delegate, LmgPcmBoundaryListener, LmgTransitionGainSink {
+) : AudioSink by delegate, LmgPcmBoundaryListener, LmgTransitionGainSink, LmgLivePlaybackSink {
+    private val live = ForkLivePlaybackDriver.forController(boundary.controller)
+    override fun getLmgLivePlaybackClient(): LmgLivePlaybackClient = live
     // The same existing delegate remains the only output resource. No replacement sink.
     internal val outputPort = SameSinkOutputPort(object : PcmOutputBackend {
         override fun write(buffer: ByteBuffer, ptsUs: Long): Boolean = delegate.handleBuffer(buffer, ptsUs, 1)
         override fun volume(value: Float) = delegate.setVolume(value)
         override fun positionUs(): Long = delegate.getCurrentPositionUs(false)
         override fun pending(): Boolean = delegate.hasPendingData()
+        override fun finish(): Boolean { delegate.playToEndOfStream(); return true }
     })
 
     init {
@@ -86,24 +91,33 @@ class Media3BoundaryAudioSink internal constructor(
 
     override fun configure(inputFormat: Format, specifiedBufferSize: Int, outputChannels: IntArray?) {
         // Configuration may drain or flush internally. Never infer that it cleared a partial buffer.
-        outputPort.invalidate()
-        boundary.cuePort.cancel(CueProbeReason.CONFIGURATION_CHANGED)
+        if (!live.allowIncomingStartup(boundary)) {
+            live.willInvalidate(boundary)
+            outputPort.invalidate()
+            boundary.cuePort.cancel(CueProbeReason.CONFIGURATION_CHANGED)
+        }
         delegate.configure(inputFormat, specifiedBufferSize, outputChannels)
     }
 
-    override fun handleBuffer(buffer: ByteBuffer, presentationTimeUs: Long, encodedAccessUnitCount: Int): Boolean =
-        boundary.forwardWithCueGate(buffer,presentationTimeUs,encodedAccessUnitCount) {
+    override fun handleBuffer(buffer: ByteBuffer, presentationTimeUs: Long, encodedAccessUnitCount: Int): Boolean {
+        if (live.discardIncomingPreroll(boundary,buffer,presentationTimeUs)) return true
+        return boundary.forwardWithCueGate(buffer,presentationTimeUs,encodedAccessUnitCount) {
+            live.checkLegacyWrite(boundary)
             outputPort.checkLegacyWrite()
             delegate.handleBuffer(buffer,presentationTimeUs,encodedAccessUnitCount)
         }
+    }
+    override fun isEnded(): Boolean = live.interceptedIsEnded(boundary) ?: delegate.isEnded()
 
     private fun mark(reason: RenderBoundaryStatus) {
+        live.willInvalidate(boundary)
         outputPort.invalidate()
         boundary.cuePort.cancel(CueProbeReason.PLAYBACK_UNSUPPORTED)
         boundary.diagnostic { boundary.fault(reason) }
     }
     private fun resetBoundary(reason: RenderBoundaryStatus = RenderBoundaryStatus.OUTPUT_RESET,
         discard: Boolean = false) {
+        live.willInvalidate(boundary)
         outputPort.invalidate()
         boundary.cuePort.cancel(if (reason == RenderBoundaryStatus.ROUTE_CHANGED)
             CueProbeReason.ROUTE_CHANGED else CueProbeReason.OUTPUT_RESET, discard)
@@ -117,8 +131,14 @@ class Media3BoundaryAudioSink internal constructor(
         boundary.cuePort.cancel(CueProbeReason.PAUSED)
         resetBoundary();delegate.pause()
     }
-    override fun handleDiscontinuity() { resetBoundary();delegate.handleDiscontinuity() }
-    override fun playToEndOfStream() { resetBoundary();delegate.playToEndOfStream() }
+    override fun handleDiscontinuity() {
+        if (live.ignorePrerollDiscontinuity(boundary)) return
+        resetBoundary();delegate.handleDiscontinuity()
+    }
+    override fun playToEndOfStream() {
+        if (live.inputEnded(boundary)) return
+        resetBoundary();delegate.playToEndOfStream()
+    }
     override fun setPlaybackParameters(playbackParameters: PlaybackParameters) {
         rateIsUnity=playbackParameters.speed==1f && playbackParameters.pitch==1f
         if(!rateIsUnity)
@@ -131,10 +151,10 @@ class Media3BoundaryAudioSink internal constructor(
         delegate.setSkipSilenceEnabled(skipSilenceEnabled)
     }
     override fun setAuxEffectInfo(auxEffectInfo: androidx.media3.common.AuxEffectInfo) {
-        outputPort.invalidate();delegate.setAuxEffectInfo(auxEffectInfo)
+        live.willInvalidate(boundary);outputPort.invalidate();delegate.setAuxEffectInfo(auxEffectInfo)
     }
     override fun setOutputStreamOffsetUs(outputStreamOffsetUs: Long) {
-        outputPort.invalidate();delegate.setOutputStreamOffsetUs(outputStreamOffsetUs)
+        live.willInvalidate(boundary);outputPort.invalidate();delegate.setOutputStreamOffsetUs(outputStreamOffsetUs)
     }
     override fun setAudioAttributes(audioAttributes: AudioAttributes) {
         resetBoundary(RenderBoundaryStatus.ROUTE_CHANGED);delegate.setAudioAttributes(audioAttributes)

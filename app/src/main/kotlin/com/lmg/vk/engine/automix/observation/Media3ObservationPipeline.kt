@@ -116,6 +116,11 @@ class Media3ObservationPipeline(
         if (timeline.isEmpty || currentIndex !in 0 until timeline.windowCount) {
             pipeline.update(null, ObservationReason.NO_PAIR, force); return
         }
+        val activeWindow = timeline.getWindow(currentIndex, Timeline.Window())
+        // Only the native executor's expected A->B metadata handoff keeps the original
+        // epoch. A user seek/reset revokes the fork lease BEFORE any event arrives here.
+        if (renderBoundary?.playbackAttachment?.ignoreOwnedHandoff(
+                activeWindow.uid, activeWindow.mediaItem.mediaId) == true) return
         // Do not use currentIndex+1 or Player.nextMediaItemIndex: navigation may
         // ignore REPEAT_MODE_ONE. We need the actual automatic successor.
         val nextIndex = timeline.getNextWindowIndex(currentIndex, player.repeatMode, player.shuffleModeEnabled)

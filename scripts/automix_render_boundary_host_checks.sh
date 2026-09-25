@@ -16,7 +16,7 @@ RTEST=app/src/test/kotlin/com/lmg/vk/engine/automix/render
 BRIDGE=native/automix/android/src/main/kotlin/com/lmg/vk/engine/automix/nativecore/NativeObservationBridge.kt
 kotlinc "$MAIN/ObservationPipeline.kt" "$MAIN/ResolvedPlannerScope.kt" "$MAIN/PlannerSelectionReport.kt" \
  "$MAIN/PlannerSourceContextWire.kt" "$MAIN/MetadataProbe.kt" "$MAIN/PlannerPreparation.kt" \
- "$MAIN/RenderBoundaryPublication.kt" "$BRIDGE" "$RENDER/RenderBoundary.kt" \
+ "$MAIN/RenderBoundaryPublication.kt" "$MAIN/LiveScheduleEncoding.kt" "$BRIDGE" "$RENDER/RenderBoundary.kt" \
  "$RENDER/BoundaryForwarding.kt" "$RENDER/PcmCueGate.kt" "$RTEST/RenderBoundaryScenarios.kt" \
  "$TEST/ObservationBindingScenarios.kt" "$TEST/RenderBoundaryPublicationScenarios.kt" \
  "$TEST/ObservationPipelineScenarios.kt" "$TEST/ObservationSourceContextScenarios.kt" \
