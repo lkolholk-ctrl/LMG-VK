@@ -677,6 +677,12 @@ class AudioService : MediaSessionService() {
             ownerScope = mainScope,
             openAsset = applicationContext.assets::open,
             renderBoundary = autoMixRenderBoundary,
+            onLivePlanPublished = { generation, revision ->
+                if (com.lmg.vk.BuildConfig.DEBUG && PlayerSettings.autoMix.value && exoOwnsSession()) {
+                    val accepted = requestAutoMixLiveTransition(generation, revision)
+                    DebugLog.add("AutoMix live request: generation=$generation revision=$revision accepted=$accepted")
+                }
+            },
         ).also { it.refresh() }
 
         // ── Нотификация ──

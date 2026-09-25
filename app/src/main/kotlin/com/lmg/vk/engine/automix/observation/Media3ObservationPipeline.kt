@@ -27,11 +27,18 @@ class Media3ObservationPipeline(
     openAsset: (String) -> InputStream,
     private val log: (String) -> Unit = { android.util.Log.d("LMG.AutoMix.Observe", it) },
     private val renderBoundary: com.lmg.vk.engine.automix.render.RenderBoundaryController? = null,
+    private val onLivePlanPublished: (Long, Long) -> Unit = { _, _ -> },
 ) {
     private val calculator = AppleObservationCalculator(openAsset)
     private val pipeline = ObservationPipeline(ownerScope, calculator::decode, calculator::calculate,
         ::checkOwner, onStatePublished = { snapshot, pair, revision ->
-            renderBoundary?.let { publishRenderBoundary(it, snapshot, pair, revision) }
+            renderBoundary?.let { controller ->
+                publishRenderBoundary(controller, snapshot, pair, revision) { generation, bindingRevision ->
+                    if (snapshot.result?.selection?.scopeKind == "SOURCE_MUSICKIT_SUBSET") {
+                        onLivePlanPublished(generation, bindingRevision)
+                    }
+                }
+            }
         })
     val state: StateFlow<ObservationState<MetadataProbeReport>> = pipeline.state
     private val logJob: Job

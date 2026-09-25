@@ -18,11 +18,16 @@ object RenderBoundaryPublicationScenarios {
             else PlannerScheduleStatus.INVALID_SCHEDULE,schedule=if(compiled)schedule else null)
         return MetadataProbeReport("fixture-not-native",emptySet(),null,null,null,null,null,null,selection=selection)
     }
-    fun compiledPublication(){val c=RenderBoundaryController();publishRenderBoundary(c,
-        ObservationState(1,ObservationPhase.OBSERVED,result=result(1,2)),pair(),2)
+    fun compiledPublication(){val c=RenderBoundaryController();var requests=0;publishRenderBoundary(c,
+        ObservationState(1,ObservationPhase.OBSERVED,result=result(1,2)),pair(),2) { generation, revision ->
+            check(generation==1L&&revision==2L)
+            check(c.snapshot().status==RenderBoundaryStatus.WAITING_FOR_OUTPUT_STREAMS)
+            requests++
+        }
+        check(requests==1)
         check(c.snapshot().generation==1L&&c.snapshot().revision==2L&&c.snapshot().styleId==9&&!c.snapshot().canExecute)}
     fun mismatchedEpoch(){val c=RenderBoundaryController();publishRenderBoundary(c,
-        ObservationState(2,ObservationPhase.OBSERVED,result=result(1,2)),pair(),2)
+        ObservationState(2,ObservationPhase.OBSERVED,result=result(1,2)),pair(),2) { _, _ -> error("Stale plan activated") }
         check(c.snapshot().status==RenderBoundaryStatus.NO_PLAN)}
     fun mismatchedRevision(){val c=RenderBoundaryController();publishRenderBoundary(c,
         ObservationState(1,ObservationPhase.OBSERVED,result=result(1,1)),pair(),2)
@@ -31,7 +36,7 @@ object RenderBoundaryPublicationScenarios {
         ObservationState(1,ObservationPhase.OBSERVED,result=result(1,2)),null,2)
         check(c.snapshot().status==RenderBoundaryStatus.NO_PLAN)}
     fun rejectedSchedule(){val c=RenderBoundaryController();publishRenderBoundary(c,
-        ObservationState(1,ObservationPhase.OBSERVED,result=result(1,2,false)),pair(),2)
+        ObservationState(1,ObservationPhase.OBSERVED,result=result(1,2,false)),pair(),2) { _, _ -> error("Invalid plan activated") }
         check(c.snapshot().status==RenderBoundaryStatus.NO_PLAN)}
     fun closePublication(){val c=RenderBoundaryController();publishRenderBoundary(c,
         ObservationState(3,ObservationPhase.CLOSED),null,0);check(c.snapshot().status==RenderBoundaryStatus.CLOSED)}
