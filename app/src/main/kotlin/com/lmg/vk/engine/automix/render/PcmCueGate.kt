@@ -59,6 +59,8 @@ internal interface CueOwnerAdmission {
     fun offer(side: Int, bytes: ByteBuffer, firstFrame: Long): Int
     fun poll(side: Int, destination: ByteBuffer, maxFrames: Int, info: LongArray): Int
 }
+internal data class CueOutputAnchors(val generation: Long, val revision: Long,
+    val outgoingPtsUs: Long, val incomingPtsUs: Long)
 internal class CueOwnerTicket internal constructor() {
     override fun toString(): String = "CueOwnerTicket(opaque)"
 }
@@ -316,6 +318,25 @@ internal class PcmCueGate(
             throw failure
         }
     }
+    /** Read-only receipt check for a separately reserved output port; no output authority is granted. */
+    /** Original output-buffer timestamps, not caller-supplied or reconstructed song time. */
+    fun heldOutputAnchors(): CueOutputAnchors? {
+        if (!controller.owner()) return null
+        val a=attempt.get() ?: return null
+        if (a.report.get().phase != CueProbePhase.PAIR_HELD || !heldPairValid(a)) return null
+        return CueOutputAnchors(a.epoch.generation, a.epoch.revision,
+            requireNotNull(a.holds[0]).pts, requireNotNull(a.holds[1]).pts)
+    }
+
+    fun hasCommittedOwner(receipt: CueOwnerTicket): Boolean {
+        if (!controller.owner()) return false
+        val a = attempt.get() ?: return false
+        val t = a.transfer ?: return false
+        return t.receipt === receipt && live(a) && t.phase.get() == CueOwnerPhase.INPUT_OWNED &&
+            a.ports.all { it?.contextMatches() == true } &&
+            t.lease.isCurrent(a.epoch.generation, a.epoch.revision, requireNotNull(a.format))
+    }
+
     fun ownerSnapshot(): CueOwnerReport? {
         val a=attempt.get() ?: return null;live(a)
         val t=a.transfer ?: return null

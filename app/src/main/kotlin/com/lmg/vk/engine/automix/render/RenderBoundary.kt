@@ -175,6 +175,8 @@ class RenderBoundaryController(cueClockNanos: () -> Long = System::nanoTime) {
     internal fun readCueOwner(ticket: CueOwnerTicket, side: Int, destination: ByteBuffer,
         maxFrames: Int, info: LongArray): Int = cueGate.readOwner(ticket,side,destination,maxFrames,info)
     internal fun cueOwnerSnapshot(): CueOwnerReport? = cueGate.ownerSnapshot()
+    internal fun hasCommittedCueOwner(ticket: CueOwnerTicket): Boolean = cueGate.hasCommittedOwner(ticket)
+    internal fun heldCueOutputAnchors(): CueOutputAnchors? = cueGate.heldOutputAnchors()
     internal fun epoch(): Epoch = mail.get().epoch
     internal fun owner(): Boolean {
         val current=Thread.currentThread()
@@ -251,7 +253,11 @@ class RenderBoundaryController(cueClockNanos: () -> Long = System::nanoTime) {
 }
 
 /** Counts bytes accepted by the REAL delegate, not buffer.remaining() offered by the decoder. */
+// Marker keeps the existing pure ledger independent of Android/output implementation files.
+internal interface RenderOutputAttachment
+
 class RenderBoundaryEndpoint internal constructor(private val controller: RenderBoundaryController) {
+    internal var sameSinkOutputPort: RenderOutputAttachment? = null
     internal var seenEpoch: RenderBoundaryController.Epoch?=null
     internal var identity: RenderOutputIdentity?=null
     internal var format: RenderPcmFormat?=null

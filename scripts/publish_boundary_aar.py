@@ -2,7 +2,7 @@
 """Create-only local Maven overlay for the patched ExoPlayer AAR. Never replace a release."""
 from __future__ import annotations
 import argparse, hashlib, json, os, pathlib, re, tempfile, xml.etree.ElementTree as ET
-from verify_boundary_aar import verify
+from automix_verify_output_port_aar import verify
 
 def publish(repository:pathlib.Path,aar:pathlib.Path,base:str,version:str):
     if base not in ('1.5.1-lmg30','1.11.0-lmg31') or not re.fullmatch(re.escape(base)+r'-boundary[0-9][A-Za-z0-9.-]*',version):

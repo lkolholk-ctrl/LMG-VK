@@ -26,3 +26,7 @@ tools/amll-renderer/node_modules/
 *.zip
 build_native_stage*/
 apple_music_analysis_example.json
+-e 
+__pycache__/
+*.pyc
+

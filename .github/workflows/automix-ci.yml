@@ -127,6 +127,9 @@ jobs:
       - name: Verify native owner ingress reports and exports
         run: python3 scripts/automix_verify_owner_ingress.py
 
+      - name: Verify same-sink output and ingress reports
+        run: python3 scripts/automix_verify_output_port_reports.py
+
       - name: Preserve Android test reports
         if: always()
         uses: actions/upload-artifact@v4
