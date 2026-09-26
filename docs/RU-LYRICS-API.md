@@ -75,7 +75,43 @@ GET /v2/motion?title={title}&artist={artist}&album={album}
 
 ---
 
-#### 3. Статистика и проверка здоровья
+#### 3. AutoMix Audio & Transition Analysis (Анализ трека для диджейского сведения)
+```http
+GET /v2/automix/analysis?title={title}&artist={artist}&duration={seconds}[&raw=0|1]
+```
+*Или по прямому ID:*
+```http
+GET /v2/automix/analysis?id={apple_track_id}[&raw=0|1]
+```
+
+**Заголовки запроса:**
+* `X-API-Key: {API_KEY}` (обязательно)
+* *Или заголовок:* `Authorization: Bearer {API_KEY}`
+* *Или query-параметр:* `?api_key={API_KEY}`
+
+**Параметры:**
+* `title` *(string)* — название песни
+* `artist` *(string)* — исполнитель
+* `duration` *(float/int)* — длительность трека в секундах (допуск $\pm 6$ сек)
+* `id` / `track_id` *(string)* — прямой Apple Music ID (если известен)
+* `isrc` *(string)* — точный ISRC код трека
+* `raw` *(0 или 1)*:
+  * `0` (по умолчанию) — структурированный JSON с BPM, тональностью, точками входа/выхода, громкостью и вложенным `apple_analysis`
+  * `1` — чистый сырой ответ Apple Music (`{"data": [...]}`), готовый для прямой подачи в C++ `decodeMediaApiSongAnalysis(json, songId)`
+
+**Заголовки ответа:**
+* `X-Analysis-Source`: `local_sqlite` или `upstream_apple`
+* `X-Track-Id`: ID трека Apple Music
+* `X-Track-Name`: Название трека
+* `X-Artist-Name`: Исполнитель
+* `X-Bpm`: Основной темп трека (BPM)
+* `X-Supports-Transitions`: `true` / `false`
+* `X-Has-Audio-Analysis`: `true` / `false` (сетка битов, вокал, тональность)
+* `X-Has-Flex-Analysis`: `true` / `false` (точки перехода `entryPoints`/`exitPoints`)
+
+---
+
+#### 4. Статистика и проверка здоровья
 * **Healthcheck:** `GET /ping` или `GET /health` (без ключа, возвращает `OK`).
 * **Статистика ключей:** `GET /v2/keys/stats` (требует `X-API-Key`).
 
