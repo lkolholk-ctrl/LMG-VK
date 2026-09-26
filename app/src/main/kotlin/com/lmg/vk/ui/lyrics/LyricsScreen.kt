@@ -1,6 +1,9 @@
 package com.lmg.vk.ui.lyrics
 
-import com.lmg.vk.ui.navigation.WindowAlertDialog as AlertDialog
+import com.lmg.vk.ui.glass.GlassDialog
+import com.lmg.vk.ui.glass.GlassDialogButton
+import com.lmg.vk.ui.theme.LiquidTheme
+import androidx.compose.ui.platform.LocalConfiguration
 import com.lmg.vk.ui.navigation.WindowCloseSurface
 import android.net.Uri
 import androidx.compose.foundation.background
@@ -259,20 +262,23 @@ fun LyricsScreen(
         }
     }
     if (showSync) {
-        AlertDialog(
-            onDismissRequest = { showSync = false },
-            title = { Text(stringResource(R.string.sync_chip)) },
-            text = {
+        GlassDialog(
+            visible = true,
+            onDismiss = { showSync = false },
+            title = stringResource(R.string.sync_chip),
+            dissolveOnPrimaryClick = true,
+            content = {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(stringResource(R.string.sync_chip_offset, syncOffsetMs / 1000f))
+                    Text(stringResource(R.string.sync_chip_offset, syncOffsetMs / 1000f), color = LiquidTheme.colors.textPrimary)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        TextButton(onClick = { adjustSync(-500L) }) { Text("-0.5s") }
-                        TextButton(onClick = { adjustSync(500L) }) { Text("+0.5s") }
-                        TextButton(onClick = { adjustSync(-syncOffsetMs) }) { Text(stringResource(R.string.action_reset)) }
+                        TextButton(colors = ButtonDefaults.textButtonColors(contentColor = LiquidTheme.colors.accent), onClick = { adjustSync(-500L) }) { Text("-0.5s") }
+                        TextButton(colors = ButtonDefaults.textButtonColors(contentColor = LiquidTheme.colors.accent), onClick = { adjustSync(500L) }) { Text("+0.5s") }
+                        TextButton(colors = ButtonDefaults.textButtonColors(contentColor = LiquidTheme.colors.accent), onClick = { adjustSync(-syncOffsetMs) }) { Text(stringResource(R.string.action_reset)) }
                     }
                 }
             },
-            confirmButton = { TextButton(onClick = { showSync = false }) { Text(stringResource(R.string.action_done)) } },
+            primaryButton = GlassDialogButton(stringResource(R.string.action_done), { showSync = false },
+                backgroundColor = LiquidTheme.colors.accent),
         )
     }
     if (showSources) {
@@ -438,13 +444,17 @@ private fun LyricsSourcesDialog(
     onPronunciationToggle: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.lyrics_sources_title)) },
-        text = {
-            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    val maxContentHeight = (LocalConfiguration.current.screenHeightDp * 0.5f).dp
+    GlassDialog(
+        visible = true,
+        onDismiss = onDismiss,
+        title = stringResource(R.string.lyrics_sources_title),
+        dissolveOnPrimaryClick = true,
+        content = {
+            Column(Modifier.heightIn(max = maxContentHeight).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(
                     text = stringResource(R.string.lyrics_sources_description),
+                    color = LiquidTheme.colors.textSecondary,
                     fontSize = 13.sp,
                     lineHeight = 18.sp,
                 )
@@ -460,11 +470,12 @@ private fun LyricsSourcesDialog(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Column(Modifier.weight(1f)) {
-                            Text(source.title, fontWeight = FontWeight.SemiBold)
-                            Text(source.description, fontSize = 12.sp, color = Color.Gray)
+                            Text(source.title, fontWeight = FontWeight.SemiBold, color = LiquidTheme.colors.textPrimary)
+                            Text(source.description, fontSize = 12.sp, color = LiquidTheme.colors.textSecondary)
                         }
                         Text(
                             text = if (checked) "✓" else "",
+                            color = LiquidTheme.colors.accent,
                             fontSize = 20.sp,
                             fontWeight = FontWeight.Bold,
                         )
@@ -484,11 +495,8 @@ private fun LyricsSourcesDialog(
                 )
             }
         },
-        confirmButton = {
-            TextButton(onClick = onDismiss) {
-                Text(stringResource(R.string.action_done))
-            }
-        },
+        primaryButton = GlassDialogButton(stringResource(R.string.action_done), onDismiss,
+            backgroundColor = LiquidTheme.colors.accent),
     )
 }
 
@@ -508,11 +516,12 @@ private fun LyricsOptionRow(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f)) {
-            Text(title, fontWeight = FontWeight.SemiBold)
-            Text(description, fontSize = 12.sp, color = Color.Gray)
+            Text(title, fontWeight = FontWeight.SemiBold, color = LiquidTheme.colors.textPrimary)
+            Text(description, fontSize = 12.sp, color = LiquidTheme.colors.textSecondary)
         }
         Text(
             text = if (checked) "✓" else "",
+                            color = LiquidTheme.colors.accent,
             fontSize = 20.sp,
             fontWeight = FontWeight.Bold,
         )

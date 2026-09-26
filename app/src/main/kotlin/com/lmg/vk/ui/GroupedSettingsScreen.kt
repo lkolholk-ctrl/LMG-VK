@@ -76,6 +76,7 @@ private enum class SettingsPage(
     VK(R.string.settings_page_vk, R.string.settings_page_vk_subtitle),
     PLAYBACK(R.string.settings_page_playback, R.string.settings_page_playback_subtitle),
     NETWORK(R.string.settings_page_network, R.string.settings_page_network_subtitle),
+    CACHE(R.string.settings_page_cache, R.string.settings_page_cache_subtitle),
     APPEARANCE(R.string.settings_page_appearance, R.string.settings_page_appearance_subtitle),
     DIAGNOSTICS(R.string.settings_page_diagnostics, R.string.settings_page_diagnostics_subtitle),
     DUPLICATES(R.string.settings_page_duplicates, R.string.settings_page_duplicates_subtitle),
@@ -278,6 +279,13 @@ fun SettingsScreen(
                             )
                             SettingsCategoryDivider()
                             SettingsCategoryItem(
+                                title = stringResource(R.string.settings_page_cache),
+                                subtitle = stringResource(R.string.settings_page_cache_subtitle),
+                                icon = lmgVector(LmgDrawables.FolderOutline24),
+                                onClick = { page = SettingsPage.CACHE },
+                            )
+                            SettingsCategoryDivider()
+                            SettingsCategoryItem(
                                 title = stringResource(R.string.settings_page_diagnostics),
                                 subtitle = stringResource(R.string.playback_log_troubleshooting),
                                 icon = lmgVector(LmgDrawables.BugOutline28),
@@ -396,6 +404,8 @@ fun SettingsScreen(
                             )
                         }
                     }
+
+                    SettingsPage.CACHE -> CacheSettingsContent()
 
                     SettingsPage.NETWORK -> {
                         SectionLabel(stringResource(R.string.section_vpn_connection))

@@ -76,4 +76,11 @@ internal class RetainedLyricsCache<K : Any, V : Any>(
         pending.remove(key)?.result?.cancel()
         Unit
     }
+
+    fun clear() = synchronized(lock) {
+        entries.clear()
+        val work = pending.values.toList()
+        pending.clear()
+        work.forEach { it.result.cancel() }
+    }
 }

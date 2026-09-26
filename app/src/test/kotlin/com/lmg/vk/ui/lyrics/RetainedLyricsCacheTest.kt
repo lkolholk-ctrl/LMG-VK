@@ -6,6 +6,21 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class RetainedLyricsCacheTest {
+    @Test fun clearingRemovesMemoryAndCancelsPendingLoads() = cacheTest { owner ->
+        val cache = cache(owner)
+        cache.getOrPrepare("ready") { "saved" }
+        val entered = CompletableDeferred<Unit>()
+        val pending = launch {
+            cache.getOrPrepare("pending") { entered.complete(Unit); awaitCancellation() }
+        }
+        entered.await()
+        cache.clear()
+        pending.join()
+        assertTrue(pending.isCancelled)
+        assertNull(cache.peek("ready"))
+        assertNull(cache.peek("pending"))
+        assertEquals("fresh", cache.getOrPrepare("pending") { "fresh" })
+    }
     private fun cacheTest(block: suspend CoroutineScope.(CoroutineScope) -> Unit) = runBlocking {
         val owner = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
         try { block(owner) } finally { owner.cancel() }

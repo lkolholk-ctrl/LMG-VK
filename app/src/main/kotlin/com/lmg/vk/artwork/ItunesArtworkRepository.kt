@@ -35,6 +35,10 @@ import java.security.MessageDigest
 import java.util.concurrent.TimeUnit
 
 object ItunesArtworkRepository {
+    fun clearMemoryCache() = synchronized(lock) {
+        cache.clear()
+        candidates.clear()
+    }
     private data class Entry(val artwork: String?, val expires: Long, val originalQuality: Boolean = true,
         val lookupVersion: Int = ArtworkCachePolicy.LOOKUP_VERSION)
     private data class Flight(val result: Deferred<String?>, var users: Int)

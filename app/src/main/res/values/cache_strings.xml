@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_page_cache">Кэш</string>
+    <string name="settings_page_cache_subtitle">Лирика, обложки, моушены и песни</string>
+    <string name="cache_lyrics">Лирика</string>
+    <string name="cache_artwork">Обложки</string>
+    <string name="cache_motion">Моушены</string>
+    <string name="cache_audio">Песни в кэше</string>
+    <string name="cache_clear_all">Очистить весь кэш</string>
+    <string name="cache_all">весь кэш</string>
+    <string name="cache_clear">Очистить</string>
+    <string name="cache_confirm">Очистить: %1$s?</string>
+    <string name="cache_calculating">Подсчёт…</string>
+    <string name="cache_preserved_hint">Скачанные треки, их офлайн-моушены и ваши тексты сохранятся. При воспроизведении кэш может наполняться снова.</string>
+    <string name="cache_cleared">Кэш очищен</string>
+    <string name="cache_read_error">Не удалось определить размер кэша. Откройте раздел снова.</string>
+    <string name="cache_clear_error">Не удалось очистить весь выбранный кэш. Попробуйте ещё раз.</string>
+</resources>

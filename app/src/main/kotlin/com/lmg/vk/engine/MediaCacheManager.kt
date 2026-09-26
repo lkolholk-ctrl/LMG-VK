@@ -288,10 +288,11 @@ object MediaCacheManager {
     }
 
     /** Реально занятый объём кэша в байтах (для строки «В данный момент: X МБ»). */
-    suspend fun getCacheSizeBytes(): Long = withContext(Dispatchers.IO) {
+    suspend fun getCacheSizeBytes(context: Context? = null): Long = withContext(Dispatchers.IO) {
         try {
             cache?.cacheSpace ?: run {
-                val dir = cacheDir ?: return@withContext 0L
+                val dir = cacheDir ?: context?.let { File(it.cacheDir, "media3_cache") }
+                    ?: return@withContext 0L
                 dir.walkTopDown().filter { it.isFile }.sumOf { it.length() }
             }
         } catch (_: Exception) {
@@ -324,8 +325,9 @@ object MediaCacheManager {
     }
 
     /** Полностью очистить кэш аудио (кнопка «Очистить»). */
-    suspend fun clearCache() = withContext(Dispatchers.IO) {
+    suspend fun clearCache(context: Context? = null) = withContext(Dispatchers.IO) {
         cacheLock.withLock {
+            activePreCache?.cancel()
             val simpleCache = cache
             try {
                 if (simpleCache != null) {
@@ -333,11 +335,16 @@ object MediaCacheManager {
                     // файлов «за его спиной»).
                     simpleCache.keys.toList().forEach { key -> simpleCache.removeResource(key) }
                 } else {
-                    cacheDir?.walkTopDown()?.filter { it.isFile }?.forEach { it.delete() }
+                    val ctx = context?.applicationContext ?: appContext
+                    val dir = cacheDir ?: ctx?.let { File(it.cacheDir, "media3_cache") }
+                    if (dir != null && dir.exists() && ctx != null) {
+                        SimpleCache.delete(dir, StandaloneDatabaseProvider(ctx))
+                    }
                 }
                 android.util.Log.d("MediaCacheManager", "Cache cleared by user")
             } catch (e: Exception) {
                 android.util.Log.e("MediaCacheManager", "clearCache failed: ${e.message}")
+                throw e
             }
         }
     }

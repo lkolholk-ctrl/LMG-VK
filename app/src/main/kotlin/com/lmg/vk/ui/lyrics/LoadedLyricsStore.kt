@@ -29,4 +29,5 @@ internal object LoadedLyricsStore {
     suspend fun load(key: LoadedLyricsKey, loader: suspend () -> AccompanistLyrics) =
         cache.getOrPrepare(key, loader)
     fun invalidate(key: LoadedLyricsKey) = cache.invalidate(key)
+    fun clear() = cache.clear()
 }

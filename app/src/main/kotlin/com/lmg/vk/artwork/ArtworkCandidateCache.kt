@@ -1,6 +1,7 @@
 package com.lmg.vk.artwork
 
 internal class ArtworkCandidateCache(private val clock: () -> Long = System::currentTimeMillis) {
+    @Synchronized fun clear() = entries.clear()
     private data class Entry(val candidates: List<ItunesArtworkCandidate>, val expires: Long)
     private val entries = object : LinkedHashMap<String, Entry>(32, 0.75f, true) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Entry>?) = size > 128

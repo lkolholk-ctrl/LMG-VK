@@ -22,6 +22,11 @@ import com.lmg.vk.ui.navigation.LocalDialogCloseState
 import com.lmg.vk.ui.navigation.windowClose
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
+import com.lmg.vk.ui.effects.DustDissolve
+import com.lmg.vk.ui.effects.rememberDustDissolveState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -54,13 +59,16 @@ fun GlassDialog(
     primaryButton: GlassDialogButton? = null,
     secondaryButton: GlassDialogButton? = null,
     dismissible: Boolean = true,
+    dissolveOnPrimaryClick: Boolean = false,
     content: (@Composable () -> Unit)? = null,
 ) {
     if (!visible) return
+    var dissolving by remember { mutableStateOf(false) }
+    val dust = rememberDustDissolveState()
 
     Dialog(
         transformContent = false,
-        onDismissRequest = { if (dismissible) onDismiss() },
+        onDismissRequest = { if (dismissible && !dissolving) onDismiss() },
         properties = DialogProperties(
             dismissOnBackPress = dismissible,
             dismissOnClickOutside = dismissible,
@@ -77,144 +85,153 @@ fun GlassDialog(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.62f))
+                .background(Color.Black.copy(alpha = 0.62f * (1f - dust.progress.value)))
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null,
-                    enabled = dismissible,
+                    enabled = dismissible && !dissolving,
                 ) { onDismiss() },
             contentAlignment = Alignment.Center,
         ) {
-            Box(
-                modifier = Modifier
-                    .widthIn(max = 420.dp)
-                    .fillMaxWidth()
-                    .padding(horizontal = 24.dp)
-                    .then(if (dialogBack != null) Modifier.windowClose(dialogBack) else Modifier)
-                    .clip(RoundedCornerShape(28.dp))
-                    .background(dialogBg)
-                    .border(1.dp, dialogBorder, RoundedCornerShape(28.dp))
-                    .padding(24.dp)
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                    ) { }, // prevent dismiss when tapping inside
-                contentAlignment = Alignment.Center,
+            DustDissolve(
+                dissolving = dissolving,
+                onFinished = { primaryButton?.onClick() },
+                state = dust,
             ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.fillMaxWidth(),
+                Box(
+                    modifier = Modifier
+                        .widthIn(max = 420.dp)
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp)
+                        .then(if (dialogBack != null) Modifier.windowClose(dialogBack) else Modifier)
+                        .clip(RoundedCornerShape(28.dp))
+                        .background(dialogBg)
+                        .border(1.dp, dialogBorder, RoundedCornerShape(28.dp))
+                        .padding(24.dp)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                        ) { }, // prevent dismiss when tapping inside
+                    contentAlignment = Alignment.Center,
                 ) {
-                    // Icon Header
-                    if (icon != null) {
-                        Box(
-                            modifier = Modifier
-                                .size(56.dp)
-                                .clip(RoundedCornerShape(18.dp))
-                                .background(iconTint.copy(alpha = 0.14f)),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Icon(
-                                imageVector = icon,
-                                contentDescription = null,
-                                tint = iconTint,
-                                modifier = Modifier.size(28.dp),
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        // Icon Header
+                        if (icon != null) {
+                            Box(
+                                modifier = Modifier
+                                    .size(56.dp)
+                                    .clip(RoundedCornerShape(18.dp))
+                                    .background(iconTint.copy(alpha = 0.14f)),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Icon(
+                                    imageVector = icon,
+                                    contentDescription = null,
+                                    tint = iconTint,
+                                    modifier = Modifier.size(28.dp),
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(16.dp))
+                        }
+
+                        // Title
+                        Text(
+                            text = title,
+                            color = colors.textPrimary,
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            fontFamily = VkSansDisplay,
+                            textAlign = TextAlign.Center,
+                        )
+
+                        // Message
+                        if (!message.isNullOrBlank()) {
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Text(
+                                text = message,
+                                color = colors.textSecondary,
+                                fontSize = 14.sp,
+                                fontFamily = VkSansText,
+                                textAlign = TextAlign.Center,
+                                lineHeight = 20.sp,
                             )
                         }
-                        Spacer(modifier = Modifier.height(16.dp))
-                    }
 
-                    // Title
-                    Text(
-                        text = title,
-                        color = colors.textPrimary,
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        fontFamily = VkSansDisplay,
-                        textAlign = TextAlign.Center,
-                    )
+                        // Optional Custom Body Content
+                        if (content != null) {
+                            Spacer(modifier = Modifier.height(16.dp))
+                            content()
+                        }
 
-                    // Message
-                    if (!message.isNullOrBlank()) {
-                        Spacer(modifier = Modifier.height(10.dp))
-                        Text(
-                            text = message,
-                            color = colors.textSecondary,
-                            fontSize = 14.sp,
-                            fontFamily = VkSansText,
-                            textAlign = TextAlign.Center,
-                            lineHeight = 20.sp,
-                        )
-                    }
+                        // Buttons
+                        if (primaryButton != null || secondaryButton != null) {
+                            Spacer(modifier = Modifier.height(24.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            ) {
+                                // Secondary (left)
+                                if (secondaryButton != null) {
+                                    val secondaryBtnBg = if (isDark) Color.White.copy(alpha = 0.08f) else Color(0xFFF2F2F7)
+                                    val secondaryBtnBorder = if (isDark) Color.White.copy(alpha = 0.08f) else Color.Black.copy(alpha = 0.05f)
 
-                    // Optional Custom Body Content
-                    if (content != null) {
-                        Spacer(modifier = Modifier.height(16.dp))
-                        content()
-                    }
-
-                    // Buttons
-                    if (primaryButton != null || secondaryButton != null) {
-                        Spacer(modifier = Modifier.height(24.dp))
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        ) {
-                            // Secondary (left)
-                            if (secondaryButton != null) {
-                                val secondaryBtnBg = if (isDark) Color.White.copy(alpha = 0.08f) else Color(0xFFF2F2F7)
-                                val secondaryBtnBorder = if (isDark) Color.White.copy(alpha = 0.08f) else Color.Black.copy(alpha = 0.05f)
-
-                                Box(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .height(46.dp)
-                                        .clip(RoundedCornerShape(23.dp))
-                                        .background(secondaryBtnBg)
-                                        .border(1.dp, secondaryBtnBorder, RoundedCornerShape(23.dp))
-                                        .liquidClickable(
-                                            pressedScale = LiquidMotion.PressButton,
-                                            enabled = secondaryButton.enabled,
-                                        ) { secondaryButton.onClick() },
-                                    contentAlignment = Alignment.Center,
-                                ) {
-                                    Text(
-                                        text = secondaryButton.text,
-                                        color = if (secondaryButton.enabled) colors.textPrimary else colors.textTertiary,
-                                        fontFamily = VkSansText,
-                                        fontWeight = FontWeight.SemiBold,
-                                        fontSize = 15.sp,
-                                    )
-                                }
-                            }
-
-                            // Primary (right)
-                            if (primaryButton != null) {
-                                Box(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .height(46.dp)
-                                        .clip(RoundedCornerShape(23.dp))
-                                        .background(
-                                            if (primaryButton.enabled) {
-                                                primaryButton.backgroundColor
-                                            } else {
-                                                primaryButton.backgroundColor.copy(alpha = 0.4f)
-                                            }
+                                    Box(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .height(46.dp)
+                                            .clip(RoundedCornerShape(23.dp))
+                                            .background(secondaryBtnBg)
+                                            .border(1.dp, secondaryBtnBorder, RoundedCornerShape(23.dp))
+                                            .liquidClickable(
+                                                pressedScale = LiquidMotion.PressButton,
+                                                enabled = secondaryButton.enabled,
+                                            ) { secondaryButton.onClick() },
+                                        contentAlignment = Alignment.Center,
+                                    ) {
+                                        Text(
+                                            text = secondaryButton.text,
+                                            color = if (secondaryButton.enabled) colors.textPrimary else colors.textTertiary,
+                                            fontFamily = VkSansText,
+                                            fontWeight = FontWeight.SemiBold,
+                                            fontSize = 15.sp,
                                         )
-                                        .liquidClickable(
-                                            pressedScale = LiquidMotion.PressButton,
-                                            enabled = primaryButton.enabled,
-                                        ) { primaryButton.onClick() },
-                                    contentAlignment = Alignment.Center,
-                                ) {
-                                    Text(
-                                        text = primaryButton.text,
-                                        color = if (primaryButton.enabled) primaryButton.textColor else primaryButton.textColor.copy(alpha = 0.6f),
-                                        fontFamily = VkSansText,
-                                        fontWeight = FontWeight.SemiBold,
-                                        fontSize = 15.sp,
-                                    )
+                                    }
+                                }
+
+                                // Primary (right)
+                                if (primaryButton != null) {
+                                    Box(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .height(46.dp)
+                                            .clip(RoundedCornerShape(23.dp))
+                                            .background(
+                                                if (primaryButton.enabled) {
+                                                    primaryButton.backgroundColor
+                                                } else {
+                                                    primaryButton.backgroundColor.copy(alpha = 0.4f)
+                                                }
+                                            )
+                                            .liquidClickable(
+                                                pressedScale = LiquidMotion.PressButton,
+                                                enabled = primaryButton.enabled,
+                                            ) {
+                                                if (dissolveOnPrimaryClick) dissolving = true
+                                                else primaryButton.onClick()
+                                            },
+                                        contentAlignment = Alignment.Center,
+                                    ) {
+                                        Text(
+                                            text = primaryButton.text,
+                                            color = if (primaryButton.enabled) primaryButton.textColor else primaryButton.textColor.copy(alpha = 0.6f),
+                                            fontFamily = VkSansText,
+                                            fontWeight = FontWeight.SemiBold,
+                                            fontSize = 15.sp,
+                                        )
+                                    }
                                 }
                             }
                         }

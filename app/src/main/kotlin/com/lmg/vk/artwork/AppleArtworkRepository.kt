@@ -17,6 +17,7 @@ import kotlin.coroutines.resumeWithException
 
 /** Shared metadata cache and in-flight requests for cover, player and prefetch callers. */
 internal object AppleArtworkRepository {
+    fun clearMemoryCache() = synchronized(lock) { cache.clear() }
     private data class Entry(val value: AppleArtwork?, val expires: Long)
     private data class Flight(val task: Deferred<AppleArtwork?>, var users: Int)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)

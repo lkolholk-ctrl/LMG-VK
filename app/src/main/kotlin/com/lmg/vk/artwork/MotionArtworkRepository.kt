@@ -28,6 +28,25 @@ internal data class MotionArtworkSource(val artwork: MotionArtwork, val dataSour
 internal object MotionArtworkRepository {
     private var videoCache: SimpleCache? = null
 
+    suspend fun cacheSize(context: Context): Long = withContext(Dispatchers.IO) {
+        synchronized(this@MotionArtworkRepository) {
+            videoCache?.cacheSpace ?: File(context.cacheDir, "motion_stream_v2")
+                .walkTopDown().filter { it.isFile }.sumOf { it.length() }
+        }
+    }
+
+    suspend fun clearCache(context: Context) = withContext(Dispatchers.IO) {
+        synchronized(this@MotionArtworkRepository) {
+            val current = videoCache
+            if (current != null) {
+                current.keys.toList().forEach(current::removeResource)
+            } else {
+                val dir = File(context.cacheDir, "motion_stream_v2")
+                if (dir.exists()) SimpleCache.delete(dir, StandaloneDatabaseProvider(context.applicationContext))
+            }
+        }
+    }
+
     private fun streamingFactory(context: Context): CacheDataSource.Factory {
         val cache = synchronized(this) {
             videoCache ?: SimpleCache(File(context.cacheDir, "motion_stream_v2"),
