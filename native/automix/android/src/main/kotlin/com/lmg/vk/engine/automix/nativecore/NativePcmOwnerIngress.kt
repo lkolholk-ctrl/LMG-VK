@@ -2,6 +2,7 @@ package com.lmg.vk.engine.automix.nativecore
 
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.util.concurrent.atomic.AtomicReference
 
 /** Preallocated two-source PCM admission queues. NOT a Player, DSP graph, output writer or clock.
  * Allocate/close outside real-time callbacks. After the first stage, use exactly one owner thread.
@@ -13,8 +14,8 @@ class NativePcmOwnerIngress(val channels: Int, val bytesPerSample: Int, val capa
         override fun toString(): String = "PcmOwnerTicket(opaque)"
     }
     data class Input(val buffer: ByteBuffer, val firstFrame: Long, val cueFrame: Long)
-    private var handle: Long
-    private var thread: Thread? = null
+    @Volatile private var handle: Long
+    private val thread = AtomicReference<Thread?>()
     private var serial = 0L
     private var ticket: Ticket? = null
     init {
@@ -24,16 +25,17 @@ class NativePcmOwnerIngress(val channels: Int, val bytesPerSample: Int, val capa
         check(handle != 0L)
     }
     private fun owner() {
-        check(handle != 0L) { "PCM owner closed" }
         val current = Thread.currentThread()
-        if (thread == null) thread = current else check(thread === current) { "PCM owner thread mismatch" }
+        if (thread.get() == null) thread.compareAndSet(null, current)
+        check(thread.get() === current) { "PCM owner thread mismatch" }
+        check(handle != 0L) { "PCM owner closed" }
     }
     private fun input(input: ByteBuffer, staging: Boolean = true) {
         require(input.isDirect && input.remaining() % (channels*bytesPerSample) == 0)
         require(input.remaining() <= 1_048_576)
         if(staging)require(input.remaining() / (channels*bytesPerSample) <= capacityFrames)
     }
-    @Synchronized fun stage(generation: Long, revision: Long, outgoing: Input, incoming: Input): Ticket {
+    fun stage(generation: Long, revision: Long, outgoing: Input, incoming: Input): Ticket {
         owner(); require(generation > 0 && revision >= 0)
         check(ticket == null) { "Owner already staged" }
         input(outgoing.buffer); input(incoming.buffer)
@@ -45,17 +47,17 @@ class NativePcmOwnerIngress(val channels: Int, val bytesPerSample: Int, val capa
         serial=id;ticket=result
         return result
     }
-    @Synchronized fun commit(value: Ticket): Boolean {
+    fun commit(value: Ticket): Boolean {
         owner();return value.owner === this && ticket === value && nativeCommit(handle,value.serial)
     }
-    @Synchronized fun abort(value: Ticket): Boolean {
+    fun abort(value: Ticket): Boolean {
         owner();if(value.owner !== this || ticket !== value)return false
         val result=nativeAbort(handle,value.serial)
         // A postcommit native abort is terminal; a subsequent stage is rejected natively.
         if(result)ticket=null
         return result
     }
-    @Synchronized fun push(side: Int, input: ByteBuffer, firstFrame: Long): Int {
+    fun push(side: Int, input: ByteBuffer, firstFrame: Long): Int {
         owner();require(side in 0..1); input(input, false)
         if(!input.hasRemaining())return 0
         return nativePush(handle,side,input,input.position(),input.remaining(),firstFrame)
@@ -63,22 +65,28 @@ class NativePcmOwnerIngress(val channels: Int, val bytesPerSample: Int, val capa
     /** info[0]=first source frame; info[1]=frames read; info[2]=1 for pre-cue prefix.
      * Pre-cue and post-cue samples are never merged in a single read.
      */
-    @Synchronized fun read(side: Int, destination: ByteBuffer, maxFrames: Int, info: LongArray): Int {
+    fun read(side: Int, destination: ByteBuffer, maxFrames: Int, info: LongArray): Int {
+        val n = readWithoutMoving(side, destination, maxFrames, info)
+        destination.position(destination.position()+n*channels*4)
+        return n
+    }
+    /** Playback gate publishes the cursor only after its generation/lease recheck. */
+    fun readWithoutMoving(side: Int, destination: ByteBuffer, maxFrames: Int, info: LongArray): Int {
         owner();require(side in 0..1 && maxFrames in 0..capacityFrames && info.size==3)
         require(destination.isDirect && !destination.isReadOnly && destination.order()==ByteOrder.nativeOrder())
         require(destination.position()%4==0 && destination.remaining()>=maxFrames*channels*4)
         val n=nativeRead(handle,side,destination,destination.position(),maxFrames,info)
         check(n in 0..maxFrames && info[1]==n.toLong())
-        destination.position(destination.position()+n*channels*4); return n
+        return n
     }
     /** phase, nextRead, nextWrite, cue, accepted, read, discarded, queued. */
-    @Synchronized fun stats(side: Int, target: LongArray) {
+    fun stats(side: Int, target: LongArray) {
         owner();require(side in 0..1 && target.size==8);nativeStats(handle,side,target)
     }
-    @Synchronized override fun close() {
+    override fun close() {
         if(handle==0L)return
         // Explicit same-owner cleanup once bound; avoids destruction during use.
-        if(thread!=null)check(thread===Thread.currentThread()) { "Close on PCM owner thread" }
+        owner()
         nativeDestroy(handle);handle=0;ticket=null
     }
     private external fun nativeProtocol(): Int

@@ -13,6 +13,11 @@ enum class LyricsSource(
         title = "Apple TTML",
         description = "Оригинальная послоговая синхронизация",
     ),
+    LMG_LYRICS_PLUS(
+        id = "lmg_lyrics_plus",
+        title = "LMG Lyrics Plus",
+        description = "Пословная синхронизация",
+    ),
     BINI_LYRICS(
         id = "bini_lyrics",
         title = "BiniLyrics",
@@ -39,6 +44,7 @@ object LyricsSourceStore {
     private const val PREFS = "lyrics_sources"
     private const val KEY = "enabled"
     private const val KEY_APPLE_TTML_ADDED = "apple_ttml_added"
+    private const val KEY_LMG_LYRICS_PLUS_ADDED = "lmg_lyrics_plus_added"
     private const val KEY_BINI_LYRICS_ADDED = "bini_lyrics_added"
 
     fun enabled(context: Context): Set<LyricsSource> {
@@ -63,6 +69,13 @@ object LyricsSourceStore {
                 .putBoolean(KEY_BINI_LYRICS_ADDED, true)
                 .apply()
         }
+        if (!preferences.getBoolean(KEY_LMG_LYRICS_PLUS_ADDED, false)) {
+            result += LyricsSource.LMG_LYRICS_PLUS
+            preferences.edit()
+                .putStringSet(KEY, result.mapTo(linkedSetOf()) { it.id })
+                .putBoolean(KEY_LMG_LYRICS_PLUS_ADDED, true)
+                .apply()
+        }
         return result
     }
 
@@ -73,6 +86,7 @@ object LyricsSourceStore {
             .putStringSet(KEY, sources.mapTo(linkedSetOf()) { it.id })
             .putBoolean(KEY_APPLE_TTML_ADDED, true)
             .putBoolean(KEY_BINI_LYRICS_ADDED, true)
+            .putBoolean(KEY_LMG_LYRICS_PLUS_ADDED, true)
             .apply()
         LyricsParser.trimCache()
     }
@@ -105,6 +119,7 @@ object LyricsDisplayStore {
 fun String.lyricsSourceTitle(): String = when (this) {
     "vk" -> "VK Музыка"
     LyricsSource.APPLE_TTML.id -> LyricsSource.APPLE_TTML.title
+    LyricsSource.LMG_LYRICS_PLUS.id -> LyricsSource.LMG_LYRICS_PLUS.title
     LyricsSource.BINI_LYRICS.id -> LyricsSource.BINI_LYRICS.title
     LyricsSource.LYRICS_PLUS.id -> LyricsSource.LYRICS_PLUS.title
     LyricsSource.BETTER_LYRICS.id -> LyricsSource.BETTER_LYRICS.title

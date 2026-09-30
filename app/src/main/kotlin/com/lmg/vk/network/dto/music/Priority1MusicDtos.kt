@@ -1,5 +1,7 @@
 package com.lmg.vk.network.dto.music
 
+import com.lmg.vk.network.dto.withLargestVkSize
+
 import com.squareup.moshi.Json
 import com.squareup.moshi.JsonClass
 
@@ -72,6 +74,18 @@ data class VkArtistDto(
     val bio: String? = null,
     val track_code: String? = null,
 ) {
+    /** Hero uses the largest explicitly advertised CDN variant, without inventing sizes. */
+    fun heroPhoto(): VkArtistPhoto? = (photo.orEmpty() + photos.orEmpty().flatMap { it.photo })
+        .filter { it.url.isNotBlank() }
+        .map { source ->
+            val url = source.url.withLargestVkSize()
+            val dimensions = Regex("[?&]cs=(\\d+)x(\\d+)(?:&|$)").find(url)
+            source.copy(url = url,
+                width = dimensions?.groupValues?.get(1)?.toIntOrNull() ?: source.width,
+                height = dimensions?.groupValues?.get(2)?.toIntOrNull() ?: source.height)
+        }
+        .maxByOrNull { it.width.toLong() * it.height }
+
     fun coverUrl(): String? = sequence {
         photo.orEmpty().forEach { yield(it) }
         photos.orEmpty().flatMap { it.photo }.forEach { yield(it) }

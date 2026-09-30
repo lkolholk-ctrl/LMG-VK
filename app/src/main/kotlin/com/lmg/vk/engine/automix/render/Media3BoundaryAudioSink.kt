@@ -22,12 +22,45 @@ import java.nio.ByteBuffer
 class Media3BoundaryAudioSink internal constructor(
     private val delegate: AudioSink,
     private val boundary: RenderBoundaryEndpoint,
+    private val processorState: com.lmg.vk.engine.SinkAudioState? = null,
+    private val floatOutputEnabled: Boolean = false,
 ) : AudioSink by delegate, LmgPcmBoundaryListener, LmgTransitionGainSink, LmgLivePlaybackSink {
     private val live = ForkLivePlaybackDriver.forController(boundary.controller)
+    private val floatMeter = processorState?.let { com.lmg.vk.engine.PcmBandMeter(it) }
+    private var tapBuffer: ByteBuffer? = null
+    private var tapPts = Long.MIN_VALUE
+    private var tapStart = 0
+    private var tapFrames = 0
+    private var meterReady = false
+    private var meterSampleRate = 0
+    private var meterChannels = 0
+    private fun delegateWrite(buffer: ByteBuffer, pts: Long, units: Int, mixed: Boolean): Boolean {
+        if (mixed) processorState?.mixedOutput = true
+        val f = pcm
+        val meter = floatMeter
+        if (!floatOutputEnabled || !meterReady || meter == null || f?.bytesPerSample != 4)
+            return delegate.handleBuffer(buffer, pts, units)
+        if (tapBuffer !== buffer || tapPts != pts) {
+            tapBuffer = buffer; tapPts = pts; tapStart = buffer.position(); tapFrames = 0
+        }
+        val result = delegate.handleBuffer(buffer, pts, units)
+        // Account completed frames only; partial byte writes retain their prefix.
+        val completed = (buffer.position() - tapStart) / f.bytesPerFrame
+        if (completed > tapFrames && com.lmg.vk.engine.AudioReactor.hasListeners) {
+            // Visualization must not turn an already successful AudioSink write into
+            // a retry, which would replay accepted PCM. Never catch the delegate call.
+            try { meter.process(buffer, tapStart + tapFrames * f.bytesPerFrame, completed - tapFrames) }
+            catch (_: IllegalArgumentException) { meterReady=false }
+            catch (_: IndexOutOfBoundsException) { meterReady=false }
+        }
+        tapFrames = completed
+        if (result) tapBuffer = null
+        return result
+    }
     override fun getLmgLivePlaybackClient(): LmgLivePlaybackClient = live
     // The same existing delegate remains the only output resource. No replacement sink.
     internal val outputPort = SameSinkOutputPort(object : PcmOutputBackend {
-        override fun write(buffer: ByteBuffer, ptsUs: Long): Boolean = delegate.handleBuffer(buffer, ptsUs, 1)
+        override fun write(buffer: ByteBuffer, ptsUs: Long): Boolean = delegateWrite(buffer, ptsUs, 1, true)
         override fun volume(value: Float) = delegate.setVolume(value)
         override fun positionUs(): Long = delegate.getCurrentPositionUs(false)
         override fun pending(): Boolean = delegate.hasPendingData()
@@ -69,6 +102,8 @@ class Media3BoundaryAudioSink internal constructor(
             token=streamToken;capturedTimeline=timeline;capturedPeriod=mediaPeriodId
             capturedOffset=rendererOffsetUs
             identity=resolve(timeline,mediaPeriodId,rendererOffsetUs)
+            processorState?.bind(streamToken, identity?.source?.windowUid, identity?.source?.mediaId)
+            tapBuffer = null
         }
         if (lastFormat != format || lastIdentityMapping != identityChannelMapping) {
             lastFormat=format;lastIdentityMapping=identityChannelMapping
@@ -81,6 +116,11 @@ class Media3BoundaryAudioSink internal constructor(
                 RenderPcmFormat(it.sampleRate,it.channelCount,width,identityChannelMapping,
                     it.encoderDelay,it.encoderPadding)
             }
+        }
+        if (floatOutputEnabled && pcm?.supported == true && pcm?.bytesPerSample == 4 &&
+            (!meterReady || meterSampleRate != pcm!!.sampleRate || meterChannels != pcm!!.channels)) {
+            floatMeter?.configure(pcm!!.sampleRate, pcm!!.channels, 4)
+            meterSampleRate = pcm!!.sampleRate; meterChannels = pcm!!.channels; meterReady = true
         }
         outputPort.bindOutput(if (identity != null && pcm?.supported == true && !tunneling && !offloaded) streamToken else null, pcm)
         if(rendererPositionUs==C.TIME_UNSET || rendererOffsetUs==C.TIME_UNSET) {
@@ -100,11 +140,12 @@ class Media3BoundaryAudioSink internal constructor(
     }
 
     override fun handleBuffer(buffer: ByteBuffer, presentationTimeUs: Long, encodedAccessUnitCount: Int): Boolean {
+        boundary.capturePreroll(buffer,presentationTimeUs,encodedAccessUnitCount)
         if (live.discardIncomingPreroll(boundary,buffer,presentationTimeUs)) return true
         return boundary.forwardWithCueGate(buffer,presentationTimeUs,encodedAccessUnitCount) {
             live.checkLegacyWrite(boundary)
             outputPort.checkLegacyWrite()
-            delegate.handleBuffer(buffer,presentationTimeUs,encodedAccessUnitCount)
+            delegateWrite(buffer,presentationTimeUs,encodedAccessUnitCount, false)
         }
     }
     override fun isEnded(): Boolean = live.interceptedIsEnded(boundary) ?: delegate.isEnded()
@@ -123,6 +164,8 @@ class Media3BoundaryAudioSink internal constructor(
             CueProbeReason.ROUTE_CHANGED else CueProbeReason.OUTPUT_RESET, discard)
         boundary.diagnostic { boundary.reset(reason) }
         token=null;capturedTimeline=null;capturedPeriod=null;identity=null
+        processorState?.bind(null, null, null)
+        floatMeter?.reset(); tapBuffer = null; meterReady = false
     }
     override fun flush() { resetBoundary(discard=true);delegate.flush();outputPort.afterActualReset() }
     override fun reset() { resetBoundary(discard=true);delegate.reset();outputPort.afterActualReset() }
@@ -201,11 +244,13 @@ class Media3BoundaryAudioSink internal constructor(
     }
 
     companion object {
-        fun wrap(delegate: AudioSink, controller: RenderBoundaryController?): AudioSink {
+        fun wrap(delegate: AudioSink, controller: RenderBoundaryController?,
+            processorState: com.lmg.vk.engine.SinkAudioState? = null,
+            floatOutputEnabled: Boolean = false): AudioSink {
             if(controller==null)return delegate
             return try {
                 check(LmgPcmBoundaryListener.protocolVersion()==1)
-                Media3BoundaryAudioSink(delegate,controller.newEndpoint())
+                Media3BoundaryAudioSink(delegate,controller.newEndpoint(),processorState,floatOutputEnabled)
             }catch(_: Exception){controller.close();delegate}
             catch(_: LinkageError){controller.close();delegate}
         }

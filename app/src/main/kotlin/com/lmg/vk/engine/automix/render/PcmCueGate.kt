@@ -59,6 +59,15 @@ internal interface CueOwnerAdmission {
     fun offer(side: Int, bytes: ByteBuffer, firstFrame: Long): Int
     fun poll(side: Int, destination: ByteBuffer, maxFrames: Int, info: LongArray): Int
 }
+/** Opt-in only for the concrete validated JNI adapter. Interface-delegating decorators
+ * deliberately do not inherit this capability: their offer/poll hooks must still run.
+ */
+internal interface CursorPreservingCueAdmission : CueOwnerAdmission {
+    fun offerCodecBuffer(side: Int, bytes: ByteBuffer, firstFrame: Long): Int
+    fun pollWithoutMoving(side: Int, destination: ByteBuffer, maxFrames: Int,
+        info: LongArray, channels: Int): Int
+}
+
 internal data class CueOutputAnchors(val generation: Long, val revision: Long,
     val outgoingPtsUs: Long, val incomingPtsUs: Long)
 internal class CueOwnerTicket internal constructor() {
@@ -324,11 +333,23 @@ internal class PcmCueGate(
             t.lease.isCurrent(a.epoch.generation,a.epoch.revision,requireNotNull(a.format))
         try {
             if(!valid())throw PcmOwnerResetRequired()
-            val view=destination.duplicate().order(destination.order())
-            val n=t.admission.poll(side,view,maxFrames,info)
+            val position = destination.position()
+            val limit = destination.limit()
+            val admission=t.admission
+            val channels=requireNotNull(a.format).channels
+            val n=if(admission is CursorPreservingCueAdmission) {
+                admission.pollWithoutMoving(side,destination,maxFrames,info,channels)
+            } else {
+                // Generic adapters retain the defensive view and cannot publish the cursor.
+                val view=destination.duplicate().order(destination.order())
+                val count=admission.poll(side,view,maxFrames,info)
+                check(count in 0..maxFrames && view.limit()==limit &&
+                    view.position().toLong()-position == count.toLong()*channels*4)
+                count
+            }
             if(n !in 0..maxFrames || info[1]!=n.toLong() || !valid())throw PcmOwnerResetRequired()
-            check(view.position()-destination.position()==n*requireNotNull(a.format).channels*4)
-            destination.position(view.position());return n
+            check(destination.position() == position && destination.limit() == limit)
+            destination.position(position + n * requireNotNull(a.format).channels * 4);return n
         } catch(failure: Throwable) {
             release(a,CueProbeReason.OWNER_FAILURE)
             try { abortTransfer(t) } catch(_: Throwable) { }
@@ -437,28 +458,39 @@ internal class PcmCueGate(
             retryEnd = null; invalidUntilReset = false
         }
         fun ownsInput(): Boolean = owned != null
-        fun positionPastCue(cueUs: Long): Boolean = endpoint.rendererSongPositionUs?.let { it > cueUs } == true
+        fun forwardClaimed(buffer: ByteBuffer, pts: Long, units: Int): Boolean {
+            if (!controller.owner()) {
+                attempt.get()?.let { release(it, CueProbeReason.THREAD_VIOLATION) }
+                throw PcmOwnerResetRequired()
+            }
+            val transfer = owned ?: throw PcmOwnerResetRequired()
+            return forwardOwned(transfer, buffer, pts, units)
+        }
+        fun positionPastCue(cueUs: Long): Boolean = endpoint.rendererPositionValue > cueUs
         fun contextMatches(): Boolean = token === endpoint.streamToken &&
             sameIdentity(identity, endpoint.identity) && format == endpoint.format &&
             endpoint.seenEpoch === controller.epoch() && endpoint.problem == null
         private fun sameIdentity(a: RenderOutputIdentity?, b: RenderOutputIdentity?): Boolean =
-            a?.source == b?.source && a?.periodUid == b?.periodUid &&
-                a?.windowSequenceNumber == b?.windowSequenceNumber &&
-                a?.periodPositionInWindowUs == b?.periodPositionInWindowUs &&
-                a?.rendererOffsetUs == b?.rendererOffsetUs
+            a === b || (a!=null && b!=null && a.source==b.source && a.periodUid==b.periodUid &&
+                a.windowSequenceNumber==b.windowSequenceNumber &&
+                a.periodPositionInWindowUs==b.periodPositionInWindowUs && a.rendererOffsetUs==b.rendererOffsetUs)
 
         /** Exact arithmetic for a unique zero-origin sample grid within ONE integer-us timestamp tick.
          * This is a supported transport domain, not an arbitrary timing-jitter correction.
          */
-        private fun firstFrame(pts: Long, id: RenderOutputIdentity, f: RenderPcmFormat): Long? = try {
+        private fun firstFrameValue(pts: Long, id: RenderOutputIdentity, f: RenderPcmFormat): Long = try {
             val us = Math.addExact(Math.subtractExact(pts, id.rendererOffsetUs), id.periodPositionInWindowUs)
-            if (us < 0 || us > 86_400_000_000L) null else {
+            if (us < 0 || us > 86_400_000_000L) Long.MIN_VALUE else {
                 val n = Math.multiplyExact(us, f.sampleRate.toLong())
                 val frame = (n + 500_000L) / 1_000_000L
                 val distance = kotlin.math.abs(Math.subtractExact(frame * 1_000_000L, n))
-                if (distance <= f.sampleRate.toLong()) frame else null
+                if (distance <= f.sampleRate.toLong()) frame else Long.MIN_VALUE
             }
-        } catch (_: ArithmeticException) { null }
+        } catch (_: ArithmeticException) { Long.MIN_VALUE }
+        private fun firstFrame(pts: Long,id: RenderOutputIdentity,f: RenderPcmFormat): Long? {
+            val value=firstFrameValue(pts,id,f)
+            return if(value==Long.MIN_VALUE)null else value
+        }
 
         private fun forwardOwned(t: OwnerTransfer, buffer: ByteBuffer, pts: Long, units: Int): Boolean {
             fun reset(): Nothing {
@@ -481,7 +513,8 @@ internal class PcmCueGate(
                 }
                 if(ownedRetry==null) {
                     if(buffer.remaining()%f.bytesPerFrame!=0)reset()
-                    val first=firstFrame(pts,requireNotNull(identity),f) ?: reset()
+                    val first=firstFrameValue(pts,requireNotNull(identity),f)
+                    if(first==Long.MIN_VALUE)reset()
                     if(first!=nextOwnedFrame)reset()
                     if(!buffer.hasRemaining())return true
                     ownedRetry=buffer;ownedInitialPosition=buffer.position();ownedPosition=buffer.position()
@@ -490,7 +523,11 @@ internal class PcmCueGate(
                 if(ownedRetry !== buffer || buffer.position()!=ownedPosition || buffer.limit()!=ownedLimit || pts!=ownedPts)reset()
                 val first=ownedFirst+(buffer.position()-ownedInitialPosition)/f.bytesPerFrame
                 val frames=buffer.remaining()/f.bytesPerFrame
-                val accepted=t.admission.offer(ownedSide,buffer.asReadOnlyBuffer(),first)
+                val admission=t.admission
+                val accepted=if(admission is CursorPreservingCueAdmission)
+                    admission.offerCodecBuffer(ownedSide,buffer,first)
+                else admission.offer(ownedSide,buffer.asReadOnlyBuffer(),first)
+                if(buffer.position()!=ownedPosition || buffer.limit()!=ownedLimit)reset()
                 if(accepted !in 0..frames)reset()
                 // Recheck cancellation before acknowledging; accepted obsolete data is discarded,
                 // never replayed to legacy. Coordinated flush releases the codec's old originals.

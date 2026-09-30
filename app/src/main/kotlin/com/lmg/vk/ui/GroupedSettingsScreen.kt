@@ -75,6 +75,7 @@ private enum class SettingsPage(
     ROOT(R.string.settings_page_root, R.string.settings_page_root_subtitle),
     VK(R.string.settings_page_vk, R.string.settings_page_vk_subtitle),
     PLAYBACK(R.string.settings_page_playback, R.string.settings_page_playback_subtitle),
+    DSP(R.string.dsp_title, R.string.dsp_subtitle),
     NETWORK(R.string.settings_page_network, R.string.settings_page_network_subtitle),
     CACHE(R.string.settings_page_cache, R.string.settings_page_cache_subtitle),
     APPEARANCE(R.string.settings_page_appearance, R.string.settings_page_appearance_subtitle),
@@ -135,7 +136,11 @@ fun SettingsScreen(
     LaunchedEffect(Unit) { com.lmg.vk.network.VpnBypassManager.updateStateAndApply() }
 
     fun returnFromPage() {
-        page = if (page == SettingsPage.DUPLICATES) SettingsPage.VK else SettingsPage.ROOT
+        page = when (page) {
+            SettingsPage.DUPLICATES -> SettingsPage.VK
+            SettingsPage.DSP -> SettingsPage.PLAYBACK
+            else -> SettingsPage.ROOT
+        }
     }
 
     SideEffect {
@@ -368,6 +373,15 @@ fun SettingsScreen(
                     }
 
                     SettingsPage.PLAYBACK -> {
+                        PlainCard {
+                            SettingsActionItem(
+                                title = stringResource(R.string.dsp_title),
+                                subtitle = stringResource(R.string.dsp_subtitle),
+                                icon = com.lmg.vk.ui.icons.LiquidGlyphs.Equalizer,
+                                onClick = { page = SettingsPage.DSP },
+                            )
+                        }
+                        Spacer(Modifier.height(sectionGap))
                         SectionLabel(stringResource(R.string.section_background_playback))
                         PlainCard {
                             SettingsActionItem(
@@ -405,6 +419,7 @@ fun SettingsScreen(
                         }
                     }
 
+                    SettingsPage.DSP -> DspSettingsContent()
                     SettingsPage.CACHE -> CacheSettingsContent()
 
                     SettingsPage.NETWORK -> {

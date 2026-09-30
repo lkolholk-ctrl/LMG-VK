@@ -12,7 +12,7 @@ FORK={
  'androidx.media3.exoplayer.LmgLivePlaybackLeaseTest':['exactGenerationAndRevisionRequired', 'actualPeriodGuardIsRechecked', 'wrongThreadCannotUseLease', 'crossThreadRevocationIsVisible', 'clockPinnedExactlyOnce', 'invalidPeriodsCannotPinClock', 'revokedPinnedLeaseIsNotCurrent', 'applicationCannotConstructPublicGrant'],
  'androidx.media3.exoplayer.LmgLiveMediaClockTest':['unavailablePcmDoesNotAdvanceStandaloneTime','explicitReleaseAnchorsNormalClock','liveClockRejectsForeignSpeed','resetCannotSilentlyDropLease'],
 }
-EXPORTS=['Java_com_lmg_vk_engine_automix_nativecore_NativeLivePcmExecutor_'+n for n in ['nativeProtocol','nativeCreate','nativePush','nativeEof','nativeRender','nativeEncodePrefix','nativeSourceTime','nativeStats','nativeDestroy']]
+EXPORTS=['Java_com_lmg_vk_engine_automix_nativecore_NativeLivePcmExecutor_'+n for n in ['nativeProtocol','nativeCreate','nativeCreatePrimed','nativePush','nativeEof','nativeRender','nativeEncodePrefix','nativeSourceTime','nativeStats','nativeDestroy']]
 def verify(reports,apks,fork_reports=None):
  verify_report(reports,APP_CLASS,NAMES)
  if not apks:raise ValueError('No fresh APK provided')
@@ -29,7 +29,7 @@ def verify(reports,apks,fork_reports=None):
     for symbol in EXPORTS:verify_jni_export(data,*ABI_IDENTITIES[abi],symbol.encode())
  fork_count=None
  if fork_reports is not None:fork_count=sum(verify_report(fork_reports,k,v) for k,v in FORK.items())
- return dict(status='LIVE_EXECUTOR_REPORTS_AND_EXPORTS_VERIFIED',newRealJni=13,liveExportsPerAbi=9,abis=list(abis),forkTests=fork_count,physicalAudioVerified=False,automaticActivation=False)
+ return dict(status='LIVE_EXECUTOR_REPORTS_AND_EXPORTS_VERIFIED',newRealJni=13,liveExportsPerAbi=len(EXPORTS),abis=list(abis),forkTests=fork_count,physicalAudioVerified=False,automaticActivation=False)
 if __name__=='__main__':
  p=argparse.ArgumentParser(description=__doc__);p.add_argument('--reports',type=Path,default=ROOT/'app/build/test-results/testDebugUnitTest');p.add_argument('--apk',type=Path,action='append');p.add_argument('--fork-reports',type=Path);a=p.parse_args()
  try:print(json.dumps(verify(a.reports,a.apk or list((ROOT/'app/build/outputs/apk/debug').glob('*.apk')),a.fork_reports),indent=2))

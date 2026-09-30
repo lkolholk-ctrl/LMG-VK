@@ -94,8 +94,10 @@ fun LyricsScreen(
     var shareLine by remember(trackKey) { mutableStateOf<String?>(null) }
     var syncOffsetMs by remember(trackKey) { mutableLongStateOf(LyricsSyncStore.get(context, trackKey)) }
     var seekRevision by remember(trackKey) { mutableIntStateOf(0) }
-    val lyricsKey = remember(trackKey, trackTitle, trackArtist, trackDurationMs, lrcText, enabledSources) {
-        LoadedLyricsKey(trackKey, trackTitle, trackArtist, trackDurationMs, lrcText,
+    val requestDurationMs = PlayerController.currentTrack.value
+        ?.takeIf { it.id == resolvedTrackId }?.durationMs?.takeIf { it > 0 } ?: trackDurationMs
+    val lyricsKey = remember(trackKey, trackTitle, trackArtist, requestDurationMs, lrcText, enabledSources) {
+        LoadedLyricsKey(trackKey, trackTitle, trackArtist, requestDurationMs, lrcText,
             enabledSources.toSet(), java.util.Locale.getDefault().toLanguageTag())
     }
     var data by remember(lyricsKey, revision) { mutableStateOf(LoadedLyricsStore.peek(lyricsKey)) }
@@ -120,27 +122,7 @@ fun LyricsScreen(
         loading = true
         failed = false
         try {
-            val appContext = context.applicationContext
-            data = LoadedLyricsStore.load(lyricsKey) {
-                val content = if (!lrcText.isNullOrBlank()) {
-                    val trimmed = lrcText.trimStart()
-                    if (trimmed.startsWith("<tt", true) ||
-                        (trimmed.startsWith("<?xml", true) && trimmed.contains("<tt", true))) {
-                        LyricsContent.RawTtml(lrcText, "embedded", "Embedded")
-                    } else {
-                        LyricsContent.Legacy(LyricsParser.parseLyrics(lrcText))
-                    }
-                } else {
-                    LyricsRepository.load(appContext, audioFileUri, trackTitle, trackArtist,
-                        trackDurationMs, resolvedTrackId, enabledSources = lyricsKey.sources)
-                }
-                val parseTrace = com.lmg.vk.debug.PlayerStartupTrace.begin("lyrics_parse")
-                try {
-                    AccompanistLyricsAdapter.convert(content, trackDurationMs)
-                } finally {
-                    parseTrace?.end()
-                }
-            }
+            data = LoadedLyricsStore.load(context.applicationContext, audioFileUri, lyricsKey)
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (error: Exception) {

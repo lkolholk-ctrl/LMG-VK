@@ -9,6 +9,9 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface WaveDao {
 
+    @Query("SELECT * FROM cached_tracks WHERE accountId = :accountId")
+    fun getCacheBrowserTracks(accountId: Long): List<CachedTrack>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     fun insertTrack(track: CachedTrack): Long
 

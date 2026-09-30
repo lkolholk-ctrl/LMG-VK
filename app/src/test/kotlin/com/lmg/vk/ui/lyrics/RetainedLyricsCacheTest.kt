@@ -6,6 +6,30 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class RetainedLyricsCacheTest {
+    @Test fun completedEmptyLookupIsReusedButExpiresForRetry() = cacheTest { owner ->
+        var now = 0L
+        val cache = RetainedLyricsCache<String, String>(owner, 4, 100, String::length,
+            expiresAfterMs = { if (it.isEmpty()) 30_000 else Long.MAX_VALUE }, nowMs = { now })
+        assertEquals("", cache.getOrPrepare("missing") { "" })
+        assertEquals("", cache.getOrPrepare("missing") { error("Repeated background search") })
+        now = 30_000
+        assertNull(cache.peek("missing"))
+        assertEquals("recovered", cache.getOrPrepare("missing") { "recovered" })
+    }
+
+    @Test fun trackChangeCancelsOldRequestWithoutDiscardingReadyLyrics() = cacheTest { owner ->
+        val cache = cache(owner)
+        cache.getOrPrepare("ready") { "saved" }
+        val entered = CompletableDeferred<Unit>()
+        val old = launch { cache.getOrPrepare("old") { entered.complete(Unit); awaitCancellation() } }
+        entered.await()
+        cache.cancelPending("old")
+        old.join()
+        assertTrue(old.isCancelled)
+        assertEquals("saved", cache.peek("ready"))
+        assertEquals("current", cache.getOrPrepare("new") { "current" })
+    }
+
     @Test fun clearingRemovesMemoryAndCancelsPendingLoads() = cacheTest { owner ->
         val cache = cache(owner)
         cache.getOrPrepare("ready") { "saved" }

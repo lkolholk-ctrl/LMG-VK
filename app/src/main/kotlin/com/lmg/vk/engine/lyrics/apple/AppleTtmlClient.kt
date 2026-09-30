@@ -29,7 +29,8 @@ class DefaultAppleTtmlClient(
         .connectTimeout(4, TimeUnit.SECONDS)
         .readTimeout(12, TimeUnit.SECONDS)
         .callTimeout(14, TimeUnit.SECONDS)
-        .build()
+        .build(),
+    private val logTag: String = "apple",
 ) : AppleTtmlClient {
 
     override suspend fun fetch(
@@ -61,7 +62,7 @@ class DefaultAppleTtmlClient(
             return@withContext Result.failure(it)
         }
 
-        DebugLog.add("apple client fetch title='$title' artist='$artist' durSec=${durationMs / 1000L}")
+        DebugLog.add("$logTag client fetch title='$title' artist='$artist' durSec=${durationMs / 1000L}")
 
         suspendCancellableCoroutine { continuation ->
             val request = Request.Builder()
@@ -76,7 +77,7 @@ class DefaultAppleTtmlClient(
 
             call.enqueue(object : Callback {
                 override fun onFailure(call: Call, e: IOException) {
-                    DebugLog.add("apple client fail error=${e.javaClass.simpleName}: ${e.message}")
+                    DebugLog.add("$logTag client fail error=${e.javaClass.simpleName}: ${e.message}")
                     if (continuation.isActive) {
                         continuation.resume(Result.failure(e))
                     }
@@ -87,7 +88,7 @@ class DefaultAppleTtmlClient(
                     try {
                         response.use { resp ->
                             if (!resp.isSuccessful) {
-                                DebugLog.add("apple client error status=$code")
+                                DebugLog.add("$logTag client error status=$code")
                                 if (continuation.isActive) {
                                     continuation.resume(Result.failure(IOException("HTTP error $code")))
                                 }
@@ -98,7 +99,7 @@ class DefaultAppleTtmlClient(
                             val isTtml = trimmed.startsWith("<tt", ignoreCase = true) ||
                                 (trimmed.startsWith("<?xml", ignoreCase = true) &&
                                     trimmed.contains("<tt", ignoreCase = true))
-                            DebugLog.add("apple client success status=$code bytes=${body.length} isTtml=$isTtml")
+                            DebugLog.add("$logTag client success status=$code bytes=${body.length} isTtml=$isTtml")
                             if (!isTtml || body.isBlank()) {
                                 if (continuation.isActive) {
                                     continuation.resume(Result.failure(IOException("Invalid non-TTML response")))
@@ -110,7 +111,7 @@ class DefaultAppleTtmlClient(
                             }
                         }
                     } catch (e: Throwable) {
-                        DebugLog.add("apple client exception=${e.message}")
+                        DebugLog.add("$logTag client exception=${e.message}")
                         if (continuation.isActive) {
                             continuation.resume(Result.failure(e))
                         }

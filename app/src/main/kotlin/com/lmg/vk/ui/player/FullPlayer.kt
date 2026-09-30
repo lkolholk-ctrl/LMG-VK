@@ -536,8 +536,9 @@ fun FullPlayer(
                         translationX = swipeOffsetX.value
                         scaleX = artScale
                         scaleY = artScale
-                        shadowElevation = (24f - 10f * (1f - artScale) / 0.14f) *
-                            expandProgress.value.coerceIn(0f, 1f)
+                        shadowElevation = com.lmg.vk.ui.theme.LiquidMetrics.castShadow(
+                            (24f - 10f * (1f - artScale) / 0.14f) * expandProgress.value.coerceIn(0f, 1f)
+                        )
                         alpha = (1f - tallMotionFraction) * artAlpha
                         clip = true
                         shape = RoundedCornerShape((16f * expandProgress.value.coerceIn(0f, 1f)).dp)
@@ -927,7 +928,8 @@ fun FullPlayer(
                 // Time labels
                 Row(
                     Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
                         formatTime(currentPositionMs),
@@ -935,6 +937,7 @@ fun FullPlayer(
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Medium
                     )
+
                     // Тап по правому лейблу: «-осталось» ⇄ «всего». Выбор помнится.
                     val showTotal by AppSettings.timeShowTotal.collectAsState()
                     val remaining = (durationMs - currentPositionMs).coerceAtLeast(0)
@@ -1310,7 +1313,7 @@ fun FullPlayer(
                         .padding(horizontal = 20.dp)
                         .padding(bottom = 32.dp)
                 ) {
-                    // Стриминговые пункты (волна / скачать / 👍👎) — только для
+                    // Стриминговые пункты (волна / скачать / лайк / дизлайк) — только для
                     // онлайн-треков. Для локальных/оффлайн они не имеют смысла:
                     // повторно кешировать уже загруженный трек не нужно.
                     val isLocalTrack = currentTrackObj?.let {

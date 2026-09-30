@@ -204,12 +204,14 @@ fun LiquidSlider(
                             alpha = progress
                         )
                     },
-                    shadow = {
-                        Shadow(
-                            radius = 4f.dp,
-                            color = Color.Black.copy(alpha = 0.05f)
-                        )
-                    },
+                    shadow = if (com.lmg.vk.ui.theme.LiquidMetrics.CastShadowsEnabled) {
+                        {
+                            Shadow(
+                                radius = 4f.dp,
+                                color = Color.Black.copy(alpha = 0.05f)
+                            )
+                        }
+                    } else null,
                     innerShadow = {
                         val progress = dampedDragAnimation.pressProgress
                         InnerShadow(

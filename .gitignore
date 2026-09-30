@@ -30,3 +30,9 @@ apple_music_analysis_example.json
 __pycache__/
 *.pyc
 
+
+# Builds & APKs
+*.apk
+*.idsig
+.kotlin/
+build_native_*/

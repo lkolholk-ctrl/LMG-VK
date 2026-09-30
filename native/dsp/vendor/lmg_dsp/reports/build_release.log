@@ -1,0 +1,11 @@
+[ 10%] Building CXX object CMakeFiles/lmg_dsp.dir/src/filter.cpp.o
+[ 20%] Building CXX object CMakeFiles/lmg_dsp.dir/src/dsp.cpp.o
+[ 30%] Linking CXX static library liblmg_dsp.a
+[ 40%] Built target lmg_dsp
+[ 50%] Building CXX object CMakeFiles/lmg_dsp_tests.dir/tests/test_dsp.cpp.o
+[ 60%] Linking CXX executable lmg_dsp_pcm_example
+[ 70%] Built target lmg_dsp_pcm_example
+[ 80%] Linking CXX executable lmg_dsp_c_smoke
+[ 90%] Built target lmg_dsp_c_smoke
+[100%] Linking CXX executable lmg_dsp_tests
+[100%] Built target lmg_dsp_tests

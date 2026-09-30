@@ -45,6 +45,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.lmg.vk.ui.components.DetailStyle
+import com.lmg.vk.ui.components.DetailSecondaryAction
+import com.lmg.vk.ui.components.detailClickable
 import com.lmg.vk.R
 import com.lmg.vk.engine.AudioDownloadManager
 import com.lmg.vk.engine.PlaybackContext
@@ -57,6 +60,9 @@ import com.lmg.vk.engine.PlaylistManager
 import com.lmg.vk.engine.Track
 import com.lmg.vk.data.local.db.FavoriteTrackDatabase
 import com.lmg.vk.data.local.db.LibraryRepository
+import com.lmg.vk.ui.components.DetailMenuAction
+import com.lmg.vk.ui.components.DetailMenuButton
+import androidx.compose.ui.geometry.Rect
 import com.lmg.vk.ui.components.DetailHeader
 import com.lmg.vk.ui.components.DetailTopBar
 import com.lmg.vk.ui.components.DetailTrackRow
@@ -105,6 +111,7 @@ fun PlaylistDetailScreen(
     var isFollowing by remember { mutableStateOf(false) }
     var followBusy by remember { mutableStateOf(false) }
     var cacheRequested by remember { mutableStateOf(false) }
+    var actionsAnchor by remember { mutableStateOf(Rect.Zero) }
     var actionsTrack by remember { mutableStateOf<Track?>(null) }
     var playlistPickerTrack by remember { mutableStateOf<Track?>(null) }
     var artistChooser by remember(playlistId) { mutableStateOf<List<MiniArtist>?>(null) }
@@ -262,6 +269,24 @@ fun PlaylistDetailScreen(
         }
     }
 
+    val playlistAdd: () -> Unit = {
+                                if (!isLocalPlaylist && !isFollowing && playlistInfo?.canFollow == true) {
+                                    scope.launch {
+                                        followBusy = true
+                                        if (MusicBackend.followPlaylist(playlistId)) isFollowing = true
+                                        followBusy = false
+                                    }
+                                }
+                            }
+    val playlistCache: () -> Unit = {
+                                cacheRequested = true
+                                playableTracks
+                                    .filterNot { it.id in downloadedIds }
+                                    .forEach { AudioDownloadManager.downloadTrack(context, it) }
+                            }
+    val playlistQueue: () -> Unit = { playableTracks.forEach(PlayerController::addToQueue) }
+    val playlistRename: () -> Unit = { showRenameDialog = true }
+
     val listState = rememberLazyListState()
     val showTopBarTitle by remember {
         derivedStateOf {
@@ -269,7 +294,7 @@ fun PlaylistDetailScreen(
         }
     }
 
-    Box(modifier = Modifier.fillMaxSize().background(LiquidSurfaces.sheet(isDark))) {
+    Box(modifier = Modifier.fillMaxSize().background(DetailStyle.background(isDark))) {
         when {
             isLoading && tracks.isEmpty() ->
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -300,6 +325,8 @@ fun PlaylistDetailScreen(
                 ) {
                     item {
                         DetailHeader(
+                            centeredArtwork = true,
+                            wideArtwork = true,
                             title = name,
                             // Обложки у плейлиста нет — берём обложку первого трека:
                             // пустой квадрат смотрелся бы как ошибка загрузки.
@@ -343,6 +370,7 @@ fun PlaylistDetailScreen(
 
                     item {
                         PlaylistActionsRow(
+                            title = name,
                             isDark = isDark,
                             isLocal = isLocalPlaylist,
                             isSynced = localPlaylist?.remoteId != null,
@@ -351,71 +379,13 @@ fun PlaylistDetailScreen(
                             followEnabled = playlistInfo?.canFollow == true && !followBusy,
                             cacheEnabled = isPremium && playableTracks.isNotEmpty(),
                             queueEnabled = playableTracks.isNotEmpty(),
-                            onAdd = {
-                                if (!isLocalPlaylist && !isFollowing && playlistInfo?.canFollow == true) {
-                                    scope.launch {
-                                        followBusy = true
-                                        if (MusicBackend.followPlaylist(playlistId)) isFollowing = true
-                                        followBusy = false
-                                    }
-                                }
-                            },
-                            onCache = {
-                                cacheRequested = true
-                                playableTracks
-                                    .filterNot { it.id in downloadedIds }
-                                    .forEach { AudioDownloadManager.downloadTrack(context, it) }
-                            },
-                            onQueue = { playableTracks.forEach(PlayerController::addToQueue) },
-                            onRename = { showRenameDialog = true },
+                            onAdd = playlistAdd,
+                            onCache = playlistCache,
+                            onQueue = playlistQueue,
+                            onRename = playlistRename,
                         )
                     }
 
-                    if (!isLocalPlaylist && playlistArtists.isNotEmpty()) {
-                        item {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 20.dp, vertical = 8.dp)
-                                    .clip(RoundedCornerShape(18.dp))
-                                    .background(LiquidSurfaces.card(isDark))
-                                    .liquidClickable(
-                                        pressedScale = LiquidMotion.PressButton,
-                                        onClick = {
-                                            if (playlistArtists.size == 1) {
-                                                onNavigateToArtist(playlistArtists.first().id.orEmpty())
-                                            } else {
-                                                artistChooser = playlistArtists
-                                            }
-                                        },
-                                    )
-                                    .padding(horizontal = 14.dp, vertical = 13.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Icon(
-                                    com.lmg.vk.ui.icons.LmgGlyphs.UserOutline28,
-                                    contentDescription = null,
-                                    tint = colors.accent,
-                                    modifier = Modifier.size(24.dp),
-                                )
-                                Text(
-                                    text = playlistInfo?.artist.orEmpty().ifBlank {
-                                        playlistArtists.joinToString(", ") { it.displayName }
-                                    },
-                                    color = LiquidSurfaces.textPrimary(isDark),
-                                    fontSize = 15.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    modifier = Modifier.padding(start = 12.dp).weight(1f),
-                                )
-                                Icon(
-                                    com.lmg.vk.ui.icons.LmgGlyphs.ArrowRightOutline28,
-                                    contentDescription = stringResource(R.string.open_artist),
-                                    tint = LiquidSurfaces.textSecondary(isDark),
-                                    modifier = Modifier.size(19.dp),
-                                )
-                            }
-                        }
-                    }
 
                     if (cacheRequested || cachedCount > 0) {
                         item {
@@ -458,6 +428,7 @@ fun PlaylistDetailScreen(
                                 isDark = isDark,
                                 showDivider = index < tracks.lastIndex,
                                 enabled = track.isAvailable,
+                                onMorePosition = { actionsAnchor = it },
                                 onMore = if (track.isAvailable) {
                                     { actionsTrack = track }
                                 } else null,
@@ -503,6 +474,50 @@ fun PlaylistDetailScreen(
                         }
                     }
 
+                    if (!isLocalPlaylist && playlistArtists.isNotEmpty()) {
+                        item {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 20.dp, vertical = 8.dp)
+                                    .liquidClickable(
+                                        pressedScale = LiquidMotion.PressButton,
+                                        onClick = {
+                                            if (playlistArtists.size == 1) {
+                                                onNavigateToArtist(playlistArtists.first().id.orEmpty())
+                                            } else {
+                                                artistChooser = playlistArtists
+                                            }
+                                        },
+                                    )
+                                    .padding(horizontal = 14.dp, vertical = 13.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Icon(
+                                    com.lmg.vk.ui.icons.LmgGlyphs.UserOutline28,
+                                    contentDescription = null,
+                                    tint = colors.accent,
+                                    modifier = Modifier.size(24.dp),
+                                )
+                                Text(
+                                    text = playlistInfo?.artist.orEmpty().ifBlank {
+                                        playlistArtists.joinToString(", ") { it.displayName }
+                                    },
+                                    color = LiquidSurfaces.textPrimary(isDark),
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    modifier = Modifier.padding(start = 12.dp).weight(1f),
+                                )
+                                Icon(
+                                    com.lmg.vk.ui.icons.LmgGlyphs.ArrowRightOutline28,
+                                    contentDescription = stringResource(R.string.open_artist),
+                                    tint = LiquidSurfaces.textSecondary(isDark),
+                                    modifier = Modifier.size(19.dp),
+                                )
+                            }
+                        }
+                    }
+
                     playlistInfo?.let { info ->
                         item { PlaylistMetadata(info = info, isDark = isDark) }
                     }
@@ -514,12 +529,20 @@ fun PlaylistDetailScreen(
             title = name,
             showTitle = showTopBarTitle,
             isDark = isDark,
-            onBack = onBack
+            onBack = onBack,
+            idleTitle = stringResource(R.string.detail_playlist_heading),
+            trailing = { DetailMenuButton(name, buildList {
+                add(DetailMenuAction(stringResource(R.string.action_add), com.lmg.vk.ui.icons.LmgGlyphs.BookmarkOutline28, !isLocalPlaylist && playlistInfo?.isOwned != true && !isFollowing && playlistInfo?.canFollow == true && !followBusy, playlistAdd))
+                add(DetailMenuAction(stringResource(R.string.action_cache), com.lmg.vk.ui.icons.LmgGlyphs.DownloadOutline28, isPremium && playableTracks.isNotEmpty(), playlistCache))
+                add(DetailMenuAction(stringResource(R.string.action_queue), com.lmg.vk.ui.icons.LmgGlyphs.ListPlayOutline28, playableTracks.isNotEmpty(), playlistQueue))
+                if (isLocalPlaylist) add(DetailMenuAction(stringResource(R.string.action_rename), lmgVector(LmgDrawables.ListPenOutline20), onClick = playlistRename))
+            }, circular = true) },
         )
 
         actionsTrack?.let { selected ->
             val selectedIndex = tracks.indexOfFirst { it.id == selected.id }
             TrackActionsSheet(
+                anchor = actionsAnchor,
                 track = selected,
                 isFavorite = com.lmg.vk.engine.VkAudioIdentity.stableFullId(selected.id) in favoriteIds,
                 onToggleFavorite = {
@@ -588,7 +611,8 @@ fun PlaylistDetailScreen(
 }
 
 @Composable
-private fun PlaylistActionsRow(
+internal fun PlaylistActionsRow(
+    title: String,
     isDark: Boolean,
     isLocal: Boolean,
     isSynced: Boolean,
@@ -603,11 +627,12 @@ private fun PlaylistActionsRow(
     onRename: () -> Unit,
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 10.dp),
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 5.dp, bottom = 12.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        PlaylistActionButton(
-            title = when {
+        DetailSecondaryAction(
+            label = when {
                 isSynced -> stringResource(R.string.playlist_synced)
                 isLocal -> stringResource(R.string.playlist_local)
                 isOwned -> stringResource(R.string.yours)
@@ -623,11 +648,13 @@ private fun PlaylistActionsRow(
             isDark = isDark,
             onClick = onAdd,
         )
-        PlaylistActionButton(stringResource(R.string.action_cache), com.lmg.vk.ui.icons.LmgGlyphs.DownloadOutline28, cacheEnabled, isDark, onCache)
-        PlaylistActionButton(stringResource(R.string.action_queue), com.lmg.vk.ui.icons.LmgGlyphs.ListPlayOutline28, queueEnabled, isDark, onQueue)
-        if (isLocal) {
-            PlaylistActionButton(stringResource(R.string.action_rename), lmgVector(LmgDrawables.ListPenOutline20), true, isDark, onRename)
-        }
+        DetailSecondaryAction(stringResource(R.string.action_cache), com.lmg.vk.ui.icons.LmgGlyphs.DownloadOutline28, isDark, cacheEnabled, onCache)
+        DetailMenuButton(title, buildList {
+            add(DetailMenuAction(stringResource(R.string.action_add), com.lmg.vk.ui.icons.LmgGlyphs.BookmarkOutline28, !isLocal && !isOwned && !isFollowing && followEnabled, onAdd))
+            add(DetailMenuAction(stringResource(R.string.action_cache), com.lmg.vk.ui.icons.LmgGlyphs.DownloadOutline28, cacheEnabled, onCache))
+            add(DetailMenuAction(stringResource(R.string.action_queue), com.lmg.vk.ui.icons.LmgGlyphs.ListPlayOutline28, queueEnabled, onQueue))
+            if (isLocal) add(DetailMenuAction(stringResource(R.string.action_rename), lmgVector(LmgDrawables.ListPenOutline20), onClick = onRename))
+        })
     }
 }
 
@@ -644,35 +671,7 @@ private fun PlaylistManager.Playlist.toEngineTracks(): List<Track> = tracks.map 
     )
 }
 
-@Composable
-private fun RowScope.PlaylistActionButton(
-    title: String,
-    icon: ImageVector,
-    enabled: Boolean,
-    isDark: Boolean,
-    onClick: () -> Unit,
-) {
-    Row(
-        modifier = Modifier
-            .weight(1f)
-            .alpha(if (enabled) 1f else 0.42f)
-            .clip(RoundedCornerShape(16.dp))
-            .background(LiquidSurfaces.card(isDark))
-            .liquidClickable(enabled = enabled, pressedScale = LiquidMotion.PressButton, onClick = onClick)
-            .padding(horizontal = 8.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.Center,
-    ) {
-        Icon(icon, null, tint = LiquidSurfaces.textPrimary(isDark), modifier = Modifier.size(18.dp))
-        Text(
-            title,
-            color = LiquidSurfaces.textPrimary(isDark),
-            fontSize = 12.sp,
-            fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.padding(start = 6.dp),
-        )
-    }
-}
+
 
 @Composable
 private fun PlaylistCacheProgress(

@@ -42,6 +42,9 @@ class Media3ObservationPipeline(
         })
     val state: StateFlow<ObservationState<MetadataProbeReport>> = pipeline.state
     private val logJob: Job
+    private val analysisPrefetch = com.lmg.vk.engine.automix.analysis.Media3AnalysisPrefetch(
+        player, ownerScope, state, ::submitAnalysis, ::bindResolvedScope, log,
+    )
 
     init {
         // AudioService builds its one player and owns this adapter on Main.
@@ -171,6 +174,7 @@ class Media3ObservationPipeline(
 
     fun close() {
         checkOwner()
+        analysisPrefetch.close()
         pipeline.close()
         logJob.cancel()
     }

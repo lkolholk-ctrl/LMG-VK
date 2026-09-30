@@ -30,6 +30,13 @@ internal class SameSinkPairOutput private constructor(
         if (!controller.hasCommittedCueOwner(input)) { revoke(); throw OutputPortResetRequired() }
         return primary.write(a, packetId, firstFrame, pcm)
     }
+    fun writeInto(packetId: Long, firstFrame: Long, pcm: ByteBuffer, into: OutputWriteState) {
+        val input = admitted ?: throw IllegalStateException("No committed PCM input transaction")
+        if (!controller.hasCommittedCueOwner(input)) { revoke(); throw OutputPortResetRequired() }
+        primary.writeInto(a, packetId, firstFrame, pcm, into)
+    }
+    fun completeFrameCount(): Long = primary.completeFrameCount()
+    fun sampleSinkClockValue(): Long = primary.sampleSinkClockValue(a)
     fun prefixPreservesLegacyLevel(): Boolean = primary.livePrefixIsUnity()
     val basePtsUs: Long get() = a.basePtsUs
     fun drain(): Boolean = primary.drain(a)

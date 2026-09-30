@@ -38,3 +38,6 @@ set(LMG_AUTOMIX_TESTS OFF CACHE BOOL "Host tests are built by the native CI job"
 set(LMG_AUTOMIX_JNI ON CACHE BOOL "Package the standalone AutoMix JNI bridge" FORCE)
 add_subdirectory("${CMAKE_CURRENT_LIST_DIR}/../../../../native/automix"
                  "${CMAKE_CURRENT_BINARY_DIR}/automix")
+
+add_subdirectory("${CMAKE_CURRENT_LIST_DIR}/../../../../native/dsp"
+                 "${CMAKE_CURRENT_BINARY_DIR}/dsp")

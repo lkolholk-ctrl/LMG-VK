@@ -35,6 +35,48 @@ internal object MotionArtworkRepository {
         }
     }
 
+    suspend fun browserEntries(context: Context): Map<String, Long> = withContext(Dispatchers.IO) {
+        streamingFactory(context)
+        synchronized(this@MotionArtworkRepository) {
+            videoCache?.let { current -> current.keys.associateWith { key ->
+                current.getCachedSpans(key).sumOf { it.length }
+            }.filterValues { it > 0 } }.orEmpty()
+        }
+    }
+
+    /** Follow only cached playlists when recovering old labels; never make a network request. */
+    fun cachedPlaylistLinks(key: String): List<String> = runCatching {
+        val current = videoCache ?: return emptyList()
+        if (!key.substringBefore('?').endsWith(".m3u8")) return emptyList()
+        val factory = CacheDataSource.Factory().setCache(current)
+            .setUpstreamDataSourceFactory { androidx.media3.datasource.PlaceholderDataSource.INSTANCE }
+        val bytes = DataSourceInputStream(factory.createDataSource(), DataSpec(Uri.parse(key))).use { input ->
+            val buffer = java.io.ByteArrayOutputStream()
+            val chunk = ByteArray(4096)
+            while (buffer.size() <= 262144) {
+                val count = input.read(chunk)
+                if (count < 0) break
+                buffer.write(chunk, 0, count)
+            }
+            require(buffer.size() <= 262144)
+            buffer.toByteArray()
+        }
+        when (val playlist = HlsPlaylistParser().parse(Uri.parse(key), bytes.inputStream())) {
+            is HlsMultivariantPlaylist -> playlist.variants.map { it.url.toString() }
+            is HlsMediaPlaylist -> playlist.segments.flatMap { segment ->
+                listOfNotNull(segment.initializationSegment?.url, segment.url).map { URI(playlist.baseUri).resolve(it).toString() }
+            }
+            else -> emptyList()
+        }
+    }.getOrDefault(emptyList())
+
+    suspend fun removeBrowserEntries(keys: List<String>) = withContext(Dispatchers.IO) {
+        synchronized(this@MotionArtworkRepository) {
+            val current = videoCache ?: throw java.io.IOException("Motion cache unavailable")
+            keys.forEach(current::removeResource)
+        }
+    }
+
     suspend fun clearCache(context: Context) = withContext(Dispatchers.IO) {
         synchronized(this@MotionArtworkRepository) {
             val current = videoCache
@@ -47,13 +89,18 @@ internal object MotionArtworkRepository {
         }
     }
 
-    private fun streamingFactory(context: Context): CacheDataSource.Factory {
+    private fun streamingFactory(context: Context, query: ArtworkQuery? = null, group: String = ""): CacheDataSource.Factory {
         val cache = synchronized(this) {
             videoCache ?: SimpleCache(File(context.cacheDir, "motion_stream_v2"),
                 LeastRecentlyUsedCacheEvictor(256L * 1024 * 1024),
                 StandaloneDatabaseProvider(context.applicationContext)).also { videoCache = it }
         }
         return CacheDataSource.Factory().setCache(cache)
+            .setCacheKeyFactory { spec ->
+                val key = spec.key ?: spec.uri.toString()
+                if (query != null) com.lmg.vk.engine.CacheCatalog.remember(context, "motion:$key", query.title, query.artist, group)
+                key
+            }
             .setUpstreamDataSourceFactory(DefaultHttpDataSource.Factory()
                 .setConnectTimeoutMs(8_000).setReadTimeoutMs(15_000))
             .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
@@ -62,7 +109,7 @@ internal object MotionArtworkRepository {
         try {
             OfflineMotionStore.find(context, query, trackId)?.let { return@withContext it }
             AppleArtworkRepository.find(context, query)?.motion?.let {
-                MotionArtworkSource(it, streamingFactory(context))
+                MotionArtworkSource(it, streamingFactory(context, query, it.playbackUrl.orEmpty()))
             }
         } catch (cancelled: CancellationException) { throw cancelled }
         catch (error: Exception) {

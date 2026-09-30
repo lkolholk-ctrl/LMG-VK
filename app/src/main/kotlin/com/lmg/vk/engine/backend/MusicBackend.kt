@@ -1162,12 +1162,16 @@ object MusicBackend {
                     url = it.direct_url,
                 )
             }
+        val heroPhoto = catalogArtists.filter { it.id == artist.id }
+            .mapNotNull { it.heroPhoto() }
+            .maxByOrNull { it.width.toLong() * it.height }
+            ?: artist.heroPhoto()
         ArtistResponse(
             id = artist.id,
             name = artist.name,
             genre = artist.genres.orEmpty().joinToString(", ") { it.name }.takeIf(String::isNotBlank),
             url = artist.domain?.let { "https://vk.com/artist/$it" },
-            image = artist.coverUrl(),
+            image = heroPhoto?.url ?: artist.coverUrl(),
             cover = artist.coverUrl(),
             bio = artist.bio,
             isFollowed = artist.is_followed == true,
@@ -1387,23 +1391,17 @@ object MusicBackend {
     ): ArtistTrackPage? = runCatching {
         requireInitialized()
         val pageSize = limit.coerceIn(1, 100)
-        val tracks = audioApi.getAudiosByArtist(
+        val page = audioApi.getAudiosByArtistPage(
             artistId = artistId.removePrefix("vk_"),
-            // VK's artist endpoint expects a concrete group. Omitting `type`
-            // makes this page request fail, so Retry only repeated the same
-            // invalid call. `top` is the confirmed mode used by the working
-            // getArtistTopTracks path; offset still advances page by page.
             type = "top",
             offset = offset.coerceAtLeast(0),
             count = pageSize,
         ).requireData()
-        // This response has no total/cursor. A short non-empty page is not
-        // reliable EOF; request once more and stop only on an empty page.
-        val nextOffset = offset.coerceAtLeast(0) + tracks.size
+        val nextOffset = nextArtistTrackOffset(offset.coerceAtLeast(0), page.items.size, page.count)
         ArtistTrackPage(
-            tracks = tracks.map(::cacheTrack).map { it.toEngineTrack() },
-            nextOffset = nextOffset.takeIf { tracks.isNotEmpty() },
-            hasMore = tracks.isNotEmpty(),
+            tracks = page.items.map(::cacheTrack).map { it.toEngineTrack() },
+            nextOffset = nextOffset,
+            hasMore = nextOffset != null,
         )
     }.getOrNull()
 

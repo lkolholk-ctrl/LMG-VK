@@ -57,6 +57,7 @@ internal object AppleArtworkRepository {
             .joinToString("") { "%02x".format(it) }
         val dir = File(context.cacheDir, "apple_artwork_v3").apply { mkdirs() }
         val file = File(dir, "$key.json")
+        com.lmg.vk.engine.CacheCatalog.remember(context, file.absolutePath, query.title, query.artist)
         val saved = runCatching { Json.parseToJsonElement(file.readText()).jsonObject }.getOrNull()
         val expires = saved?.get("expires")?.jsonPrimitive?.longOrNull ?: 0
         if (expires > System.currentTimeMillis()) {

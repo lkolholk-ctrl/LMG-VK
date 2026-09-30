@@ -198,12 +198,12 @@ PlannerCandidateFeatures features(const PlannerRegionPairRef& p, std::int64_t st
     }
   }
   const auto oc = barCount(p.outgoing, b), ic = barCount(p.incoming, b);
-  if (style == 8) f.scoreInputs.barCountRatio = plannerCandidateBarRatio(oc, ic, p.incomingScale);
+  if (style == 8 || style == 11) f.scoreInputs.barCountRatio = plannerCandidateBarRatio(oc, ic, p.incomingScale);
   else f.scoreInputs.matchingBarCount = plannerCandidateMatchingBars(oc, ic, p.incomingScale);
-  if (style == 9) {
+  if (style == 9 || style == 10 || style == 11) {
     f.scoreInputs.tonalityCompatible = plannerTonalitiesCompatible(outgoing.tonality, incoming.tonality,
                                                                  outgoing.melodicness, incoming.melodicness);
-    if (!outgoing.vocals || !incoming.vocals) f.scoreInputs.vocalRelationshipIncompatible = true;
+    if (!outgoing.vocals || !incoming.vocals) f.scoreInputs.vocalRelationshipIncompatible = (style == 9);
     else {
       const auto a = vocalStrengths(p.outgoing, *outgoing.vocals, p.incomingScale == TempoBinaryScale::two, b);
       const auto z = vocalStrengths(p.incoming, *incoming.vocals, p.incomingScale == TempoBinaryScale::half, b);
@@ -231,12 +231,14 @@ std::uint64_t scoreRejections(std::int64_t style, const PlannerCandidateFeatures
   if (style == 12) {
     if (in.normalTempoCompatible) add(PlannerCandidateRejection::normalTempoMustFail);
     if (!in.expandedTempoCompatible) add(PlannerCandidateRejection::expandedTempoMismatch);
-  } else if (!in.normalTempoCompatible) add(PlannerCandidateRejection::normalTempoMismatch);
-  if (style == 8) {
-    if (!in.barCountRatio) add(PlannerCandidateRejection::barRatioUnavailable);
+  } else if (!in.normalTempoCompatible && style != 11) {
+    add(PlannerCandidateRejection::normalTempoMismatch);
+  }
+  if (style == 8 || style == 11) {
+    if (!in.barCountRatio && !in.matchingBarCount) add(PlannerCandidateRejection::barRatioUnavailable);
   } else {
     if (!in.matchingBarCount) add(PlannerCandidateRejection::matchingBarsUnavailable);
-    else if (*in.matchingBarCount < 8) add(PlannerCandidateRejection::fewerThanEightBars);
+    else if (*in.matchingBarCount < 8 && style != 6 && style != 7 && style != 10) add(PlannerCandidateRejection::fewerThanEightBars);
   }
   if (style == 9) {
     if (!in.tonalityCompatible) add(PlannerCandidateRejection::tonalityMismatch);
@@ -317,7 +319,7 @@ PlannerCandidateSelection selectPlannerRegionCandidates(const PlannerCandidateSo
           PlannerRegionRef(*incoming.structure, seed.incoming, seed.incomingUnit), seed.incomingScale};
       for (std::size_t ti = 0; ti < styles.size(); ++ti) {
         ++result.attempted; const auto& style = styles[ti];
-        if (style.id != 8 && style.id != 9 && style.id != 12) {
+        if (style.id != 6 && style.id != 7 && style.id != 8 && style.id != 9 && style.id != 10 && style.id != 11 && style.id != 12) {
           ++result.unsupportedStyles;
           result.rejectionReasons |= static_cast<std::uint64_t>(PlannerCandidateRejection::unsupportedStyle);
           continue;

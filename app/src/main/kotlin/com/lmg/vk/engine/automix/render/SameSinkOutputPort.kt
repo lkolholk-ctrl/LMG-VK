@@ -28,6 +28,12 @@ internal data class OutputPortSnapshot(
 internal data class OutputWriteReceipt(
     val acceptedBytes: Int, val newlyCompletedFrames: Int, val bufferFinished: Boolean,
 )
+/** Reusable playback-owned receipt. The immutable API below is diagnostic-only. */
+internal class OutputWriteState {
+    var acceptedBytes = 0
+    var newlyCompletedFrames = 0
+    var bufferFinished = false
+}
 internal class OutputPortResetRequired : IllegalStateException("Output port requires coordinated reset")
 
 /**
@@ -72,7 +78,7 @@ internal class SameSinkOutputPort(private val backend: PcmOutputBackend) : Rende
     private var pendingFirstFrame = 0L
     private var pendingPacket = 0L
     private var lastPacket = 0L
-    private var lastSinkPosition: Long? = null
+    private var lastSinkPosition = Long.MIN_VALUE
 
     private fun thread(bind: Boolean = false) {
         val t = Thread.currentThread()
@@ -107,7 +113,14 @@ internal class SameSinkOutputPort(private val backend: PcmOutputBackend) : Rende
     /** Typed normal-volume branch of the patched renderer, distinct from legacy direct calls. */
     fun confirmedPlayerVolume(value: Float) {
         thread(); unit(value); splitGainObserved = true
-        playerVolume(value)
+        master = value
+        // This typed message is master gain, not a replacement transition curve.
+        // Keep the last transition factor when idle; detach ONLY it while owned.
+        try { backend.volume(if (gainDetached) master else fade * master) }
+        catch (failure: Throwable) {
+            if (ticket != null) { phase = OutputPortPhase.RESET_REQUIRED; fault = OutputPortFault.SINK_FAILURE; ticket?.revoke() }
+            throw failure
+        }
     }
     /** The new fork message carries both components, rather than their irreversible product. */
     fun transitionVolume(transition: Float, player: Float) {
@@ -133,7 +146,7 @@ internal class SameSinkOutputPort(private val backend: PcmOutputBackend) : Rende
         // A suppressed companion is permitted only when its OLD sink has no queued audio.
         if (!mayWrite && backend.pending()) return null
         serial = t.serial; ticket = t; phase = OutputPortPhase.RESERVED; fault = OutputPortFault.NONE
-        acceptedBytes = 0; offered = false; pending = null; lastPacket = 0; lastSinkPosition = null
+        acceptedBytes = 0; offered = false; pending = null; lastPacket = 0; lastSinkPosition = Long.MIN_VALUE
         // Reservation does not modify gain of already queued/playing legacy PCM.
         valid(t)
         return t
@@ -171,6 +184,12 @@ internal class SameSinkOutputPort(private val backend: PcmOutputBackend) : Rende
      * A cancellation during write still records accepted bytes, then requires reset: no replay.
      */
     fun write(t: Ticket, packetId: Long, firstOutputFrame: Long, bytes: ByteBuffer): OutputWriteReceipt {
+        val result = OutputWriteState()
+        writeInto(t, packetId, firstOutputFrame, bytes, result)
+        return OutputWriteReceipt(result.acceptedBytes, result.newlyCompletedFrames, result.bufferFinished)
+    }
+    /** Steady-state entry: no receipt allocation on a sink retry. */
+    fun writeInto(t: Ticket, packetId: Long, firstOutputFrame: Long, bytes: ByteBuffer, resultInto: OutputWriteState) {
         valid(t)
         check(phase == OutputPortPhase.ACTIVE || phase == OutputPortPhase.WRITING) { "Output not activated" }
         check(t.mayWrite) { "Companion output cannot write" }
@@ -204,18 +223,24 @@ internal class SameSinkOutputPort(private val backend: PcmOutputBackend) : Rende
         if (!shapeValid || (result && after != pendingLimit)) fail(OutputPortFault.BUFFER_CONTRACT)
         valid(t)
         if (result) { pending = null; lastPacket = packetId }
-        return OutputWriteReceipt(after - before, (acceptedBytes / bpf - framesBefore).toInt(), result)
+        resultInto.acceptedBytes = after - before
+        resultInto.newlyCompletedFrames = (acceptedBytes / bpf - framesBefore).toInt()
+        resultInto.bufferFinished = result
     }
     /** Sample the existing sink clock. This is NOT an ExoPlayer renderer/period clock binding. */
     fun sampleSinkClock(t: Ticket): Long? {
+        val result = sampleSinkClockValue(t)
+        return if (result == Long.MIN_VALUE) null else result
+    }
+    fun sampleSinkClockValue(t: Ticket): Long {
         valid(t)
         val position = try { backend.positionUs() } catch (failure: Throwable) {
             phase = OutputPortPhase.RESET_REQUIRED; fault = OutputPortFault.SINK_FAILURE; t.revoke(); throw failure
         }
         valid(t)
         // AudioSink.CURRENT_POSITION_NOT_SET is Long.MIN_VALUE. No inferred wall-clock fallback.
-        if (position == Long.MIN_VALUE) return null
-        if (lastSinkPosition != null && position < requireNotNull(lastSinkPosition)) fail(OutputPortFault.CONTEXT_CHANGED)
+        if (position == Long.MIN_VALUE) return Long.MIN_VALUE
+        if (lastSinkPosition != Long.MIN_VALUE && position < lastSinkPosition) fail(OutputPortFault.CONTEXT_CHANGED)
         lastSinkPosition = position
         return position
     }
@@ -238,7 +263,7 @@ internal class SameSinkOutputPort(private val backend: PcmOutputBackend) : Rende
     fun afterActualReset() {
         thread(); ticket?.revoke(); ticket = null; pending = null; offered = false
         version = Math.addExact(version, 1); context = null; format = null; splitGainObserved = false; gainDetached = false
-        phase = OutputPortPhase.IDLE; fault = OutputPortFault.NONE; acceptedBytes = 0; lastSinkPosition = null
+        phase = OutputPortPhase.IDLE; fault = OutputPortFault.NONE; acceptedBytes = 0; lastSinkPosition = Long.MIN_VALUE
     }
     fun drain(t: Ticket): Boolean {
         valid(t)
@@ -247,11 +272,15 @@ internal class SameSinkOutputPort(private val backend: PcmOutputBackend) : Rende
         valid(t)
         return !backend.pending()
     }
+    fun completeFrameCount(): Long {
+        thread()
+        return acceptedBytes / (ticket?.format?.bytesPerFrame ?: 1)
+    }
     fun snapshot(): OutputPortSnapshot {
         thread()
         val bpf = ticket?.format?.bytesPerFrame ?: 1
         return OutputPortSnapshot(phase, fault, acceptedBytes, acceptedBytes / bpf,
-            (acceptedBytes % bpf).toInt(), pending != null, lastSinkPosition)
+            (acceptedBytes % bpf).toInt(), pending != null, if (lastSinkPosition == Long.MIN_VALUE) null else lastSinkPosition)
     }
     companion object { const val MAX_PACKET_BYTES = 1_048_576 }
 }

@@ -459,7 +459,7 @@ private fun OwnerAudioButton(
         modifier = modifier
             .height(LiquidMetrics.ActionButtonHeight)
             .shadow(
-                elevation = if (filled) LiquidMetrics.ButtonElevation else 2.dp,
+                elevation = if (filled) LiquidMetrics.ButtonElevation else LiquidMetrics.SecondaryButtonElevation,
                 shape = CircleShape,
                 ambientColor = Color.Black,
                 spotColor = Color.Black,

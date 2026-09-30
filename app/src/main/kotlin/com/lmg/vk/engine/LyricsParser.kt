@@ -341,6 +341,8 @@ object LyricsParser {
         val durationSec = (durationMs / 1000L).toInt()
         val cacheFile = lrcCacheFile(context, cacheKey(artist, title, album, durationSec))
 
+        CacheCatalog.remember(context, cacheFile.absolutePath, title, artist, (durationSec * 1000L).toString())
+
         // 1. Локальный .lrc кэш (работает офлайн)
         readTextOrNull(cacheFile)?.let { cached ->
             return@withContext finalizeLrc(cached, title, artist, trackId)
@@ -389,7 +391,9 @@ object LyricsParser {
         trackId: String?
     ) {
         if (lrcText.isBlank()) return
-        writeTextSafe(lrcCacheFile(context, cacheKey(artist, title, album, durationSec)), lrcText)
+        val file = lrcCacheFile(context, cacheKey(artist, title, album, durationSec))
+        writeTextSafe(file, lrcText)
+        CacheCatalog.remember(context, file.absolutePath, title, artist, (durationSec * 1000L).toString())
         if (!trackId.isNullOrBlank()) {
             val parsed = parseLyrics(lrcText)
             if (parsed.lines.isNotEmpty()) cacheLyrics(trackId, parsed.copy(title = title, artist = artist, source = "lrclib"))

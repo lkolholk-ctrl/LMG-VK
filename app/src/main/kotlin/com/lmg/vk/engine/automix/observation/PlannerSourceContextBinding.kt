@@ -10,9 +10,11 @@ internal object PlannerSourceContextBinding {
                   context: MusicKitSourceContext): PlannerSelectionReport {
         if (catalog.sha256 != TransitionStyleCatalog.BUNDLED_SHA256)
             throw ObservationFailure(ObservationReason.CATALOG_REJECTED, "SOURCE_CATALOG_MISMATCH")
+        val outgoingDuration = resolveMappedDuration(outgoing, outgoingId, pair.outgoing.durationMs)
+        val incomingDuration = resolveMappedDuration(incoming, incomingId, pair.incoming.durationMs)
         val request = try {
             PlannerSourceContextWire.request(pair.selectionGeneration, pair.selectionRevision, context,
-                pair.outgoing.durationMs, pair.incoming.durationMs)
+                outgoingDuration, incomingDuration)
         } catch (_: IllegalArgumentException) {
             throw ObservationFailure(ObservationReason.ANALYSIS_REJECTED, "SOURCE_CONTEXT_INVALID")
         }
@@ -29,5 +31,18 @@ internal object PlannerSourceContextBinding {
             throw ObservationFailure(ObservationReason.NATIVE_FAILURE)
         }
         return PlannerScheduleWire.decode(response, request, catalog.styles.map { it.id.toLong() }.toSet())
+    }
+
+    private fun resolveMappedDuration(bytes: ByteArray, songId: String, playbackDurationMs: Long?): Long? {
+        val parsed = com.lmg.vk.engine.automix.AppleSongAnalysisParser().parse(bytes, songId)
+        if (parsed is com.lmg.vk.engine.automix.AppleSongAnalysisParser.Result.Parsed) {
+            val ref = parsed.analysis.durationInMillis?.toLong()
+            if (ref != null && ref > 0L) {
+                if (playbackDurationMs == null || kotlin.math.abs(ref - playbackDurationMs) <= 6000L) {
+                    return ref
+                }
+            }
+        }
+        return playbackDurationMs
     }
 }

@@ -7,11 +7,19 @@
 #include <mutex>
 #include <stdexcept>
 #include <unordered_map>
+#include <thread>
 using lmg::automix::PcmOwnerIngress;
 namespace {
 struct Entry {
   Entry(unsigned c, unsigned e, unsigned n) : ingress(c, static_cast<lmg::automix::OwnerEncoding>(e), n) {}
   std::mutex operation;
+  std::thread::id owner;
+  jmethodID readOnly=nullptr;
+  void bind() {
+    auto t=std::this_thread::get_id();
+    if(owner==std::thread::id{}) owner=t;
+    else if(owner!=t)throw std::logic_error("PCM owner thread mismatch");
+  }
   PcmOwnerIngress ingress;
 };
 std::mutex registryMutex;
@@ -35,6 +43,14 @@ std::shared_ptr<Entry> entry(jlong id) {
   if (it == registry.end()) throw std::logic_error("Unknown owner handle");
   return it->second;
 }
+thread_local jlong cachedId=0;
+thread_local std::shared_ptr<Entry> cachedEntry;
+Entry& owned(jlong id) {
+  if(id==cachedId && cachedEntry)return *cachedEntry;
+  auto e=entry(id);
+  {std::lock_guard<std::mutex> lock(e->operation);e->bind();}
+  cachedEntry=std::move(e);cachedId=id;return *cachedEntry;
+}
 std::uint8_t* buffer(JNIEnv* env, jobject value, jint offset, jint bytes) {
   if (!value || offset < 0 || bytes < 0) throw std::invalid_argument("Missing direct buffer");
   const auto capacity = env->GetDirectBufferCapacity(value);
@@ -54,6 +70,9 @@ Java_com_lmg_vk_engine_automix_nativecore_NativePcmOwnerIngress_nativeCreate(
         capacity <= 0 || capacity > jint(PcmOwnerIngress::maximumCapacity))
       throw std::invalid_argument("Invalid capacity");
     auto value = std::make_shared<Entry>(channels,encoding,capacity);
+    jclass c=env->FindClass("java/nio/ByteBuffer");if(!c)throw std::logic_error("Buffer class");
+    value->readOnly=env->GetMethodID(c,"isReadOnly","()Z");env->DeleteLocalRef(c);
+    if(!value->readOnly)throw std::logic_error("Buffer method");
     std::lock_guard<std::mutex> lock(registryMutex);
     if (nextId == std::numeric_limits<jlong>::max()) throw std::logic_error("Handle space exhausted");
     const auto id = nextId++; registry.emplace(id,std::move(value)); return id;
@@ -67,7 +86,7 @@ Java_com_lmg_vk_engine_automix_nativecore_NativePcmOwnerIngress_nativeStage(
   guarded<int>(env,0,[&] {
     if (ticket <= 0) throw std::invalid_argument("Invalid ticket");
     const auto* ap = buffer(env,a,ao,an); const auto* bp = buffer(env,b,bo,bn);
-    auto e = entry(id); std::lock_guard<std::mutex> lock(e->operation);
+    auto* e=&owned(id);
     e->ingress.stage(static_cast<std::uint64_t>(ticket), generation, revision,
                      {ap,static_cast<std::size_t>(an),af,ac},{bp,static_cast<std::size_t>(bn),bf,bc});
     return 1;
@@ -76,14 +95,14 @@ Java_com_lmg_vk_engine_automix_nativecore_NativePcmOwnerIngress_nativeStage(
 extern "C" JNIEXPORT jboolean JNICALL
 Java_com_lmg_vk_engine_automix_nativecore_NativePcmOwnerIngress_nativeCommit(JNIEnv* env,jobject,jlong id,jlong ticket) {
   return guarded<jboolean>(env,JNI_FALSE,[&] {
-    auto e=entry(id);std::lock_guard<std::mutex> lock(e->operation);
+    auto* e=&owned(id);
     return jboolean(ticket>0 && e->ingress.commit(static_cast<std::uint64_t>(ticket)));
   });
 }
 extern "C" JNIEXPORT jboolean JNICALL
 Java_com_lmg_vk_engine_automix_nativecore_NativePcmOwnerIngress_nativeAbort(JNIEnv* env,jobject,jlong id,jlong ticket) {
   return guarded<jboolean>(env,JNI_FALSE,[&] {
-    auto e=entry(id);std::lock_guard<std::mutex> lock(e->operation);
+    auto* e=&owned(id);
     return jboolean(ticket>0 && e->ingress.abort(static_cast<std::uint64_t>(ticket)));
   });
 }
@@ -91,7 +110,7 @@ extern "C" JNIEXPORT jint JNICALL
 Java_com_lmg_vk_engine_automix_nativecore_NativePcmOwnerIngress_nativePush(
     JNIEnv* env,jobject,jlong id,jint side,jobject pcm,jint offset,jint bytes,jlong first) {
   return guarded<jint>(env,0,[&] {
-    const auto* p=buffer(env,pcm,offset,bytes);auto e=entry(id);std::lock_guard<std::mutex> lock(e->operation);
+    const auto* p=buffer(env,pcm,offset,bytes);auto* e=&owned(id);
     return jint(e->ingress.push(static_cast<unsigned>(side),p,static_cast<std::size_t>(bytes),first));
   });
 }
@@ -99,17 +118,14 @@ extern "C" JNIEXPORT jint JNICALL
 Java_com_lmg_vk_engine_automix_nativecore_NativePcmOwnerIngress_nativeRead(
     JNIEnv* env,jobject,jlong id,jint side,jobject dst,jint offset,jint frames,jlongArray metadata) {
   return guarded<jint>(env,0,[&] {
-    auto e=entry(id);std::lock_guard<std::mutex> lock(e->operation);
+    auto* e=&owned(id);
     if (frames < 0 || frames > jint(e->ingress.capacity()) || !metadata || env->GetArrayLength(metadata)!=3)
       throw std::invalid_argument("Invalid read size/metadata");
     const auto bytes=frames*static_cast<jint>(e->ingress.channels())*4;
     auto* p=buffer(env,dst,offset,bytes);
     if (reinterpret_cast<std::uintptr_t>(p)%alignof(float))throw std::invalid_argument("Unaligned read");
     // Kotlin checks read-only state; JNI additionally enforces it for direct callers.
-    jclass type=env->GetObjectClass(dst);if(!type)throw std::logic_error("Class lookup");
-    const auto method=env->GetMethodID(type,"isReadOnly","()Z");
-    if(!method){env->DeleteLocalRef(type);throw std::logic_error("Method lookup");}
-    const auto readOnly=env->CallBooleanMethod(dst,method);env->DeleteLocalRef(type);
+    const auto readOnly=env->CallBooleanMethod(dst,e->readOnly);
     if(env->ExceptionCheck())throw std::logic_error("Read-only query");
     if(readOnly)throw std::invalid_argument("Read-only output");
     const auto r=e->ingress.read(static_cast<unsigned>(side),reinterpret_cast<float*>(p),frames);
@@ -123,7 +139,7 @@ Java_com_lmg_vk_engine_automix_nativecore_NativePcmOwnerIngress_nativeStats(
     JNIEnv* env,jobject,jlong id,jint side,jlongArray metadata) {
   guarded<int>(env,0,[&] {
     if(!metadata||env->GetArrayLength(metadata)!=8)throw std::invalid_argument("Invalid stats size");
-    auto e=entry(id);std::lock_guard<std::mutex> lock(e->operation);
+    auto* e=&owned(id);
     const auto s=e->ingress.stats(static_cast<unsigned>(side));
     const jlong info[]{static_cast<jlong>(e->ingress.phase()),s.nextReadFrame,s.nextWriteFrame,s.cueFrame,
       static_cast<jlong>(s.accepted),static_cast<jlong>(s.read),static_cast<jlong>(s.discarded),s.queued};
@@ -133,10 +149,10 @@ Java_com_lmg_vk_engine_automix_nativecore_NativePcmOwnerIngress_nativeStats(
 extern "C" JNIEXPORT void JNICALL
 Java_com_lmg_vk_engine_automix_nativecore_NativePcmOwnerIngress_nativeDestroy(JNIEnv* env,jobject,jlong id) {
   guarded<int>(env,0,[&] {
-    std::shared_ptr<Entry> removed;
+    (void)owned(id); // Reject a foreign-thread destroy before erasing anything.
     {std::lock_guard<std::mutex> lock(registryMutex);
-     const auto it=registry.find(id);if(it==registry.end())throw std::logic_error("Closed owner");
-     removed=std::move(it->second);registry.erase(it);}
+     if(registry.erase(id)!=1)throw std::logic_error("Closed owner");}
+    cachedId=0;cachedEntry.reset();
     return 1;
   });
 }

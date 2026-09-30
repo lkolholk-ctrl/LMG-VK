@@ -1,5 +1,6 @@
 package com.lmg.vk.ui.components
 
+import androidx.compose.foundation.border
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -20,7 +21,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -32,6 +33,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.RoundedCornerShape
+import com.lmg.vk.ui.theme.LiquidTheme
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -121,7 +130,36 @@ fun DetailHeader(
      * секунду-две остаётся серым прямоугольником, что читается как ошибка.
      */
     mainColor: Color? = null,
+    centeredArtwork: Boolean = false,
+    wideArtwork: Boolean = false,
+    onSubtitleClick: (() -> Unit)? = null,
 ) {
+    if (centeredArtwork) {
+        Column(Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.statusBars)
+            .padding(start = 22.dp, end = 22.dp, top = 76.dp, bottom = 4.dp),
+            horizontalAlignment = if (wideArtwork) Alignment.Start else Alignment.CenterHorizontally) {
+            AlbumArtImage(uri = null, coverUrl = coverUrl, contentDescription = title,
+                modifier = (if (wideArtwork) Modifier.fillMaxWidth().aspectRatio(1.48f) else Modifier.size(232.dp)).clip(RoundedCornerShape(13.dp))
+                    .background(mainColor ?: LiquidSurfaces.card(isDark)), contentScale = ContentScale.Crop)
+            Spacer(Modifier.height(22.dp))
+            Text(title, color = LiquidSurfaces.textPrimary(isDark), fontFamily = VkSansDisplay,
+                fontWeight = FontWeight.Bold, fontSize = if (wideArtwork) 30.sp else 27.sp, lineHeight = 32.sp,
+                textAlign = if (wideArtwork) TextAlign.Start else TextAlign.Center, maxLines = 3, overflow = TextOverflow.Ellipsis)
+            if (subtitle.isNotBlank()) Text(subtitle, color = DetailStyle.accent,
+                fontSize = 17.sp, textAlign = if (wideArtwork) TextAlign.Start else TextAlign.Center, modifier = Modifier
+                    .liquidClickable(enabled = onSubtitleClick != null, onClick = { onSubtitleClick?.invoke() }).padding(vertical = 10.dp))
+            if (facts.isNotEmpty()) Text(facts.joinToString(" · "), color = LiquidSurfaces.textSecondary(isDark),
+                fontSize = 12.sp, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 8.dp))
+            Spacer(Modifier.height(22.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                DetailActionButton(stringResource(R.string.action_play), com.lmg.vk.ui.icons.LmgGlyphs.Play28,
+                    true, isDark, enabled = canPlay, onClick = onPlay)
+                DetailActionButton(stringResource(R.string.action_shuffle), com.lmg.vk.ui.icons.LmgGlyphs.ShuffleOutline28,
+                    false, isDark, enabled = canPlay, onClick = onShuffle)
+            }
+        }
+        return
+    }
     val screenHeight = LocalConfiguration.current.screenHeightDp.dp
     val headerHeight = (screenHeight * 0.52f).coerceIn(360.dp, 560.dp)
 
@@ -190,7 +228,7 @@ fun DetailHeader(
                     Text(
                         text = facts.joinToString(" · "),
                         color = LiquidSurfaces.onHeaderSecondary,
-                        fontSize = LiquidMetrics.Caption,
+                        fontSize = 12.sp,
                         modifier = Modifier.padding(top = 2.dp)
                     )
                 }
@@ -254,35 +292,18 @@ fun RowScope.DetailActionButton(
     enabled: Boolean = true,
     onClick: () -> Unit
 ) {
-    // Поверх обложки главная кнопка всегда белая: под ней может быть любой кадр,
-    // и только плотная заливка гарантирует читаемость. На листе — цвета темы,
-    // иначе белая кнопка в светлой теме слилась бы с фоном.
-    val background = when {
-        onPhoto && filled -> Color.White
-        onPhoto -> LiquidSurfaces.glassAction
-        filled -> LiquidSurfaces.textPrimary(isDark)
-        else -> LiquidSurfaces.card(isDark)
-    }
-    val contentColor = when {
-        onPhoto && filled -> Color.Black
-        onPhoto -> Color.White
-        filled -> LiquidSurfaces.sheet(isDark)
-        else -> LiquidSurfaces.textPrimary(isDark)
-    }
+    val background = if (filled) DetailStyle.accent else DetailStyle.surface(isDark)
+    val contentColor = if (filled) Color.White else LiquidSurfaces.textPrimary(isDark)
+    val outline = if (filled) Color.White.copy(alpha = .28f) else if (isDark) Color(0xFF4B4B4F) else Color(0xFFD0D0D5)
 
     Row(
         modifier = Modifier
             .weight(1f)
-            .height(LiquidMetrics.ActionButtonHeight)
+            .heightIn(min = 48.dp)
             .alpha(if (enabled) 1f else 0.42f)
-            .shadow(
-                elevation = if (filled) LiquidMetrics.ButtonElevation else 2.dp,
-                shape = CircleShape,
-                ambientColor = LiquidSurfaces.shadowTint(isDark),
-                spotColor = LiquidSurfaces.shadowTint(isDark)
-            )
             .clip(CircleShape)
             .background(background)
+            .border(1.dp, outline, CircleShape)
             .liquidClickable(
                 enabled = enabled,
                 pressedScale = LiquidMotion.PressButton,
@@ -301,7 +322,7 @@ fun RowScope.DetailActionButton(
         Text(
             text = label,
             color = contentColor,
-            fontSize = LiquidMetrics.ActionLabel,
+            fontSize = 15.sp, lineHeight = 20.sp,
             fontWeight = FontWeight.SemiBold
         )
     }
@@ -326,16 +347,19 @@ fun DetailTrackRow(
     showArtwork: Boolean = true,
     enabled: Boolean = true,
     onMore: (() -> Unit)? = null,
+    onMorePosition: ((Rect) -> Unit)? = null,
     onClick: () -> Unit
 ) {
-    Column(modifier = Modifier.padding(horizontal = LiquidMetrics.ScreenPadding)) {
+    var moreBounds by remember { mutableStateOf(Rect.Zero) }
+    Column(modifier = Modifier.padding(horizontal = DetailStyle.padding)) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .alpha(if (enabled) 1f else 0.42f)
-                .clip(LiquidMetrics.CoverShapeSmall)
+                .clip(RoundedCornerShape(6.dp))
                 .liquidClickable(enabled = enabled, pressedScale = LiquidMotion.PressButton, onClick = onClick)
-                .padding(vertical = if (showArtwork) 8.dp else 12.dp),
+                .heightIn(min = 64.dp)
+                .padding(vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             if (showArtwork) {
@@ -345,23 +369,23 @@ fun DetailTrackRow(
                     artworkQuery = com.lmg.vk.artwork.ArtworkQuery(title, subtitle.orEmpty(), durationMs),
                     contentDescription = title,
                     modifier = Modifier
-                        .size(LiquidMetrics.TrackCoverSize)
+                        .size(44.dp)
                         .shadow(
                             elevation = LiquidMetrics.CoverElevation,
                             shape = LiquidMetrics.CoverShapeSmall,
                             ambientColor = LiquidSurfaces.shadowTint(isDark),
                             spotColor = LiquidSurfaces.shadowTint(isDark)
                         )
-                        .clip(LiquidMetrics.CoverShapeSmall),
+                        .clip(RoundedCornerShape(6.dp)),
                     contentScale = ContentScale.Crop
                 )
-                Spacer(Modifier.width(14.dp))
+                Spacer(Modifier.width(11.dp))
             } else {
                 Text(
                     text = "$position",
                     color = LiquidSurfaces.textTertiary(isDark),
                     fontSize = LiquidMetrics.LinkLabel,
-                    modifier = Modifier.width(28.dp)
+                    modifier = Modifier.width(22.dp)
                 )
             }
 
@@ -369,8 +393,8 @@ fun DetailTrackRow(
                 Text(
                     text = if (enabled) title else stringResource(R.string.track_unavailable_suffix, title),
                     color = LiquidSurfaces.textPrimary(isDark),
-                    fontSize = LiquidMetrics.RowTitle,
-                    fontWeight = FontWeight.Medium,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Normal,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -378,7 +402,7 @@ fun DetailTrackRow(
                     Text(
                         text = subtitle,
                         color = LiquidSurfaces.textSecondary(isDark),
-                        fontSize = LiquidMetrics.Caption,
+                        fontSize = 12.sp,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.padding(top = 2.dp)
@@ -390,15 +414,15 @@ fun DetailTrackRow(
                 Text(
                     text = formatTrackDuration(durationMs),
                     color = LiquidSurfaces.textTertiary(isDark),
-                    fontSize = LiquidMetrics.Caption,
+                    fontSize = 12.sp,
                     modifier = Modifier.padding(start = 8.dp)
                 )
             }
             if (onMore != null) {
                 IconButton(
                     enabled = enabled,
-                    onClick = onMore,
-                    modifier = Modifier.size(36.dp),
+                    onClick = { onMorePosition?.invoke(moreBounds); onMore() },
+                    modifier = Modifier.size(44.dp).onGloballyPositioned { moreBounds = it.boundsInWindow() },
                 ) {
                     Icon(
                         com.lmg.vk.ui.icons.LmgGlyphs.MoreHorizontal28,
@@ -414,7 +438,7 @@ fun DetailTrackRow(
             // так список читается колонкой, а не решёткой.
             Box(
                 modifier = Modifier
-                    .padding(start = if (coverUrl != null) LiquidMetrics.DividerInset - LiquidMetrics.ScreenPadding else 28.dp)
+                    .padding(start = if (showArtwork) 55.dp else 22.dp)
                     .fillMaxWidth()
                     .height(1.dp)
                     .background(LiquidSurfaces.divider(isDark))
@@ -432,45 +456,28 @@ fun DetailTopBar(
     title: String,
     showTitle: Boolean,
     isDark: Boolean,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    idleTitle: String = "",
+    titleContent: (@Composable () -> Unit)? = null,
+    trailing: @Composable () -> Unit = {},
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(if (showTitle) LiquidSurfaces.sheet(isDark) else Color.Transparent)
-            .windowInsetsPadding(WindowInsets.statusBars)
-            .padding(horizontal = 12.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Box(
-            modifier = Modifier
-                .size(LiquidMetrics.GlassButtonSize)
-                .clip(CircleShape)
-                // Пока шапка видна, кнопка лежит поверх обложки: там нужен
-                // стеклянный фон, иначе на светлом кадре её не видно.
-                .background(
-                    if (showTitle) LiquidSurfaces.card(isDark) else LiquidSurfaces.glassFill
-                )
-                .liquidClickable(pressedScale = LiquidMotion.PressButton, onClick = onBack),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = com.lmg.vk.ui.icons.LmgGlyphs.ArrowLeftOutline28,
-                contentDescription = stringResource(R.string.action_back),
-                tint = if (showTitle) LiquidSurfaces.textPrimary(isDark) else Color.White,
-                modifier = Modifier.size(20.dp)
-            )
+    Box(Modifier.fillMaxWidth()
+        .background(if (showTitle) DetailStyle.background(isDark) else Color.Transparent)
+        .windowInsetsPadding(WindowInsets.statusBars)
+        .padding(horizontal = 16.dp, vertical = 8.dp).heightIn(min = 44.dp)) {
+        DetailCircleButton(com.lmg.vk.ui.icons.LmgGlyphs.ArrowLeftOutline28,
+            stringResource(R.string.action_back), modifier = Modifier.align(Alignment.CenterStart), onClick = onBack)
+        Box(Modifier.align(Alignment.Center).fillMaxWidth().padding(horizontal = 56.dp),
+            contentAlignment = Alignment.Center) {
+            if (showTitle && titleContent != null) {
+                titleContent()
+            } else {
+                Text(if (showTitle) title else idleTitle, color = DetailStyle.text(isDark),
+                    fontSize = 15.sp, lineHeight = 20.sp, fontWeight = FontWeight.Normal,
+                    textAlign = TextAlign.Center, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
         }
-        Spacer(Modifier.width(12.dp))
-        Text(
-            text = title,
-            color = LiquidSurfaces.textPrimary(isDark),
-            fontSize = 17.sp,
-            fontWeight = FontWeight.SemiBold,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.alpha(if (showTitle) 1f else 0f)
-        )
+        Box(Modifier.align(Alignment.CenterEnd)) { trailing() }
     }
 }
 

@@ -107,11 +107,14 @@ struct LivePcmExecutor::Impl {
   SidePlan plan;PlaybackTimeMap clock;Mapping mapping;std::optional<ContinuousAutomationValues>gain;
   std::unique_ptr<ProcessedTrackStream>stream;std::vector<float>cache;
   std::int64_t cue=0,expected=0,outputCursor=0,sourceEnd=0,outputEnd=std::numeric_limits<std::int64_t>::max();
-  unsigned offset=0,count=0,zeros=0;bool eos=false;
-  Side(SidePlan p,LivePcmOptions o):plan(std::move(p)),clock(schedulePlaybackTimeMap(plan.start,plan.cue,std::nullopt,plan.automation)){
-   cue=frame(plan.cue,o.sampleRate);expected=cue;mapping={&clock,plan.cue,double(cue),plan.start,double(o.sampleRate),0,double(cue),false};
+  unsigned offset=0,count=0,zeros=0;std::int64_t preroll=0;bool eos=false;
+  Side(SidePlan p,LivePcmOptions o,bool outgoing):plan(std::move(p)),clock(schedulePlaybackTimeMap(plan.start,plan.cue,std::nullopt,plan.automation)){
+   cue=frame(plan.cue,o.sampleRate);
+   preroll=o.primeOutgoing&&outgoing?std::min<std::int64_t>(cue,timePitchGeometry(o.sampleRate,o.maximumFrames).halfFftSize):0;
+   expected=cue-preroll;outputCursor=-preroll;
+   mapping={&clock,plan.cue,double(cue),plan.start,double(o.sampleRate),double(outputCursor),double(expected),false};
    for(const auto& a:plan.automation)if(a.parameter.id=="out_gain"&&!gain)gain.emplace(a);
-   stream=std::make_unique<ProcessedTrackStream>(o.sampleRate,o.channels,o.maximumFrames,cue,0,EffectSettings{},events(plan,o.sampleRate,o.effectStepFrames,cue),true,TimePitchControls{1,1,8,false,false},TimePitchTimeMapView{&mapping,Mapping::source});
+   stream=std::make_unique<ProcessedTrackStream>(o.sampleRate,o.channels,o.maximumFrames,expected,double(outputCursor),EffectSettings{},events(plan,o.sampleRate,o.effectStepFrames,cue),true,TimePitchControls{1,1,8,false,false},TimePitchTimeMapView{&mapping,Mapping::source});
    cache.resize(std::size_t(o.maximumFrames)*o.channels);
   }
  };
@@ -122,7 +125,7 @@ struct LivePcmExecutor::Impl {
   transitionEnd=frame(program.duration,o.sampleRate);incomingStart=frame(program.sides[1].start,o.sampleRate);
   need(transitionEnd>incomingStart,"Empty incoming playback interval");
   maxPadding=timePitchGeometry(o.sampleRate,o.maximumFrames).fftSize*64u;
-  sides[0]=std::make_unique<Side>(std::move(program.sides[0]),o);sides[1]=std::make_unique<Side>(std::move(program.sides[1]),o);
+  sides[0]=std::make_unique<Side>(std::move(program.sides[0]),o,true);sides[1]=std::make_unique<Side>(std::move(program.sides[1]),o,false);
  }
  void good(){if(report.failed)throw std::logic_error("Failed PCM executor requires reset");}
  void checkMap(){for(const auto&s:sides)if(s->mapping.failed){report.failed=true;throw std::runtime_error("PCM mapping failed");}}
@@ -133,6 +136,14 @@ struct LivePcmExecutor::Impl {
   if(s.offset){const auto left=s.count-s.offset;std::memmove(s.cache.data(),s.cache.data()+std::size_t(s.offset)*opt.channels,std::size_t(left)*opt.channels*sizeof(float));s.count=left;s.offset=0;}
   unsigned budget=8;
   while(s.count<wanted&&budget--){
+   if(s.outputCursor<0){
+    // These samples describe history already handled by the legacy output/prefix.
+    // Advance the *same* real graph/STFT state, but never publish/replay this audio.
+    const auto request=static_cast<unsigned>(std::min<std::int64_t>(opt.maximumFrames,-s.outputCursor));
+    const auto primed=s.stream->dequeue(s.cache.data(),request,double(s.outputCursor));checkMap();
+    s.outputCursor+=primed;
+    if(s.outputCursor<0)return 0;
+   }
    const auto n=s.stream->dequeue(s.cache.data()+std::size_t(s.count)*opt.channels,wanted-s.count,double(s.outputCursor));checkMap();
    s.count+=n;s.outputCursor+=n;report.dequeued[which]+=n;
    if(s.count>=wanted)break;
@@ -203,6 +214,7 @@ void LivePcmExecutor::encode(const float*p,unsigned frames,unsigned width,void*d
 }
 double LivePcmExecutor::sourceSecondsForOutput(unsigned side,double outFrame)const{const auto&i=*impl_;need(side<2&&std::isfinite(outFrame),"Invalid clock query");return i.sides[side]->clock.fromTransition(outFrame/i.opt.sampleRate).song;}
 std::int64_t LivePcmExecutor::cueFrame(unsigned side)const{need(side<2,"Invalid side");return impl_->sides[side]->cue;}
+std::int64_t LivePcmExecutor::outgoingPrerollFrames()const{return impl_->sides[0]->preroll;}
 std::int64_t LivePcmExecutor::transitionFrames()const{return impl_->transitionEnd;}
 LivePcmStats LivePcmExecutor::stats()const{return impl_->report;}
 } // namespace lmg::automix

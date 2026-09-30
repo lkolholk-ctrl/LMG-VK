@@ -177,7 +177,7 @@ fun QueueSheet(
                                     translationX = (lerp((maxWidth - fullArt) / 2, 0.dp, p)).toPx()
                                     translationY = lerp(groupTop, 0.dp, p).toPx()
                                     shape = RoundedCornerShape(lerp(10.dp, 7.dp, p) / scale)
-                                    shadowElevation = lerp(14.dp, 6.dp, p).toPx() / scale
+                                    shadowElevation = com.lmg.vk.ui.theme.LiquidMetrics.castShadow(lerp(14.dp, 6.dp, p).toPx() / scale)
                                     clip = true
                                 }
                                 .onGloballyPositioned { onArtworkPositioned?.invoke(it) }

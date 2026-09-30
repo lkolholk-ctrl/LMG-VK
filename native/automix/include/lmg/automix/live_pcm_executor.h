@@ -11,6 +11,9 @@ namespace lmg::automix {
 struct LivePcmOptions {
   std::uint32_t sampleRate=48000, channels=2, maximumFrames=1024, effectStepFrames=256;
   std::int64_t generation=0, revision=0;
+  // Live handoff only: prime the scheduled STFT with REAL outgoing pre-cue PCM.
+  // Offline/legacy callers retain their cold-start contract unless opted in.
+  bool primeOutgoing=false;
 };
 struct LivePcmStats {
   std::int64_t accepted[2]{}, zeroPadding[2]{}, dequeued[2]{}, consumed[2]{};
@@ -23,7 +26,8 @@ class LivePcmExecutor {
   ~LivePcmExecutor();
   LivePcmExecutor(const LivePcmExecutor&)=delete;
   LivePcmExecutor& operator=(const LivePcmExecutor&)=delete;
-  // Source frames begin at the rounded cue. Prefixes are handled by the output
+  // Source frames begin at the rounded cue minus outgoingPrerollFrames() on side 0.
+  // Priming output is discarded internally; prefixes are handled by the output
   // owner. Return ONLY accepted frames; zero means backpressure, not EOF.
   unsigned push(unsigned side,const float* pcm,unsigned frames,std::int64_t firstSourceFrame);
   // Real decoded EOF must equal the accepted cursor. A short source cannot be
@@ -38,6 +42,7 @@ class LivePcmExecutor {
   void encode(const float* pcm,unsigned frames,unsigned bytesPerSample,void* output,std::size_t bytes);
   double sourceSecondsForOutput(unsigned side,double outputFrame) const;
   std::int64_t cueFrame(unsigned side) const;
+  std::int64_t outgoingPrerollFrames() const;
   std::int64_t transitionFrames() const;
   LivePcmStats stats() const;
  private:

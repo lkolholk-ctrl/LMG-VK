@@ -42,6 +42,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.lmg.vk.ui.components.DetailStyle
+import com.lmg.vk.ui.components.DetailSecondaryAction
+import com.lmg.vk.ui.components.detailClickable
 import com.lmg.vk.R
 import com.lmg.vk.engine.AudioDownloadManager
 import com.lmg.vk.engine.PlaybackContext
@@ -56,6 +59,9 @@ import com.lmg.vk.engine.PlaylistManager
 import com.lmg.vk.data.local.db.AppDatabase
 import com.lmg.vk.data.local.db.FavoriteTrackDatabase
 import com.lmg.vk.data.local.db.LibraryRepository
+import com.lmg.vk.ui.components.DetailMenuAction
+import com.lmg.vk.ui.components.DetailMenuButton
+import androidx.compose.ui.geometry.Rect
 import com.lmg.vk.ui.components.DetailHeader
 import com.lmg.vk.ui.components.DetailTopBar
 import com.lmg.vk.ui.components.DetailTrackRow
@@ -100,6 +106,7 @@ fun AlbumDetailScreen(
     var isFollowing by remember(albumId) { mutableStateOf(false) }
     var followBusy by remember(albumId) { mutableStateOf(false) }
     var reloadKey by remember(albumId) { mutableStateOf(0) }
+    var actionsAnchor by remember { mutableStateOf(Rect.Zero) }
     var actionsTrack by remember(albumId) { mutableStateOf<Track?>(null) }
     var playlistPickerTrack by remember(albumId) { mutableStateOf<Track?>(null) }
     var artistChooser by remember(albumId) { mutableStateOf<List<MiniArtist>?>(null) }
@@ -221,6 +228,51 @@ fun AlbumDetailScreen(
         }
     }
 
+    val info = album?.album
+    val albumAdd: () -> Unit = {
+                                if (!isFollowing && info?.canFollow == true) {
+                                    scope.launch {
+                                        followBusy = true
+                                        if (MusicBackend.followAlbum(albumId)) {
+                                            isFollowing = true
+                                            Toast.makeText(context, R.string.album_added, Toast.LENGTH_SHORT).show()
+                                        } else {
+                                            Toast.makeText(context, R.string.album_add_failed, Toast.LENGTH_SHORT).show()
+                                        }
+                                        followBusy = false
+                                    }
+                                }
+                            }
+    val albumDownload: () -> Unit = {
+                                playableTracks.forEach { AudioDownloadManager.downloadTrack(context, it) }
+                                Toast.makeText(
+                                    context,
+                                    context.resources.getQuantityString(R.plurals.caching_tracks, playableTracks.size, playableTracks.size),
+                                    Toast.LENGTH_SHORT,
+                                ).show()
+                            }
+    val albumQueue: () -> Unit = {
+                                playableTracks.forEach(PlayerController::addToQueue)
+                                Toast.makeText(
+                                    context,
+                                    context.resources.getQuantityString(R.plurals.added_to_queue, playableTracks.size, playableTracks.size),
+                                    Toast.LENGTH_SHORT,
+                                ).show()
+                            }
+    val albumShare: () -> Unit = {
+                                val shareId = info?.id?.takeIf { it.isNotBlank() } ?: albumId
+                                val text = buildString {
+                                    append(info?.title.orEmpty())
+                                    info?.artist?.takeIf { it.isNotBlank() }?.let { append(" — ").append(it) }
+                                    append("\nhttps://vk.com/music/album/").append(shareId.removePrefix("vk_"))
+                                }
+                                val intent = Intent(Intent.ACTION_SEND).apply {
+                                    type = "text/plain"
+                                    putExtra(Intent.EXTRA_TEXT, text)
+                                }
+                                context.startActivity(Intent.createChooser(intent, info?.title.orEmpty()))
+                            }
+
     val listState = rememberLazyListState()
     val showTopBarTitle by remember {
         derivedStateOf {
@@ -228,7 +280,7 @@ fun AlbumDetailScreen(
         }
     }
 
-    Box(modifier = Modifier.fillMaxSize().background(LiquidSurfaces.sheet(isDark))) {
+    Box(modifier = Modifier.fillMaxSize().background(DetailStyle.background(isDark))) {
         when {
             isLoading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(color = colors.accent, modifier = Modifier.size(32.dp))
@@ -273,7 +325,6 @@ fun AlbumDetailScreen(
             }
 
             else -> {
-                val info = album?.album
                 LazyColumn(
                     state = listState,
                     // Ограничение ширины для планшетов и ландшафта: без него строка
@@ -287,6 +338,11 @@ fun AlbumDetailScreen(
                 ) {
                     item {
                         DetailHeader(
+                            centeredArtwork = true,
+                            onSubtitleClick = if (albumArtists.isNotEmpty()) ({
+                                if (albumArtists.size == 1) onNavigateToArtist(albumArtists.first().id.orEmpty())
+                                else artistChooser = albumArtists
+                            }) else null,
                             title = info?.title.orEmpty(),
                             subtitle = info?.artist.orEmpty(),
                             facts = buildList {
@@ -331,6 +387,7 @@ fun AlbumDetailScreen(
 
                     item {
                         AlbumActionsRow(
+                            title = info?.title.orEmpty(),
                             isDark = isDark,
                             isFollowing = isFollowing,
                             isAdding = followBusy,
@@ -338,106 +395,11 @@ fun AlbumDetailScreen(
                             cacheLabel = cacheLabel,
                             canDownload = isPremium && playableTracks.isNotEmpty() && cachedCount < playableTracks.size,
                             canQueue = playableTracks.isNotEmpty(),
-                            onAdd = {
-                                if (!isFollowing && info?.canFollow == true) {
-                                    scope.launch {
-                                        followBusy = true
-                                        if (MusicBackend.followAlbum(albumId)) {
-                                            isFollowing = true
-                                            Toast.makeText(context, R.string.album_added, Toast.LENGTH_SHORT).show()
-                                        } else {
-                                            Toast.makeText(context, R.string.album_add_failed, Toast.LENGTH_SHORT).show()
-                                        }
-                                        followBusy = false
-                                    }
-                                }
-                            },
-                            onDownload = {
-                                playableTracks.forEach { AudioDownloadManager.downloadTrack(context, it) }
-                                Toast.makeText(
-                                    context,
-                                    context.resources.getQuantityString(R.plurals.caching_tracks, playableTracks.size, playableTracks.size),
-                                    Toast.LENGTH_SHORT,
-                                ).show()
-                            },
-                            onQueue = {
-                                playableTracks.forEach(PlayerController::addToQueue)
-                                Toast.makeText(
-                                    context,
-                                    context.resources.getQuantityString(R.plurals.added_to_queue, playableTracks.size, playableTracks.size),
-                                    Toast.LENGTH_SHORT,
-                                ).show()
-                            },
-                            onShare = {
-                                val shareId = info?.id?.takeIf { it.isNotBlank() } ?: albumId
-                                val text = buildString {
-                                    append(info?.title.orEmpty())
-                                    info?.artist?.takeIf { it.isNotBlank() }?.let { append(" — ").append(it) }
-                                    append("\nhttps://vk.com/music/album/").append(shareId.removePrefix("vk_"))
-                                }
-                                val intent = Intent(Intent.ACTION_SEND).apply {
-                                    type = "text/plain"
-                                    putExtra(Intent.EXTRA_TEXT, text)
-                                }
-                                context.startActivity(Intent.createChooser(intent, info?.title.orEmpty()))
-                            },
+                            onAdd = albumAdd,
+                            onDownload = albumDownload,
+                            onQueue = albumQueue,
+                            onShare = albumShare,
                         )
-                    }
-
-                    if (albumArtists.isNotEmpty()) {
-                        item {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 20.dp, vertical = 8.dp)
-                                    .clip(RoundedCornerShape(18.dp))
-                                    .background(LiquidSurfaces.card(isDark))
-                                    .liquidClickable(
-                                        pressedScale = LiquidMotion.PressButton,
-                                        onClick = {
-                                            if (albumArtists.size == 1) {
-                                                onNavigateToArtist(albumArtists.first().id.orEmpty())
-                                            } else {
-                                                artistChooser = albumArtists
-                                            }
-                                        },
-                                    )
-                                    .padding(horizontal = 14.dp, vertical = 13.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Icon(
-                                    com.lmg.vk.ui.icons.LmgGlyphs.UserOutline28,
-                                    contentDescription = null,
-                                    tint = colors.accent,
-                                    modifier = Modifier.size(24.dp),
-                                )
-                                Text(
-                                    text = info?.artist.orEmpty().ifBlank {
-                                        albumArtists.joinToString(", ") { it.displayName }
-                                    },
-                                    color = LiquidSurfaces.textPrimary(isDark),
-                                    fontSize = 15.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    modifier = Modifier.padding(start = 12.dp).weight(1f),
-                                )
-                                Icon(
-                                    com.lmg.vk.ui.icons.LmgGlyphs.ArrowRightOutline28,
-                                    contentDescription = stringResource(R.string.open_artist),
-                                    tint = LiquidSurfaces.textSecondary(isDark),
-                                    modifier = Modifier.size(19.dp),
-                                )
-                            }
-                        }
-                    }
-
-                    if (albumPlayCount > 0) {
-                        item {
-                            AlbumPersonalStrip(
-                                playCount = albumPlayCount,
-                                favouriteTrack = favouriteAlbumTrack,
-                                isDark = isDark,
-                            )
-                        }
                     }
 
                     itemsIndexed(trackRows, key = { _, row -> row.track.id }) { index, row ->
@@ -470,6 +432,7 @@ fun AlbumDetailScreen(
                             showDivider = index < trackRows.lastIndex &&
                                 trackRows[index + 1].discHeader == null,
                             enabled = track.isAvailable,
+                            onMorePosition = { actionsAnchor = it },
                             onMore = if (track.isAvailable) {
                                 { actionsTrack = track }
                             } else null,
@@ -485,6 +448,16 @@ fun AlbumDetailScreen(
                                 }
                             }
                         )
+                    }
+
+                    if (albumPlayCount > 0) {
+                        item {
+                            AlbumPersonalStrip(
+                                playCount = albumPlayCount,
+                                favouriteTrack = favouriteAlbumTrack,
+                                isDark = isDark,
+                            )
+                        }
                     }
 
                     item {
@@ -519,11 +492,19 @@ fun AlbumDetailScreen(
             title = album?.album?.title.orEmpty(),
             showTitle = showTopBarTitle,
             isDark = isDark,
-            onBack = onBack
+            onBack = onBack,
+            idleTitle = stringResource(R.string.release_type_album),
+            trailing = { DetailMenuButton(info?.title.orEmpty(), listOf(
+                DetailMenuAction(stringResource(if (isFollowing) R.string.in_library else R.string.action_add), com.lmg.vk.ui.icons.LmgGlyphs.BookmarkOutline28, info?.canFollow == true && !followBusy && !isFollowing, albumAdd),
+                DetailMenuAction(cacheLabel, com.lmg.vk.ui.icons.LmgGlyphs.DownloadOutline28, isPremium && playableTracks.isNotEmpty() && cachedCount < playableTracks.size, albumDownload),
+                DetailMenuAction(stringResource(R.string.action_queue), com.lmg.vk.ui.icons.LmgGlyphs.ListPlayOutline28, playableTracks.isNotEmpty(), albumQueue),
+                DetailMenuAction(stringResource(R.string.action_share), com.lmg.vk.ui.icons.LmgGlyphs.ShareOutline28, onClick = albumShare),
+            ), circular = true) },
         )
 
         actionsTrack?.let { selected ->
             TrackActionsSheet(
+                anchor = actionsAnchor,
                 track = selected,
                 isFavorite = com.lmg.vk.engine.VkAudioIdentity.stableFullId(selected.id) in favoriteIds,
                 onToggleFavorite = {
@@ -581,7 +562,8 @@ private data class AlbumTrackRow(
 )
 
 @Composable
-private fun AlbumActionsRow(
+internal fun AlbumActionsRow(
+    title: String,
     isDark: Boolean,
     isFollowing: Boolean,
     isAdding: Boolean,
@@ -595,10 +577,11 @@ private fun AlbumActionsRow(
     onShare: () -> Unit,
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 10.dp),
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 5.dp, bottom = 12.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        AlbumActionButton(
+        DetailSecondaryAction(
             when {
                 isFollowing -> stringResource(R.string.in_library)
                 isAdding -> stringResource(R.string.adding_short)
@@ -606,13 +589,12 @@ private fun AlbumActionsRow(
             },
             if (isFollowing) com.lmg.vk.ui.icons.LmgGlyphs.BookmarkCheckOutline28
             else lmgVector(LmgDrawables.BookmarkAddOutline28),
-            (isFollowing || canFollow) && !isAdding,
             isDark,
+            (isFollowing || canFollow) && !isAdding,
             onAdd,
         )
-        AlbumActionButton(cacheLabel, com.lmg.vk.ui.icons.LmgGlyphs.DownloadOutline28, canDownload, isDark, onDownload)
-        AlbumActionButton(stringResource(R.string.action_queue), com.lmg.vk.ui.icons.LmgGlyphs.ListPlayOutline28, canQueue, isDark, onQueue)
-        AlbumActionButton(stringResource(R.string.action_share), com.lmg.vk.ui.icons.LmgGlyphs.ShareOutline28, true, isDark, onShare)
+        DetailSecondaryAction(cacheLabel, com.lmg.vk.ui.icons.LmgGlyphs.DownloadOutline28, isDark, canDownload, onDownload)
+        DetailSecondaryAction(stringResource(R.string.action_queue), com.lmg.vk.ui.icons.LmgGlyphs.ListPlayOutline28, isDark, canQueue, onQueue)
     }
 }
 
@@ -626,9 +608,7 @@ private fun AlbumPersonalStrip(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 20.dp, vertical = 8.dp)
-            .clip(RoundedCornerShape(18.dp))
-            .background(LiquidSurfaces.card(isDark))
-            .padding(horizontal = 16.dp, vertical = 13.dp),
+            .padding(vertical = 8.dp),
     ) {
         Text(
             pluralStringResource(R.plurals.album_played_times, playCount, playCount),
@@ -647,35 +627,7 @@ private fun AlbumPersonalStrip(
     }
 }
 
-@Composable
-private fun androidx.compose.foundation.layout.RowScope.AlbumActionButton(
-    title: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    enabled: Boolean,
-    isDark: Boolean,
-    onClick: () -> Unit,
-) {
-    Row(
-        modifier = Modifier
-            .weight(1f)
-            .alpha(if (enabled) 1f else 0.42f)
-            .clip(RoundedCornerShape(16.dp))
-            .background(LiquidSurfaces.card(isDark))
-            .liquidClickable(enabled = enabled, pressedScale = LiquidMotion.PressButton, onClick = onClick)
-            .padding(horizontal = 8.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.Center,
-    ) {
-        Icon(icon, null, tint = LiquidSurfaces.textPrimary(isDark), modifier = Modifier.size(18.dp))
-        Text(
-            title,
-            color = LiquidSurfaces.textPrimary(isDark),
-            fontSize = 12.sp,
-            fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.padding(start = 6.dp),
-        )
-    }
-}
+
 
 private fun formatCatalogDate(seconds: Long): String =
     SimpleDateFormat("d MMM yyyy", Locale.getDefault()).format(Date(seconds * 1000L))

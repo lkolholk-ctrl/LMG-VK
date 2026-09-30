@@ -62,7 +62,11 @@ void styles() {
   CHECK(beatMatchedStyleScore(9,x)==0);
   x.vocalRelationshipIncompatible=false; x.tonalityCompatible=false;
   CHECK(beatMatchedStyleScore(9,x)==0);
-  for(auto id:{0,1,2,3,4,6,7,10,11,33,44}) CHECK(!beatMatchedStyleScore(id,x));
+  CHECK(beatMatchedStyleScore(11,x).has_value());
+  CHECK(beatMatchedStyleScore(10,x).has_value());
+  CHECK(beatMatchedStyleScore(6,x).has_value());
+  CHECK(beatMatchedStyleScore(7,x).has_value());
+  for(auto id:{0,1,2,3,4,33,44}) CHECK(!beatMatchedStyleScore(id,x));
 }
 void selectionAndValidation() {
   CHECK(!bestPlannerCandidate({})); CHECK(!bestPlannerCandidate({-1,0,-0.}));

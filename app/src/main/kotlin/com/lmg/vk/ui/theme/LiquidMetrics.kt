@@ -70,17 +70,24 @@ object LiquidMetrics {
     val DividerInset = 92.dp
 
     // ── Возвышение ───────────────────────────────────────────────────────────
+    /** Single policy for cast shadows on cards, covers and buttons. Glass optics
+     * (blur, refraction, highlights/inner shading) are independent of this flag. */
+    const val CastShadowsEnabled = false
+
+    fun castShadow(elevationPx: Float): Float = if (CastShadowsEnabled) elevationPx else 0f
+
     /** Карточки, приподнятые над листом (свежий релиз и подобные). */
-    val CardElevation = 10.dp
+    val CardElevation = if (CastShadowsEnabled) 10.dp else 0.dp
 
     /** Главные кнопки действий: лёгкий отрыв, а не выпуклость. */
-    val ButtonElevation = 6.dp
+    val ButtonElevation = if (CastShadowsEnabled) 6.dp else 0.dp
+    val SecondaryButtonElevation = if (CastShadowsEnabled) 2.dp else 0.dp
 
     /**
      * Обложки в списках и каруселях. Меньше, чем у карточек: обложек на экране
      * много, и одинаково сильная тень у каждой превращает список в рябь.
      */
-    val CoverElevation = 6.dp
+    val CoverElevation = if (CastShadowsEnabled) 6.dp else 0.dp
 
     // ── Типографика ──────────────────────────────────────────────────────────
     /** Имя артиста в шапке. Плотный трекинг — иначе крупный текст выглядит рыхлым. */
@@ -144,7 +151,7 @@ object LiquidMetrics {
     const val QueueDragLiftScale = 0.97f
 
     /** Тень поднятой строки. */
-    const val QueueDragElevation = 12f
+    val QueueDragElevation = castShadow(12f)
 }
 
 /**

@@ -87,7 +87,7 @@ std::vector<std::int64_t> observePlannerScheduledSource(const std::vector<std::i
     return envelope(q,PlannerScheduleStatus::selectionUnavailable,source);
   const auto& c=*produced.selection->winner;
   const auto style=std::find_if(catalog.begin(),catalog.end(),[&](const auto& s){return s.id==c.styleId;});
-  if(style==catalog.end() || (c.styleId!=8&&c.styleId!=9&&c.styleId!=12))
+  if(style==catalog.end() || (c.styleId!=6&&c.styleId!=7&&c.styleId!=8&&c.styleId!=9&&c.styleId!=10&&c.styleId!=11&&c.styleId!=12))
     return envelope(q,PlannerScheduleStatus::unsupportedStyle,source);
   try {
     // The old composition intentionally does not retain map ownership. Rebuild

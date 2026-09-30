@@ -19,7 +19,7 @@ OWNER_SYMBOLS = tuple(b"Java_com_lmg_vk_engine_automix_nativecore_NativePcmOwner
     b"nativeDestroy",
 ))
 LIVE_SYMBOLS = tuple(b"Java_com_lmg_vk_engine_automix_nativecore_NativeLivePcmExecutor_" + name for name in (
-    b"nativeProtocol", b"nativeCreate", b"nativePush", b"nativeEof", b"nativeRender",
+    b"nativeProtocol", b"nativeCreate", b"nativeCreatePrimed", b"nativePush", b"nativeEof", b"nativeRender",
     b"nativeEncodePrefix", b"nativeSourceTime", b"nativeStats", b"nativeDestroy",
 ))
 ABI_IDENTITIES = {'armeabi-v7a': (1, 40), 'arm64-v8a': (2, 183), 'x86': (1, 3)}

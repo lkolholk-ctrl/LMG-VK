@@ -23,6 +23,7 @@ TimePitchStream::TimePitchStream(double fs,std::uint32_t count,std::uint32_t max
 }
 void TimePitchStream::reset(double inputTime,double outputTime) noexcept {
   timePitchResetStream(state_,geometry_.fftSize,scheduled_,inputTime,outputTime);
+  preciseInputRead_=0;
   for(std::uint32_t c=0;c<channels_;++c) {
     std::fill(input_[c].begin(),input_[c].end(),0);
     std::fill(output_[c].begin(),output_[c].end(),0);
@@ -85,6 +86,11 @@ void TimePitchStream::pump() noexcept {
     }
     clock_.effectiveInputHop=transient_.effectiveInputHop;
     timePitchCommitHop(state_,transient_.effectiveInputHop,hop.outputFrames);
+    // The scalar recovered helper stores an integer cursor. Preserve the host's
+    // fractional carry across calls, then quantize the absolute cursor once.
+    // Integer/unmapped hops and all phase/transient calculations stay unchanged.
+    preciseInputRead_ += transient_.effectiveInputHop;
+    state_.inputRead=static_cast<std::int64_t>(preciseInputRead_);
   }
 }
 std::uint32_t TimePitchStream::enqueue(const float* const* planes,std::uint32_t count,double timestamp) {

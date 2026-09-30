@@ -152,6 +152,15 @@ object MediaCacheManager {
 
         cacheDataSourceFactory = CacheDataSource.Factory()
             .setCache(simpleCache)
+            .setCacheKeyFactory { spec ->
+                val key = spec.key ?: spec.uri.toString()
+                if (key.startsWith("lmg_")) {
+                    PlayerController.getCurrentQueue().firstOrNull { "lmg_${it.id}" == key }?.let { track ->
+                        CacheCatalog.remember(context, "audio:$key", track.title, track.artist)
+                    }
+                }
+                key
+            }
             .setUpstreamDataSourceFactory(httpFactory)
             .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
 
@@ -321,6 +330,31 @@ object MediaCacheManager {
         } catch (e: Exception) {
             android.util.Log.e("MediaCacheManager", "evictTrack failed: ${e.message}")
             false
+        }
+    }
+
+    suspend fun browserEntries(context: Context): Map<String, Long> = withContext(Dispatchers.IO) {
+        cacheLock.withLock {
+            if (cache == null) {
+                val dir = File(context.cacheDir, "media3_cache")
+                if (dir.listFiles().isNullOrEmpty()) return@withLock emptyMap()
+                appContext = context.applicationContext
+                cacheDir = dir
+                // Browsing must not trigger the disabled-cache cleanup path in init().
+                val retainedBytes = dir.walkTopDown().filter { it.isFile }.sumOf { it.length() }
+                buildCacheLocked(context.applicationContext, dir, maxOf(getCacheLimitBytes(), retainedBytes + 1))
+            }
+            cache?.let { current -> current.keys.associateWith { key ->
+                current.getCachedSpans(key).sumOf { it.length }
+            }.filterValues { it > 0 } }.orEmpty()
+        }
+    }
+
+    suspend fun removeBrowserEntries(keys: List<String>) = withContext(Dispatchers.IO) {
+        cacheLock.withLock {
+            if (activePreCacheKey in keys) activePreCache?.cancel()
+            val current = cache ?: throw java.io.IOException("Audio cache unavailable")
+            keys.forEach(current::removeResource)
         }
     }
 

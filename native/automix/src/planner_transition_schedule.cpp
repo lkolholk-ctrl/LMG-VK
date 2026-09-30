@@ -92,7 +92,9 @@ PlannerTransitionSchedule::PlannerTransitionSchedule(std::int64_t id,TempoBinary
 
 PlannerTransitionSchedule compilePlannerTransitionSchedule(const PlannerScoredCandidate& candidate,
     const SongStructure& outgoing,const SongStructure& incoming,const TransitionStyle& style) {
-  need((candidate.styleId==8 || candidate.styleId==9 || candidate.styleId==12) && style.id==candidate.styleId);
+  need((candidate.styleId==6 || candidate.styleId==7 || candidate.styleId==8 ||
+        candidate.styleId==9 || candidate.styleId==10 || candidate.styleId==11 ||
+        candidate.styleId==12) && style.id==candidate.styleId);
   need(std::isfinite(candidate.score) && candidate.score>0 &&
        style.offset && style.offset->relative==0 && style.offset->offsetInSeconds.value_or(0)==0);
   SecondsWindow a{candidate.outgoingStart,candidate.outgoingEnd}, b{candidate.incomingStart,candidate.incomingEnd};
@@ -100,8 +102,12 @@ PlannerTransitionSchedule compilePlannerTransitionSchedule(const PlannerScoredCa
   const auto na=beats(outgoing,candidate.outgoing,a), nb=beats(incoming,candidate.incoming,b);
   const auto rates=plannerStructuredPlaybackRates(a,b,na,nb,candidate.incomingScale);
   instructions(style.outgoing);instructions(style.incoming);
-  auto aa=compileContinuousStyle(style.outgoing,a,rates.outgoing);
-  auto ba=compileContinuousStyle(style.incoming,b,rates.incoming);
+  const double beatOut = (a.end - a.begin) / std::max(1.0, static_cast<double>(na));
+  const double beatIn = (b.end - b.begin) / std::max(1.0, static_cast<double>(nb));
+  std::map<std::string, double> mappedOut{{"beat_length", beatOut}};
+  std::map<std::string, double> mappedIn{{"beat_length", beatIn}};
+  auto aa=compileContinuousStyle(style.outgoing,a,rates.outgoing,mappedOut);
+  auto ba=compileContinuousStyle(style.incoming,b,rates.incoming,mappedIn);
   validateAutomations(aa,a);validateAutomations(ba,b);
   // Same first-descriptor/first-ramp semantics as the source constructor. These
   // temporary maps measure durations at transition anchor0 before final placement.

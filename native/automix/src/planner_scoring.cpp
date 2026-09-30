@@ -167,7 +167,7 @@ std::optional<PlannerCatalogSelection> selectPlannerCatalogCandidate(
 
 std::optional<double> beatMatchedStyleScore(std::int64_t styleId,
                                           const BeatMatchedScoreInputs& in) {
-  if (styleId != 8 && styleId != 9 && styleId != 12) return std::nullopt;
+  if (styleId != 6 && styleId != 7 && styleId != 8 && styleId != 9 && styleId != 10 && styleId != 11 && styleId != 12) return std::nullopt;
   const double leading = in.leadingIncomingVocalSignificant ? 0.75 : 1.0;
   const double trailing = in.trailingIncomingLoudnessRatio.value_or(1.0);
   const double bars = in.matchingBarCount && *in.matchingBarCount > 7 ? 1.0 : 0.0;
@@ -178,9 +178,29 @@ std::optional<double> beatMatchedStyleScore(std::int64_t styleId,
     return plannerCandidateScore(15.0, {in.normalTempoCompatible ? 1.0 : 0.0,
         in.tonalityCompatible ? 1.0 : 0.0, bars,
         in.vocalRelationshipIncompatible ? 0.0 : 1.0, leading, trailing}, in.tieBreakDelta);
-  // 272234944..948: expanded style requires NORMAL INCOMPATIBILITY.
-  return plannerCandidateScore(10.0,
-      {!in.normalTempoCompatible && in.expandedTempoCompatible ? 1.0 : 0.0,
-       bars, leading, trailing}, in.tieBreakDelta);
+  if (styleId == 12)
+    return plannerCandidateScore(10.0,
+        {!in.normalTempoCompatible && in.expandedTempoCompatible ? 1.0 : 0.0,
+         bars, leading, trailing}, in.tieBreakDelta);
+  if (styleId == 11) {
+    // Style 11: BM - Filter long out short in + Reverb Washout.
+    // Top priority when vocal clash occurs or tonality differs, as reverb diffuses clashes smoothly.
+    const double vocalFactor = in.vocalRelationshipIncompatible ? 1.0 : 0.9;
+    const double tonalityFactor = in.tonalityCompatible ? 1.0 : 0.95;
+    const double barFactor = in.barCountRatio.value_or(bars > 0 ? 1.0 : 0.8);
+    return plannerCandidateScore(14.0, {in.normalTempoCompatible ? 1.0 : 0.75,
+        tonalityFactor, barFactor, vocalFactor, leading, trailing}, in.tieBreakDelta);
+  }
+  if (styleId == 10) {
+    // Style 10: BM - Filter long out short in + Delay Echo.
+    return plannerCandidateScore(12.0, {in.normalTempoCompatible ? 1.0 : 0.0,
+        bars, in.vocalRelationshipIncompatible ? 0.85 : 1.0, leading, trailing}, in.tieBreakDelta);
+  }
+  if (styleId == 6 || styleId == 7) {
+    // Style 6 & 7: Beat-matched long fade-out short fade-in.
+    return plannerCandidateScore(8.0, {in.normalTempoCompatible ? 1.0 : 0.0,
+        bars, leading, trailing}, in.tieBreakDelta);
+  }
+  return std::nullopt;
 }
 } // namespace lmg::automix

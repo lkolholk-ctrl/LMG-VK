@@ -82,11 +82,20 @@ class VkAudioApi(
         type: String? = "top",
         offset: Int = 0,
         count: Int = 100,
-    ): VkResult<List<AudioTrack>> {
-        val listType = Types.newParameterizedType(List::class.java, AudioTrack::class.java)
+    ): VkResult<List<AudioTrack>> = when (val result = getAudiosByArtistPage(artistId, type, offset, count)) {
+        is VkResult.Success -> VkResult.Success(result.data.items)
+        is VkResult.Error -> result
+    }
+
+    suspend fun getAudiosByArtistPage(
+        artistId: String,
+        type: String? = "top",
+        offset: Int = 0,
+        count: Int = 100,
+    ): VkResult<VkItems<AudioTrack>> {
         val method = VkMethod(
             "audio.getAudiosByArtist",
-            MoshiEnvelopeParser<List<AudioTrack>>(listType),
+            ArtistAudioPageParser,
         ).apply {
             param("artist_id", artistId)
             type?.let { param("type", it) }

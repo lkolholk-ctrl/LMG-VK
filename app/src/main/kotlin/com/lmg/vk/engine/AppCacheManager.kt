@@ -19,7 +19,8 @@ enum class CacheCategory { LYRICS, ARTWORK, MOTION, AUDIO }
 internal fun cacheCategoryDirectories(cacheDir: File, filesDir: File, category: CacheCategory): List<File> =
     when (category) {
         CacheCategory.LYRICS -> listOf(File(cacheDir, "lrclib"),
-            File(filesDir, "lyrics/ttml"), File(filesDir, "lyrics/apple_ttml"))
+            File(filesDir, "lyrics/ttml"), File(filesDir, "lyrics/apple_ttml"),
+            File(filesDir, "lyrics/lmg_lyrics_plus"))
         CacheCategory.ARTWORK -> listOf("image_cache", "itunes_artwork_v3", "apple_artwork_v3")
             .map { File(cacheDir, it) }
         // SimpleCache and Coil are managed through their own APIs.

@@ -29,7 +29,7 @@ internal inline fun RenderBoundaryEndpoint.forwardWithCueGate(
 ): Boolean {
     // Native acknowledgements are NOT bytes accepted by the original sink ledger.
     // Preserve the old before/after behavior for dormant, held and rolled-back buffers.
-    if (cuePort.ownsInput()) return cuePort.forward(buffer,presentationTimeUs,accessUnits) { write() }
+    if (cuePort.ownsInput()) return cuePort.forwardClaimed(buffer,presentationTimeUs,accessUnits)
     return forwardUnchanged(buffer, presentationTimeUs, accessUnits) {
         cuePort.forward(buffer, presentationTimeUs, accessUnits) { write() }
     }

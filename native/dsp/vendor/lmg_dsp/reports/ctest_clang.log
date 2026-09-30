@@ -1,0 +1,52 @@
+Internal ctest changing into directory: /mnt/data/lmg_dsp_clang
+UpdateCTestConfiguration  from :/mnt/data/lmg_dsp_clang/DartConfiguration.tcl
+UpdateCTestConfiguration  from :/mnt/data/lmg_dsp_clang/DartConfiguration.tcl
+Test project /mnt/data/lmg_dsp_clang
+Constructing a list of tests
+Done constructing a list of tests
+Updating test list for fixtures
+Added 0 tests to meet fixture requirements
+Checking test dependency graph...
+Checking test dependency graph end
+test 1
+    Start 1: lmg_dsp_tests
+
+1: Test command: /mnt/data/lmg_dsp_clang/lmg_dsp_tests
+1: Working Directory: /mnt/data/lmg_dsp_clang
+1: Test timeout computed to be: 180
+1: PASS measured_frequency_responses_44k_48k_96k
+1: PASS boundary_grid_poles_and_independent_reference
+1: PASS boost_cut_cancellation
+1: PASS bit_exact_bypass_and_exclusive_eq_modes
+1: PASS channel_independence
+1: PASS latency_eos_short_empty_streams
+1: PASS errors_validation_queue_backpressure
+1: PASS seek_reset_adopts_latest_and_clears_state
+1: PASS fixed_parameter_block_independence
+1: PASS scheduled_automation_block_independence
+1: PASS smooth_preamp_and_bypass
+1: PASS limiter_threshold_ceiling_stereo_link
+1: PASS limiter_attack_release_timing
+1: PASS limiter_enable_and_dynamic_ceiling
+1: PASS tail_fade_and_no_silence_trimming
+1: PASS nan_inf_denormal_float_overflow
+1: PASS extreme_valid_cascades
+1: PASS q_slope_preamp_headroom_presets
+1: PASS drain_memory_bounds
+1: PASS no_cpp_allocations_in_realtime
+1: PASS spsc_snapshot_concurrency
+1: PASS processor_control_audio_concurrency
+1: 22/22 groups passed
+1/2 Test #1: lmg_dsp_tests ....................   Passed    0.72 sec
+test 2
+    Start 2: lmg_dsp_c_smoke
+
+2: Test command: /mnt/data/lmg_dsp_clang/lmg_dsp_c_smoke
+2: Working Directory: /mnt/data/lmg_dsp_clang
+2: Test timeout computed to be: 10000000
+2: PASS C99 API lifecycle, ABI validation, PCM and drain
+2/2 Test #2: lmg_dsp_c_smoke ..................   Passed    0.00 sec
+
+100% tests passed, 0 tests failed out of 2
+
+Total Test time (real) =   0.73 sec

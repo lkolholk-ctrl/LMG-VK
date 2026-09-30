@@ -18,18 +18,21 @@ internal class RetainedLyricsCache<K : Any, V : Any>(
     private val maxWeight: Int,
     private val weightOf: (V) -> Int,
     private val isValid: (V) -> Boolean = { true },
+    private val expiresAfterMs: (V) -> Long = { Long.MAX_VALUE },
+    private val nowMs: () -> Long = { System.nanoTime() / 1_000_000L },
 ) {
+    private class Entry<V>(val value: V, val storedAt: Long)
     private class Work<V>(val token: Any, val result: Deferred<V>)
     private val lock = Any()
-    private val entries = LinkedHashMap<K, V>()
+    private val entries = LinkedHashMap<K, Entry<V>>()
     private val pending = LinkedHashMap<K, Work<V>>()
     private val permits = Semaphore(2)
 
     fun peek(key: K): V? = synchronized(lock) {
-        val value = entries.remove(key) ?: return@synchronized null
-        if (!isValid(value)) return@synchronized null
-        entries[key] = value
-        value
+        val entry = entries.remove(key) ?: return@synchronized null
+        if (!isValid(entry.value) || nowMs() - entry.storedAt >= expiresAfterMs(entry.value)) return@synchronized null
+        entries[key] = entry
+        entry.value
     }
 
     suspend fun getOrPrepare(key: K, prepare: suspend () -> V): V {
@@ -46,8 +49,8 @@ internal class RetainedLyricsCache<K : Any, V : Any>(
                     currentCoroutineContext().ensureActive()
                     synchronized(lock) {
                         if (pending[key]?.token === token && isValid(value) && weightOf(value) <= maxWeight) {
-                            entries[key] = value
-                            while (entries.size > maxEntries || entries.values.sumOf(weightOf) > maxWeight) {
+                            entries[key] = Entry(value, nowMs())
+                            while (entries.size > maxEntries || entries.values.sumOf { weightOf(it.value) } > maxWeight) {
                                 entries.remove(entries.keys.first())
                             }
                         }
@@ -73,6 +76,11 @@ internal class RetainedLyricsCache<K : Any, V : Any>(
 
     fun invalidate(key: K) = synchronized(lock) {
         entries.remove(key)
+        pending.remove(key)?.result?.cancel()
+        Unit
+    }
+
+    fun cancelPending(key: K) = synchronized(lock) {
         pending.remove(key)?.result?.cancel()
         Unit
     }

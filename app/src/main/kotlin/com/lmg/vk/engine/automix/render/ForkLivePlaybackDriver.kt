@@ -12,6 +12,7 @@ import com.lmg.vk.engine.PlayerSettings
 import java.nio.ByteBuffer
 import java.util.Collections
 import java.util.IdentityHashMap
+import java.util.concurrent.atomic.AtomicReference
 
 /** Production adapter to a lease minted by the SAME ExoPlayer's retained actual periods.
  * First live scope is opt-in DEBUG, one nonspatial A->B with B final, normalizers/DJ idle.
@@ -24,20 +25,38 @@ internal class ForkLivePlaybackDriver private constructor(
     data class Report(val phase:Phase, val generation:Long=0,val revision:Long=0,
         val nativeDspInstalled:Boolean=false, val actualPlaybackLease:Boolean=false,
         val sourcePrerollDiscarded:Long=0, val reason:String?=null)
-    @Volatile var report=Report(Phase.OFF);private set
-    @Volatile private var requested: RenderBoundaryController.Epoch?=null
+    private data class RequestState(val epoch: RenderBoundaryController.Epoch?, val report: Report)
+    private val requestState=AtomicReference(RequestState(null,Report(Phase.OFF)))
+    val report: Report get()=requestState.get().report
+    private val requested: RenderBoundaryController.Epoch? get()=requestState.get().epoch
+    private var leasedEpoch: RenderBoundaryController.Epoch?=null
+    private fun publish(expected:RenderBoundaryController.Epoch?,value:Report,clear:Boolean=false) {
+        while(true) {
+            val old=requestState.get()
+            if(old.epoch !== expected)return
+            if(requestState.compareAndSet(old,RequestState(if(clear)null else expected,value)))return
+        }
+    }
     @Volatile private var forkLease:LmgLivePlaybackLease?=null
     @Volatile private var handoff=false
     private var pump:LivePcmPump?=null
+    @Volatile private var preparation:PreparedResourceTask<LivePcmPump.Prepared>?=null
+    private var preparationEpoch:RenderBoundaryController.Epoch?=null
+    private var preparationFormat:RenderPcmFormat?=null
+    override fun cancelPreparation() { preparation?.cancel() }
     private val initialConfiguration=Collections.newSetFromMap(IdentityHashMap<RenderBoundaryEndpoint,Boolean>())
     private var preparedAtNanos=0L
     private var prerollFrames=0L
-    private fun policySafe() = !PlayerSettings.volumeNormalization.value && DjStreamFx.mode==DjStreamFx.MODE_NONE
-    @Synchronized override fun requestLive(generation:Long,revision:Long):Boolean {
-        if(!BuildConfig.DEBUG || !policySafe() || forkLease!=null)return false
+    private fun policySafe() = DjStreamFx.mode==DjStreamFx.MODE_NONE
+    override fun requestLive(generation:Long,revision:Long):Boolean {
+        if((!BuildConfig.DEBUG && !PlayerSettings.autoMix.value) || !policySafe() || forkLease!=null)return false
         val e=controller.epoch();if(e.closed||e.generation!=generation||e.revision!=revision||e.plan?.execution==null)return false
-        if(report.generation==generation&&report.revision==revision&&report.phase!=Phase.OFF)return false
-        requested=e;report=Report(Phase.REQUESTED,generation,revision);return true
+        while(true) {
+            val old=requestState.get();val r=old.report
+            if(r.phase==Phase.PREPARING || r.phase==Phase.LIVE)return false
+            if(r.generation==generation&&r.revision==revision&&r.phase!=Phase.OFF)return false
+            if(requestState.compareAndSet(old,RequestState(e,Report(Phase.REQUESTED,generation,revision))))return true
+        }
     }
     override fun liveReport():LivePlaybackReport {
         val r=report;return LivePlaybackReport(r.phase.name,r.generation,r.revision,
@@ -49,8 +68,26 @@ internal class ForkLivePlaybackDriver private constructor(
     override fun pendingRequest():LmgLivePlaybackClient.Request? {
         val e=requested?:return null
         if(forkLease!=null)return null
-        if(controller.epoch()!==e||e.closed||!policySafe()) {requested=null;report=Report(Phase.REJECTED,e.generation,e.revision,reason="INPUT_CHANGED");return null}
+        if(controller.epoch()!==e||e.closed||!policySafe()) {preparation?.cancel();publish(e,Report(Phase.REJECTED,e.generation,e.revision,reason="INPUT_CHANGED"),true);return null}
         val p=e.plan?:return null
+        val executor=controller.preparationExecutor ?: run {
+            publish(e,Report(Phase.REJECTED,e.generation,e.revision,reason="PREPARATION_EXECUTOR_MISSING"),true);return null
+        }
+        val format=controller.currentPcmFormat(p.outgoing) ?: return null
+        if(preparationEpoch !== e || preparationFormat != format) {
+            preparation?.cancel()
+            preparationEpoch=e;preparationFormat=format
+            preparation=PreparedResourceTask(executor,
+                { LivePcmPump.Prepared(checkNotNull(p.execution),format,e.generation,e.revision,primeOutgoing=true) },
+                { controller.epoch()===e && !e.closed })
+        }
+        val task=preparation ?: return null
+        if(task.failed) {
+            publish(e,Report(Phase.REJECTED,e.generation,e.revision,reason="NATIVE_PREPARATION_FAILED"),true);return null
+        }
+        // Ordinary outgoing playback continues while the worker constructs filters/FFT,
+        // graph events and bounded storage. No native allocations after cue is held.
+        if(!task.ready)return null
         return LmgLivePlaybackClient.Request(e.generation,e.revision,p.outgoingCueFloorUs,p.incomingCueFloorUs)
     }
     override fun matches(timeline:Timeline,id:MediaPeriodId,side:Int):Boolean {
@@ -67,9 +104,9 @@ internal class ForkLivePlaybackDriver private constructor(
     override fun onLease(lease:LmgLivePlaybackLease) {
         check(controller.owner());val e=checkNotNull(requested)
         check(controller.epoch()===e&&lease.isCurrent(e.generation,e.revision)&&policySafe())
-        forkLease=lease;handoff=false;initialConfiguration.clear();preparedAtNanos=System.nanoTime()
+        forkLease=lease;leasedEpoch=e;handoff=false;initialConfiguration.clear();preparedAtNanos=System.nanoTime()
         check(controller.cueGate.requestLive(e.generation,e.revision)==CueProbeRequest.REQUESTED)
-        report=Report(Phase.PREPARING,e.generation,e.revision,actualPlaybackLease=true)
+        publish(e,Report(Phase.PREPARING,e.generation,e.revision,actualPlaybackLease=true))
     }
     private fun valid():Boolean {
         val e=requested?:return false;val lease=forkLease?:return false
@@ -131,12 +168,17 @@ internal class ForkLivePlaybackDriver private constructor(
                     valid()&&generation==e.generation&&revision==e.revision&&format.supported&&actual.isClockPinned()
                 override fun revoke(){actual.revoke()}
             }
-            pump=checkNotNull(LivePcmPump.start(controller,lease)){"Live pair output reservation rejected"}
-            report=Report(Phase.LIVE,e.generation,e.revision,true,true,prerollFrames)
+            val resources=checkNotNull(preparation?.take()) { "Native preparation unavailable" }
+            pump=checkNotNull(LivePcmPump.startPrepared(controller,lease,resources)){"Live pair output reservation rejected"}
+            publish(e,Report(Phase.LIVE,e.generation,e.revision,true,true,prerollFrames))
         }
         pump!!.tick()
     }
-    override fun sourcePositionUs(side:Int):Long = pump?.sourcePositionUs(side)?:C.TIME_UNSET
+    override fun sourcePositionUs(side:Int):Long {
+        val p=pump ?: return C.TIME_UNSET
+        val value=p.sourcePositionUsValue(side)
+        return if(value==Long.MIN_VALUE)C.TIME_UNSET else value
+    }
     override fun transitionReachedOutput():Boolean = pump?.transitionAudible()==true
     override fun outputFullyEnded():Boolean = pump?.isComplete==true
     override fun beforeMetadataSwitch(){handoff=true}
@@ -145,17 +187,17 @@ internal class ForkLivePlaybackDriver private constructor(
         return handoff&&forkLease!=null&&controller.epoch()===e&&windowUid==p.incoming.windowUid&&mediaId==p.incoming.mediaId
     }
     override fun onCancelled(){
-        check(controller.owner());val e=requested;forkLease?.revoke()
+        check(controller.owner());val e=leasedEpoch ?: requested;forkLease?.revoke();preparation?.cancel()
         // Abort before close: retained codec callbacks remain quarantined until real reset.
         try{pump?.close()?:controller.abortNativeCueOwner()}finally{
-            pump=null;forkLease=null;requested=null;handoff=false
-            if(report.phase!=Phase.COMPLETED)report=Report(Phase.RESET_REQUIRED,e?.generation?:report.generation,e?.revision?:report.revision,reason="CANCELLED_OR_RESET")
+            pump=null;forkLease=null;leasedEpoch=null;handoff=false
+            if(report.phase!=Phase.COMPLETED)publish(e,Report(Phase.RESET_REQUIRED,e?.generation?:report.generation,e?.revision?:report.revision,reason="CANCELLED_OR_RESET"),true)
         }
     }
     override fun onCompleted(){
-        check(controller.owner());val e=checkNotNull(requested)
+        check(controller.owner());val e=checkNotNull(leasedEpoch)
         check(pump?.isComplete==true)
-        try{pump?.close()}finally{pump=null;forkLease=null;requested=null;handoff=false;report=Report(Phase.COMPLETED,e.generation,e.revision,sourcePrerollDiscarded=prerollFrames)}
+        try{pump?.close()}finally{pump=null;forkLease=null;leasedEpoch=null;handoff=false;publish(e,Report(Phase.COMPLETED,e.generation,e.revision,sourcePrerollDiscarded=prerollFrames),true)}
     }
     companion object {
         fun forController(controller:RenderBoundaryController):ForkLivePlaybackDriver = synchronized(controller){

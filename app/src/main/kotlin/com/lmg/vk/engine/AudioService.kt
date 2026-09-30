@@ -50,6 +50,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.asExecutor
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -85,6 +86,21 @@ class AudioService : MediaSessionService() {
     // давал слышимую «цикличку». Коалесцируем в одно применение финального состояния.
     private val duckHandler = Handler(Looper.getMainLooper())
 
+    private val processorRouting = SinkAudioRouting()
+    private val processorWindow = androidx.media3.common.Timeline.Window()
+    private fun updateProcessorSelection(changedPlayer: Player) {
+        if (!::player.isInitialized || changedPlayer !== player) { processorRouting.select(null, null); return }
+        val timeline = changedPlayer.currentTimeline
+        val index = changedPlayer.currentMediaItemIndex
+        if (timeline.isEmpty || index !in 0 until timeline.windowCount ||
+            changedPlayer.playbackState == Player.STATE_IDLE || changedPlayer.playbackState == Player.STATE_ENDED) {
+            processorRouting.select(null, null)
+            return
+        }
+        timeline.getWindow(index, processorWindow)
+        processorRouting.select(processorWindow.uid, processorWindow.mediaItem.mediaId)
+    }
+
     private lateinit var player: ExoPlayer
     private var session: MediaSession? = null
 
@@ -101,7 +117,7 @@ class AudioService : MediaSessionService() {
         get() = autoMixRenderBoundary.livePlaybackReport()
 
     fun requestAutoMixLiveTransition(generation: Long, revision: Long): Boolean {
-        if (!com.lmg.vk.BuildConfig.DEBUG) return false
+        if (!com.lmg.vk.BuildConfig.DEBUG && !PlayerSettings.autoMix.value) return false
         return autoMixRenderBoundary.requestLivePlayback(generation, revision)
     }
 
@@ -286,6 +302,7 @@ class AudioService : MediaSessionService() {
 
     private val playerListener = object : Player.Listener {
         override fun onEvents(player: Player, events: Player.Events) {
+            updateProcessorSelection(player)
             autoMixObservation?.onPlayerEvents(player, events)
         }
 
@@ -587,6 +604,8 @@ class AudioService : MediaSessionService() {
 
     override fun onCreate() {
         super.onCreate()
+        autoMixRenderBoundary.installPreparationExecutor(Dispatchers.Default.asExecutor())
+        AudioReactor.attach(processorRouting)
 
         // УДАЛЁН глотающий setDefaultUncaughtExceptionHandler (P0, аудит).
         // Он был ПРОЦЕСС-глобальным и затирал CrashHandler из App.onCreate:
@@ -678,9 +697,28 @@ class AudioService : MediaSessionService() {
             openAsset = applicationContext.assets::open,
             renderBoundary = autoMixRenderBoundary,
             onLivePlanPublished = { generation, revision ->
-                if (com.lmg.vk.BuildConfig.DEBUG && PlayerSettings.autoMix.value && exoOwnsSession()) {
+                if ((com.lmg.vk.BuildConfig.DEBUG || PlayerSettings.autoMix.value) && PlayerSettings.autoMix.value && exoOwnsSession()) {
+                    val snapshot = autoMixRenderBoundary.snapshot()
+                    val styleName = when (snapshot.styleId) {
+                        0 -> "Gapless"
+                        1 -> "Constant Crossfade"
+                        2 -> "Power Fade"
+                        3 -> "Overlap"
+                        33 -> "Overlap + Reverb"
+                        4 -> "Ease-in Ring-out"
+                        44 -> "Ring-out + Reverb"
+                        6 -> "Beat-Matched Fade"
+                        7 -> "Dynamic Beat-Fade"
+                        8 -> "High-to-Low Filter"
+                        9 -> "Filter Sweep"
+                        10 -> "Filter + Delay Echo"
+                        11 -> "Filter + Reverb Washout"
+                        12 -> "Tempo Beatmatch"
+                        else -> snapshot.styleId?.let { "Style #$it" } ?: "Smart Transition"
+                    }
+                    PlayerController.setAutoMixStyleName("AutoMix: $styleName")
                     val accepted = requestAutoMixLiveTransition(generation, revision)
-                    DebugLog.add("AutoMix live request: generation=$generation revision=$revision accepted=$accepted")
+                    DebugLog.add("AutoMix live request: generation=$generation revision=$revision accepted=$accepted style=$styleName")
                 }
             },
         ).also { it.refresh() }
@@ -697,6 +735,8 @@ class AudioService : MediaSessionService() {
         // ── Полинг позиции ──
         startPositionPolling()
         ensureNotificationChannel()
+
+        com.lmg.vk.ui.lyrics.startLyricsPrefetch(this, serviceScope)
 
         // Observe current track and favorites to update notification button dynamically.
         // mainScope, НЕ serviceScope(IO) (P0, аудит): updateNotificationLayout зовёт
@@ -805,10 +845,9 @@ class AudioService : MediaSessionService() {
             .setBufferDurationsMs(30_000, 60_000, 2_500, 5_000)
             .build()
 
-        // Единая цепочка (Bass-анализ → DJ FX перехода → нормализация) —
-        // PlayerAudioChain: та же фабрика у secondary-плеера AutoMix, чтобы
-        // после свапа плееров цепочка не терялась.
-        val renderersFactory = PlayerAudioChain.renderersFactory(this, autoMixRenderBoundary)
+        // Два внутренних рендерера ОДНОГО сервисного ExoPlayer используют
+        // независимые processor slots общей фабрики. Второй Player не создаётся.
+        val renderersFactory = PlayerAudioChain.renderersFactory(this, autoMixRenderBoundary, processorRouting)
 
         return ExoPlayer.Builder(this)
             .setRenderersFactory(renderersFactory)
@@ -957,6 +996,8 @@ class AudioService : MediaSessionService() {
     }
 
     override fun onDestroy() {
+        AudioReactor.detach(processorRouting)
+        autoMixRenderBoundary.cancelLivePreparation()
         autoMixRenderBoundary.close()
         autoMixObservation?.close()
         autoMixObservation = null

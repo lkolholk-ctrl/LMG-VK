@@ -101,6 +101,13 @@ object ExternalLyricsRepository {
                 }
             }
         }
+        if (LyricsSource.LMG_LYRICS_PLUS in enabled) {
+            val content = LmgLyricsPlusProvider.load(context, title, artist, durationMs)
+            val parsed = content?.let { parseAppleTtml(it.value, title, artist) }
+                ?.copy(source = LyricsSource.LMG_LYRICS_PLUS.id)
+            if (parsed?.isWordLevel == true) return@coroutineScope parsed
+            if (lineSynced == null && parsed != null) lineSynced = parsed
+        }
         if (LyricsSource.LYRICS_PLUS in enabled) {
             val lyricsPlus = withTimeoutOrNull(8_000L) {
                 fetchLyricsPlus(title, artist, durationMs)

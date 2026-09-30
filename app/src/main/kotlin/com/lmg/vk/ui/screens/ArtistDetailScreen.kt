@@ -3,6 +3,7 @@ package com.lmg.vk.ui.screens
 import android.content.Intent
 import android.widget.Toast
 
+import androidx.compose.foundation.border
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.aspectRatio
@@ -15,6 +16,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -72,6 +74,8 @@ import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
+import com.lmg.vk.ui.components.DetailStyle
+import com.lmg.vk.ui.components.detailClickable
 import com.lmg.vk.R
 import com.lmg.vk.engine.Track
 import com.lmg.vk.engine.PlaybackContext
@@ -85,6 +89,18 @@ import com.lmg.vk.engine.backend.MusicAuth
 import com.lmg.vk.data.local.db.AppDatabase
 import com.lmg.vk.engine.PlayerController
 import com.lmg.vk.ui.components.releaseTypeLabel
+import com.lmg.vk.ui.components.DetailActionButton
+import com.lmg.vk.ui.components.DetailTopBar
+import com.lmg.vk.ui.components.DetailCircleButton
+import com.lmg.vk.ui.components.DetailMenuAction
+import com.lmg.vk.ui.components.DetailMenuButton
+import com.lmg.vk.ui.components.TrackActionsSheet
+import com.lmg.vk.ui.components.ProgressiveArtistArtwork
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import com.lmg.vk.ui.icons.LmgGlyphs
 import com.lmg.vk.ui.glass.AlbumArtImage
 import com.lmg.vk.ui.glass.liquidClickable
 import com.lmg.vk.ui.icons.LmgDrawables
@@ -187,7 +203,7 @@ fun ArtistDetailScreen(
     }
 
     suspend fun loadArtistTracksPage(art: ArtistResponse, reset: Boolean) {
-        if (artistTracksLoading) return
+        if (artistTracksLoading || (!reset && !artistTracksHasMore)) return
         val offset = if (reset) 0 else artistTracksNextOffset ?: return
         artistTracksLoading = true
         artistTracksLoadError = false
@@ -213,8 +229,8 @@ fun ArtistDetailScreen(
         artistTracksLastPageIds = pageIds
         val seen = artistTracks.mapTo(HashSet()) { it.id }
         artistTracks = artistTracks + page.tracks.filter { seen.add(it.id) }
-        artistTracksNextOffset = page.nextOffset
         artistTracksHasMore = page.hasMore && page.nextOffset != null && !repeatedPage
+        artistTracksNextOffset = page.nextOffset.takeIf { artistTracksHasMore }
         artistTracksLoading = false
     }
 
@@ -306,8 +322,27 @@ fun ArtistDetailScreen(
         artist?.similarArtists.orEmpty().distinctBy { it.id }.filterNot { it.id in linkedIds }
     }
 
+    var showArtistInformation by remember { mutableStateOf(false) }
+    var showReleases by remember { mutableStateOf(false) }
     var showAllSongs by remember { mutableStateOf(false) }
     var showAllVideos by remember { mutableStateOf(false) }
+    val followArtist: () -> Unit = {
+                                    val target = !isFollowed
+                                    scope.launch {
+                                        isFollowBusy = true
+                                        if (MusicBackend.setArtistFollowed(artist?.id ?: artistId, target)) {
+                                            isFollowed = target
+                                            Toast.makeText(
+                                                context,
+                                                if (target) R.string.artist_followed else R.string.artist_unfollowed,
+                                                Toast.LENGTH_SHORT,
+                                            ).show()
+                                        } else {
+                                            Toast.makeText(context, R.string.follow_update_failed, Toast.LENGTH_SHORT).show()
+                                        }
+                                        isFollowBusy = false
+                                    }
+                                }
     val listState = rememberLazyListState()
     // Имя в панели показываем только когда шапка ушла: пока артист виден крупно,
     // дублировать его незачем.
@@ -317,7 +352,7 @@ fun ArtistDetailScreen(
         }
     }
 
-    Box(modifier = Modifier.fillMaxSize().background(LiquidSurfaces.sheet(colors.isDark))) {
+    Box(modifier = Modifier.fillMaxSize().background(DetailStyle.background(colors.isDark))) {
         when {
             isLoading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(color = colors.accent, modifier = Modifier.size(32.dp))
@@ -356,16 +391,26 @@ fun ArtistDetailScreen(
 
             else -> {
                 val art = artist
+                val originalHero = art?.image ?: art?.cover
+                val releaseCovers = remember(art) {
+                    (listOfNotNull(art?.latestRelease) + art?.singles.orEmpty() + art?.albums.orEmpty())
+                        .mapNotNull { it.cover }.distinct().take(12)
+                }
+                var resolvedHero by remember(originalHero) { mutableStateOf(originalHero) }
+                LaunchedEffect(originalHero, releaseCovers) {
+                    resolvedHero = com.lmg.vk.artwork.ArtistHeroArtworkResolver.resolve(context, originalHero, releaseCovers)
+                }
                 LazyColumn(
                     state = listState,
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(bottom = 140.dp)
                 ) {
                     item {
-                        ArtistHeaderWithSheet(
+                        ArtistHero(
+                            canPlay = playableArtistTracks.isNotEmpty(),
                             name = art?.name.orEmpty(),
                             genre = art?.genre,
-                            imageUrl = (art?.image ?: art?.cover).toThumb(),
+                            imageUrl = resolvedHero,
                             videoUrl = art?.editorialVideoUrl,
                             isDark = colors.isDark,
                             onPlay = {
@@ -389,93 +434,6 @@ fun ArtistDetailScreen(
                                 }
                             }
                         )
-                    }
-
-                    art?.let { artistInfo ->
-                        item {
-                            ArtistActionsStrip(
-                                isDark = colors.isDark,
-                                isFollowed = isFollowed,
-                                isMixBusy = isMixBusy,
-                                followEnabled = (artistInfo.canFollow || isFollowed) && !isFollowBusy,
-                                onMix = {
-                                    scope.launch {
-                                        isMixBusy = true
-                                        val mixSource = MusicBackend.getArtistMixSource(
-                                            artistInfo.id,
-                                            artistInfo.mixId,
-                                        )
-                                        val mix = mixSource?.tracks.orEmpty().filter { it.isAvailable }
-                                        if (mixSource != null && mix.isNotEmpty()) {
-                                            PlayerController.play(
-                                                context,
-                                                mix,
-                                                0,
-                                                playbackContext = PlaybackContext.VkMix(mixSource.session),
-                                            )
-                                        } else {
-                                            Toast.makeText(context, R.string.artist_mix_unavailable, Toast.LENGTH_SHORT).show()
-                                        }
-                                        isMixBusy = false
-                                    }
-                                },
-                                onFollow = {
-                                    val target = !isFollowed
-                                    scope.launch {
-                                        isFollowBusy = true
-                                        if (MusicBackend.setArtistFollowed(artistInfo.id, target)) {
-                                            isFollowed = target
-                                            Toast.makeText(
-                                                context,
-                                                if (target) R.string.artist_followed else R.string.artist_unfollowed,
-                                                Toast.LENGTH_SHORT,
-                                            ).show()
-                                        } else {
-                                            Toast.makeText(context, R.string.follow_update_failed, Toast.LENGTH_SHORT).show()
-                                        }
-                                        isFollowBusy = false
-                                    }
-                                },
-                                onShare = {
-                                    val url = "https://vk.com/artist/${artistInfo.id.removePrefix("vk_")}"
-                                    val intent = Intent(Intent.ACTION_SEND).apply {
-                                        type = "text/plain"
-                                        putExtra(Intent.EXTRA_TEXT, url)
-                                    }
-                                    context.startActivity(Intent.createChooser(intent, artistInfo.name))
-                                },
-                            )
-                        }
-                    }
-
-                    art?.let { artistInfo ->
-                        val songCount = maxOf(artistTracks.size, topSongs.size)
-                        val releaseCount = allReleases.size
-                        val videoCount = artistInfo.videos.size
-                        if (songCount > 0 || releaseCount > 0 || playlists.isNotEmpty() || videoCount > 0) {
-                            item {
-                                ArtistCatalogSummary(
-                                    songs = songCount,
-                                    songsAreMinimum = artistTracks.size >= ARTIST_TRACK_COUNT_PLUS_THRESHOLD,
-                                    releases = releaseCount,
-                                    playlists = playlists.size,
-                                    videos = videoCount,
-                                    isDark = colors.isDark,
-                                )
-                            }
-                        }
-                    }
-
-                    if (playCount > 0) {
-                        item {
-                            PersonalStrip(
-                                playCount = playCount,
-                                favouriteTrack = favouriteTrackTitle,
-                                textPrimary = LiquidSurfaces.textPrimary(colors.isDark),
-                                textSecondary = LiquidSurfaces.textSecondary(colors.isDark),
-                                isDark = colors.isDark
-                            )
-                        }
                     }
 
                     art?.latestRelease?.let { latest ->
@@ -504,62 +462,38 @@ fun ArtistDetailScreen(
                         }
 
                         item {
-                            // Колонки по пять с горизонтальной прокруткой: так за
-                            // экран влезает вдвое больше песен, чем простым списком,
-                            // и видно, что список продолжается.
                             val songs = artistTracks.ifEmpty { topSongs.map { it.toTrack() } }
-                            LazyRow(
-                                contentPadding = PaddingValues(
-                                    horizontal = LiquidMetrics.ScreenPadding
-                                ),
-                                horizontalArrangement = Arrangement.spacedBy(12.dp)
-                            ) {
-                                val pages = songs.take(25).chunked(5)
-                                items(pages.size) { pageIndex ->
-                                    Column(modifier = Modifier.fillParentMaxWidth(0.88f)) {
-                                        pages[pageIndex].forEachIndexed { rowIndex, track ->
-                                            val position = pageIndex * 5 + rowIndex
-                                            TopSongRow(
-                                                position = position + 1,
-                                                title = track.title,
-                                                subtitle = track.artist.ifBlank { track.albumName },
-                                                coverUrl = track.coverUrl,
-                                                isExplicit = track.isExplicit,
-                                                durationMs = track.durationMs,
-                                                enabled = track.isAvailable,
-                                                textPrimary = LiquidSurfaces.textPrimary(colors.isDark),
-                                                textSecondary = LiquidSurfaces.textSecondary(colors.isDark),
-                                                onClick = {
-                                                    val playableSongs = songs.filter { it.isAvailable }
-                                                    val playableIndex = playableSongs.indexOfFirst { it.id == track.id }
-                                                    if (playableIndex >= 0) {
-                                                        PlayerController.play(
-                                                            context,
-                                                            playableSongs,
-                                                            playableIndex,
-                                                            playbackContext = PlaybackContext.Artist(artistId),
-                                                        )
-                                                    }
-                                                }
-                                            )
-                                        }
-                                    }
+                            Column(Modifier.fillMaxWidth().padding(horizontal = DetailStyle.padding)) {
+                                songs.take(5).forEachIndexed { index, track ->
+                                    TopSongRow(track = track, position = index + 1, title = track.title,
+                                        subtitle = track.artist.ifBlank { track.albumName }, coverUrl = track.coverUrl,
+                                        isExplicit = track.isExplicit, durationMs = track.durationMs, enabled = track.isAvailable,
+                                        textPrimary = DetailStyle.text(colors.isDark), textSecondary = DetailStyle.muted(colors.isDark),
+                                        onClick = {
+                                            val playable = songs.filter { it.isAvailable }
+                                            val selectedIndex = playable.indexOfFirst { it.id == track.id }
+                                            if (selectedIndex >= 0) PlayerController.play(context, playable, selectedIndex,
+                                                playbackContext = PlaybackContext.Artist(artistId))
+                                        })
+                                    if (index < minOf(songs.size, 5) - 1) Box(Modifier.padding(start = 55.dp).fillMaxWidth().height(1.dp).background(DetailStyle.line(colors.isDark)))
                                 }
                             }
                         }
                     }
 
                     if (albums.isNotEmpty()) {
-                        item { SectionHeaderThemed(colors.isDark, stringResource(R.string.section_albums)) }
+                        item { SectionHeaderWithLink(colors.isDark, stringResource(R.string.section_albums),
+                            stringResource(R.string.see_all), onLinkClick = { showReleases = true }) }
                         item {
-                            AlbumRow(albums, LiquidSurfaces.textPrimary(colors.isDark), LiquidSurfaces.textSecondary(colors.isDark), colors.isDark, onNavigateToAlbum)
+                            AlbumRow(albums, LiquidSurfaces.textPrimary(colors.isDark), LiquidSurfaces.textSecondary(colors.isDark), colors.isDark, onNavigateToAlbum, grid = true)
                         }
                     }
 
                     if (singles.isNotEmpty()) {
-                        item { SectionHeaderThemed(colors.isDark, stringResource(R.string.singles_eps)) }
+                        item { SectionHeaderWithLink(colors.isDark, stringResource(R.string.singles_eps),
+                            stringResource(R.string.see_all), onLinkClick = { showReleases = true }) }
                         item {
-                            AlbumRow(singles, LiquidSurfaces.textPrimary(colors.isDark), LiquidSurfaces.textSecondary(colors.isDark), colors.isDark, onNavigateToAlbum)
+                            AlbumRow(singles, LiquidSurfaces.textPrimary(colors.isDark), LiquidSurfaces.textSecondary(colors.isDark), colors.isDark, onNavigateToAlbum, grid = true)
                         }
                     }
 
@@ -581,7 +515,7 @@ fun ArtistDetailScreen(
                         item { SectionHeaderThemed(colors.isDark, stringResource(R.string.playlists_title)) }
                         item {
                             LazyRow(
-                                contentPadding = PaddingValues(horizontal = LiquidMetrics.ScreenPadding),
+                                contentPadding = PaddingValues(horizontal = DetailStyle.padding),
                                 horizontalArrangement = Arrangement.spacedBy(14.dp)
                             ) {
                                 items(playlists, key = { it.id }) { playlist ->
@@ -623,8 +557,8 @@ fun ArtistDetailScreen(
                         item { SectionHeaderThemed(colors.isDark, stringResource(R.string.similar_artists)) }
                         item {
                             LazyRow(
-                                contentPadding = PaddingValues(horizontal = LiquidMetrics.ScreenPadding),
-                                horizontalArrangement = Arrangement.spacedBy(16.dp)
+                                contentPadding = PaddingValues(horizontal = DetailStyle.padding),
+                                horizontalArrangement = Arrangement.spacedBy(14.dp)
                             ) {
                                 items(similar, key = { it.id }) { other ->
                                     Column(
@@ -673,7 +607,7 @@ fun ArtistDetailScreen(
                                 color = colors.textSecondary,
                                 fontSize = 14.sp,
                                 lineHeight = 21.sp,
-                                modifier = Modifier.padding(horizontal = LiquidMetrics.ScreenPadding),
+                                modifier = Modifier.padding(horizontal = DetailStyle.padding),
                             )
                         }
                     }
@@ -691,30 +625,11 @@ fun ArtistDetailScreen(
                         }
                     }
 
-                    art?.links.orEmpty().let { links ->
-                        val concerts = links.filter { it.matches("concert", "ticket", "концерт", "билет") }
-                        val merch = links.filter { it.matches("merch", "shop", "store", "мерч", "магазин") }
-                        val other = links.filterNot { it in concerts || it in merch }
-                        if (concerts.isNotEmpty()) {
-                            item { SectionHeaderThemed(colors.isDark, stringResource(R.string.concerts)) }
-                            items(concerts, key = { "concert-${it.id}" }) { link ->
-                                ArtistLinkRow(link.title, link.subtitle, link.cover, colors.isDark)
-                            }
-                        }
-                        if (merch.isNotEmpty()) {
-                            item { SectionHeaderThemed(colors.isDark, stringResource(R.string.merch)) }
-                            items(merch, key = { "merch-${it.id}" }) { link ->
-                                ArtistLinkRow(link.title, link.subtitle, link.cover, colors.isDark)
-                            }
-                        }
-                        if (other.isNotEmpty()) {
-                            item { SectionHeaderThemed(colors.isDark, stringResource(R.string.information)) }
-                            item {
-                                CompactInformationGrid(
-                                    links = other,
-                                    isDark = colors.isDark,
-                                )
-                            }
+                    if (art?.links.orEmpty().isNotEmpty() || playCount > 0) {
+                        item {
+                            Text(stringResource(R.string.information), color = DetailStyle.accent, fontSize = 14.sp,
+                                modifier = Modifier.padding(horizontal = DetailStyle.padding, vertical = 16.dp)
+                                    .detailClickable(onClick = { showArtistInformation = true }).padding(vertical = 12.dp))
                         }
                     }
 
@@ -771,7 +686,7 @@ fun ArtistDetailScreen(
                         }
                         item {
                             LazyRow(
-                                contentPadding = PaddingValues(horizontal = LiquidMetrics.ScreenPadding),
+                                contentPadding = PaddingValues(horizontal = DetailStyle.padding),
                                 horizontalArrangement = Arrangement.spacedBy(14.dp),
                             ) {
                                 items(art?.videos.orEmpty(), key = { it.id }) { video ->
@@ -784,62 +699,61 @@ fun ArtistDetailScreen(
             }
         }
 
-        // Панель поверх шапки: кнопка «назад» нужна всегда, имя подхватывается
-        // только после прокрутки.
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(
-                    if (showTopBarTitle) {
-                        LiquidSurfaces.sheet(colors.isDark)
-                    } else {
-                        Color.Transparent
-                    }
-                )
-                .windowInsetsPadding(WindowInsets.statusBars)
-                .padding(horizontal = 12.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(40.dp)
-                    .clip(CircleShape)
-                    .background(
-                        if (showTopBarTitle) {
-                            LiquidSurfaces.card(colors.isDark)
-                        } else {
-                            LiquidSurfaces.glassFill
-                        }
+        DetailTopBar(artist?.name.orEmpty(), showTopBarTitle, colors.isDark, onBack,
+            titleContent = {
+                ArtistTitlePill(artist?.name.orEmpty(), artist?.image ?: artist?.cover, colors.isDark)
+            },
+            trailing = {
+                artist?.let { artistInfo ->
+                    ArtistMenuButton(
+                        title = artistInfo.name,
+                        isFollowed = isFollowed,
+                        isMixBusy = isMixBusy,
+                        followEnabled = (artistInfo.canFollow || isFollowed) && !isFollowBusy,
+                        onMix = {
+                            scope.launch {
+                                isMixBusy = true
+                                val mixSource = MusicBackend.getArtistMixSource(
+                                    artistInfo.id,
+                                    artistInfo.mixId,
+                                )
+                                val mix = mixSource?.tracks.orEmpty().filter { it.isAvailable }
+                                if (mixSource != null && mix.isNotEmpty()) {
+                                    PlayerController.play(
+                                        context,
+                                        mix,
+                                        0,
+                                        playbackContext = PlaybackContext.VkMix(mixSource.session),
+                                    )
+                                } else {
+                                    Toast.makeText(context, R.string.artist_mix_unavailable, Toast.LENGTH_SHORT).show()
+                                }
+                                isMixBusy = false
+                            }
+                        },
+                        onFollow = followArtist,
+                        onShare = {
+                            val url = "https://vk.com/artist/${artistInfo.id.removePrefix("vk_")}"
+                            val intent = Intent(Intent.ACTION_SEND).apply {
+                                type = "text/plain"
+                                putExtra(Intent.EXTRA_TEXT, url)
+                            }
+                            context.startActivity(Intent.createChooser(intent, artistInfo.name))
+                        },
                     )
-                    .liquidClickable(pressedScale = LiquidMotion.PressButton, onClick = onBack),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = com.lmg.vk.ui.icons.LmgGlyphs.ArrowLeftOutline28,
-                    contentDescription = stringResource(R.string.action_back),
-                    tint = if (showTopBarTitle) {
-                        LiquidSurfaces.textPrimary(colors.isDark)
-                    } else {
-                        Color.White
-                    },
-                    modifier = Modifier.size(22.dp)
-                )
-            }
-            Spacer(Modifier.width(12.dp))
-            Text(
-                text = artist?.name.orEmpty(),
-                color = LiquidSurfaces.textPrimary(colors.isDark),
-                fontSize = 17.sp,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.alpha(if (showTopBarTitle) 1f else 0f)
-            )
-        }
+                }
+            })
+        if (showReleases) ArtistReleasesDialog(allReleases, colors.isDark,
+            onOpen = { showReleases = false; onNavigateToAlbum(it) }, onDismiss = { showReleases = false })
+
+        if (showArtistInformation) ArtistInformationDialog(playCount = playCount, favouriteTrack = favouriteTrackTitle,
+            name = artist?.name.orEmpty(), links = artist?.links.orEmpty(), isDark = colors.isDark,
+            onDismiss = { showArtistInformation = false })
 
         if (showAllSongs) {
             ArtistTracksDialog(
                 artistName = artist?.name.orEmpty(),
+                artistCover = artist?.image ?: artist?.cover,
                 tracks = artistTracks,
                 isLoading = artistTracksLoading,
                 hasMore = artistTracksHasMore,
@@ -882,6 +796,7 @@ fun ArtistDetailScreen(
 @Composable
 private fun ArtistTracksDialog(
     artistName: String,
+    artistCover: String?,
     tracks: List<Track>,
     isLoading: Boolean,
     hasMore: Boolean,
@@ -902,13 +817,14 @@ private fun ArtistTracksDialog(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .background(LiquidSurfaces.sheet(isDark)),
+                .background(DetailStyle.background(isDark)),
         ) {
-            ArtistListDialogTopBar(
-                title = artistName,
-                subtitle = "${tracks.size}${if (tracks.size >= ARTIST_TRACK_COUNT_PLUS_THRESHOLD) "+" else ""} songs",
-                isDark = isDark,
-                onBack = onDismiss,
+            DetailTopBar(
+                title = artistName, showTitle = true, isDark = isDark, onBack = onDismiss,
+                titleContent = {
+                    ArtistTitlePill(artistName, artistCover, isDark,
+                        subtitle = pluralStringResource(R.plurals.track_count, tracks.size, tracks.size))
+                },
             )
             LazyColumn(
                 modifier = Modifier.weight(1f).fillMaxWidth(),
@@ -933,8 +849,9 @@ private fun ArtistTracksDialog(
                     tracks,
                     key = { index, track -> "artist-all-${track.id}-$index" },
                 ) { index, track ->
-                    Column(modifier = Modifier.padding(horizontal = LiquidMetrics.ScreenPadding)) {
+                    Column(modifier = Modifier.padding(horizontal = DetailStyle.padding)) {
                         TopSongRow(
+                            track = track,
                             position = index + 1,
                             title = track.title,
                             subtitle = track.artist.ifBlank { track.albumName },
@@ -948,7 +865,7 @@ private fun ArtistTracksDialog(
                         )
                     }
                 }
-                if (hasMore || isLoading || loadError) {
+                if (hasMore || isLoading) {
                     item(key = "artist-next-page") {
                         Box(
                             modifier = Modifier
@@ -962,7 +879,7 @@ private fun ArtistTracksDialog(
                                     modifier = Modifier.size(24.dp),
                                     strokeWidth = 2.dp,
                                 )
-                                loadError -> Text(
+                                loadError && hasMore -> Text(
                                     text = stringResource(R.string.retry_load_more),
                                     color = LiquidTheme.colors.accent,
                                     fontSize = 13.sp,
@@ -1005,7 +922,7 @@ private fun ArtistVideosDialog(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .background(LiquidSurfaces.sheet(isDark)),
+                .background(DetailStyle.background(isDark)),
         ) {
             ArtistListDialogTopBar(
                 title = artistName,
@@ -1017,9 +934,9 @@ private fun ArtistVideosDialog(
                 columns = GridCells.Fixed(2),
                 modifier = Modifier.weight(1f).fillMaxWidth(),
                 contentPadding = PaddingValues(
-                    start = LiquidMetrics.ScreenPadding,
+                    start = DetailStyle.padding,
                     top = 12.dp,
-                    end = LiquidMetrics.ScreenPadding,
+                    end = DetailStyle.padding,
                     bottom = 32.dp,
                 ),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -1049,7 +966,7 @@ private fun ArtistListDialogTopBar(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(LiquidSurfaces.sheet(isDark))
+            .background(DetailStyle.background(isDark))
             .windowInsetsPadding(WindowInsets.statusBars)
             .padding(horizontal = 12.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -1105,25 +1022,9 @@ private fun ArtistAlbum.isSingleOrEpUi(): Boolean {
  * музыки недопустим, а один проход выглядел бы как сбой.
  */
 @Composable
-private fun ArtistHeader(
-    name: String,
-    genre: String?,
-    imageUrl: String?,
-    videoUrl: String?,
-    onPlay: () -> Unit,
-    onShuffle: () -> Unit
-) {
+private fun ArtistBackdrop(name: String, imageUrl: String?, videoUrl: String?, isDark: Boolean, modifier: Modifier) {
     val context = LocalContext.current
-
-    Box(modifier = Modifier.fillMaxWidth().height(LiquidMetrics.HeaderHeight)) {
-        // Фон, имя и кнопки двигаются одним куском. Параллакс здесь пробовался и
-        // был убран: фон уезжал медленнее содержимого, и при прокрутке шапка
-        // расползалась — фотография отдельно, подписи с кнопками отдельно.
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .clipToBounds()
-        ) {
+    Box(modifier.clipToBounds()) {
             if (!videoUrl.isNullOrBlank()) {
                 val exoPlayer = remember(videoUrl) {
                     ExoPlayer.Builder(context).build().apply {
@@ -1145,167 +1046,66 @@ private fun ArtistHeader(
                             player = exoPlayer
                         }
                     },
-                    modifier = Modifier.fillMaxSize()
-                )
-            } else {
-                AlbumArtImage(
-                    uri = null,
-                    coverUrl = imageUrl,
-                    contentDescription = name,
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop
+                    modifier = Modifier.fillMaxWidth().height(390.dp)
                 )
             }
+            ProgressiveArtistArtwork(imageUrl, name, isDark, drawBase = videoUrl.isNullOrBlank(), artworkHeight = 390.dp)
+    }
+}
 
-            // Затемнение снизу: имя поверх светлого кадра иначе не читается.
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        Brush.verticalGradient(
-                            0f to Color.Transparent,
-                            0.45f to Color.Black.copy(alpha = 0.15f),
-                            1f to Color.Black.copy(alpha = 0.85f)
-                        )
-                    )
-            )
-        }
+@Composable
+private fun ArtistHeader(
+    name: String,
+    genre: String?,
+    imageUrl: String?,
+    videoUrl: String?,
+) {
+    val isDark = LiquidTheme.colors.isDark
+    Box(modifier = Modifier.fillMaxWidth().height(390.dp)) {
 
         Column(
             modifier = Modifier
                 .align(Alignment.BottomStart)
                 .fillMaxWidth()
                 .padding(
-                    start = LiquidMetrics.ScreenPadding,
-                    end = LiquidMetrics.ScreenPadding,
-                    // Ровно столько, чтобы кнопки не ушли под край наезжающего
-                    // листа: больше — и блок повиснет в пустоте посреди шапки.
-                    bottom = LiquidMetrics.SheetOverlap + 8.dp
+                    start = DetailStyle.padding,
+                    end = DetailStyle.padding,
+                    bottom = if (isDark) 22.dp else 34.dp
                 )
         ) {
+            if (!genre.isNullOrBlank()) {
+                Text(
+                    text = genre.uppercase(),
+                    color = Color.White.copy(alpha = 0.75f),
+                    fontSize = 11.sp, letterSpacing = 1.7.sp,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+            }
             Text(
                 text = name,
                 color = Color.White,
-                fontSize = LiquidMetrics.TitleHuge,
+                fontSize = 54.sp,
                 fontWeight = LiquidMetrics.TitleHugeWeight,
                 fontFamily = VkSansDisplay,
                 letterSpacing = LiquidMetrics.TitleHugeSpacing,
-                lineHeight = 44.sp,
+                lineHeight = 54.sp,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis
             )
-            if (!genre.isNullOrBlank()) {
-                Text(
-                    text = genre,
-                    color = Color.White.copy(alpha = 0.75f),
-                    fontSize = 13.sp,
-                    modifier = Modifier.padding(top = 4.dp)
-                )
-            }
 
-            Spacer(Modifier.height(14.dp))
 
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                HeaderButton(stringResource(R.string.action_play), com.lmg.vk.ui.icons.LmgGlyphs.Play28, filled = true, onClick = onPlay)
-                HeaderButton(stringResource(R.string.action_shuffle), com.lmg.vk.ui.icons.LmgGlyphs.ShuffleOutline28, filled = false, onClick = onShuffle)
-            }
+
         }
-    }
-}
-
-/**
- * Кнопка действия в шапке.
- *
- * Главная — сплошная белая с тёмным текстом: под ней фотография, и только
- * плотная заливка гарантирует читаемость на любом кадре. Вторая — стеклянная,
- * чтобы не спорить с главной за внимание.
- */
-@Composable
-private fun RowScope.HeaderButton(
-    label: String,
-    icon: ImageVector,
-    filled: Boolean,
-    onClick: () -> Unit
-) {
-    val contentColor = if (filled) Color.Black else Color.White
-    Row(
-        modifier = Modifier
-            .weight(1f)
-            .height(LiquidMetrics.ActionButtonHeight)
-            .shadow(
-                // Главной кнопке тень нужнее: она белая и лежит на светлых кадрах,
-                // без отрыва от фона её край теряется.
-                elevation = if (filled) LiquidMetrics.ButtonElevation else 2.dp,
-                shape = CircleShape,
-                ambientColor = Color.Black,
-                spotColor = Color.Black
-            )
-            .clip(CircleShape)
-            .background(if (filled) Color.White else LiquidSurfaces.glassAction)
-            .liquidClickable(pressedScale = LiquidMotion.PressButton, onClick = onClick),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.Center
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = contentColor,
-            modifier = Modifier.size(18.dp)
-        )
-        Spacer(Modifier.width(8.dp))
-        Text(
-            text = label,
-            color = contentColor,
-            fontSize = LiquidMetrics.ActionLabel,
-            fontWeight = FontWeight.SemiBold
-        )
     }
 }
 
 /** То, чего нет у стримингов: сколько именно ВЫ слушали этого артиста. */
-@Composable
-private fun PersonalStrip(
-    playCount: Int,
-    favouriteTrack: String?,
-    textPrimary: Color,
-    textSecondary: Color,
-    isDark: Boolean
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = LiquidMetrics.ScreenPadding, vertical = 16.dp)
-            .clip(LiquidMetrics.CardShape)
-            .background(LiquidSurfaces.card(isDark))
-            .padding(horizontal = 18.dp, vertical = 16.dp)
-    ) {
-        Text(
-            text = pluralStringResource(R.plurals.artist_played_times, playCount, playCount),
-            color = textPrimary,
-            fontSize = 15.sp,
-            fontWeight = FontWeight.SemiBold
-        )
-        if (!favouriteTrack.isNullOrBlank()) {
-            Text(
-                text = stringResource(R.string.most_played_track, favouriteTrack),
-                color = textSecondary,
-                fontSize = 13.sp,
-                modifier = Modifier.padding(top = 4.dp)
-            )
-        }
-    }
-}
 
-/**
- * Шапка вместе с верхушкой листа.
- *
- * Обе части живут в одном элементе списка намеренно: если лист сдвигать
- * отдельным элементом, уезжает только он, а следующие остаются на месте — между
- * ними появляется пустая полоса. Здесь наезд рисуется внутри общего контейнера,
- * поэтому части всегда держатся друг за друга.
- */
+
+/** Seamless portrait followed by flat playback controls. */
 @Composable
-private fun ArtistHeaderWithSheet(
+internal fun ArtistHero(
+    canPlay: Boolean,
     name: String,
     genre: String?,
     imageUrl: String?,
@@ -1314,50 +1114,26 @@ private fun ArtistHeaderWithSheet(
     onPlay: () -> Unit,
     onShuffle: () -> Unit
 ) {
-    Box(modifier = Modifier.fillMaxWidth()) {
+    Box(Modifier.fillMaxWidth()) {
+        ArtistBackdrop(name, imageUrl, videoUrl, isDark, Modifier.matchParentSize())
+        Column(modifier = Modifier.fillMaxWidth()) {
         ArtistHeader(
             name = name,
             genre = genre,
             imageUrl = imageUrl,
             videoUrl = videoUrl,
-            onPlay = onPlay,
-            onShuffle = onShuffle
         )
-        SheetTop(
-            isDark = isDark,
-            modifier = Modifier.align(Alignment.BottomCenter)
-        )
+        Row(Modifier.fillMaxWidth().padding(start = 22.dp, end = 22.dp, top = 18.dp, bottom = 4.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            DetailActionButton(stringResource(R.string.action_play), LmgGlyphs.Play28, true, isDark, enabled = canPlay, onClick = onPlay)
+            DetailActionButton(stringResource(R.string.action_shuffle), LmgGlyphs.ShuffleOutline28, false, isDark, enabled = canPlay, onClick = onShuffle)
+        }
     }
 }
-
-/**
- * Верхушка листа контента: наезжает на шапку и скруглена сверху.
- *
- * Приём из макета — за счёт наезда шапка воспринимается подложкой, а не первым
- * элементом списка, и переход к контенту читается без разделителя.
- */
-@Composable
-private fun SheetTop(isDark: Boolean, modifier: Modifier = Modifier) {
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(LiquidMetrics.SheetShape)
-            .background(LiquidSurfaces.sheet(isDark))
-            .padding(top = 12.dp, bottom = 4.dp),
-        contentAlignment = Alignment.TopCenter
-    ) {
-        Box(
-            modifier = Modifier
-                .size(width = 36.dp, height = 5.dp)
-                .clip(CircleShape)
-                .background(LiquidSurfaces.grabber(isDark))
-        )
-    }
 }
 
 /** Заголовок раздела со ссылкой справа — «See all» и подобные. */
 @Composable
-private fun SectionHeaderWithLink(
+internal fun SectionHeaderWithLink(
     isDark: Boolean,
     title: String,
     linkLabel: String,
@@ -1367,9 +1143,9 @@ private fun SectionHeaderWithLink(
         modifier = Modifier
             .fillMaxWidth()
             .padding(
-                start = LiquidMetrics.ScreenPadding,
-                end = LiquidMetrics.ScreenPadding,
-                top = LiquidMetrics.SectionGap,
+                start = DetailStyle.padding,
+                end = DetailStyle.padding,
+                top = DetailStyle.sectionGap,
                 bottom = 12.dp
             ),
         verticalAlignment = Alignment.CenterVertically
@@ -1377,7 +1153,7 @@ private fun SectionHeaderWithLink(
         Text(
             text = title,
             color = LiquidSurfaces.textPrimary(isDark),
-            fontSize = LiquidMetrics.SectionTitle,
+            fontSize = 23.sp, lineHeight = 28.sp,
             fontWeight = LiquidMetrics.SectionTitleWeight,
             fontFamily = VkSansDisplay,
             letterSpacing = LiquidMetrics.SectionTitleSpacing,
@@ -1385,9 +1161,9 @@ private fun SectionHeaderWithLink(
         )
         Text(
             text = linkLabel,
-            color = LiquidSurfaces.textSecondary(isDark),
-            fontSize = LiquidMetrics.LinkLabel,
-            fontWeight = FontWeight.SemiBold,
+            color = DetailStyle.accent,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Normal,
             modifier = Modifier
                 .clip(LiquidMetrics.Pill)
                 .liquidClickable(pressedScale = LiquidMotion.PressButton, onClick = onLinkClick)
@@ -1397,26 +1173,48 @@ private fun SectionHeaderWithLink(
 }
 
 @Composable
-private fun SectionHeaderThemed(isDark: Boolean, title: String) {
+internal fun SectionHeaderThemed(isDark: Boolean, title: String) {
     Text(
         text = title,
         color = LiquidSurfaces.textPrimary(isDark),
-        fontSize = LiquidMetrics.SectionTitle,
+        fontSize = 23.sp, lineHeight = 28.sp,
         fontWeight = LiquidMetrics.SectionTitleWeight,
         fontFamily = VkSansDisplay,
         letterSpacing = LiquidMetrics.SectionTitleSpacing,
         modifier = Modifier.padding(
-            start = LiquidMetrics.ScreenPadding,
-            end = LiquidMetrics.ScreenPadding,
-            top = LiquidMetrics.SectionGap,
+            start = DetailStyle.padding,
+            end = DetailStyle.padding,
+            top = DetailStyle.sectionGap,
             bottom = 12.dp
         )
     )
 }
 
+/** Compact artist identity in the collapsed navigation bar. */
 @Composable
-private fun ArtistActionsStrip(
-    isDark: Boolean,
+internal fun ArtistTitlePill(name: String, coverUrl: String?, isDark: Boolean, subtitle: String? = null) {
+    val shape = RoundedCornerShape(percent = 50)
+    Row(Modifier.heightIn(min = 44.dp).clip(shape)
+        .background(if (isDark) Color(0xFF303030) else Color(0xFFF4F4F5))
+        .border(1.dp, if (isDark) Color(0xFF505050) else Color(0xFFD5D5D8), shape)
+        .padding(start = 7.dp, top = 7.dp, end = 13.dp, bottom = 7.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        AlbumArtImage(uri = null, coverUrl = coverUrl, contentDescription = null,
+            modifier = Modifier.size(30.dp).clip(RoundedCornerShape(8.dp)),
+            placeholderIconSize = 18.dp, contentScale = ContentScale.Crop)
+        Column(Modifier.weight(1f, fill = false)) {
+            Text(name, color = DetailStyle.text(isDark), fontSize = 15.sp, lineHeight = 20.sp,
+                fontWeight = FontWeight.Normal, softWrap = true)
+            if (subtitle != null) Text(subtitle, color = DetailStyle.muted(isDark),
+                fontSize = 11.sp, lineHeight = 14.sp)
+        }
+    }
+}
+
+@Composable
+internal fun ArtistMenuButton(
+    title: String,
     isFollowed: Boolean,
     isMixBusy: Boolean,
     followEnabled: Boolean,
@@ -1424,177 +1222,11 @@ private fun ArtistActionsStrip(
     onFollow: () -> Unit,
     onShare: () -> Unit,
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = LiquidMetrics.ScreenPadding, vertical = 12.dp),
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        ArtistActionButton(
-            if (isMixBusy) stringResource(R.string.loading_short) else stringResource(R.string.artist_mix),
-            com.lmg.vk.ui.icons.LmgGlyphs.MusicNoteWaveOutline28,
-            !isMixBusy,
-            isDark,
-            onMix,
-        )
-        ArtistActionButton(
-            if (isFollowed) stringResource(R.string.following) else stringResource(R.string.follow),
-            if (isFollowed) com.lmg.vk.ui.icons.LmgGlyphs.Favorite28
-            else lmgVector(LmgDrawables.FavoriteAddOutline28),
-            followEnabled,
-            isDark,
-            onFollow,
-        )
-        ArtistActionButton(stringResource(R.string.action_share), com.lmg.vk.ui.icons.LmgGlyphs.ShareOutline28, true, isDark, onShare)
-    }
-}
-
-@Composable
-private fun ArtistCatalogSummary(
-    songs: Int,
-    songsAreMinimum: Boolean,
-    releases: Int,
-    playlists: Int,
-    videos: Int,
-    isDark: Boolean,
-) {
-    val stats = listOf(
-        Triple(stringResource(R.string.section_songs), songs, songsAreMinimum),
-        Triple(stringResource(R.string.releases_title), releases, false),
-        Triple(stringResource(R.string.playlists_title), playlists, false),
-        Triple(stringResource(R.string.videos_title), videos, false),
-    ).filter { it.second > 0 }
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = LiquidMetrics.ScreenPadding, vertical = 6.dp)
-            .clip(RoundedCornerShape(18.dp))
-            .background(LiquidSurfaces.card(isDark))
-            .padding(horizontal = 8.dp, vertical = 12.dp),
-        horizontalArrangement = Arrangement.SpaceEvenly,
-    ) {
-        stats.forEach { (label, value, plusAllowed) ->
-            Column(
-                modifier = Modifier.weight(1f),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                Text(
-                    if (plusAllowed) "$value+" else value.toString(),
-                    color = LiquidSurfaces.textPrimary(isDark),
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                )
-                Text(
-                    label,
-                    color = LiquidSurfaces.textSecondary(isDark),
-                    fontSize = 10.sp,
-                    maxLines = 1,
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun CompactInformationGrid(
-    links: List<ArtistLink>,
-    isDark: Boolean,
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = LiquidMetrics.ScreenPadding)
-            .clip(RoundedCornerShape(18.dp))
-            .background(LiquidSurfaces.card(isDark))
-            .padding(8.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
-        links.chunked(2).forEach { rowLinks ->
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                rowLinks.forEach { link ->
-                    CompactInformationItem(link = link, isDark = isDark)
-                }
-                if (rowLinks.size == 1) Spacer(Modifier.weight(1f))
-            }
-        }
-    }
-}
-
-@Composable
-private fun RowScope.CompactInformationItem(
-    link: ArtistLink,
-    isDark: Boolean,
-) {
-    Row(
-        modifier = Modifier
-            .weight(1f)
-            .clip(RoundedCornerShape(13.dp))
-            .background(LiquidSurfaces.sheet(isDark).copy(alpha = 0.55f))
-            .padding(horizontal = 8.dp, vertical = 7.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        AlbumArtImage(
-            uri = null,
-            coverUrl = link.cover.toThumb(),
-            contentDescription = null,
-            modifier = Modifier.size(30.dp).clip(RoundedCornerShape(9.dp)),
-            contentScale = ContentScale.Crop,
-        )
-        Column(modifier = Modifier.padding(start = 8.dp).weight(1f)) {
-            Text(
-                link.title,
-                color = LiquidSurfaces.textPrimary(isDark),
-                fontSize = 12.sp,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            link.subtitle?.takeIf { it.isNotBlank() }?.let { subtitle ->
-                Text(
-                    subtitle,
-                    color = LiquidSurfaces.textSecondary(isDark),
-                    fontSize = 10.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun RowScope.ArtistActionButton(
-    label: String,
-    icon: ImageVector,
-    enabled: Boolean,
-    isDark: Boolean,
-    onClick: () -> Unit,
-) {
-    Column(
-        modifier = Modifier
-            .weight(1f)
-            .alpha(if (enabled) 1f else 0.42f)
-            .clip(RoundedCornerShape(18.dp))
-            .background(LiquidSurfaces.card(isDark))
-            .liquidClickable(enabled = enabled, pressedScale = LiquidMotion.PressButton, onClick = onClick)
-            .padding(horizontal = 8.dp, vertical = 12.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Icon(icon, null, tint = LiquidSurfaces.textPrimary(isDark), modifier = Modifier.size(21.dp))
-        Spacer(Modifier.height(5.dp))
-        Text(
-            text = label,
-            color = LiquidSurfaces.textPrimary(isDark),
-            fontSize = 11.sp,
-            fontWeight = FontWeight.SemiBold,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-    }
+    DetailMenuButton(title, listOf(
+            DetailMenuAction(stringResource(R.string.artist_mix), LmgGlyphs.MusicNoteWaveOutline28, !isMixBusy, onMix),
+            DetailMenuAction(stringResource(if (isFollowed) R.string.following else R.string.follow), LmgGlyphs.Favorite28, followEnabled, onFollow),
+            DetailMenuAction(stringResource(R.string.action_share), LmgGlyphs.ShareOutline28, onClick = onShare),
+    ), circular = true)
 }
 
 @Composable
@@ -1608,7 +1240,7 @@ private fun ArtistLinkRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = LiquidMetrics.ScreenPadding, vertical = 4.dp)
+            .padding(horizontal = DetailStyle.padding, vertical = 4.dp)
             .clip(RoundedCornerShape(18.dp))
             .then(
                 if (onClick != null) {
@@ -1667,7 +1299,7 @@ private fun ArtistCommunityRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = LiquidMetrics.ScreenPadding)
+            .padding(horizontal = DetailStyle.padding)
             .clip(RoundedCornerShape(16.dp))
             .background(LiquidSurfaces.card(isDark))
             .liquidClickable(
@@ -1726,8 +1358,8 @@ private fun ArtistCommunityCarousel(
     val compact = !com.lmg.vk.ui.rememberWindowInfo().useSideBySide
     val size = if (compact) 76.dp else 94.dp
     LazyRow(
-        contentPadding = PaddingValues(horizontal = LiquidMetrics.ScreenPadding),
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
+        contentPadding = PaddingValues(horizontal = DetailStyle.padding),
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         items(communities, key = { "artist-community-${it.id}" }) { community ->
             Column(
@@ -1819,7 +1451,6 @@ private fun ArtistVideoCard(
     }
 }
 
-private const val ARTIST_TRACK_COUNT_PLUS_THRESHOLD = 200
 
 private fun ArtistLink.matches(vararg markers: String): Boolean {
     val haystack = "$title ${subtitle.orEmpty()} $url".lowercase()
@@ -1827,7 +1458,8 @@ private fun ArtistLink.matches(vararg markers: String): Boolean {
 }
 
 @Composable
-private fun TopSongRow(
+internal fun TopSongRow(
+    track: Track? = null,
     position: Int,
     title: String,
     subtitle: String,
@@ -1839,32 +1471,31 @@ private fun TopSongRow(
     textSecondary: Color,
     onClick: () -> Unit
 ) {
+    var menuOpen by remember(track?.id) { mutableStateOf(false) }
+    var menuAnchor by remember { mutableStateOf(Rect.Zero) }
+    if (menuOpen && track != null) TrackActionsSheet(track, anchor = menuAnchor, onDismiss = { menuOpen = false })
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .heightIn(min = 64.dp)
             .alpha(if (enabled) 1f else 0.42f)
             .clip(RoundedCornerShape(18.dp))
             .liquidClickable(enabled = enabled, pressedScale = LiquidMotion.PressButton, onClick = onClick)
             .padding(vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(
-            text = "$position",
-            color = textSecondary,
-            fontSize = 15.sp,
-            modifier = Modifier.width(28.dp)
-        )
         AlbumArtImage(
             uri = null,
             coverUrl = coverUrl,
             artworkQuery = com.lmg.vk.artwork.ArtworkQuery(title, subtitle, durationMs),
             contentDescription = title,
             modifier = Modifier
-                .size(LiquidMetrics.TrackCoverSize)
-                .clip(LiquidMetrics.CoverShapeSmall),
+                .size(44.dp)
+                .clip(RoundedCornerShape(6.dp)),
             contentScale = ContentScale.Crop
         )
-        Spacer(Modifier.width(14.dp))
+        Spacer(Modifier.width(11.dp))
         Column(modifier = Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (isExplicit) {
@@ -1886,8 +1517,8 @@ private fun TopSongRow(
                 Text(
                     text = if (enabled) title else "$title · Недоступно",
                     color = textPrimary,
-                    fontSize = LiquidMetrics.RowTitle,
-                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 15.sp, lineHeight = 20.sp,
+                    fontWeight = FontWeight.Normal,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f, fill = false)
@@ -1896,7 +1527,7 @@ private fun TopSongRow(
             Text(
                 text = subtitle,
                 color = textSecondary,
-                fontSize = LiquidMetrics.Caption,
+                fontSize = 12.sp, lineHeight = 16.sp,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
@@ -1908,87 +1539,76 @@ private fun TopSongRow(
             Text(
                 text = String.format(java.util.Locale.US, "%d:%02d", minutes, seconds),
                 color = textSecondary,
-                fontSize = 13.sp,
+                fontSize = 12.sp,
                 modifier = Modifier.padding(start = 12.dp)
             )
         }
+        if (track != null) Box(Modifier.size(44.dp).onGloballyPositioned { menuAnchor = it.boundsInWindow() }
+            .liquidClickable(enabled = enabled, onClick = { menuOpen = true }), contentAlignment = Alignment.Center) {
+            Icon(LmgGlyphs.MoreHorizontal28, stringResource(R.string.track_actions), tint = textSecondary, modifier = Modifier.size(22.dp))
+        }
+
     }
 }
 
 /** Свежий релиз крупно: у знакомого артиста его ищут первым делом. */
 @Composable
-private fun LatestReleaseCard(
+internal fun LatestReleaseCard(
     album: ArtistAlbum,
     textPrimary: Color,
     textSecondary: Color,
     isDark: Boolean,
     onClick: () -> Unit
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = LiquidMetrics.ScreenPadding)
-            // Тень ставится ДО обрезки: после clip она обрезалась бы вместе с
-            // формой и не была бы видна вовсе.
-            .shadow(
-                elevation = LiquidMetrics.CardElevation,
-                shape = LiquidMetrics.CardShape,
-                // В тёмной теме чёрная тень на тёмном фоне не читается — берём
-                // подсветку посветлее, иначе карточка выглядит плоской.
-                ambientColor = LiquidSurfaces.shadowTint(isDark),
-                spotColor = LiquidSurfaces.shadowTint(isDark)
-            )
-            .clip(LiquidMetrics.CardShape)
-            .background(LiquidSurfaces.card(isDark))
-            .liquidClickable(pressedScale = LiquidMotion.PressButton, onClick = onClick)
-            .padding(LiquidMetrics.CardPadding),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        AlbumArtImage(
-            uri = null,
-            coverUrl = album.cover.toThumb(),
-            contentDescription = album.title,
-            modifier = Modifier
-                .size(LiquidMetrics.ReleaseCoverSize)
-                .shadow(
-                    elevation = LiquidMetrics.CoverElevation,
-                    shape = LiquidMetrics.CoverShape,
-                    ambientColor = LiquidSurfaces.shadowTint(isDark),
-                    spotColor = LiquidSurfaces.shadowTint(isDark)
-                )
-                .clip(LiquidMetrics.CoverShape),
-            contentScale = ContentScale.Crop
-        )
-        Spacer(Modifier.width(16.dp))
-        Column {
-            Text(
-                text = album.title,
-                color = textPrimary,
-                fontSize = LiquidMetrics.CardTitle,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
-            Text(
-                text = listOfNotNull(releaseTypeLabel(album.type), album.year).joinToString(" · "),
-                color = textSecondary,
-                fontSize = 13.sp,
-                modifier = Modifier.padding(top = 4.dp)
-            )
+    Row(Modifier.fillMaxWidth().padding(horizontal = DetailStyle.padding)
+        .detailClickable(onClick = onClick), verticalAlignment = Alignment.CenterVertically) {
+        AlbumArtImage(uri = null, coverUrl = album.cover.toThumb(), contentDescription = album.title,
+            modifier = Modifier.size(94.dp).clip(RoundedCornerShape(9.dp)), contentScale = ContentScale.Crop)
+        Spacer(Modifier.width(14.dp))
+        Column(Modifier.weight(1f)) {
+            album.date?.takeIf { it.isNotBlank() }?.let {
+                Text(it, color = DetailStyle.accent, fontSize = 11.sp, letterSpacing = 1.sp)
+            }
+            Text(album.title, color = DetailStyle.text(isDark), fontFamily = VkSansDisplay,
+                fontSize = 18.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text(listOfNotNull(releaseTypeLabel(album.type), album.year).joinToString(" · "),
+                color = DetailStyle.muted(isDark), fontSize = 13.sp, modifier = Modifier.padding(top = 5.dp))
         }
+        Icon(lmgVector(LmgDrawables.ChevronRightOutline24), null, tint = DetailStyle.muted(isDark), modifier = Modifier.size(20.dp))
     }
 }
 
 @Composable
-private fun AlbumRow(
+internal fun AlbumRow(
     albums: List<ArtistAlbum>,
     textPrimary: Color,
     textSecondary: Color,
     isDark: Boolean,
-    onNavigateToAlbum: (String) -> Unit
+    onNavigateToAlbum: (String) -> Unit,
+    grid: Boolean = false
 ) {
+    if (grid) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = DetailStyle.padding), verticalArrangement = Arrangement.spacedBy(20.dp)) {
+            albums.take(4).chunked(2).forEach { row ->
+                Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                    row.forEach { album ->
+                        Column(Modifier.weight(1f).clip(RoundedCornerShape(12.dp))
+                            .liquidClickable(onClick = { onNavigateToAlbum(album.id) })) {
+                            AlbumArtImage(uri = null, coverUrl = album.cover.toThumb(), contentDescription = album.title,
+                                modifier = Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(9.dp)), contentScale = ContentScale.Crop)
+                            Text(album.title, color = textPrimary, fontSize = 15.sp, lineHeight = 20.sp, fontWeight = FontWeight.Normal,
+                                maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 8.dp))
+                            album.year?.let { Text(it, color = textSecondary, fontSize = 12.sp) }
+                        }
+                    }
+                    if (row.size == 1) Spacer(Modifier.weight(1f))
+                }
+            }
+        }
+        return
+    }
     LazyRow(
-        contentPadding = PaddingValues(horizontal = LiquidMetrics.ScreenPadding),
+        contentPadding = PaddingValues(horizontal = DetailStyle.padding),
         horizontalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         items(albums, key = { it.id }) { album ->
@@ -2023,6 +1643,75 @@ private fun AlbumRow(
                 )
                 album.year?.let {
                     Text(text = it, color = textSecondary, fontSize = 12.sp)
+                }
+            }
+        }
+    }
+}
+
+/** Native discography, using only releases and years returned by the catalogue. */
+@Composable
+private fun ArtistReleasesDialog(releases: List<ArtistAlbum>, isDark: Boolean, onOpen: (String) -> Unit, onDismiss: () -> Unit) {
+    var filter by remember { mutableStateOf(0) }
+    val visible = remember(releases, filter) {
+        releases.filter { filter == 0 || (if (filter == 2) it.isSingleOrEpUi() else !it.isSingleOrEpUi()) }
+            .sortedByDescending { it.year?.toIntOrNull() ?: 0 }.groupBy { it.year.orEmpty() }
+    }
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Column(Modifier.fillMaxSize().background(DetailStyle.background(isDark))) {
+            DetailTopBar(stringResource(R.string.releases_title), true, isDark, onDismiss)
+            Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf(stringResource(R.string.detail_filter_all), stringResource(R.string.section_albums), stringResource(R.string.singles_eps)).forEachIndexed { index, label ->
+                    Text(label, textAlign = androidx.compose.ui.text.style.TextAlign.Center, fontSize = 13.sp, color = if (filter == index) DetailStyle.background(isDark) else DetailStyle.text(isDark),
+                        modifier = Modifier.weight(1f).clip(CircleShape)
+                            .background(if (filter == index) DetailStyle.text(isDark) else DetailStyle.surface(isDark))
+                            .border(1.dp, if (filter == index) Color.White.copy(alpha = .25f) else LiquidSurfaces.divider(isDark), CircleShape)
+                            .liquidClickable(onClick = { filter = index }).padding(horizontal = 12.dp, vertical = 13.dp))
+                }
+            }
+            LazyVerticalGrid(columns = GridCells.Fixed(2), contentPadding = PaddingValues(20.dp),
+                horizontalArrangement = Arrangement.spacedBy(14.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
+                if (visible.isEmpty()) item(span = { GridItemSpan(maxLineSpan) }) {
+                    Text(stringResource(R.string.detail_no_releases), color = LiquidSurfaces.textSecondary(isDark),
+                        fontSize = 14.sp, modifier = Modifier.padding(vertical = 32.dp))
+                }
+                visible.forEach { (year, albums) ->
+                    if (year.isNotBlank()) item(key = "year:$year", span = { GridItemSpan(maxLineSpan) }) {
+                        Text(year, color = LiquidSurfaces.textPrimary(isDark), fontSize = 25.sp, fontFamily = VkSansDisplay, fontWeight = FontWeight.Bold)
+                    }
+                    gridItems(albums, key = { it.id }) { album ->
+                        Column(Modifier.clip(RoundedCornerShape(12.dp)).liquidClickable(onClick = { onOpen(album.id) })) {
+                            AlbumArtImage(uri = null, coverUrl = album.cover.toThumb(), contentDescription = album.title,
+                                modifier = Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(9.dp)), contentScale = ContentScale.Crop)
+                            Text(album.title, color = LiquidSurfaces.textPrimary(isDark), fontSize = 15.sp, lineHeight = 20.sp, fontWeight = FontWeight.Normal,
+                                maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 8.dp))
+                            releaseTypeLabel(album.type)?.let { Text(it, color = LiquidSurfaces.textSecondary(isDark), fontSize = 12.sp) }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ArtistInformationDialog(name: String, links: List<ArtistLink>, isDark: Boolean, playCount: Int, favouriteTrack: String?, onDismiss: () -> Unit) {
+    val context = LocalContext.current
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Column(Modifier.fillMaxSize().background(DetailStyle.background(isDark))) {
+            DetailTopBar(name, true, isDark, onDismiss)
+            LazyColumn(contentPadding = PaddingValues(horizontal = 22.dp, vertical = 16.dp)) {
+                if (playCount > 0) item {
+                    Text(pluralStringResource(R.plurals.artist_played_times, playCount, playCount), color = DetailStyle.text(isDark), fontSize = 15.sp)
+                    favouriteTrack?.let { Text(stringResource(R.string.most_played_track, it), color = DetailStyle.muted(isDark), fontSize = 13.sp, modifier = Modifier.padding(top = 6.dp, bottom = 16.dp)) }
+                }
+                items(links.distinctBy { it.url }, key = { it.url }) { link ->
+                    Column(Modifier.fillMaxWidth().detailClickable(onClick = {
+                        runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(link.url))) }
+                    }).padding(vertical = 12.dp)) {
+                        Text(link.title, color = DetailStyle.text(isDark), fontSize = 15.sp)
+                        link.subtitle?.takeIf { it.isNotBlank() }?.let { Text(it, color = DetailStyle.muted(isDark), fontSize = 12.sp) }
+                    }
                 }
             }
         }

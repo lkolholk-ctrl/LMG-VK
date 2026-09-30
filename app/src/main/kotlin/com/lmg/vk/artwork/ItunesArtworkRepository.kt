@@ -105,6 +105,7 @@ object ItunesArtworkRepository {
             .joinToString("") { "%02x".format(it) }
         val directory = File(context.cacheDir, "itunes_artwork_v3").apply { mkdirs() }
         val file = File(directory, "$hash.json")
+        com.lmg.vk.engine.CacheCatalog.remember(context, file.absolutePath, query.title, query.artist)
         val stored = runCatching {
             val obj = Json.parseToJsonElement(file.readText()).jsonObject
             Entry(obj["artwork"]?.jsonPrimitive?.contentOrNull?.takeIf(String::isNotBlank),

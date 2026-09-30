@@ -6,7 +6,7 @@ import java.nio.ByteBuffer
 /** Concrete JNI-backed admission adapter. It owns INPUT copies only after commit.
  * No output lease can be manufactured from this class: it has no sink, gain or clock.
  */
-internal class NativeCueOwnerIngress(val native: NativePcmOwnerIngress) : CueOwnerAdmission {
+internal class NativeCueOwnerIngress(val native: NativePcmOwnerIngress) : CursorPreservingCueAdmission {
     override fun stage(generation: Long, revision: Long, format: RenderPcmFormat,
         outgoing: ByteBuffer, outInfo: CueBufferInfo, incoming: ByteBuffer, inInfo: CueBufferInfo): Any {
         require(format.supported && format.channels==native.channels && format.bytesPerSample==native.bytesPerSample)
@@ -18,5 +18,11 @@ internal class NativeCueOwnerIngress(val native: NativePcmOwnerIngress) : CueOwn
     override fun abort(ticket: Any) { native.abort(ticket as NativePcmOwnerIngress.Ticket) }
     override fun poll(side: Int, destination: ByteBuffer, maxFrames: Int, info: LongArray): Int =
         native.read(side,destination,maxFrames,info)
+    override fun pollWithoutMoving(side: Int, destination: ByteBuffer, maxFrames: Int, info: LongArray, channels: Int): Int {
+        require(channels == native.channels)
+        return native.readWithoutMoving(side, destination, maxFrames, info)
+    }
+    override fun offerCodecBuffer(side: Int, bytes: ByteBuffer, firstFrame: Long): Int =
+        native.push(side, bytes, firstFrame) // JNI reads, never mutates the original cursor/content.
     override fun offer(side: Int, bytes: ByteBuffer, firstFrame: Long): Int = native.push(side,bytes,firstFrame)
 }

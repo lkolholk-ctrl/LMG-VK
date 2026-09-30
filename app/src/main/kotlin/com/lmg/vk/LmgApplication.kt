@@ -116,6 +116,13 @@ class LmgApplication : Application(), ImageLoaderFactory {
 
     override fun newImageLoader(): ImageLoader {
         return ImageLoader.Builder(this)
+            .eventListener(object : coil.EventListener {
+                override fun onSuccess(request: coil.request.ImageRequest, result: coil.request.SuccessResult) {
+                    result.diskCacheKey?.let { key ->
+                        com.lmg.vk.engine.CacheCatalog.remember(this@LmgApplication, "coil:$key", "", "", request.data.toString())
+                    }
+                }
+            })
             .okHttpClient { coverHttpClient }
             .memoryCache {
                 MemoryCache.Builder(this)
@@ -171,6 +178,7 @@ class LmgApplication : Application(), ImageLoaderFactory {
         HomeCacheManager.init(this)
         AppStartupTrace.measure("player_settings_init") { PlayerSettings.init(this) }
         AppStartupTrace.measure("audio_fx_init") { AudioFxController.init(this) }
+        AppStartupTrace.measure("player_dsp_init") { com.lmg.vk.engine.dsp.DspController.init(this) }
         AppStartupTrace.measure("lyrics_fx_init") { LyricsFxController.init(this) }
 
         // Железо/энергосбережение → режимы эффектов.

@@ -2,87 +2,14 @@ package com.lmg.vk.engine
 
 import androidx.media3.common.C
 import androidx.media3.common.audio.AudioProcessor
-import androidx.media3.common.audio.BaseAudioProcessor
 import androidx.media3.common.util.UnstableApi
 import java.nio.ByteBuffer
-import java.util.concurrent.atomic.AtomicInteger
 import kotlin.math.exp
 import kotlin.math.pow
 
 /**
- * Состояние DJ-эффектов СТРИМИНГОВОГО перехода (dual-ExoPlayer кроссфейд).
- * Пишет [com.lmg.vk.automix.DJEffectsEngine.crossfadeWithEffects],
- * читает [DjFxAudioProcessor] в аудио-цепочке уходящего плеера.
- */
-object DjStreamFx {
-    const val MODE_NONE = 0
-    const val MODE_SWEEP = 4       // FILTER_SWEEP: LP-муффл уходящего
-    const val MODE_ECHO = 5        // ECHO_OUT: делэй-повторы уходящего
-    const val MODE_ECHO_TAIL = 6   // дозвучка хвоста: dry замьючен, звенят повторы
-
-    private val modeA = AtomicInteger(MODE_NONE)
-    private val progressMilli = AtomicInteger(0)
-    private val outVolMilli = AtomicInteger(1000)
-    private val generationA = AtomicInteger(0)
-
-    // Порядковый номер процессоров: каждый новый DjFxAudioProcessor (=новый
-    // плеер) регистрируется и становится «новейшим». Эффект применяется ТОЛЬКО
-    // к НЕ-новейшему процессору — т.е. к уходящему плееру. Входящий (secondary
-    // строится перед началом перехода → он новейший) остаётся чистым. Это
-    // переживает свап: после свапа уходящий уничтожается, следующий secondary
-    // снова новейший, а бывший secondary становится не-новейшим и получает FX.
-    private val procSeqCounter = AtomicInteger(0)
-    private val newestSeq = AtomicInteger(-1)
-
-    fun registerProcessor(): Int {
-        val s = procSeqCounter.incrementAndGet()
-        newestSeq.set(s)
-        return s
-    }
-
-    /** true, если процессор с этим seq — уходящий (не новейший из живых). */
-    fun isOutgoing(seq: Int): Boolean = seq != newestSeq.get()
-
-    val mode: Int get() = modeA.get()
-    val progress: Float get() = progressMilli.get() / 1000f
-    val generation: Int get() = generationA.get()
-    /** Текущая громкость уходящего плеера — для компенсации post-fader эха. */
-    val outVolume: Float get() = outVolMilli.get() / 1000f
-
-    fun begin(transitionType: Int) {
-        progressMilli.set(0)
-        outVolMilli.set(1000)
-        generationA.incrementAndGet()   // новый переход → процессор сбросит состояние
-        modeA.set(
-            when (transitionType) {
-                4 -> MODE_SWEEP
-                5 -> MODE_ECHO
-                else -> MODE_NONE
-            }
-        )
-    }
-
-    fun update(p: Float, outVol: Float) {
-        progressMilli.set((p.coerceIn(0f, 1f) * 1000).toInt())
-        outVolMilli.set((outVol.coerceIn(0f, 1f) * 1000).toInt())
-    }
-
-    /** Переход кончился (type 5): dry глушится процессором, повторы дозвучивают. */
-    fun beginTail() {
-        outVolMilli.set(1000)
-        modeA.set(MODE_ECHO_TAIL)
-    }
-
-    fun stop() {
-        modeA.set(MODE_NONE)
-        progressMilli.set(0)
-        outVolMilli.set(1000)
-    }
-}
-
-/**
- * DJ-эффекты стримингового перехода в цепочке ExoPlayer — зеркало нативных
- * эффектов JUCE-пути (AutoMixAudioEngine):
+ * Необязательные legacy DJ-эффекты в цепочке одного ExoPlayer.
+ * Во время нативного AutoMix mixed-output они строго обходятся:
  *  - FILTER_SWEEP: one-pole LP, срез уезжает экспоненциально 16кГц→150Гц;
  *  - ECHO_OUT: feedback-делэй 375мс (fb 0.42), send растёт с прогрессом;
  *    в фазе TAIL dry замьючен — поверх нового трека звенят только повторы,
@@ -92,7 +19,9 @@ object DjStreamFx {
  * Вне перехода полностью прозрачен: ни одного умножения на сэмпл.
  */
 @UnstableApi
-class DjFxAudioProcessor : BaseAudioProcessor() {
+class DjFxAudioProcessor(private val sink: SinkAudioState? = null) : BoundedPcmAudioProcessor() {
+    private var width = 0
+    private var streamVersion = Long.MIN_VALUE
 
     private var sweepLp = FloatArray(2)
     private var echoBuf = FloatArray(0)      // кольцо [pos*2 + channel]
@@ -102,16 +31,17 @@ class DjFxAudioProcessor : BaseAudioProcessor() {
     private var tailArmed = false
     private var dirty = false                // нужен сброс состояний перед новым переходом
     private var sampleRate = 44100
-    // Идентичность процессора: seq присваивается при конструировании (=на плеер),
-    // gen отслеживает переход — чтобы сбросить состояние между back-to-back
-    // переходами на одном процессоре (иначе эхо старого перехода звенело в новом).
-    private val procSeq = DjStreamFx.registerProcessor()
-    private var seenGen = -1
+    // State belongs to this sink and resets on an actual output occurrence change.
+    private var seenGen = -1L
 
     override fun onConfigure(inputAudioFormat: AudioProcessor.AudioFormat): AudioProcessor.AudioFormat {
-        if (inputAudioFormat.encoding != C.ENCODING_PCM_16BIT) {
-            return AudioProcessor.AudioFormat.NOT_SET
+        width = when (inputAudioFormat.encoding) {
+            C.ENCODING_PCM_16BIT -> 2
+            C.ENCODING_PCM_FLOAT -> 4
+            else -> return AudioProcessor.AudioFormat.NOT_SET
         }
+        if (inputAudioFormat.channelCount !in 1..2) return AudioProcessor.AudioFormat.NOT_SET
+        prepareOutputStorage()
         sampleRate = inputAudioFormat.sampleRate
         echoLen = (sampleRate * 0.375).toInt().coerceAtLeast(1)
         echoBuf = FloatArray(echoLen * 2)
@@ -131,37 +61,35 @@ class DjFxAudioProcessor : BaseAudioProcessor() {
     }
 
     override fun queueInput(inputBuffer: ByteBuffer) {
-        val sizeBytes = inputBuffer.remaining()
-        if (sizeBytes == 0) return
+        if (!inputBuffer.hasRemaining()) return
+        val channels = inputAudioFormat.channelCount
+        val sizeBytes = boundedBytes(inputBuffer, channels * width)
+        val version = sink?.streamVersion ?: 0L
+        if (streamVersion != version) { resetFxState(); seenGen = -1L; streamVersion = version }
 
-        val mode = DjStreamFx.mode
+        val command = DjStreamFx.snapshot()
+        val mode = command.mode
 
-        // Быстрый путь: вне перехода ИЛИ этот процессор — ВХОДЯЩИЙ плеер
-        // (новейший): прозрачная передача. Раньше эффект применялся к обоим
-        // плеерам — входящий трек глушился/эхоился ровно на выходе на полную
-        // громкость (крит-баг аудита).
-        if (mode == DjStreamFx.MODE_NONE || echoLen == 0 || !DjStreamFx.isOutgoing(procSeq)) {
+        // Unknown routing and native-owned mixed output are always transparent.
+        if (mode == DjStreamFx.MODE_NONE || echoLen == 0 || !command.matches(sink)) {
             if (dirty) resetFxState()
             val output = replaceOutputBuffer(sizeBytes)
-            output.put(inputBuffer)
-            output.flip()
+            copy(inputBuffer, output, sizeBytes)
             return
         }
         // Новый переход на том же процессоре → сбросить хвосты старого.
-        val gen = DjStreamFx.generation
+        val gen = command.generation
         if (gen != seenGen) {
             resetFxState()
             seenGen = gen
         }
         dirty = true
 
-        val channels = inputAudioFormat.channelCount.coerceAtLeast(1)
-        val inShorts = inputBuffer.asShortBuffer()
+        val inputStart = inputBuffer.position()
         val output = replaceOutputBuffer(sizeBytes)
-        val outShorts = output.asShortBuffer()
-        val frames = inShorts.remaining() / channels
+        val frames = sizeBytes / (width * channels)
 
-        val p = DjStreamFx.progress
+        val p = command.progress
 
         // FILTER_SWEEP: коэффициент на блок (~5-20мс) — для one-pole достаточно.
         var sweepAlpha = 0f
@@ -181,7 +109,7 @@ class DjFxAudioProcessor : BaseAudioProcessor() {
         val send = if (echoActive) smoothP * 0.55f else 0f
         // Кап 1.8x: выход процессора — PCM16, клампится ДО громкости плеера;
         // больший буст срезал бы волну эха на жирном материале.
-        val volComp = (1f / DjStreamFx.outVolume.coerceAtLeast(0.45f)).coerceAtMost(1.8f)
+        val volComp = (1f / command.outVolume.coerceAtLeast(0.45f)).coerceAtMost(1.8f)
         val tailFadeSamples = (sampleRate * 0.25f)
 
         var base = 0
@@ -193,7 +121,9 @@ class DjFxAudioProcessor : BaseAudioProcessor() {
                 else -> 0f
             }
             for (c in 0 until channels) {
-                var s = inShorts.get(base + c) / 32768f
+                val at = inputStart + (base + c) * width
+                var s = if (width == 2) inputBuffer.getShort(at) / 32768f else inputBuffer.getFloat(at)
+                if (!s.isFinite()) s = 0f
                 if (c < 2) {
                     if (sweepAlpha > 0f) {
                         sweepLp[c] += sweepAlpha * (s - sweepLp[c])
@@ -216,8 +146,10 @@ class DjFxAudioProcessor : BaseAudioProcessor() {
                     val lim = 0.88f + 0.12f * (x / (x + 0.25f))
                     s = if (s >= 0f) lim else -lim
                 }
-                val v = (s * 32767f).coerceIn(-32768f, 32767f)
-                outShorts.put(base + c, v.toInt().toShort())
+                if (width == 2) {
+                    val v = (s * 32768f).coerceIn(-32768f, 32767f)
+                    output.putShort((base + c) * width, v.toInt().toShort())
+                } else output.putFloat((base + c) * width, s)
             }
             if (echoActive || tailActive) {
                 if (++echoPos >= echoLen) echoPos = 0
@@ -226,7 +158,7 @@ class DjFxAudioProcessor : BaseAudioProcessor() {
             base += channels
         }
 
-        inputBuffer.position(inputBuffer.limit())
+        inputBuffer.position(inputStart + sizeBytes)
         output.position(sizeBytes)
         output.flip()
     }

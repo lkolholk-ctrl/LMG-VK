@@ -6,19 +6,8 @@ import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.audio.AudioSink
 import androidx.media3.exoplayer.audio.DefaultAudioSink
 
-/**
- * Единая аудио-цепочка для ВСЕХ ExoPlayer'ов приложения (основной сервисный
- * и secondary в dual-player переходе):
- *
- *   BassAudioProcessor (анализ полос) → DjFxAudioProcessor (эффекты
- *   стримингового перехода) → VolumeNormalizationProcessor (Sound Check).
- *
- * Порядок важен: анализ видит чистый сигнал, эффекты — до нормализации.
- *
- * Раньше secondary-плеер собирался голым ExoPlayer.Builder: после первого же
- * стримингового AutoMix он становился основным БЕЗ цепочки — реактивное
- * свечение и нормализация умирали до перезапуска приложения.
- */
+/** Per-sink processor state for the two internal renderers of ONE service ExoPlayer.
+ * Bass metering -> per-source DJ FX -> Sound Check -> user DSP. No role follows creation order. */
 @UnstableApi
 object PlayerAudioChain {
 
@@ -28,6 +17,7 @@ object PlayerAudioChain {
     fun renderersFactory(
         context: Context,
         renderBoundary: com.lmg.vk.engine.automix.render.RenderBoundaryController? = null,
+        routing: SinkAudioRouting = SinkAudioRouting(),
     ): DefaultRenderersFactory =
         object : DefaultRenderersFactory(context) {
             override fun buildAudioSink(
@@ -35,38 +25,24 @@ object PlayerAudioChain {
                 enableFloatOutput: Boolean,
                 enableAudioTrackPlaybackParameters: Boolean
             ): AudioSink {
-                // Диагностика: кроссфейд форка держит два аудио-рендерера. Если
-                // на один плеер синк собирается дважды, то и цепочка процессоров
-                // существует в двух экземплярах — а значит, два BassAudioProcessor
-                // конкурентно пишут уровни в AudioReactor, и определение
-                // «уходящего» трека по порядковому номеру в DjStreamFx считает
-                // новейшим не тот рендерер. Считаем и пишем в лог, чтобы знать
-                // наверняка, прежде чем что-то менять.
-                // Log.w, а не i/d: в релизе R8 вырезает verbose/debug/info, и
-                // диагностика молча исчезла бы именно там, где нужна.
-                val n = sinkCount.incrementAndGet()
-                android.util.Log.w("PlayerAudioChain", "buildAudioSink #$n")
-                // Дублируем в DebugLog: с форка lmg30 второй аудио-рендерер
-                // наконец проходит через эту фабрику (там исправлено, что он
-                // собирал сырой DefaultAudioSink в обход неё). То есть
-                // `buildAudioSink #2` теперь НОРМА, а не признак поломки — и
-                // видеть это надо на телефоне, где logcat недоступен.
-                //
-                // Следствие, за которым следим: цепочка процессоров существует в
-                // двух экземплярах, а AudioReactor — статический object. Если
-                // поедет пульсация ауры или определение «уходящего» трека в
-                // DjStreamFx, причина здесь, и правка на нашей стороне.
-                com.lmg.vk.debug.DebugLog.add("buildAudioSink #$n (с lmg30 два — норма)")
+                sinkCount.incrementAndGet()
+                val state = routing.newSink()
+                val dsp = com.lmg.vk.engine.dsp.DspAudioProcessor()
                 val originalSink = DefaultAudioSink.Builder(context)
+                    // Media3's float-output shortcut bypasses custom AudioProcessors.
+                    // The DSP itself uses float32; this sink deliberately uses the PCM chain.
+                    .setEnableFloatOutput(false)
                     .setAudioProcessors(
                         arrayOf(
-                            BassAudioProcessor(),
-                            DjFxAudioProcessor(),
-                            VolumeNormalizationProcessor()
+                            BassAudioProcessor(state),
+                            DjFxAudioProcessor(state),
+                            VolumeNormalizationProcessor(state),
+                            dsp
                         )
                     )
                     .build()
-                return com.lmg.vk.engine.automix.render.RenderBoundarySinkFactory.wrap(originalSink, renderBoundary)
+                val output = com.lmg.vk.engine.dsp.DspAudioSink(originalSink, dsp)
+                return com.lmg.vk.engine.automix.render.RenderBoundarySinkFactory.wrap(output, renderBoundary, state, false)
             }
 
             // Видео-рендерер НУЖЕН: видеоклипы Apple Music играют этим же

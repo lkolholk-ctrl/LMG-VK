@@ -46,6 +46,8 @@ object LyricsRepository {
             firstPreferredLyrics(enabled) { source ->
                 when (source) {
                     LyricsSource.APPLE_TTML -> loadPrimary(context, title, artist, durationMs, language, forceRefresh)
+                    LyricsSource.LMG_LYRICS_PLUS -> LmgLyricsPlusProvider.load(
+                        context, title, artist, durationMs, language, forceRefresh)
                     LyricsSource.BINI_LYRICS -> ExternalLyricsRepository.fetchBiniLyricsContent(title, artist, durationMs)
                     LyricsSource.LYRICS_PLUS -> ExternalLyricsRepository.fetchLyricsPlusContent(title, artist, durationMs)
                     LyricsSource.LRCLIB -> LyricsParser.fetchLrcLib(context, uri, title, artist, durationMs, trackId)

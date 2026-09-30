@@ -43,6 +43,9 @@ class TimePitchStream {
   bool scheduled_;
   bool coherence_=false,preserveTransients_=false;
   double rate_=1,lastOutputHop_=0;
+  // Host ring cursor retains fractional mapped hops. Truncating every hop
+  // separately biases the consumed source position over long transitions.
+  double preciseInputRead_=0;
   float pitch_=1,smoothness_=8;
   TimePitchStreamState state_;
   TimePitchHopState clock_;

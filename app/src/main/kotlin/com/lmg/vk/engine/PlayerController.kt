@@ -147,6 +147,10 @@ object PlayerController {
     val isLocalJucePlaybackActive: Boolean
         get() = _playbackBackend.value == PlaybackBackend.JUCE_LOCAL
 
+    private val _autoMixStyleName = MutableStateFlow<String?>(null)
+    val autoMixStyleName: StateFlow<String?> = _autoMixStyleName
+    fun setAutoMixStyleName(name: String?) { _autoMixStyleName.value = name }
+
     // Official VK preloads only the future StartPlayVkMixSource near the end
     // of a finite queue. It does not turn that queue into VK_MIX_CONFIG early.
     private data class AutoflowSeed(
@@ -1674,6 +1678,7 @@ object PlayerController {
     }
 
     fun onTrackChanged(mediaId: String) {
+        _autoMixStyleName.value = null
         // Клип ↔ музыка: mediaId клипа всегда "clip_<id>", поэтому флаг видео
         // выводим из самого id на КАЖДОЙ смене медиа (bridge зовёт нас на любой
         // transition). Раньше флаг сбрасывала только пара play*-путей — после

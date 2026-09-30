@@ -47,10 +47,15 @@ android {
         }.standardOutput.asText.map { it.trim().toIntOrNull() ?: 2 }.getOrElse(2)
         versionName = "1.1.0" // собственная нумерация LMG VK
 
+        // User's distribution target: ARM64 only, including prebuilt JNI libraries.
+        ndk {
+            abiFilters += "arm64-v8a"
+        }
+
         externalNativeBuild {
             cmake {
                 cppFlags += "-std=c++17"
-                abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86")
+                abiFilters += "arm64-v8a"
             }
         }
     }
@@ -163,7 +168,7 @@ dependencies {
     // --- плеер: media3 из НАШЕГО форка (media3-lmg, 1.5.1-lmg30) ---
     implementation("com.liquidmusicglass.media3:media3-common:1.5.1-lmg30")
     implementation("com.liquidmusicglass.media3:media3-exoplayer") {
-        version { strictly(providers.gradleProperty("automixExoplayerVersion").getOrElse("1.5.1-lmg30")) }
+        version { strictly(providers.gradleProperty("automixExoplayerVersion").getOrElse("1.5.1-lmg30-boundary3")) }
     }
     implementation("com.liquidmusicglass.media3:media3-exoplayer-hls:1.5.1-lmg30")
     implementation("com.liquidmusicglass.media3:media3-extractor:1.5.1-lmg30")

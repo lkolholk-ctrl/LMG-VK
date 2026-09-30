@@ -1,6 +1,7 @@
 package com.lmg.vk.ui.components
 
 import android.content.Intent
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -13,6 +14,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -48,6 +51,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun TrackActionsSheet(
     track: Track,
+    anchor: Rect? = null,
     isFavorite: Boolean? = null,
     onToggleFavorite: (() -> Unit)? = null,
     onCache: (() -> Unit)? = null,
@@ -61,7 +65,7 @@ fun TrackActionsSheet(
     val scope = rememberCoroutineScope()
     val isDark = LiquidTheme.colors.isDark
     val sheetBg = if (isDark) Color(0xFF141416) else Color.White
-    val rowBg = if (isDark) Color(0xFF1C1C1E) else Color(0xFFF2F2F7)
+    val rowBg = if (anchor != null) Color.Transparent else if (isDark) Color(0xFF1C1C1E) else Color(0xFFF2F2F7)
 
     // ── Состояние скачивания этого трека ──
     // Прогресс — из менеджера (он один знает байты), факт «уже скачан» — из
@@ -75,14 +79,18 @@ fun TrackActionsSheet(
     }
     val isDownloaded by isDownloadedFlow.collectAsState(initial = false)
 
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        containerColor = sheetBg,
-        dragHandle = null
-    ) {
-        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 18.dp)) {
+    var pendingAction by remember(track.id) { mutableStateOf<(() -> Unit)?>(null) }
+    val content: @Composable (() -> Unit) -> Unit = { close ->
+        fun finish(action: () -> Unit) {
+            if (anchor == null) { action(); close() }
+            else if (pendingAction == null) { pendingAction = action; close() }
+        }
+        Column(modifier = Modifier.padding(horizontal = if (anchor == null) 16.dp else 6.dp, vertical = if (anchor == null) 18.dp else 0.dp)) {
             // ── Шапка: обложка + название + артист ──
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            if (anchor != null) {
+                Text(track.title, color = LiquidTheme.colors.textSecondary, fontSize = 14.sp,
+                    maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp))
+            } else Row(verticalAlignment = Alignment.CenterVertically) {
                 AlbumArtImage(
                     uri = track.albumArtUri,
                     contentDescription = null,
@@ -115,45 +123,39 @@ fun TrackActionsSheet(
                 }
             }
 
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(if (anchor == null) 16.dp else 0.dp))
 
             ActionRow(rowBg, com.lmg.vk.ui.icons.LmgGlyphs.PlayNextOutline24, stringResource(R.string.action_play_next)) {
-                PlayerController.insertNext(track)
-                onDismiss()
+                finish { PlayerController.insertNext(track) }
             }
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(if (anchor == null) 8.dp else 0.dp))
             ActionRow(rowBg, lmgVector(LmgDrawables.ListInsertLastOutline28), stringResource(R.string.action_add_to_queue)) {
-                PlayerController.addToQueue(track)
-                onDismiss()
+                finish { PlayerController.addToQueue(track) }
             }
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(if (anchor == null) 8.dp else 0.dp))
             if (onAddToPlaylist != null) {
                 ActionRow(rowBg, lmgVector(LmgDrawables.ListPlusOutline20), stringResource(R.string.add_to_playlist)) {
-                    onAddToPlaylist()
-                    onDismiss()
+                    finish { onAddToPlaylist() }
                 }
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(if (anchor == null) 8.dp else 0.dp))
             }
             if (onMoveUp != null) {
                 ActionRow(rowBg, lmgVector(LmgDrawables.ArrowUpOutline24), stringResource(R.string.action_move_up)) {
-                    onMoveUp()
-                    onDismiss()
+                    finish { onMoveUp() }
                 }
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(if (anchor == null) 8.dp else 0.dp))
             }
             if (onMoveDown != null) {
                 ActionRow(rowBg, lmgVector(LmgDrawables.ChevronDown24), stringResource(R.string.action_move_down)) {
-                    onMoveDown()
-                    onDismiss()
+                    finish { onMoveDown() }
                 }
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(if (anchor == null) 8.dp else 0.dp))
             }
             if (onRemoveFromPlaylist != null) {
                 ActionRow(rowBg, lmgVector(LmgDrawables.ListDeleteOutline20), stringResource(R.string.action_remove_from_playlist)) {
-                    onRemoveFromPlaylist()
-                    onDismiss()
+                    finish { onRemoveFromPlaylist() }
                 }
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(if (anchor == null) 8.dp else 0.dp))
             }
             if (isFavorite != null && onToggleFavorite != null) {
                 ActionRow(
@@ -162,17 +164,15 @@ fun TrackActionsSheet(
                     else lmgVector(LmgDrawables.FavoriteAddOutline28),
                     stringResource(if (isFavorite) R.string.action_remove_from_my_tracks else R.string.action_add_to_my_tracks),
                 ) {
-                    onToggleFavorite()
-                    onDismiss()
+                    finish { onToggleFavorite() }
                 }
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(if (anchor == null) 8.dp else 0.dp))
             }
             if (onCache != null) {
                 ActionRow(rowBg, com.lmg.vk.ui.icons.LmgGlyphs.BookmarkOutline28, stringResource(R.string.action_cache_track)) {
-                    onCache()
-                    onDismiss()
+                    finish { onCache() }
                 }
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(if (anchor == null) 8.dp else 0.dp))
             }
             // ── Скачивание файла на устройство ──
             // Лист НЕ закрываем: пользователь должен видеть, что процесс пошёл, и
@@ -186,7 +186,7 @@ fun TrackActionsSheet(
                         totalBytes = st.totalBytes,
                         onCancel = { TrackDownloadManager.cancel(track.id) }
                     )
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(if (anchor == null) 8.dp else 0.dp))
                 }
                 is TrackDownloadState.Failed -> {
                     // Причину показываем в самой строке: «не удалось» без причины
@@ -194,7 +194,7 @@ fun TrackActionsSheet(
                     ActionRow(rowBg, lmgVector(LmgDrawables.DownloadCrossBadgeOutline24), stringResource(R.string.action_download_failed_retry), subtitle = st.message) {
                         TrackDownloadManager.enqueue(context, track)
                     }
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(if (anchor == null) 8.dp else 0.dp))
                 }
                 else -> {
                     // Источник истины про «лежит на устройстве» — реестр, а НЕ
@@ -209,7 +209,7 @@ fun TrackActionsSheet(
                             TrackDownloadManager.enqueue(context, track)
                         }
                     }
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(if (anchor == null) 8.dp else 0.dp))
                 }
             }
             ActionRow(rowBg, com.lmg.vk.ui.icons.LmgGlyphs.ShareOutline28, stringResource(R.string.action_share)) {
@@ -222,13 +222,25 @@ fun TrackActionsSheet(
                     type = "text/plain"
                     putExtra(Intent.EXTRA_TEXT, text)
                 }
-                context.startActivity(Intent.createChooser(send, track.title))
-                onDismiss()
+                finish { context.startActivity(Intent.createChooser(send, track.title)) }
             }
 
             Spacer(Modifier.height(12.dp))
         }
     }
+    if (anchor != null) {
+        DetailPopover(anchor, onDismiss = {
+            val action = pendingAction
+            pendingAction = null
+            onDismiss()
+            action?.invoke()
+        }, content = content)
+    } else {
+        ModalBottomSheet(onDismissRequest = onDismiss, containerColor = sheetBg, dragHandle = null) {
+            content(onDismiss)
+        }
+    }
+
 }
 
 @Composable
@@ -242,11 +254,11 @@ private fun ActionRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(52.dp)
+            .heightIn(min = 48.dp)
             .clip(RoundedCornerShape(50))   // строки-пилюли, как в настройках
             .background(bg)
-            .liquidClickable(pressedScale = LiquidMotion.PressButton, onClick = onClick)
-            .padding(horizontal = 14.dp),
+            .detailClickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 9.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(
@@ -341,7 +353,7 @@ private fun DownloadProgressRow(
             modifier = Modifier
                 .size(36.dp)
                 .clip(RoundedCornerShape(50))
-                .liquidClickable(pressedScale = LiquidMotion.PressIcon, onClick = onCancel),
+                .detailClickable(onClick = onCancel),
             contentAlignment = Alignment.Center
         ) {
             Icon(

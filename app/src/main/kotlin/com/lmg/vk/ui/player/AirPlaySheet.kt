@@ -353,7 +353,9 @@ fun AirPlaySheet(
                                 chromaticAberration = true
                             )
                         },
-                        shadow = { Shadow(radius = 12.dp, color = Color.Black.copy(alpha = 0.25f)) },
+                        shadow = if (com.lmg.vk.ui.theme.LiquidMetrics.CastShadowsEnabled) {
+                            { Shadow(radius = 12.dp, color = Color.Black.copy(alpha = 0.25f)) }
+                        } else null,
                         innerShadow = { InnerShadow(radius = 4.dp, alpha = 0.3f) },
                         onDrawSurface = {
                             drawRect(containerColor)

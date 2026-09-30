@@ -31,6 +31,7 @@ data class LivePlaybackReport(val phase: String = "OFF", val generation: Long = 
 internal interface RenderPlaybackAttachment {
     fun requestLive(generation: Long, revision: Long): Boolean = false
     fun liveReport(): LivePlaybackReport = LivePlaybackReport()
+    fun cancelPreparation() {}
     fun ignoreOwnedHandoff(windowUid: Any, mediaId: String): Boolean = false
 }
 
@@ -137,6 +138,26 @@ class RenderBoundaryController(cueClockNanos: () -> Long = System::nanoTime) {
         playbackAttachment?.requestLive(generation, revision) ?: false
     fun livePlaybackReport(): LivePlaybackReport = playbackAttachment?.liveReport() ?: LivePlaybackReport()
 
+    @Volatile internal var preparationExecutor: java.util.concurrent.Executor? = null
+        private set
+    /** Install on service construction, before either renderer starts. */
+    fun installPreparationExecutor(executor: java.util.concurrent.Executor) {
+        check(renderThread.get() == null)
+        preparationExecutor = executor
+    }
+    fun cancelLivePreparation() { playbackAttachment?.cancelPreparation() }
+    internal fun currentPcmFormat(source: RenderSourceKey): RenderPcmFormat? {
+        check(owner())
+        var selected: RenderPcmFormat? = null
+        for (endpoint in endpoints) {
+            if (endpoint?.identity?.source != source || endpoint.problem != null) continue
+            val pcm = endpoint.format ?: continue
+            if (!pcm.supported || selected != null) return null
+            selected = pcm
+        }
+        return selected
+    }
+
     internal val cueGate = PcmCueGate(this, cueClockNanos)
     fun requestCueProbe(generation: Long, revision: Long, maxWaitMs: Int = 100): CueProbeRequest =
         cueGate.request(generation, revision, maxWaitMs)
@@ -240,12 +261,12 @@ class RenderBoundaryController(cueClockNanos: () -> Long = System::nanoTime) {
             }
         }
         val mask=(if(a!=null)1 else 0) or (if(b!=null)2 else 0)
-        if ((a?.acceptedEndUpperUs?.let { it>p.outgoingCueFloorUs } == true) ||
-            (b?.acceptedEndUpperUs?.let { it>p.incomingCueFloorUs } == true)) {
+        if ((a!=null && a.acceptedEndValue>p.outgoingCueFloorUs) ||
+            (b!=null && b.acceptedEndValue>p.incomingCueFloorUs)) {
             report(epoch,RenderBoundaryStatus.CUE_ALREADY_FORWARDED,mask);return
         }
-        if ((a?.rendererSongPositionUs?.let { it>p.outgoingCueFloorUs } == true) ||
-            (b?.rendererSongPositionUs?.let { it>p.incomingCueFloorUs } == true)) {
+        if ((a!=null && a.rendererPositionValue>p.outgoingCueFloorUs) ||
+            (b!=null && b.rendererPositionValue>p.incomingCueFloorUs)) {
             report(epoch,RenderBoundaryStatus.POSITION_PAST_CUE,mask);return
         }
         if(a!=null && b!=null && a.format!=b.format) {
@@ -287,10 +308,17 @@ class RenderBoundaryEndpoint internal constructor(internal val controller: Rende
     internal var format: RenderPcmFormat?=null
     internal var problem: RenderBoundaryStatus?=null
     internal var version=0L
-    internal var acceptedEndUpperUs: Long?=null
-    internal var rendererSongPositionUs: Long?=null
+    internal var acceptedEndValue: Long = Long.MIN_VALUE
+    internal var acceptedEndUpperUs: Long?
+        get() = if (acceptedEndValue == Long.MIN_VALUE) null else acceptedEndValue
+        set(value) { acceptedEndValue = value ?: Long.MIN_VALUE }
+    internal var rendererPositionValue: Long = Long.MIN_VALUE
+    internal var rendererSongPositionUs: Long?
+        get() = if (rendererPositionValue == Long.MIN_VALUE) null else rendererPositionValue
+        set(value) { rendererPositionValue = value ?: Long.MIN_VALUE }
     internal var streamToken: Any?=null
     internal val cuePort = controller.cueGate.port(this)
+    internal val sourceHistory = PcmSourceHistory()
     private var retryBuffer: ByteBuffer?=null
     private var retryLimit=0
     private var retryExpectedPosition=0
@@ -308,9 +336,11 @@ class RenderBoundaryEndpoint internal constructor(internal val controller: Rende
         rendererPositionUs: Long, tunneling: Boolean=false) {
         if(!controller.owner())return
         val e=controller.epoch()
-        if(streamToken !== token || identity?.periodUid != source?.periodUid ||
-            identity?.windowSequenceNumber != source?.windowSequenceNumber || format!=pcm ||
-            identity?.rendererOffsetUs != source?.rendererOffsetUs || identity?.source!=source?.source) {
+        val oldIdentity=identity
+        val sameIdentity=oldIdentity === source || (oldIdentity!=null && source!=null &&
+            oldIdentity.periodUid==source.periodUid && oldIdentity.windowSequenceNumber==source.windowSequenceNumber &&
+            oldIdentity.rendererOffsetUs==source.rendererOffsetUs && oldIdentity.source==source.source)
+        if(streamToken !== token || !sameIdentity || format!=pcm) {
             if(seenEpoch===e && e.plan!=null && identity!=null &&
                 (identity?.source==e.plan.outgoing || identity?.source==e.plan.incoming)) {
                 // A plan cannot survive replacement/reconfiguration of a bound output occurrence.
@@ -322,10 +352,24 @@ class RenderBoundaryEndpoint internal constructor(internal val controller: Rende
         seenEpoch=e; callbackAvailable=true
         if(source==null)problem=RenderBoundaryStatus.OUTPUT_CONTEXT_UNAVAILABLE
         else if(pcm?.supported!=true || tunneling)problem=RenderBoundaryStatus.UNSUPPORTED_FORMAT
-        rendererSongPositionUs = try {
-            source?.let { Math.addExact(Math.subtractExact(rendererPositionUs,it.rendererOffsetUs),it.periodPositionInWindowUs) }
-        }catch(_:ArithmeticException){problem=RenderBoundaryStatus.DISCONTINUOUS_PCM;null}
+        rendererPositionValue = try {
+            if(source==null)Long.MIN_VALUE else
+                Math.addExact(Math.subtractExact(rendererPositionUs,source.rendererOffsetUs),source.periodPositionInWindowUs)
+        }catch(_:ArithmeticException){problem=RenderBoundaryStatus.DISCONTINUOUS_PCM;Long.MIN_VALUE}
         controller.evaluate(e)
+    }
+    /** Decode a bounded real source history before handing this original to either path.
+     * This is state priming only, never a replay/output queue. The whole retained
+     * range must match the current source/format; seek/flush clears it.
+     */
+    internal fun capturePreroll(buffer: ByteBuffer, ptsUs: Long, units: Int) {
+        if (!controller.owner() || cuePort.ownsInput()) return
+        val id=identity ?: return; val f=format ?: return
+        if (!f.supported || units!=1) { sourceHistory.reset();return }
+        val plan=controller.epoch().plan
+        val stop=if (plan!=null && plan.outgoing==id.source)
+            kotlin.math.floor(plan.outgoingCueSeconds*f.sampleRate+.5).toLong() else Long.MAX_VALUE
+        sourceHistory.capture(buffer,ptsUs,id,f,stop)
     }
     /** Call immediately before delegate.handleBuffer. This never reads/writes sample bytes. */
     fun before(buffer: ByteBuffer, presentationTimeUs: Long, encodedAccessUnitCount: Int) {
@@ -413,8 +457,70 @@ class RenderBoundaryEndpoint internal constructor(internal val controller: Rende
         problem=null;seenEpoch=null;controller.report(controller.epoch(),status)
     }
     private fun resetLedger() {
+        sourceHistory.reset()
         retryBuffer=null;beforeValid=false;beforeEpoch=null;callbackAvailable=false
         acceptedEndUpperUs=null;rendererSongPositionUs=null
         previousBufferEndFloorUs=null;previousBufferEndCeilUs=null
+    }
+}
+
+/** Bounded per-OUTPUT-source float history, allocated with its sink, never on PCM calls.
+ * Absolute byte access is independent of a codec buffer's byte-order flag and leaves
+ * its position/limit unchanged. A malformed/discontinuous history disables priming,
+ * not ordinary playback. Accepted source PCM is not confused with audible frames.
+ */
+internal class PcmSourceHistory {
+    private val capacity=8192
+    private val samples=FloatArray(capacity*2)
+    private var start=0L
+    private var end=0L
+    private var channels=0
+    private var lastBuffer:ByteBuffer?=null
+    private var lastPts=Long.MIN_VALUE
+    private var lastLimit=0
+    fun reset(){start=0;end=0;channels=0;lastBuffer=null;lastPts=Long.MIN_VALUE}
+    fun has(first:Long,frames:Int,ch:Int):Boolean = first>=start && first>=0 && frames>=0 &&
+        frames<=capacity && channels==ch && first<=end && frames.toLong()<=end-first
+    fun copy(first:Long,frames:Int,ch:Int,into:ByteBuffer):Boolean {
+        if(!has(first,frames,ch) || into.isReadOnly || into.order()!=java.nio.ByteOrder.LITTLE_ENDIAN ||
+            frames.toLong()*ch*4>into.remaining())return false
+        var offset=into.position()
+        for(f in 0 until frames){val slot=((first+f)%capacity).toInt()*2
+            for(c in 0 until ch){into.putFloat(offset,samples[slot+c]);offset+=4}}
+        return true
+    }
+    fun capture(buffer:ByteBuffer,pts:Long,id:RenderOutputIdentity,f:RenderPcmFormat,stop:Long) {
+        if(lastBuffer===buffer && lastPts==pts){if(lastLimit!=buffer.limit())reset();return}
+        lastBuffer=buffer;lastPts=pts;lastLimit=buffer.limit()
+        try {
+            if(buffer.remaining()%f.bytesPerFrame!=0){reset();return}
+            val us=Math.addExact(Math.subtractExact(pts,id.rendererOffsetUs),id.periodPositionInWindowUs)
+            if(us !in 0..86_400_000_000L){reset();return}
+            val ticks=us*f.sampleRate
+            val first=(ticks+500_000)/1_000_000
+            if(kotlin.math.abs(first*1_000_000-ticks)>f.sampleRate){reset();return}
+            val frames=buffer.remaining()/f.bytesPerFrame
+            val last=minOf(first+frames,stop)
+            if(last<=first)return
+            val keepFirst=maxOf(first,last-capacity)
+            if(channels!=f.channels || end!=keepFirst){start=keepFirst;end=keepFirst;channels=f.channels}
+            var pos=buffer.position()+((keepFirst-first)*f.bytesPerFrame).toInt()
+            var at=keepFirst
+            while(at<last) {
+                val slot=(at%capacity).toInt()*2
+                for(c in 0 until f.channels) {
+                    val lo=buffer.get(pos).toInt() and 255
+                    val hi=buffer.get(pos+1).toInt() and 255
+                    val value=if(f.bytesPerSample==2) ((lo or (hi shl 8)).toShort().toInt()/32768f)
+                    else java.lang.Float.intBitsToFloat(lo or (hi shl 8) or
+                        ((buffer.get(pos+2).toInt() and 255) shl 16) or (buffer.get(pos+3).toInt() shl 24))
+                    if(!value.isFinite()){reset();return}
+                    samples[slot+c]=value;pos+=f.bytesPerSample
+                }
+                at++
+            }
+            end=last;start=maxOf(start,end-capacity)
+        } catch(_:ArithmeticException){reset()}
+          catch(_:IndexOutOfBoundsException){reset()}
     }
 }

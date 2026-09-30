@@ -15,4 +15,12 @@
     <string name="cache_cleared">Кэш очищен</string>
     <string name="cache_read_error">Не удалось определить размер кэша. Откройте раздел снова.</string>
     <string name="cache_clear_error">Не удалось очистить весь выбранный кэш. Попробуйте ещё раз.</string>
+    <string name="cache_search">Название или исполнитель</string>
+    <string name="cache_empty">В этом разделе пока нет записей</string>
+    <string name="cache_no_matches">Ничего не найдено</string>
+    <string name="cache_delete">Удалить</string>
+    <string name="cache_delete_named">Удалить «%1$s»?</string>
+    <string name="cache_delete_hint">Удалится только эта запись кэша. При следующем обращении приложение загрузит её заново.</string>
+    <string name="cache_done">Готово</string>
+    <string name="cache_legacy_artwork">Часть старых обложек сохранена без исходных ссылок. Они появятся здесь после повторного просмотра или удалятся при очистке раздела.</string>
 </resources>
