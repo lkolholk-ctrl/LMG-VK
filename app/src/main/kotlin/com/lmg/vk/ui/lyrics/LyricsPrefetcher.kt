@@ -16,7 +16,7 @@ import java.util.Locale
 private data class LyricsPrefetchRequest(val uri: Uri, val key: LoadedLyricsKey)
 
 /** Lives with AudioService, so lookup starts even while the application UI is closed. */
-internal fun startLyricsPrefetch(context: Context, scope: CoroutineScope) = scope.launch {
+fun startLyricsPrefetch(context: Context, scope: CoroutineScope) = scope.launch {
     val app = context.applicationContext
     combine(PlayerController.currentTrack, PlayerController.durationMs) { track, duration ->
         track?.takeIf { it.title.isNotBlank() }?.let {

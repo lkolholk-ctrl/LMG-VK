@@ -16,12 +16,14 @@ class Media3CueGateAudioSinkTest {
         val aKey=RenderSourceKey("A","same","source-a",null,null)
         val bKey=RenderSourceKey("B","same","source-b",null,null)
         val at=Any();val bt=Any();val calls=mutableListOf<String>()
+        var configured: AudioSink.AudioSinkConfig? = null
         var take=Int.MAX_VALUE
         var failure:RuntimeException?=null
         var original:ByteBuffer?=null
         val delegate=Proxy.newProxyInstance(AudioSink::class.java.classLoader,arrayOf(AudioSink::class.java)) {_,method,args->
             calls+=method.name
             when(method.name) {
+                "configure" -> { configured = args!![0] as AudioSink.AudioSinkConfig; null }
                 "handleBuffer" -> {
                     failure?.let { throw it }
                     val bytes=args!![0] as ByteBuffer
@@ -74,6 +76,18 @@ class Media3CueGateAudioSinkTest {
         assertEquals(listOf("configure"),r.calls)
         assertEquals(CueProbeReason.CONFIGURATION_CHANGED,r.c.cueProbeSnapshot().reason)
     }
+    @Test fun modernConfigureRevokesAndPreservesExactStreamContext() {
+        val r = Rig(); r.hold()
+        val config = AudioSink.AudioSinkConfig.Builder(Format.Builder().build())
+            .setMediaPeriodId(androidx.media3.exoplayer.source.MediaSource.MediaPeriodId("period"))
+            .setOutputChannelMapping(com.google.common.primitives.ImmutableIntArray.of(1, 0))
+            .build()
+        r.sink.configure(config)
+        assertSame(config, r.configured)
+        assertEquals(listOf("configure"), r.calls)
+        assertEquals(CueProbeReason.CONFIGURATION_CHANGED, r.c.cueProbeSnapshot().reason)
+    }
+
     @Test fun nonUnityPlaybackRevokesWithoutOwningVolume() {
         val r=Rig();r.hold();r.sink.setPlaybackParameters(PlaybackParameters(1.25f))
         assertEquals(listOf("setPlaybackParameters"),r.calls)

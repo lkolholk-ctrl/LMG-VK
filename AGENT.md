@@ -1,0 +1,1 @@
+/root/LMG-VK/AGENTS.md

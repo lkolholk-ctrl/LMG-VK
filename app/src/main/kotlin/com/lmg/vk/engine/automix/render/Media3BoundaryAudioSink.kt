@@ -9,6 +9,7 @@ import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Timeline
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.audio.AudioSink
+import androidx.media3.exoplayer.audio.ForwardingAudioSink
 import androidx.media3.exoplayer.audio.LmgPcmBoundaryListener
 import androidx.media3.exoplayer.audio.LmgTransitionGainSink
 import androidx.media3.exoplayer.audio.LmgLivePlaybackSink
@@ -24,7 +25,7 @@ class Media3BoundaryAudioSink internal constructor(
     private val boundary: RenderBoundaryEndpoint,
     private val processorState: com.lmg.vk.engine.SinkAudioState? = null,
     private val floatOutputEnabled: Boolean = false,
-) : AudioSink by delegate, LmgPcmBoundaryListener, LmgTransitionGainSink, LmgLivePlaybackSink {
+) : ForwardingAudioSink(delegate), LmgPcmBoundaryListener, LmgTransitionGainSink, LmgLivePlaybackSink {
     private val live = ForkLivePlaybackDriver.forController(boundary.controller)
     private val floatMeter = processorState?.let { com.lmg.vk.engine.PcmBandMeter(it) }
     private var tapBuffer: ByteBuffer? = null
@@ -129,14 +130,14 @@ class Media3BoundaryAudioSink internal constructor(
         if(!rateIsUnity || skipsSilence)mark(RenderBoundaryStatus.PLAYBACK_PARAMETERS_UNSUPPORTED)
     }
 
-    override fun configure(inputFormat: Format, specifiedBufferSize: Int, outputChannels: IntArray?) {
+    override fun configure(config: AudioSink.AudioSinkConfig) {
         // Configuration may drain or flush internally. Never infer that it cleared a partial buffer.
         if (!live.allowIncomingStartup(boundary)) {
             live.willInvalidate(boundary)
             outputPort.invalidate()
             boundary.cuePort.cancel(CueProbeReason.CONFIGURATION_CHANGED)
         }
-        delegate.configure(inputFormat, specifiedBufferSize, outputChannels)
+        delegate.configure(config)
     }
 
     override fun handleBuffer(buffer: ByteBuffer, presentationTimeUs: Long, encodedAccessUnitCount: Int): Boolean {

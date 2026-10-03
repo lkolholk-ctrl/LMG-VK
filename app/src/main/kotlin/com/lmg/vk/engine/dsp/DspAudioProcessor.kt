@@ -9,7 +9,9 @@ import java.nio.ByteBuffer
 /** One native instance per sink. Configuration is pending until Media3 flushes;
  * configure may run while the old stream is still draining. */
 @UnstableApi
-class DspAudioProcessor : BaseAudioProcessor() {
+class DspAudioProcessor(
+    private val diagnosticProbe: com.lmg.vk.debug.PlaybackAudioDiagnostics.Probe? = null,
+) : BaseAudioProcessor() {
     private var pending = AudioFormat.NOT_SET
     private var active = AudioFormat.NOT_SET
     private var handle = 0L
@@ -67,6 +69,7 @@ class DspAudioProcessor : BaseAudioProcessor() {
             try { output.put(inputBuffer) } finally { inputBuffer.limit(limit) }
         }
         output.flip()
+        diagnosticProbe?.processed(output, width)
     }
 
     // Zero-lookahead mode has no buffered frames to drain and adds no priming silence.

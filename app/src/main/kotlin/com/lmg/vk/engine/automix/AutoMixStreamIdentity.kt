@@ -21,11 +21,10 @@ data class AutoMixStreamIdentity(
 
     companion object {
         /**
-         * media3-lmg 1.5.1-lmg30 has configure(Format, int, int[]), not AudioSinkConfig.
-         * Format/buffer/channel mapping cannot identify a period or a repeat instance.
-         * A future renderer bridge must supply its own captured Timeline + MediaPeriodId;
-         * missing metadata stays unresolved. Never substitute player.currentMediaItem,
-         * Format.id, renderer index, or sink callback order. Also usable by newer forks.
+         * The renderer bridge supplies the Timeline + MediaPeriodId captured for decoded output.
+         * A configure callback alone may precede draining the previous stream; its latest identity
+         * must not relabel pending PCM. Missing metadata stays unresolved. Never substitute
+         * player.currentMediaItem, Format.id, renderer index, or sink callback order.
          */
         fun from(timeline: Timeline?, mediaPeriodId: MediaSource.MediaPeriodId?): AutoMixStreamIdentity? {
             val id = mediaPeriodId ?: return null

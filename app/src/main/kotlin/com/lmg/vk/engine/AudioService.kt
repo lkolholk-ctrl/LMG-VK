@@ -10,6 +10,11 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.os.PowerManager
+import android.os.SystemClock
+import com.lmg.vk.engine.background.PlaybackHealthInput
+import com.lmg.vk.engine.background.PlaybackProtectionPolicy
+import com.lmg.vk.engine.background.PlaybackRecoveryController
+import com.lmg.vk.engine.background.PlaybackRecoveryHost
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
@@ -46,6 +51,7 @@ import com.lmg.vk.engine.automix.observation.MetadataProbeReport
 import com.lmg.vk.engine.automix.observation.ObservationState
 import com.lmg.vk.engine.automix.observation.ObservationSubmission
 import com.lmg.vk.engine.automix.observation.ObservationTicket
+import com.lmg.vk.ui.lyrics.startLyricsPrefetch
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -85,6 +91,7 @@ class AudioService : MediaSessionService() {
     // при переключении гоняет фокус LOSS↔GAIN пачкой, и прямой дак/андак громкости
     // давал слышимую «цикличку». Коалесцируем в одно применение финального состояния.
     private val duckHandler = Handler(Looper.getMainLooper())
+    private val silentCarrier = SilentAudioCarrier()
 
     private val processorRouting = SinkAudioRouting()
     private val processorWindow = androidx.media3.common.Timeline.Window()
@@ -200,6 +207,44 @@ class AudioService : MediaSessionService() {
     val isDucked: StateFlow<Boolean> = _isDucked.asStateFlow()
 
     private var positionJob: Job? = null
+    @Volatile private var protectionEpoch = 1L
+    @Volatile private var serviceClosing = false
+    private var audioFocusGranted = false
+    private var foregroundRepairActive = false
+    private var protectionReady = false
+    private var protectionRepreparing = false
+    private var playbackStallMonitor: com.lmg.vk.debug.PlaybackStallMonitor? = null
+    private val backgroundRecovery = PlaybackRecoveryController(object : PlaybackRecoveryHost {
+        override fun input(): PlaybackHealthInput = backgroundHealthInput().also {
+            playbackStallMonitor?.publish(it)
+        }
+        override fun epoch(): Long = protectionEpoch
+        override fun elapsedMs(): Long = SystemClock.elapsedRealtime()
+        override fun output() = playbackDiagnostics.recoveryOutput()
+        override fun postPlayback(block: () -> Unit) {
+            player.createMessage(androidx.media3.exoplayer.PlayerMessage.Target { _, _ -> block() }).send()
+        }
+        override fun postApplication(block: () -> Unit) { mainScope.launch { block() } }
+        override fun reprepareSamePlayer(itemIndex: Int, positionMs: Long) {
+            // Called on Main after both looper confirmations. Keep the queue, the existing
+            // ExoPlayer, volume and user play intent. No renderer callbacks from another thread.
+            if (serviceClosing || !exoOwnsSession() || !player.playWhenReady) return
+            protectionRepreparing = true
+            try {
+                player.stop()
+                if (!serviceClosing && exoOwnsSession() && player.playWhenReady &&
+                    itemIndex in 0 until player.mediaItemCount) {
+                    player.seekTo(itemIndex, positionMs)
+                    player.prepare()
+                }
+            } finally {
+                protectionRepreparing = false
+                manageWakeLock()
+                reconcileForegroundPlayback()
+            }
+        }
+        override fun event(message: String) { DebugLog.add("AUDIO_PROTECTION $message") }
+    })
 
     private var focusRequest: AudioFocusRequest? = null
     private var audioManager: AudioManager? = null
@@ -236,10 +281,23 @@ class AudioService : MediaSessionService() {
     // паузу не трогаем (флаг сбрасывается при USER_REQUEST в onPlayWhenReadyChanged).
     @Volatile private var pausedByTransientFocusLoss = false
 
+    private val playbackDiagnostics = com.lmg.vk.debug.PlaybackAudioDiagnostics {
+        // Local state only. No ActivityManager / AudioTrack / vendor Binder getter on Main.
+        "media3Foreground=${if (protectionReady) isPlaybackOngoing else false} manualWakeHeld=${wakeLock?.isHeld}" +
+            " focusHeld=$audioFocusGranted protectionEpoch=$protectionEpoch" +
+            " sleepingForOffload=${if (::player.isInitialized) player.isSleepingForOffload else false}"
+    }
+
     private val focusChangeListener = AudioManager.OnAudioFocusChangeListener { focusChange ->
+        playbackDiagnostics.event("focus-change=$focusChange ducked=${_isDucked.value}")
+        if (serviceClosing || (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && focusRequest == null)) {
+            return@OnAudioFocusChangeListener // Ignore a delayed callback after focus was abandoned.
+        }
         when (focusChange) {
             AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> requestDuck(true)
             AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> {
+                audioFocusGranted = false
+                invalidateBackgroundRecovery()
                 // Звонок/ассистент: пауза с авто-резюме на GAIN — поведение всех
                 // плееров. Флаг ставим ТОЛЬКО если реально играли, иначе GAIN
                 // «воскресил» бы паузу пользователя.
@@ -250,6 +308,7 @@ class AudioService : MediaSessionService() {
                 }
             }
             AudioManager.AUDIOFOCUS_GAIN -> {
+                audioFocusGranted = true
                 requestDuck(false)
                 if (pausedByTransientFocusLoss) {
                     pausedByTransientFocusLoss = false
@@ -257,6 +316,8 @@ class AudioService : MediaSessionService() {
                 }
             }
             AudioManager.AUDIOFOCUS_LOSS -> {
+                audioFocusGranted = false
+                invalidateBackgroundRecovery()
                 // Перманентная потеря — паузим сразу (без дебаунса), снимаем отложенный дак.
                 duckHandler.removeCallbacksAndMessages(null)
                 pausedByTransientFocusLoss = false
@@ -302,12 +363,24 @@ class AudioService : MediaSessionService() {
 
     private val playerListener = object : Player.Listener {
         override fun onEvents(player: Player, events: Player.Events) {
+            if (events.containsAny(Player.EVENT_TIMELINE_CHANGED, Player.EVENT_MEDIA_ITEM_TRANSITION,
+                    Player.EVENT_POSITION_DISCONTINUITY, Player.EVENT_PLAY_WHEN_READY_CHANGED,
+                    Player.EVENT_PLAYBACK_PARAMETERS_CHANGED, Player.EVENT_PLAYBACK_SUPPRESSION_REASON_CHANGED,
+                    Player.EVENT_TRACKS_CHANGED, Player.EVENT_VOLUME_CHANGED, Player.EVENT_SKIP_SILENCE_ENABLED_CHANGED)) {
+                invalidateBackgroundRecovery()
+            }
+            if (protectionReady && !serviceClosing) {
+                manageWakeLock()
+                reconcileForegroundPlayback()
+            }
             updateProcessorSelection(player)
             autoMixObservation?.onPlayerEvents(player, events)
         }
 
         override fun onPlaybackStateChanged(playbackState: Int) {
             if (!exoOwnsSession()) return // события неактивного плеера — чужие
+
+            playbackDiagnostics.playerSnapshot(player, "state-change")
 
             _playbackState.value = playbackState
             _isBuffering.value = (playbackState == Player.STATE_BUFFERING)
@@ -355,6 +428,8 @@ class AudioService : MediaSessionService() {
 
         override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
             if (!exoOwnsSession()) return // события неактивного плеера — чужие
+
+            playbackDiagnostics.playerSnapshot(player, "play-intent reason=$reason")
 
             android.util.Log.d("VOIDPIXEL_MEDIA", "[PAUSE_TRIGGER] playWhenReady changed to $playWhenReady, Reason ID: $reason")
             when (reason) {
@@ -731,12 +806,18 @@ class AudioService : MediaSessionService() {
             .build()
             .apply { setSmallIcon(R.drawable.ic_notification_play) }
         setMediaNotificationProvider(notificationProvider)
+        // Register OUR session immediately. A UI controller binding is not the service's
+        // lifecycle owner. Installing the provider must precede addSession().
+        addSession(checkNotNull(session))
+        playbackDiagnostics.installHardwareExecutor(Dispatchers.IO.asExecutor())
+        protectionReady = true
+        playbackStallMonitor = com.lmg.vk.debug.PlaybackStallMonitor(player, playbackDiagnostics)
 
         // ── Полинг позиции ──
         startPositionPolling()
         ensureNotificationChannel()
 
-        com.lmg.vk.ui.lyrics.startLyricsPrefetch(this, serviceScope)
+        startLyricsPrefetch(this, serviceScope)
 
         // Observe current track and favorites to update notification button dynamically.
         // mainScope, НЕ serviceScope(IO) (P0, аудит): updateNotificationLayout зовёт
@@ -755,19 +836,103 @@ class AudioService : MediaSessionService() {
         }
     }
 
-    /** Acquire or release WakeLock based on playback state */
+    /** This service lock covers intended software playback, including rebuffering.
+     * Unlike the previous 10-minute lease, it has no expiry/reacquire gap dependent on
+     * a Main heartbeat. Every intent/state event and onDestroy release it. ExoPlayer's
+     * own NETWORK wake mode is retained; this is not a screen lock or an OEM exemption.
+     */
+    @android.annotation.SuppressLint("WakelockTimeout")
     private fun manageWakeLock() {
+        if (!::player.isInitialized) return
         val active = activePlayer()
-        val isActive = active.isPlaying || active.playbackState == Player.STATE_BUFFERING
-        if (isActive) {
-            if (wakeLock?.isHeld == false) {
-                wakeLock?.acquire(10 * 60 * 1000L) // 10 min timeout, refreshed by playback
-            }
-        } else {
-            if (wakeLock?.isHeld == true) {
-                wakeLock?.release()
-            }
+        val needed = PlaybackProtectionPolicy.needsCpu(active.playWhenReady,
+            active.playbackState == Player.STATE_READY || active.playbackState == Player.STATE_BUFFERING || protectionRepreparing,
+            active.playbackSuppressionReason != Player.PLAYBACK_SUPPRESSION_REASON_NONE,
+            serviceClosing)
+        val lock = wakeLock ?: return
+        try {
+            if (needed && !lock.isHeld) lock.acquire()
+            else if (!needed && lock.isHeld) lock.release()
+        } catch (e: RuntimeException) {
+            DebugLog.add("AUDIO_PROTECTION wake-failed ${e.javaClass.simpleName}")
         }
+        try {
+            if (needed) silentCarrier.resume()
+            else silentCarrier.pause()
+        } catch (e: RuntimeException) {
+            DebugLog.add("CARRIER: sync-failed ${e.javaClass.simpleName}")
+        }
+    }
+
+    private fun foregroundPlaybackIntended(): Boolean {
+        if (!protectionReady || serviceClosing || !::player.isInitialized || session == null) return false
+        val active = activePlayer()
+        return active.playWhenReady && active.mediaItemCount > 0 &&
+            (active.playbackState == Player.STATE_READY || active.playbackState == Player.STATE_BUFFERING || protectionRepreparing)
+    }
+
+    /** Keep Media3 as the ONE foreground-notification owner. No extra notification,
+     * startForegroundService loop, fabricated media buttons or permission bypass. */
+    override fun onUpdateNotification(mediaSession: MediaSession, startInForegroundRequired: Boolean) {
+        super.onUpdateNotification(mediaSession, startInForegroundRequired ||
+            (mediaSession === session && foregroundPlaybackIntended()))
+    }
+
+    private fun reconcileForegroundPlayback() {
+        if (!protectionReady || serviceClosing || foregroundRepairActive) return
+        val current = session ?: return
+        val intended = foregroundPlaybackIntended()
+        if (!backgroundRecovery.foregroundRepairDue(SystemClock.elapsedRealtime(), intended, isPlaybackOngoing)) return
+        foregroundRepairActive = true
+        try {
+            if (!isSessionAdded(current)) addSession(current)
+            // The ordinary Media3 provider will only publish after its notification
+            // controller is connected. A short async registration gap is not a second FGS.
+            onUpdateNotification(current, true)
+            DebugLog.add("AUDIO_PROTECTION foreground-reconcile ongoing=$isPlaybackOngoing")
+        } catch (e: RuntimeException) {
+            // Background-start / notification restrictions remain enforced by Android.
+            // Retries are bounded. Never turn denied foreground promotion into autoplay.
+            DebugLog.add("AUDIO_PROTECTION foreground-rejected ${e.javaClass.simpleName}")
+        } finally { foregroundRepairActive = false }
+    }
+
+    override fun onTaskRemoved(rootIntent: android.content.Intent?) {
+        reconcileForegroundPlayback()
+        super.onTaskRemoved(rootIntent)
+    }
+
+    private fun invalidateBackgroundRecovery() {
+        protectionEpoch++
+        playbackStallMonitor?.invalidate()
+        backgroundRecovery.invalidate()
+    }
+
+    private fun backgroundHealthInput(): PlaybackHealthInput {
+        check(Looper.myLooper() == player.applicationLooper)
+        val live = autoMixRenderBoundary.livePlaybackReport()
+        val cue = autoMixRenderBoundary.cueProbeSnapshot()
+        val nativeIdle = !live.liveDspInstalled && !live.actualPlaybackLease &&
+            (live.phase == "OFF" || live.phase == "COMPLETED" || live.phase == "REJECTED") &&
+            (cue.phase == com.lmg.vk.engine.automix.render.CueProbePhase.IDLE ||
+                cue.phase == com.lmg.vk.engine.automix.render.CueProbePhase.RELEASED)
+        val duration = player.duration
+        val position = player.currentPosition
+        // Never rebuild in or near a normal fade / item boundary. The two-probe
+        // ambiguity check additionally rejects any active two-renderer overlap.
+        val endMargin = maxOf(30_000L, PlayerSettings.crossfadeMs.value.toLong() + 5_000L)
+        val eligible = !serviceClosing && exoOwnsSession() && player.playWhenReady &&
+            player.playbackState == Player.STATE_READY && player.playerError == null &&
+            player.playbackSuppressionReason == Player.PLAYBACK_SUPPRESSION_REASON_NONE &&
+            audioFocusGranted && !pausedByTransientFocusLoss && !_isDucked.value && !callActive &&
+            player.volume > 0.00001f && player.playbackParameters == PlaybackParameters.DEFAULT &&
+            !player.skipSilenceEnabled && !player.isSleepingForOffload && !player.isPlayingAd &&
+            !player.isCurrentMediaItemLive && !player.isCurrentMediaItemDynamic &&
+            player.isCurrentMediaItemSeekable && player.videoSize.width == 0 &&
+            duration > 0 && position >= 0 && duration - position > endMargin && nativeIdle
+        return PlaybackHealthInput(SystemClock.elapsedRealtime(), protectionEpoch,
+            player.currentMediaItemIndex, position, duration, player.totalBufferedDuration,
+            eligible, playbackDiagnostics.recoveryOutput())
     }
 
     /**
@@ -784,6 +949,7 @@ class AudioService : MediaSessionService() {
      * «пока не играть»: возобновит авто-резюме по GAIN.
      */
     private fun requestAudioFocus(): Boolean {
+        if (audioFocusGranted) return true
         val am = audioManager ?: return false
         val result = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val request = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
@@ -793,7 +959,7 @@ class AudioService : MediaSessionService() {
                         .setContentType(android.media.AudioAttributes.CONTENT_TYPE_MUSIC)
                         .build()
                 )
-                .setOnAudioFocusChangeListener(focusChangeListener)
+                .setOnAudioFocusChangeListener(focusChangeListener, Handler(Looper.getMainLooper()))
                 .setWillPauseWhenDucked(false)
                 // setAcceptsDelayedFocusGain НЕ включаем намеренно. С ним система
                 // при занятом фокусе (звонок) отвечает DELAYED и выдаёт GAIN
@@ -812,6 +978,8 @@ class AudioService : MediaSessionService() {
             )
         }
         val granted = result == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+        audioFocusGranted = granted
+        playbackDiagnostics.event("focus-request result=$result")
         if (!granted) {
             DebugLog.add("AudioFocus НЕ получен (result=$result) — не играем")
         }
@@ -819,7 +987,9 @@ class AudioService : MediaSessionService() {
     }
 
     private fun abandonAudioFocus() {
+        audioFocusGranted = false
         val am = audioManager ?: return
+        playbackDiagnostics.event("focus-abandon")
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             focusRequest?.let { am.abandonAudioFocusRequest(it) }
         } else {
@@ -847,7 +1017,8 @@ class AudioService : MediaSessionService() {
 
         // Два внутренних рендерера ОДНОГО сервисного ExoPlayer используют
         // независимые processor slots общей фабрики. Второй Player не создаётся.
-        val renderersFactory = PlayerAudioChain.renderersFactory(this, autoMixRenderBoundary, processorRouting)
+        val renderersFactory = PlayerAudioChain.renderersFactory(
+            this, autoMixRenderBoundary, processorRouting, playbackDiagnostics)
 
         return ExoPlayer.Builder(this)
             .setRenderersFactory(renderersFactory)
@@ -884,6 +1055,15 @@ class AudioService : MediaSessionService() {
                 // на время воспроизведения. С LOCAL WiFi засыпал в фоне/Doze →
                 // сеть отваливалась → буфер осушался → лаги/ребуферинг в фоне.
                 setWakeMode(C.WAKE_MODE_NETWORK)
+                // This factory decodes to software PCM through custom processors. Do not
+                // let a future selection override make the playback loop sleep for offload.
+                trackSelectionParameters = trackSelectionParameters.buildUpon()
+                    .setAudioOffloadPreferences(
+                        androidx.media3.common.TrackSelectionParameters.AudioOffloadPreferences.Builder()
+                            .setAudioOffloadMode(androidx.media3.common.TrackSelectionParameters
+                                .AudioOffloadPreferences.AUDIO_OFFLOAD_MODE_DISABLED)
+                            .build())
+                    .build()
                 // ── Audio Becoming Noisy Guard ──
                 // Do NOT aggressively pause on minor BT/routing changes.
                 // ExoPlayer's built-in handler is sufficient; we soften by
@@ -996,6 +1176,13 @@ class AudioService : MediaSessionService() {
     }
 
     override fun onDestroy() {
+        serviceClosing = true
+        runCatching { silentCarrier.stop() }
+        protectionEpoch++
+        backgroundRecovery.close()
+        playbackStallMonitor?.close()
+        playbackStallMonitor = null
+        playbackDiagnostics.close()
         AudioReactor.detach(processorRouting)
         autoMixRenderBoundary.cancelLivePreparation()
         autoMixRenderBoundary.close()
@@ -1043,7 +1230,7 @@ class AudioService : MediaSessionService() {
         // идёт асинхронно на умирающем loadThread — здесь страховка в лоб.
         runCatching { com.lmg.vk.engine.automix.AudioTrackSink.stop() }
 
-        session?.release()
+        session?.let { removeSession(it); it.release() }
         session = null
 
         PlayerController.audioServiceRef = null
@@ -1068,15 +1255,14 @@ class AudioService : MediaSessionService() {
                     } else {
                         PlayerController.durationMs.value.coerceAtLeast(0L)
                     }
-                    PlayerController.updatePosition(position, effectiveDuration)
-
-                    // ── КРИТИЧНО для фона: wakelock взят с таймаутом 10 мин и
-                    // раньше «обновлялся» только событиями смены состояния. При
-                    // непрерывном воспроизведении событий НЕТ → через 10 минут
-                    // фона lock истекал, CPU уходил в дрёму, декод отставал →
-                    // микролаги/«цикличка», а затем процесс выбивало из памяти.
-                    // manageWakeLock() перезахватывает истёкший lock, пока играем.
                     manageWakeLock()
+                    reconcileForegroundPlayback()
+                    if (active === player && protectionReady && !serviceClosing) backgroundRecovery.tick()
+                    PlayerController.updatePosition(position, effectiveDuration)
+                    if (active === player && active.playWhenReady) {
+                        playbackDiagnostics.playerSnapshot(active, "tick", force = false)
+                    }
+
                 } catch (e: Exception) {
                     android.util.Log.e("AudioService", "Position polling error", e)
                 }
